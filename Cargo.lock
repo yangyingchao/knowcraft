@@ -137,6 +137,7 @@ name = "knowcraft-core"
 version = "0.1.0"
 dependencies = [
  "dirs",
+ "getrandom",
  "rusqlite",
  "serde",
  "serde_json",

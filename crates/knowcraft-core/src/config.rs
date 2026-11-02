@@ -1,7 +1,10 @@
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
+use crate::error::{Error, Result};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AiConfig {
     pub api_base: String,
     pub api_key: String,
@@ -15,29 +18,58 @@ impl Default for AiConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Config {
     pub data_dir: PathBuf,
     pub http_token: String,
     pub ai: AiConfig,
 }
 
-impl Config {
-    pub fn default() -> Self {
+impl Default for Config {
+    fn default() -> Self {
         let data_dir = std::env::var("KNOWCRAFT_DATA_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")).join("Knowledge"));
-        Self { data_dir, http_token: format!("kc-{}", uuid()), ai: AiConfig::default() }
-    }
-    pub fn load() -> Self {
-        // 读取 ~/.config/knowcraft/config.toml，字段缺失时用默认值；token 持久化到数据目录 .token
-        let cfg = Self::default();
-        let _ = std::fs::create_dir_all(&cfg.data_dir);
-        cfg
+        Self { data_dir, http_token: String::new(), ai: AiConfig::default() }
     }
 }
 
-fn uuid() -> String {
-    // 简化：时间戳 + 随机数，实现阶段用 uuid crate 或取 16 字节随机 hex
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos().to_string()).unwrap_or_default()
+impl Config {
+    // 读取 ~/.config/knowcraft/config.toml（字段缺失回落默认值），token 持久化到数据目录 .token
+    pub fn load() -> Result<Self> {
+        let mut cfg = Self::default();
+        let config_path = dirs::config_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("knowcraft")
+            .join("config.toml");
+        if config_path.exists() {
+            let contents = std::fs::read_to_string(&config_path)?;
+            let file_cfg: Self = toml::from_str(&contents)
+                .map_err(|e| Error::Store(format!("config parse error: {e}")))?;
+            cfg.data_dir = file_cfg.data_dir;
+            cfg.ai = file_cfg.ai;
+        }
+        // KNOWCRAFT_DATA_DIR 环境变量优先级不变
+        if let Ok(env_dir) = std::env::var("KNOWCRAFT_DATA_DIR") {
+            cfg.data_dir = PathBuf::from(env_dir);
+        }
+        std::fs::create_dir_all(&cfg.data_dir)?;
+        let token_path = cfg.data_dir.join(".token");
+        cfg.http_token = if token_path.exists() {
+            std::fs::read_to_string(&token_path)?
+        } else {
+            let token = generate_token()?;
+            std::fs::write(&token_path, &token)?;
+            token
+        };
+        Ok(cfg)
+    }
+}
+
+// 16 字节随机数 hex，32 字符
+fn generate_token() -> Result<String> {
+    let mut bytes = [0u8; 16];
+    getrandom::getrandom(&mut bytes)
+        .map_err(|e| Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+    Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
