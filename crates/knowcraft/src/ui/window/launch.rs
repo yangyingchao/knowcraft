@@ -179,6 +179,10 @@ pub(super) fn schedule_after_first_paint(
     });
 }
 
+#[expect(
+    dead_code,
+    reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
+)]
 pub(super) fn navigate_to_gio_file(browser: &Rc<Browser>, file: &gio::File) {
     if let Some(location) = location_for_file(file) {
         browser.navigate(location);
@@ -191,6 +195,10 @@ pub(crate) fn home_directory() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("/"))
 }
 
+#[expect(
+    dead_code,
+    reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
+)]
 pub(crate) fn default_save_folder() -> PathBuf {
     glib::user_special_dir(glib::UserDirectory::Downloads).unwrap_or_else(home_directory)
 }
@@ -230,22 +238,11 @@ pub(super) fn open_checked(
     });
 }
 
-pub(super) fn open_default_folder(browser: &Rc<Browser>, manager: &Rc<PreferenceManager>) {
+pub(super) fn open_default_folder(browser: &Rc<Browser>, _manager: &Rc<PreferenceManager>) {
+    // The shell is locked to the knowledge base: startup always opens its root,
+    // never a remembered default directory or the home folder.
     let start = crate::knowledge::data_dir()
         .map(|dir| Location::local(&dir))
         .unwrap_or_else(|| Location::local(home_directory()));
-    let Some(saved) = manager.default_directory() else {
-        browser.navigate_location(start, true);
-        return;
-    };
-    let weak = Rc::downgrade(browser);
-    let manager = manager.clone();
-    open_checked(browser, Location::local(&saved), move || {
-        if manager.default_directory().as_ref() == Some(&saved) {
-            manager.set_default_directory(None);
-        }
-        if let Some(browser) = weak.upgrade() {
-            browser.navigate_location(start, true);
-        }
-    });
+    browser.navigate_location(start, true);
 }

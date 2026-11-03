@@ -74,11 +74,19 @@ pub fn runtime_integrations_enabled() -> bool {
 }
 
 #[cfg(test)]
+#[expect(
+    dead_code,
+    reason = "runtime-integration toggle for isolated GTK test processes"
+)]
 static RUNTIME_INTEGRATIONS_DISABLED_FOR_TEST: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
 /// Process-wide, so only for isolated GTK test processes.
 #[cfg(test)]
+#[expect(
+    dead_code,
+    reason = "runtime-integration toggle for isolated GTK test processes"
+)]
 pub(crate) fn disable_runtime_integrations_for_test() {
     RUNTIME_INTEGRATIONS_DISABLED_FOR_TEST.store(true, std::sync::atomic::Ordering::Relaxed);
 }

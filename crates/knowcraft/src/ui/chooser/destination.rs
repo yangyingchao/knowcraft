@@ -80,7 +80,10 @@ pub(crate) fn present_destination_chooser(
         choices: Vec::new(),
     };
     let source = Rc::new(ChooserFileSource {
-        root_limit: destination.root_limit.clone(),
+        root_limit: destination
+            .root_limit
+            .clone()
+            .or_else(crate::knowledge::data_dir),
         source: Rc::new(LocalFileSource),
         filter: Rc::new(RefCell::new(None)),
         directory_only: Rc::new(Cell::new(true)),

@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
 
+#![expect(
+    dead_code,
+    reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
+)]
+
 //! Storage metadata, removable-only formatting, and encrypted container locking.
 //! Display labels belong to Knowcraft preferences, not the filesystem.
 

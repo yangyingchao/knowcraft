@@ -17,6 +17,7 @@ use knowcraft_core::{
     model::Document,
     store::Store,
     tags::Tags,
+    trash::Trash,
     workflow::Workflow,
 };
 
@@ -27,6 +28,7 @@ pub(crate) struct Knowledge {
     workflow: Workflow,
     index: Index,
     tags: Tags,
+    trash: Trash,
 }
 
 impl Knowledge {
@@ -38,11 +40,13 @@ impl Knowledge {
             Workflow::new(store.clone(), data_dir.clone()).map_err(|error| error.to_string())?;
         let index = Index::open(&data_dir).map_err(|error| error.to_string())?;
         let tags = Tags::new(store);
+        let trash = Trash::new(data_dir.clone());
         Ok(Self {
             data_dir,
             workflow,
             index,
             tags,
+            trash,
         })
     }
 
@@ -84,4 +88,19 @@ pub(crate) fn init() -> Option<&'static Knowledge> {
 /// The knowledge directory, once the store has been opened.
 pub(crate) fn data_dir() -> Option<PathBuf> {
     init().map(|knowledge| knowledge.data_dir.clone())
+}
+
+/// The knowledge directory as a static path reference, once the store has been opened.
+pub(crate) fn data_dir_path() -> Option<&'static Path> {
+    init().map(|knowledge| knowledge.data_dir())
+}
+
+/// The core trash interface, once the store has been opened.
+pub(crate) fn trash() -> Option<&'static Trash> {
+    init().map(|knowledge| &knowledge.trash)
+}
+
+/// The trash file directory (`data_dir/.trash/files`) used for browsing the trash.
+pub(crate) fn trash_files_dir() -> Option<PathBuf> {
+    init().map(|knowledge| knowledge.data_dir.join(".trash").join("files"))
 }

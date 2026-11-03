@@ -9,7 +9,7 @@ use std::{
 
 use gtk::prelude::*;
 
-use super::{SidebarState, device_release};
+use super::SidebarState;
 
 pub(in crate::ui) struct SidebarView {
     pub(in crate::ui) widget: gtk::Widget,
@@ -18,15 +18,6 @@ pub(in crate::ui) struct SidebarView {
     pub(super) update_area: gtk::Box,
     pub(super) update_label: gtk::Label,
     pub(super) update_version: gtk::Label,
-    pub(super) handlers: RefCell<Vec<glib::SignalHandlerId>>,
-    pub(super) mount_handler: RefCell<Option<glib::SignalHandlerId>>,
-    pub(super) recent_setting_handler: RefCell<Option<(gtk::Settings, glib::SignalHandlerId)>>,
-    #[expect(
-        dead_code,
-        reason = "held so Drop keeps this window registered for pending-release rebuilds"
-    )]
-    pub(super) release_watch: device_release::SidebarWatch,
-    pub(super) bookmark_watch: RefCell<Option<crate::adapters::bookmarks::BookmarkWatch>>,
 }
 
 impl SidebarView {
@@ -81,16 +72,6 @@ impl SidebarView {
     pub(in crate::ui) fn disconnect(&self) {
         unparent_sidebar_popovers(self.state.widget.upcast_ref());
         self.state.trash_monitor.take();
-        self.bookmark_watch.take();
-        for handler in self.handlers.take() {
-            self.state.volume_monitor.disconnect(handler);
-        }
-        if let Some(handler) = self.mount_handler.take() {
-            self.state.mount_monitor.disconnect(handler);
-        }
-        if let Some((settings, handler)) = self.recent_setting_handler.take() {
-            settings.disconnect(handler);
-        }
     }
 }
 
@@ -107,20 +88,6 @@ pub(super) fn unparent_sidebar_popovers(widget: &gtk::Widget) {
 }
 
 impl SidebarState {
-    pub(super) fn queue_rebuild(self: &Rc<Self>) {
-        self.capture_scroll();
-        if self.rebuild_queued.replace(true) {
-            return;
-        }
-        let weak = Rc::downgrade(self);
-        glib::idle_add_local_once(move || {
-            if let Some(state) = weak.upgrade() {
-                state.rebuild_queued.set(false);
-                state.rebuild();
-            }
-        });
-    }
-
     pub(super) fn rebuild(self: &Rc<Self>) {
         self.capture_scroll();
         while let Some(child) = self.widget.first_child() {
@@ -130,13 +97,8 @@ impl SidebarState {
         self.drop_feedback.reset();
         self.place_rows.borrow_mut().clear();
         self.keycaps.borrow_mut().clear();
-        self.visible_pins.borrow_mut().clear();
-        self.pinned_section.replace(None);
-        self.devices_section.replace(None);
 
-        self.append_static_places();
         self.append_knowcraft_places();
-        self.append_devices();
         self.sync_active_place();
         self.schedule_scroll_restore();
         self.sync_rail_rows();

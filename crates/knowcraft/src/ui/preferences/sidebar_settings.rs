@@ -113,19 +113,47 @@ impl PreferenceManager {
         self.save_preferences();
     }
 
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "kept for stage 7; Pinned/Devices section preferences"
+        )
+    )]
     pub fn sidebar_pinned_collapsed(&self) -> bool {
         self.preferences.borrow().sidebar_pinned_collapsed
     }
 
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "kept for stage 7; Pinned/Devices section preferences"
+        )
+    )]
     pub fn set_sidebar_pinned_collapsed(&self, collapsed: bool) {
         self.preferences.borrow_mut().sidebar_pinned_collapsed = collapsed;
         self.save_preferences();
     }
 
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "kept for stage 7; Pinned/Devices section preferences"
+        )
+    )]
     pub fn sidebar_devices_collapsed(&self) -> bool {
         self.preferences.borrow().sidebar_devices_collapsed
     }
 
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "kept for stage 7; Pinned/Devices section preferences"
+        )
+    )]
     pub fn set_sidebar_devices_collapsed(&self, collapsed: bool) {
         self.preferences.borrow_mut().sidebar_devices_collapsed = collapsed;
         self.save_preferences();
@@ -149,6 +177,13 @@ impl PreferenceManager {
         self.save_preferences();
     }
 
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "kept for stage 7; saved-fixture tests still read the persisted visibility"
+        )
+    )]
     pub fn sidebar_places_visibility(&self) -> [bool; 10] {
         let preferences = self.preferences.borrow();
         [

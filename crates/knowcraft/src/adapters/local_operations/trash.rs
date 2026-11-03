@@ -162,6 +162,7 @@ fn in_trash(location: &Path) -> bool {
     trash_root_from_files_path(location).is_some_and(|root| {
         let name = root.file_name().map(OsStr::as_bytes).unwrap_or_default();
         name == b"Trash"
+            || name == b".trash"
             || name.starts_with(b".Trash-")
             || root.parent().and_then(Path::file_name) == Some(OsStr::new(".Trash"))
     })

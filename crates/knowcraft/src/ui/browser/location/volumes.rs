@@ -120,6 +120,10 @@ impl UnlockDevice {
 }
 
 impl BrowserView {
+    #[expect(
+        dead_code,
+        reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
+    )]
     pub(crate) fn mount_volume(&self, volume: gio::Volume) {
         self.state.mount_device_volume(volume, false, true);
     }

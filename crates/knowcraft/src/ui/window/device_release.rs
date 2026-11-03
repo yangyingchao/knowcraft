@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
 
+#![expect(
+    dead_code,
+    reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
+)]
+
 use std::{
     cell::{Cell, RefCell},
     path::PathBuf,
@@ -15,14 +20,15 @@ mod overlay;
 mod probes;
 mod run;
 
-pub(super) use disconnect::disconnect_share;
 #[cfg(test)]
 use disconnect::leave_share_and_unmount;
 pub(super) use keys::{
-    ids_for_drive, ids_for_mount, ids_for_volume, key_for_drive, key_for_mount, key_for_volume,
+    key_for_drive, key_for_mount, key_for_volume,
 };
 use overlay::ReleaseOverlay;
-pub(super) use overlay::{mount_operation, pending_device_shell};
+pub(super) use overlay::mount_operation;
+#[cfg(test)]
+pub(super) use overlay::pending_device_shell;
 #[cfg(test)]
 pub(super) use overlay::{note_unmount_progress, present_release_overlay};
 #[cfg(test)]
@@ -130,10 +136,6 @@ struct PendingRelease {
     parent: Option<gtk::Widget>,
     overlay: Option<ReleaseOverlay>,
     present_source: Option<glib::SourceId>,
-    #[expect(
-        dead_code,
-        reason = "held so Drop clears the header spinner when the release finishes"
-    )]
     activity: Option<crate::ui::browser::GlobalActivity>,
 }
 

@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
 
+#![expect(
+    dead_code,
+    reason = "reached only from the removed sidebar standard-place rows; stage 7 cleanup"
+)]
+
 //! The catalogue of standard sidebar places: identifiers, icons, chord keys
 //! and the persisted order.
 

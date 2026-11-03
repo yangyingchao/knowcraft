@@ -2,7 +2,6 @@
 
 use std::{
     collections::HashSet,
-    path::Path,
     rc::Rc,
     time::{Duration, Instant},
 };
@@ -23,7 +22,7 @@ use crate::{
         bookmarks::DeletedPins,
         gio_file_for_location,
         trash_support::{
-            self, LeftoverWatch, SystemTrash, TrashEnvironment, TrashError, TrashFailure,
+            self, SystemTrash, TrashEnvironment, TrashError, TrashFailure,
         },
     },
     model::{FileEntry, Location},
@@ -137,7 +136,6 @@ pub(in crate::adapters::local_operations) async fn run_deletion_in(
     emit: Rc<dyn Fn(OperationEvent)>,
     cancellable: gio::Cancellable,
 ) {
-    let leftovers = watch_leftovers(environment.as_ref(), &targets, permanent).await;
     let affected_locations = affected_locations(&targets, permanent);
     let total = targets.len();
     let started = Instant::now();
@@ -170,7 +168,6 @@ pub(in crate::adapters::local_operations) async fn run_deletion_in(
             ..Outcome::default()
         },
         deleted_pins: DeletedPins::default(),
-        leftovers,
         deleter: Deleter {
             environment,
             permanent,
@@ -184,20 +181,6 @@ pub(in crate::adapters::local_operations) async fn run_deletion_in(
     deletion.run(&targets).await;
 }
 
-async fn watch_leftovers(
-    environment: &dyn TrashEnvironment,
-    targets: &[DeletionTarget],
-    permanent: bool,
-) -> Option<LeftoverWatch> {
-    if permanent {
-        return None;
-    }
-    let paths = targets
-        .iter()
-        .filter_map(|target| target.location.native_path().map(Path::to_owned));
-    Some(LeftoverWatch::observe(environment, paths).await)
-}
-
 fn affected_locations(targets: &[DeletionTarget], permanent: bool) -> HashSet<Location> {
     let mut affected_locations = HashSet::new();
     for target in targets {
@@ -208,8 +191,10 @@ fn affected_locations(targets: &[DeletionTarget], permanent: bool) -> HashSet<Lo
             affected_locations.insert(target.location.clone());
         }
     }
-    if !permanent {
-        affected_locations.insert(Location::uri("trash:///"));
+    if !permanent
+        && let Some(files) = crate::knowledge::trash_files_dir()
+    {
+        affected_locations.insert(Location::local(&files));
     }
     affected_locations
 }
@@ -273,9 +258,10 @@ impl Deleter {
 }
 
 fn is_trash_item(location: &Location) -> bool {
-    location
-        .uri_value()
-        .is_some_and(|uri| uri.starts_with("trash:"))
+    let Some(path) = location.native_path() else {
+        return false;
+    };
+    crate::knowledge::trash_files_dir().is_some_and(|root| path.starts_with(&root))
 }
 
 async fn delete_trash_item(
@@ -325,7 +311,6 @@ struct Deletion {
     progress: Progress,
     outcome: Outcome,
     deleted_pins: DeletedPins,
-    leftovers: Option<LeftoverWatch>,
     deleter: Deleter,
     emit: Rc<dyn Fn(OperationEvent)>,
 }
@@ -370,11 +355,6 @@ impl Deletion {
                     "The deletion stopped unexpectedly",
                 )))
             });
-            if let (Some(leftovers), Some(path)) =
-                (self.leftovers.as_mut(), target.location.native_path())
-            {
-                leftovers.note(path, result.as_ref().err().map(|error| error.failure));
-            }
             chunk_cancelled |= self.record(&target, result);
             self.emit_progress_if_due();
         }
@@ -449,9 +429,6 @@ impl Deletion {
     }
 
     async fn finish_cancelled(mut self, not_attempted: Vec<Location>) {
-        if let Some(leftovers) = self.leftovers.take() {
-            leftovers.clean_up().await;
-        }
         (self.emit)(cancelled_event(
             self.request_id,
             std::mem::take(&mut self.outcome.deleted_locations),
@@ -462,9 +439,6 @@ impl Deletion {
     }
 
     async fn finish(mut self) {
-        if let Some(leftovers) = self.leftovers.take() {
-            leftovers.clean_up().await;
-        }
         let outcome = std::mem::take(&mut self.outcome);
         if outcome.errors.is_empty() {
             (self.emit)(OperationEvent::Deleted {

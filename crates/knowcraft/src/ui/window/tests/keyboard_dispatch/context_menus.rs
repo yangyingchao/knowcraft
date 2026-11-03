@@ -50,11 +50,6 @@ fn sidebar_context_shortcuts_open_place_trash_and_device_menus() {
         || {
             let fixture = KeyboardFixture::new();
             let state = &fixture.sidebar.state;
-            let pinned = state.append_pinned_place(
-                0,
-                "Pinned folder",
-                Location::local(fixture._directory.path()),
-            );
             state.append_trash_place();
             let trash = state
                 .place_rows
@@ -83,7 +78,7 @@ fn sidebar_context_shortcuts_open_place_trash_and_device_menus() {
             for tenxer in [false, true] {
                 preferences.set_tenxer_mode(tenxer);
                 pump(50);
-                for row in [&pinned, &trash, &device] {
+                for row in [&trash, &device] {
                     let popover = widget_with_class(row.upcast_ref(), "folder-context-popover")
                         .expect("row context menu")
                         .downcast::<gtk::Popover>()

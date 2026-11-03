@@ -9,10 +9,7 @@ mod tests;
 use std::{
     ffi::{OsStr, OsString},
     future::Future,
-    os::unix::{
-        ffi::{OsStrExt, OsStringExt},
-        fs::MetadataExt,
-    },
+    os::unix::ffi::{OsStrExt, OsStringExt},
     path::{Component, Path, PathBuf},
 };
 
@@ -87,14 +84,18 @@ pub(crate) struct RestorePlan {
 #[derive(Clone)]
 pub(crate) struct RestoreContext {
     pub(crate) home_trash_root: PathBuf,
+    #[expect(dead_code, reason = "保留给恢复实现使用")]
     pub(crate) uid: u32,
     pub(crate) mounts: MountTable,
 }
 
 impl RestoreContext {
     pub(crate) async fn current() -> Self {
+        let home_trash_root = crate::knowledge::data_dir()
+            .map(|directory| directory.join(".trash"))
+            .unwrap_or_else(|| glib::user_data_dir().join("Trash"));
         Self {
-            home_trash_root: glib::user_data_dir().join("Trash"),
+            home_trash_root,
             uid: rustix::process::getuid().as_raw(),
             mounts: super::volume::mount_watch::fresh().await,
         }
@@ -537,42 +538,9 @@ pub(crate) fn absolute_original(trash_root: &Path, recorded: PathBuf) -> Option<
 
 pub(crate) fn candidate_trash_roots(
     context: &RestoreContext,
-    orig_path: Option<&Path>,
+    _orig_path: Option<&Path>,
 ) -> Vec<PathBuf> {
-    let mut roots = vec![context.home_trash_root.clone()];
-    let mounts: Vec<&Path> = if let Some(orig) = orig_path.filter(|path| path.is_absolute()) {
-        context.mounts.mount_point_for(orig).into_iter().collect()
-    } else {
-        context.mounts.trash_scan_mounts().collect()
-    };
-    for mount in mounts {
-        let per_user = mount.join(format!(".Trash-{}", context.uid));
-        roots.extend(
-            valid_shared_trash_dir(mount, context.uid)
-                .into_iter()
-                .chain([per_user])
-                .filter(|root| owned_folder(root, context.uid)),
-        );
-    }
-    roots.sort();
-    roots.dedup();
-    roots
-}
-
-fn owned_folder(path: &Path, uid: u32) -> bool {
-    std::fs::symlink_metadata(path).is_ok_and(|meta| meta.is_dir() && meta.uid() == uid)
-}
-
-fn valid_shared_trash_dir(mount: &Path, uid: u32) -> Option<PathBuf> {
-    let trash = mount.join(".Trash");
-    let meta = std::fs::symlink_metadata(&trash).ok()?;
-    if meta.file_type().is_symlink() || !meta.is_dir() {
-        return None;
-    }
-    if meta.mode() & 0o1000 == 0 {
-        return None;
-    }
-    Some(trash.join(uid.to_string()))
+    vec![context.home_trash_root.clone()]
 }
 
 fn shared_trash_dir(trash_root: &Path) -> Option<&Path> {

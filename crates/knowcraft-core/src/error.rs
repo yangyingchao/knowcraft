@@ -8,6 +8,7 @@ pub enum Error {
     Capture(String),
     Workflow(String),
     Watcher(String),
+    Trash(String),
     Io(std::io::Error),
 }
 
@@ -22,6 +23,7 @@ impl std::fmt::Display for Error {
             Error::Capture(s) => write!(f, "capture error: {s}"),
             Error::Workflow(s) => write!(f, "workflow error: {s}"),
             Error::Watcher(s) => write!(f, "watcher error: {s}"),
+            Error::Trash(s) => write!(f, "trash error: {s}"),
             Error::Io(e) => write!(f, "io error: {e}"),
         }
     }

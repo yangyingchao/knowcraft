@@ -214,7 +214,13 @@ impl SidebarState {
         self.trash_probe_running.set(true);
         let weak = Rc::downgrade(self);
         glib::MainContext::default().spawn_local(async move {
-            let probe = trash_has_items(&gio::File::for_uri("trash:///")).await;
+            let probe = match crate::knowledge::trash_files_dir() {
+                Some(directory) => trash_has_items(&gio::File::for_path(&directory)).await,
+                None => Err(glib::Error::new(
+                    gio::IOErrorEnum::NotFound,
+                    "Knowcraft is unavailable",
+                )),
+            };
             if let Err(error) = &probe {
                 tracing::warn!(
                     error_domain = ?error.domain(),
@@ -232,14 +238,17 @@ impl SidebarState {
         });
     }
 
-    /// Keeps the context menu current when another application changes `trash:///`.
+    /// Keeps the context menu current when another application changes the trash.
     pub(super) fn watch_trash(self: &Rc<Self>) {
         if self.trash_monitor.borrow().is_some() {
             return;
         }
         let (changed, live) = (Rc::downgrade(self), Rc::downgrade(self));
+        let location = crate::knowledge::trash_files_dir()
+            .map(|directory| Location::local(&directory))
+            .unwrap_or_else(|| Location::uri("trash:///"));
         let monitor = crate::adapters::watch(
-            &Location::uri("trash:///"),
+            &location,
             crate::adapters::Watched::Folder,
             move |_, _| {
                 if let Some(state) = changed.upgrade() {
@@ -256,11 +265,13 @@ impl SidebarState {
     }
 
     pub(super) fn append_trash_place(self: &Rc<Self>) {
-        let location = Location::uri("trash:///");
+        let location = crate::knowledge::trash_files_dir()
+            .map(|directory| Location::local(&directory))
+            .unwrap_or_else(|| Location::uri("trash:///"));
         let row = sidebar_button(crate::assets::icons::TRASH, &crate::i18n::tr("Trash"));
-        crate::ui::accessibility::set_description(&row, Some("trash:///"));
+        crate::ui::accessibility::set_description(&row, Some(&location.display_path()));
         self.add_place_keycap(&row, crate::ui::keys::bindings::GO_TRASH);
-        self.bind_place_row(&row, location, PlaceNavigation::Direct);
+        self.bind_place_row(&row, location.clone(), PlaceNavigation::Direct);
 
         let (menu, items) = self.build_trash_menu();
         self.apply_trash_menu_visibility();
@@ -268,14 +279,8 @@ impl SidebarState {
         self.refresh_trash_contents();
         self.view.set_trash_button(row.clone());
         let popover = context_popover(&row, &menu);
-        sidebar::append_open_in_tab(
-            &menu,
-            &popover,
-            &row,
-            &self.view,
-            &Location::uri("trash:///"),
-        );
-        self.connect_trash_items(&popover, &items);
+        sidebar::append_open_in_tab(&menu, &popover, &row, &self.view, &location);
+        self.connect_trash_items(&popover, &items, &location);
         let weak_state = Rc::downgrade(self);
         popover.connect_show(move |_| {
             if let Some(state) = weak_state.upgrade() {
@@ -311,9 +316,15 @@ impl SidebarState {
         (menu, items)
     }
 
-    fn connect_trash_items(self: &Rc<Self>, popover: &gtk::Popover, items: &TrashMenuItems) {
-        connect_view_item(&items.properties, popover, &self.view, |view| {
-            view.show_location_properties(&Location::uri("trash:///"));
+    fn connect_trash_items(
+        self: &Rc<Self>,
+        popover: &gtk::Popover,
+        items: &TrashMenuItems,
+        location: &Location,
+    ) {
+        let properties_location = location.clone();
+        connect_view_item(&items.properties, popover, &self.view, move |view| {
+            view.show_location_properties(&properties_location);
         });
         self.connect_state_item(&items.unpin, popover, |state| {
             state.preference_manager.set_sidebar_show_trash(false);

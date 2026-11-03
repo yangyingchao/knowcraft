@@ -132,7 +132,9 @@ impl ViewState {
             // Let GTK paint the loading dialog before beginning a walk whose GIO futures may be
             // immediately ready for long stretches on a fast local trash backend.
             glib::timeout_future(Duration::from_millis(16)).await;
-            let trash = gio::File::for_uri("trash:///");
+            let trash = crate::knowledge::trash_files_dir()
+                .map(|directory| gio::File::for_path(&directory))
+                .unwrap_or_else(|| gio::File::for_uri("trash:///"));
             let result = summarize_directory(&trash).await;
             finish_trash_summary(&weak, result, started);
         });
@@ -320,7 +322,9 @@ fn start_empty_trash(
     let finish_ui = weak_ui.clone();
     let finish_browser = browser.clone();
     let task = glib::MainContext::default().spawn_local(async move {
-        let trash = gio::File::for_uri("trash:///");
+        let trash = crate::knowledge::trash_files_dir()
+            .map(|directory| gio::File::for_path(&directory))
+            .unwrap_or_else(|| gio::File::for_uri("trash:///"));
         let result = empty_trash(&trash, move |processed| {
             if let Some(ui) = progress_ui.upgrade() {
                 ui.update_empty_trash_progress(processed);

@@ -7,8 +7,8 @@ use gtk::prelude::*;
 use crate::model::Location;
 
 use super::{
-    SidebarState, places::place_keycap, sidebar_devices::sidebar_device_shell,
-    sidebar_drop_feedback,
+    SidebarState, places::place_keycap, sidebar::PlaceNavigation,
+    sidebar_devices::sidebar_device_shell, sidebar_drop_feedback,
 };
 
 impl SidebarState {
@@ -57,7 +57,10 @@ impl SidebarState {
     }
 
     pub(super) fn append_place(&self, icon: &str, name: &str, location: Location) -> gtk::Button {
-        let row = self.append_device_place(icon, name, location.clone(), None);
+        let row = sidebar_button(icon, name);
+        crate::ui::accessibility::set_description(&row, Some(&location.display_path()));
+        self.bind_place_row(&row, location.clone(), PlaceNavigation::Validate);
+        self.append_sidebar_row(&row);
         customize_sidebar_folder_icon(&row, &location, icon);
         row
     }
@@ -77,6 +80,10 @@ pub(super) fn sync_keycap(keycap: &gtk::Label, visible: bool) {
 
 /// Moves `widgets` into `container` in order, right after `anchor` or at the
 /// start, without dropping keyboard focus from a row that changes parent.
+#[expect(
+    dead_code,
+    reason = "reached only from the removed sidebar Pins rows; stage 7 cleanup"
+)]
 pub(super) fn reparent_in_order(
     container: &gtk::Box,
     widgets: &[gtk::Widget],

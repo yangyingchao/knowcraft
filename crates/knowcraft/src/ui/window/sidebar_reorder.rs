@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
 
+#![expect(
+    dead_code,
+    reason = "reached only from the removed sidebar Pins rows; stage 7 cleanup"
+)]
+
 //! Dragging sidebar places and pins to reorder them.
 
 use std::{cell::Cell, rc::Rc};

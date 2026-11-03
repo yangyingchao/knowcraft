@@ -62,6 +62,10 @@ pub(super) fn gio_volume_is_locked(volume: &gio::Volume) -> bool {
     devices::encrypted_device_is_locked(&names, volume.get_mount().is_some(), cleartext_open)
 }
 
+#[expect(
+    dead_code,
+    reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
+)]
 pub(super) fn gio_mount_is_encrypted(mount: &gio::Mount) -> bool {
     if let Some(volume) = mount.volume() {
         return gio_volume_is_encrypted(&volume);

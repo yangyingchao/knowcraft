@@ -50,39 +50,21 @@ pub(super) trait FsEnvironment: Send + Sync {
 impl FsEnvironment for System {
     fn can_trash(&self, path: &Path) -> bool {
         assert_off_main_thread();
-        gio::File::for_path(path)
-            .query_info(
-                gio::FILE_ATTRIBUTE_ACCESS_CAN_TRASH,
-                gio::FileQueryInfoFlags::NOFOLLOW_SYMLINKS,
-                gio::Cancellable::NONE,
-            )
-            .is_ok_and(|info| info.boolean(gio::FILE_ATTRIBUTE_ACCESS_CAN_TRASH))
+        crate::knowledge::data_dir_path().is_some_and(|root| path.starts_with(root))
     }
 
-    #[expect(
-        unsafe_code,
-        reason = "gio-rs asserts that FALSE always carries an error, which GLib #4060 breaks"
-    )]
-    fn trash(&self, path: &Path, cancellable: &gio::Cancellable) -> Result<bool, glib::Error> {
-        use glib::translate::{ToGlibPtr, from_glib_full};
-
+    fn trash(&self, path: &Path, _cancellable: &gio::Cancellable) -> Result<bool, glib::Error> {
         assert_off_main_thread();
-        let file = gio::File::for_path(path);
-        let mut error = std::ptr::null_mut();
-        // SAFETY: file and cancellable outlive the call, and error is a valid out-pointer.
-        let trashed = unsafe {
-            gio::ffi::g_file_trash(
-                file.to_glib_none().0,
-                cancellable.to_glib_none().0,
-                &mut error,
-            )
+        let Some(trash) = crate::knowledge::trash() else {
+            return Err(glib::Error::new(
+                gio::IOErrorEnum::Failed,
+                "Knowcraft is unavailable",
+            ));
         };
-        if error.is_null() {
-            Ok(trashed != glib::ffi::GFALSE)
-        } else {
-            // SAFETY: GLib set the error and transferred its ownership to us.
-            Err(unsafe { from_glib_full(error) })
-        }
+        trash
+            .move_to_trash(path)
+            .map(|()| true)
+            .map_err(|error| glib::Error::new(gio::IOErrorEnum::Failed, &error.to_string()))
     }
 
     fn mount_type(&self, fd: BorrowedFd<'_>) -> Option<(MountType, MountSite)> {

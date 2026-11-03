@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
 
+#![expect(
+    dead_code,
+    reason = "reached only from the removed sidebar place rows; stage 7 cleanup"
+)]
+
 //! The context menu attached to sidebar places.
 
 use std::{path::PathBuf, rc::Rc};

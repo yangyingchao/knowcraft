@@ -21,6 +21,13 @@ use crate::{
 
 pub(crate) type Pins = Vec<(Location, String)>;
 type BookmarkCallback = dyn Fn(Result<&Pins, &io::Error>) -> bool;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "kept for stage 7; window bookmarks tests still cover the watch path"
+    )
+)]
 pub(crate) type BookmarkWatch = Rc<BookmarkCallback>;
 
 const RETRIES: usize = 2;
@@ -32,6 +39,13 @@ thread_local! {
     static ADOPTED: Cell<u64> = const { Cell::new(0) };
 }
 
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "kept for stage 7; window bookmarks tests still cover the watch path"
+    )
+)]
 pub(crate) fn watch_changes(
     callback: impl Fn(Result<&Pins, &io::Error>) -> bool + 'static,
 ) -> BookmarkWatch {

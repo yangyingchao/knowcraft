@@ -5,8 +5,6 @@ use std::{
     rc::Rc,
 };
 
-use gtk::{gio, glib};
-
 use crate::{app::Browser, model::Location};
 
 use super::browser::{BrowserView, WeakBrowserView, show_error_dialog};
@@ -89,9 +87,7 @@ use sidebar_context_menu::{PlaceMenuExtra, sidebar_context_option};
 use sidebar_devices::sidebar_device_row;
 use sidebar_file_drop::install_sidebar_file_drop;
 use sidebar_pins::pin_status;
-use sidebar_places::RecentAvailability;
 use sidebar_rows::select_sidebar_row;
-use sidebar_sections::{CollapsibleSection, PinnedSection};
 use sidebar_trash::{TrashContents, TrashMenuRows, event_changes_trash_contents};
 pub(super) use sidebar_view::SidebarView;
 use sidebar_width::animate_sidebar;
@@ -124,11 +120,8 @@ pub(super) struct SidebarState {
     widget: gtk::Box,
     view: BrowserView,
     browser: Rc<Browser>,
-    volume_monitor: gio::VolumeMonitor,
-    mount_monitor: gio_unix::MountMonitor,
     preference_manager: Rc<super::preferences::PreferenceManager>,
     place_order: RefCell<Vec<&'static str>>,
-    places_visibility: RefCell<[bool; 10]>,
     pinned_places: Rc<RefCell<Vec<(Location, String)>>>,
     place_rows: RefCell<Vec<(Location, gtk::Button)>>,
     trash_contents: Cell<TrashContents>,
@@ -137,9 +130,7 @@ pub(super) struct SidebarState {
     trash_probe_running: Cell<bool>,
     trash_probe_pending: Cell<bool>,
     local_only: bool,
-    recent_availability: Cell<RecentAvailability>,
     pending_scroll: Cell<Option<f64>>,
-    rebuild_queued: Cell<bool>,
     scroll_restore_queued: Cell<bool>,
     pub(in crate::ui) rail: Cell<bool>,
     policy: RailPolicy,
@@ -149,11 +140,6 @@ pub(super) struct SidebarState {
     keycaps: RefCell<Vec<gtk::Label>>,
     keycaps_shown: Cell<bool>,
     visible_pins: RefCell<Vec<Location>>,
-    pinned_section: RefCell<Option<PinnedSection>>,
-    devices_section: RefCell<Option<CollapsibleSection>>,
-    /// The separator, heading and drop gap of a Pinned section with no pins.
-    empty_pinned_section: RefCell<Vec<glib::WeakRef<gtk::Widget>>>,
-    file_drag_over: Cell<bool>,
     drop_feedback: Rc<sidebar_drop_feedback::SidebarDropFeedback>,
 }
 

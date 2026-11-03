@@ -125,6 +125,7 @@ pub(crate) enum Trash {
     /// TRUE, but nothing moved.
     SucceedsWithoutMoving,
     /// A FUSE backend refuses a step of the trash protocol.
+    #[expect(dead_code, reason = "fs 探针仍匹配该分类，仅不再在测试中构造")]
     ProtocolRefused,
     /// Offered, but moving an item there is not supported.
     Refused,

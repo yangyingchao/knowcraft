@@ -8,6 +8,10 @@ use crate::adapters::bookmarks::{BookmarkWatch, watch_changes};
 
 use super::{SidebarState, show_error_dialog};
 
+#[expect(
+    dead_code,
+    reason = "kept for stage 7; window bookmarks tests still cover the watch path"
+)]
 pub(super) fn watch_sidebar(state: &Rc<SidebarState>) -> BookmarkWatch {
     let weak = Rc::downgrade(state);
     watch_changes(move |result| {

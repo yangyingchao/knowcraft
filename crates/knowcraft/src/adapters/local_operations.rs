@@ -12,7 +12,6 @@ use names::{Key, PlanEntry, Planned, Taken, fix::fix_name, numbered_names, plan_
 #[cfg(test)]
 use native_fs::LocalFileIdentity;
 use native_fs::Recorded;
-pub(super) use native_fs::open_local_child_directory;
 #[cfg(test)]
 use native_fs::retry_local_open;
 

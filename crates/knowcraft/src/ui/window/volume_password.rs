@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
 
+#![expect(
+    dead_code,
+    reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
+)]
+
 use std::{
     collections::{HashMap, HashSet},
     fmt,

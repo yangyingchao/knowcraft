@@ -116,6 +116,10 @@ pub mod icons {
     pub const TRASH: &str = "knowcraft-trash";
     pub const TRIANGLE_ALERT: &str = "knowcraft-triangle-alert";
     pub const UNDO_2: &str = "knowcraft-undo-2";
+    #[expect(
+        dead_code,
+        reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
+    )]
     pub const UNPLUG: &str = "knowcraft-unplug";
     pub const VIDEOS: &str = "knowcraft-video";
     pub const VOLUME_2: &str = "knowcraft-volume-2";

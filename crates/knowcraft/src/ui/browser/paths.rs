@@ -41,14 +41,25 @@ pub(super) fn pin_action_for(
     }
 }
 
+/// The trash browsing root, once the knowledge base is open.
+fn trash_root_location() -> Option<Location> {
+    crate::knowledge::trash_files_dir().map(|directory| Location::local(&directory))
+}
+
 pub(in crate::ui) fn is_trash_root(location: &Location) -> bool {
-    location.uri_value() == Some("trash:///")
+    let Some(root) = trash_root_location() else {
+        return location.uri_value() == Some("trash:///");
+    };
+    *location == root
 }
 
 pub(in crate::ui) fn is_trash_location(location: &Location) -> bool {
-    location
-        .uri_value()
-        .is_some_and(|uri| uri.starts_with("trash:"))
+    let Some(root) = trash_root_location() else {
+        return location
+            .uri_value()
+            .is_some_and(|uri| uri.starts_with("trash:"));
+    };
+    location.is_within(&root)
 }
 
 pub(super) fn is_trash_item(location: &Location) -> bool {

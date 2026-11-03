@@ -15,7 +15,7 @@ impl ChooserFileSource {
             source: Rc::new(LocalFileSource),
             filter: Rc::new(RefCell::new(None)),
             directory_only: Rc::new(Cell::new(false)),
-            root_limit: None,
+            root_limit: crate::knowledge::data_dir(),
         })
     }
 

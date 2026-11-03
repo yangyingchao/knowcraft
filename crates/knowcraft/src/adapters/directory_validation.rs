@@ -10,6 +10,13 @@ use crate::model::Location;
 /// Queries metadata only, follows directory symlinks, and never probes on the GTK thread.
 /// One query at a time bounds speculative work even for very large foreign selections.
 /// Returns `None` unless every location is a directory.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "reached only from the removed sidebar Pins rows; stage 7 cleanup"
+    )
+)]
 pub(crate) async fn folder_names(locations: Vec<Location>) -> Option<Vec<(Location, String)>> {
     if locations.is_empty() {
         return None;

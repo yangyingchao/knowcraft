@@ -256,13 +256,6 @@ fn detects_mount_points_exactly() {
 }
 
 #[test]
-fn trash_scan_skips_virtual_remote_and_fuse_mounts() {
-    let table = MountTable::parse(SAMPLE);
-    let scanned: Vec<_> = table.trash_scan_mounts().collect();
-    assert_eq!(scanned, vec![Path::new("/"), Path::new("/mnt/nfs/local")]);
-}
-
-#[test]
 fn prefix_matching_is_component_wise() {
     let table = MountTable::parse("1 0 0:1 / /mnt/nfs rw - nfs4 s:/e rw\n");
     assert!(table.fs_type_for(Path::new("/mnt/nfsdata/file")).is_none());

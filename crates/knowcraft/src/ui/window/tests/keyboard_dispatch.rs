@@ -35,7 +35,6 @@ mod pane_focus;
 mod place_chords;
 mod preview_ownership;
 mod reload_cursor;
-mod sidebar_sections;
 mod structural_aliases;
 mod tenxer_fill;
 mod tenxer_panes;

@@ -539,19 +539,6 @@ impl MountTable {
         self.innermost(path).map(|entry| entry.site.point.as_path())
     }
 
-    /// Excludes virtual or potentially blocking filesystems from fallback scans.
-    pub(crate) fn trash_scan_mounts(&self) -> impl Iterator<Item = &Path> {
-        self.entries.iter().filter_map(|entry| {
-            is_trash_scan_fs_type(&entry.mount_type.fs_type).then_some(entry.site.point.as_path())
-        })
-    }
-
-    pub(crate) fn non_virtual_mounts(&self) -> impl Iterator<Item = &Path> {
-        self.entries.iter().filter_map(|entry| {
-            (!is_virtual_fs_type(&entry.mount_type.fs_type)).then_some(entry.site.point.as_path())
-        })
-    }
-
     fn innermost(&self, path: &Path) -> Option<&MountEntry> {
         self.entries
             .iter()
@@ -586,39 +573,6 @@ pub(crate) fn is_local_fuse_overlay(fs_type: &str) -> bool {
                 | "fuse-zip"
                 | "ciopfs"
         )
-    )
-}
-
-fn is_trash_scan_fs_type(fs_type: &str) -> bool {
-    !is_remote_fs_type(fs_type) && !is_virtual_fs_type(fs_type)
-}
-
-fn is_virtual_fs_type(fs_type: &str) -> bool {
-    matches!(
-        fs_type,
-        "proc"
-            | "sysfs"
-            | "devtmpfs"
-            | "tmpfs"
-            | "cgroup"
-            | "cgroup2"
-            | "overlay"
-            | "autofs"
-            | "securityfs"
-            | "debugfs"
-            | "tracefs"
-            | "ramfs"
-            | "hugetlbfs"
-            | "mqueue"
-            | "bpf"
-            | "pstore"
-            | "configfs"
-            | "fusectl"
-            | "rpc_pipefs"
-            | "nsfs"
-            | "binfmt_misc"
-            | "devpts"
-            | "efivarfs"
     )
 }
 
