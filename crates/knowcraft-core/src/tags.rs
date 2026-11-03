@@ -13,20 +13,22 @@ impl Tags {
     }
 
     pub fn add(&self, document_id: i64, name: &str) -> Result<()> {
-        let conn = self.store.lock();
-        conn.execute(
+        let mut conn = self.store.lock();
+        let tx = conn.transaction()?;
+        tx.execute(
             "INSERT OR IGNORE INTO tags (name) VALUES (?1)",
             params![name],
         )?;
-        let tag_id: i64 = conn.query_row(
+        let tag_id: i64 = tx.query_row(
             "SELECT id FROM tags WHERE name = ?1",
             params![name],
             |r| r.get(0),
         )?;
-        conn.execute(
+        tx.execute(
             "INSERT OR IGNORE INTO document_tags (document_id, tag_id) VALUES (?1, ?2)",
             params![document_id, tag_id],
         )?;
+        tx.commit()?;
         Ok(())
     }
 

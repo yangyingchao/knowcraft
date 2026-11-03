@@ -43,3 +43,17 @@ fn tag_and_annotate_document() {
     anns.delete(ann_id).unwrap();
     assert!(anns.list(doc_id).unwrap().is_empty());
 }
+
+#[test]
+fn adding_same_tag_twice_is_idempotent() {
+    let dir = std::env::temp_dir().join(format!("kc-ta-idem-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Store::open(&dir).unwrap();
+    let tags = Tags::new(store.clone());
+
+    let doc_id = store.insert_document(&doc("idem.pdf")).unwrap();
+    tags.add(doc_id, "paper").unwrap();
+    tags.add(doc_id, "paper").unwrap();
+    assert_eq!(tags.list_for(doc_id).unwrap(), vec!["paper".to_string()]);
+    assert_eq!(tags.list_all().unwrap(), vec!["paper".to_string()]);
+}

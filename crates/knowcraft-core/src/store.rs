@@ -32,7 +32,11 @@ impl Store {
                 index_status TEXT NOT NULL DEFAULT 'pending'
             );
             CREATE TABLE IF NOT EXISTS tags (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE);
-            CREATE TABLE IF NOT EXISTS document_tags (document_id INTEGER REFERENCES documents(id), tag_id INTEGER REFERENCES tags(id));
+            CREATE TABLE IF NOT EXISTS document_tags (
+                document_id INTEGER REFERENCES documents(id),
+                tag_id INTEGER REFERENCES tags(id),
+                UNIQUE(document_id, tag_id)
+            );
             CREATE TABLE IF NOT EXISTS annotations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 document_id INTEGER NOT NULL REFERENCES documents(id),
@@ -44,7 +48,9 @@ impl Store {
                 document_id INTEGER REFERENCES documents(id),
                 annotation_id INTEGER REFERENCES annotations(id),
                 title TEXT, content TEXT, created_at TEXT, updated_at TEXT
-            );",
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_document_tags_unique
+                ON document_tags(document_id, tag_id);",
         )?;
         Ok(Store {
             conn: Arc::new(Mutex::new(conn)),
