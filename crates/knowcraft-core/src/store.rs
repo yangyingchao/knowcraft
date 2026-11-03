@@ -107,6 +107,63 @@ impl Store {
         Ok(())
     }
 
+    pub fn find_by_checksum(&self, checksum: &str) -> Result<Option<Document>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE checksum = ?1",
+        )?;
+        let mut rows = stmt.query_map(params![checksum], |r| {
+            Ok(Document {
+                id: r.get(0)?,
+                path: r.get(1)?,
+                doc_type: r.get(2)?,
+                title: r.get(3)?,
+                source_url: r.get(4)?,
+                size: r.get(5)?,
+                created_at: r.get(6)?,
+                updated_at: r.get(7)?,
+                checksum: r.get(8)?,
+                ai_summary: r.get(9)?,
+                lifecycle: r.get(10)?,
+                index_status: r.get(11)?,
+            })
+        })?;
+        Ok(rows.next().transpose()?)
+    }
+
+    pub fn set_lifecycle(&self, id: i64, lifecycle: &str) -> Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "UPDATE documents SET lifecycle = ?1, updated_at = ?2 WHERE id = ?3",
+            params![lifecycle, now(), id],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_by_lifecycle(&self, lifecycle: &str) -> Result<Vec<Document>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE lifecycle = ?1",
+        )?;
+        let rows = stmt.query_map(params![lifecycle], |r| {
+            Ok(Document {
+                id: r.get(0)?,
+                path: r.get(1)?,
+                doc_type: r.get(2)?,
+                title: r.get(3)?,
+                source_url: r.get(4)?,
+                size: r.get(5)?,
+                created_at: r.get(6)?,
+                updated_at: r.get(7)?,
+                checksum: r.get(8)?,
+                ai_summary: r.get(9)?,
+                lifecycle: r.get(10)?,
+                index_status: r.get(11)?,
+            })
+        })?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
     pub fn insert_annotation(&self, a: &Annotation) -> Result<i64> {
         let conn = self.lock();
         conn.execute(
