@@ -117,6 +117,24 @@ fn load_returns_error_on_corrupt_config_toml() {
     let _ = std::fs::remove_dir_all(&cfg_dir);
 }
 
+#[cfg(unix)]
+#[test]
+fn load_creates_token_with_0600_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+    let _guard = ENV_LOCK.lock().unwrap();
+    let mut env = EnvGuard::new();
+    let cfg_dir = temp_dir("cfg");
+    let data_dir = temp_dir("data");
+    std::fs::create_dir_all(&cfg_dir).unwrap();
+    env.set("KNOWCRAFT_DATA_DIR", data_dir.to_str().unwrap());
+    env.set("XDG_CONFIG_HOME", cfg_dir.to_str().unwrap());
+    let cfg = Config::load().expect("load should succeed");
+    let meta = std::fs::metadata(cfg.data_dir.join(".token")).expect("token file should exist");
+    assert_eq!(meta.permissions().mode() & 0o777, 0o600);
+    let _ = std::fs::remove_dir_all(&cfg_dir);
+    let _ = std::fs::remove_dir_all(&data_dir);
+}
+
 #[test]
 fn load_honors_knowcraft_data_dir_env() {
     let _guard = ENV_LOCK.lock().unwrap();

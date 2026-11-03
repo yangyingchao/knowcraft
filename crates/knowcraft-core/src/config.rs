@@ -54,16 +54,42 @@ impl Config {
             cfg.data_dir = PathBuf::from(env_dir);
         }
         std::fs::create_dir_all(&cfg.data_dir)?;
-        let token_path = cfg.data_dir.join(".token");
-        cfg.http_token = if token_path.exists() {
-            std::fs::read_to_string(&token_path)?
-        } else {
-            let token = generate_token()?;
-            std::fs::write(&token_path, &token)?;
-            token
-        };
+        cfg.http_token = load_or_create_token(&cfg.data_dir.join(".token"))?;
         Ok(cfg)
     }
+}
+
+// 读取或创建 .token：Unix 首次创建用 0600 权限（http_token 为鉴权凭证，避免同机其他用户可读）
+#[cfg(unix)]
+fn load_or_create_token(token_path: &std::path::Path) -> Result<String> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut f = match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(token_path)
+    {
+        Ok(f) => f,
+        // 文件已存在（如先前加载过）：回退读取复用
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Ok(std::fs::read_to_string(token_path)?);
+        }
+        Err(e) => return Err(Error::Io(e)),
+    };
+    let token = generate_token()?;
+    f.write_all(token.as_bytes())?;
+    Ok(token)
+}
+
+#[cfg(not(unix))]
+fn load_or_create_token(token_path: &std::path::Path) -> Result<String> {
+    if token_path.exists() {
+        return Ok(std::fs::read_to_string(token_path)?);
+    }
+    let token = generate_token()?;
+    std::fs::write(token_path, &token)?;
+    Ok(token)
 }
 
 // 16 字节随机数 hex，32 字符
