@@ -113,12 +113,20 @@ fn is_blocked(u: &Url) -> bool {
 /// 检测系统解析器接受但标准库 IpAddr 拒绝的数字主机写法。
 /// 保守策略：疑似数字 IP 但无法按标准形式解析的主机一律拦截。
 fn is_ambiguous_numeric_host(h: &str) -> bool {
-    // 十六进制形式：0x7f000001、0x7f.0.0.1（小写化后只需匹配 0x）。
-    if h.contains("0x") {
-        return true;
-    }
     let labels: Vec<&str> = h.split('.').filter(|l| !l.is_empty()).collect();
     if labels.is_empty() {
+        return true;
+    }
+    // 仅当某个标签整体为十六进制整数时拦截（0x7f、0x7f000001）。
+    // 不做子串匹配：10xgenomics.com 等含 0x 的普通域名必须放行。
+    // h 已在调用方小写化，只需匹配 0x 前缀。
+    if labels.iter().any(|l| {
+        l.strip_prefix("0x")
+            .map(|rest| {
+                !rest.is_empty() && rest.chars().all(|c| c.is_ascii_hexdigit())
+            })
+            .unwrap_or(false)
+    }) {
         return true;
     }
     if !labels
@@ -319,6 +327,11 @@ mod tests {
             "http://example.com/",
             "https://blog.example.org/post",
             "http://sub.domain.example.net:8080/x",
+            // 含 0x 子串但非十六进制整数标签的合法域名
+            "http://10xgenomics.com/",
+            "http://www.10xgenomics.com/",
+            "http://0x-com.org/",
+            "http://a0x.example.com/",
             "http://93.184.216.34/",
             "http://8.8.8.8/",
             "http://172.32.0.1/",
