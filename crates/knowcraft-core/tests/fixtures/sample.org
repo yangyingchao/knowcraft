@@ -1,0 +1,4 @@
+#+TITLE: Sample Org
+
+* TODO Sample org heading
+Some body text for the org sample.

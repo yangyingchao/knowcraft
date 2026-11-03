@@ -1,3 +1,18 @@
 [workspace]
 resolver = "2"
 members = ["crates/knowcraft-core"]
+exclude = ["crates/vendor"]
+
+# Vendored, patched third-party crates for the pdfcraft-render text-extraction stack
+# (crates/vendor/pdfcraft/vendor/). The text stack has no git dependencies, so only the
+# hayro/lopdf/vello path patches are replicated here (see docs/notes/m0-probe.md).
+[patch.crates-io]
+hayro-interpret = { path = "crates/vendor/pdfcraft/vendor/hayro-interpret" }
+hayro = { path = "crates/vendor/pdfcraft/vendor/hayro" }
+hayro-syntax = { path = "crates/vendor/pdfcraft/vendor/hayro-syntax" }
+hayro-cmap = { path = "crates/vendor/pdfcraft/vendor/hayro-cmap" }
+hayro-postscript = { path = "crates/vendor/pdfcraft/vendor/hayro-postscript" }
+hayro-jbig2 = { path = "crates/vendor/pdfcraft/vendor/hayro-jbig2" }
+lopdf = { path = "crates/vendor/pdfcraft/vendor/lopdf" }
+vello_common = { path = "crates/vendor/pdfcraft/vendor/vello_common" }
+vello_cpu = { path = "crates/vendor/pdfcraft/vendor/vello_cpu" }

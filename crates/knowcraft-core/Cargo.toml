@@ -10,3 +10,8 @@ serde_json = "1"
 toml = "0.8"
 dirs = "5"
 getrandom = "0.2"
+zip = "0.6"
+pdfcraft-render = { path = "../vendor/pdfcraft/crates/render" }
+
+[dev-dependencies]
+zip = "0.6"
