@@ -79,6 +79,52 @@ fn handle_delete_event_removes_index_entry() {
 }
 
 #[test]
+fn merge_create_then_modify_keeps_created() {
+    let p = PathBuf::from("/tmp/kc-merge.md");
+    let merged = Watcher::merge_event(FileEvent::Created(p.clone()), FileEvent::Modified(p));
+    assert!(
+        matches!(merged, FileEvent::Created(_)),
+        "Create followed by Modify must stay Created, otherwise unregistered file is lost"
+    );
+}
+
+#[test]
+fn create_then_modify_in_same_window_indexes_file() {
+    // 回归 Critical：inotify 对一次写入先报 Create 再报 Modify，二者落入
+    // 同一 500ms 窗口。若被覆盖为 Modify，未登记文件会被静默丢弃。
+    let (watcher, store, index, dir) = setup("cm");
+    let path = dir.join("inbox").join("gamma.md");
+    std::fs::write(&path, "# Gamma\ngamma merged window content").unwrap();
+
+    let merged = Watcher::merge_event(
+        FileEvent::Created(path.clone()),
+        FileEvent::Modified(path.clone()),
+    );
+    watcher.handle(merged).unwrap();
+
+    let doc = store
+        .find_by_path(&path.to_string_lossy())
+        .unwrap()
+        .expect("new file registered after create+modify merge");
+    let hits = index.search("gamma").unwrap();
+    assert!(hits.iter().any(|h| h.document_id == doc.id));
+}
+
+#[test]
+fn merge_state_transitions_reflect_final_state() {
+    let p = PathBuf::from("/tmp/kc-t.md");
+    let c = || FileEvent::Created(p.clone());
+    let m = || FileEvent::Modified(p.clone());
+    let r = || FileEvent::Removed(p.clone());
+
+    assert!(matches!(Watcher::merge_event(c(), r()), FileEvent::Removed(_)));
+    assert!(matches!(Watcher::merge_event(r(), c()), FileEvent::Created(_)));
+    assert!(matches!(Watcher::merge_event(m(), c()), FileEvent::Created(_)));
+    assert!(matches!(Watcher::merge_event(m(), r()), FileEvent::Removed(_)));
+    assert!(matches!(Watcher::merge_event(r(), m()), FileEvent::Created(_)));
+}
+
+#[test]
 fn spawn_returns_ok_and_watches_existing_dirs() {
     let dir = std::env::temp_dir().join(format!("kc-wt-{}-spawn", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);

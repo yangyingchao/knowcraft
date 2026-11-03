@@ -90,13 +90,13 @@ impl Watcher {
             let drain_window = first.is_none();
             if let Some(ev) = first {
                 if let Some(fe) = classify(&ev) {
-                    pending.insert(event_key(&fe), fe);
+                    Self::accumulate(&mut pending, fe);
                 }
             }
             // 排空窗口内其余事件。
             while let Ok(ev) = rx.try_recv() {
                 if let Some(fe) = classify(&ev) {
-                    pending.insert(event_key(&fe), fe);
+                    Self::accumulate(&mut pending, fe);
                 }
             }
             // 超时且窗口内有积压：窗口结束，统一分派。
@@ -111,6 +111,57 @@ impl Watcher {
     fn dispatch(&self, ev: FileEvent) {
         if let Err(e) = self.handle(ev) {
             eprintln!("watcher handle error: {e}");
+        }
+    }
+
+    /// 把一个事件并入窗口：同键走 [`merge_event`]；Moved 的源路径键若已有
+    /// 积压则移除，避免同窗口对同一文档重复分派。
+    fn accumulate(pending: &mut HashMap<String, FileEvent>, fe: FileEvent) {
+        if let FileEvent::Moved { ref from, .. } = fe {
+            pending.remove(&path_string(from));
+        }
+        let key = event_key(&fe);
+        match pending.remove(&key) {
+            Some(existing) => pending.insert(key, Self::merge_event(existing, fe)),
+            None => pending.insert(key, fe),
+        };
+    }
+
+    /// 合并同一去抖窗口、同一路径上先后发生的两个事件。
+    ///
+    /// 规则按时序推导文件终态，而非后者无条件覆盖（后者覆盖会使
+    /// Create+Modify 只剩 Modify，而未登记文件的 Modify 被静默忽略）：
+    ///
+    /// | existing | incoming | 结果 | 理由 |
+    /// |---|---|---|---|
+    /// | Created | Created/Modified | Created | Create 后写入合并为一次建库，handler 读磁盘终态内容 |
+    /// | Created | Removed | Removed | 建后即删，终态不存在 |
+    /// | Modified | Created | Created | 删除重建/被替换，需登记新文件 |
+    /// | Modified | Modified | Modified | 多次写入合并 |
+    /// | Modified | Removed | Removed | 终态不存在 |
+    /// | Removed | Created | Created | 删除后重建 |
+    /// | Removed | Modified | Created | 删除后仍有写入，按重建登记（Modify 隐含文件存在） |
+    /// | Removed | Removed | Removed | 重复删除 |
+    /// | 任意 | Moved | Moved | 以移动结果为准；源端未登记时 handle 退化为 Created(to) |
+    /// | Moved | Created/Modified | Moved | Moved 已对新路径重索引 |
+    /// | Moved | Removed | Removed(from) | 落定后即删，清理源端登记的文档 |
+    pub fn merge_event(existing: FileEvent, incoming: FileEvent) -> FileEvent {
+        match (existing, incoming) {
+            (_, incoming @ FileEvent::Moved { .. }) => incoming,
+            (FileEvent::Moved { from, .. }, FileEvent::Removed(_)) => FileEvent::Removed(from),
+            (moved @ FileEvent::Moved { .. }, FileEvent::Created(_) | FileEvent::Modified(_)) => {
+                moved
+            }
+            (created @ FileEvent::Created(_), FileEvent::Created(_) | FileEvent::Modified(_)) => {
+                created
+            }
+            (FileEvent::Created(_), removed @ FileEvent::Removed(_)) => removed,
+            (FileEvent::Modified(_), created @ FileEvent::Created(_)) => created,
+            (modified @ FileEvent::Modified(_), FileEvent::Modified(_)) => modified,
+            (FileEvent::Modified(_), removed @ FileEvent::Removed(_)) => removed,
+            (FileEvent::Removed(_), created @ FileEvent::Created(_)) => created,
+            (FileEvent::Removed(_), FileEvent::Modified(path)) => FileEvent::Created(path),
+            (removed @ FileEvent::Removed(_), FileEvent::Removed(_)) => removed,
         }
     }
 
