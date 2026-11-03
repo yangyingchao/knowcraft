@@ -114,11 +114,23 @@ impl Watcher {
         }
     }
 
-    /// 把一个事件并入窗口：同键走 [`merge_event`]；Moved 的源路径键若已有
-    /// 积压则移除，避免同窗口对同一文档重复分派。
+    /// 把一个事件并入窗口。
+    ///
+    /// 普通事件按其路径键合并；Moved 先检查源路径键的积压：若存在则是
+    /// 前一条以该源为落点的事件（典型为链式 rename 的前驱 Moved），先与其
+    /// 合并再按目标键归位，避免前驱被丢弃导致源端文档成为孤儿。
     fn accumulate(pending: &mut HashMap<String, FileEvent>, fe: FileEvent) {
         if let FileEvent::Moved { ref from, .. } = fe {
-            pending.remove(&path_string(from));
+            let from_key = path_string(from);
+            if let Some(predecessor) = pending.remove(&from_key) {
+                let linked = Self::merge_event(predecessor, fe);
+                let key = event_key(&linked);
+                match pending.remove(&key) {
+                    Some(existing) => pending.insert(key, Self::merge_event(existing, linked)),
+                    None => pending.insert(key, linked),
+                };
+                return;
+            }
         }
         let key = event_key(&fe);
         match pending.remove(&key) {
@@ -143,10 +155,17 @@ impl Watcher {
     /// | Removed | Modified | Created | 删除后仍有写入，按重建登记（Modify 隐含文件存在） |
     /// | Removed | Removed | Removed | 重复删除 |
     /// | 任意 | Moved | Moved | 以移动结果为准；源端未登记时 handle 退化为 Created(to) |
+    /// | Moved(P->Q) | Moved(Q->R) | Moved(P->R) | 链式 rename 链接，源端不留孤儿 |
     /// | Moved | Created/Modified | Moved | Moved 已对新路径重索引 |
     /// | Moved | Removed | Removed(from) | 落定后即删，清理源端登记的文档 |
     pub fn merge_event(existing: FileEvent, incoming: FileEvent) -> FileEvent {
         match (existing, incoming) {
+            // 链式 rename：existing 的目标恰为 incoming 的源，链接为 P->C，
+            // 否则源端文档不经中间路径就无法定位，会残留为孤儿。
+            (
+                FileEvent::Moved { from: f1, to: t1 },
+                FileEvent::Moved { from: f2, to: t2 },
+            ) if t1 == f2 => FileEvent::Moved { from: f1, to: t2 },
             (_, incoming @ FileEvent::Moved { .. }) => incoming,
             (FileEvent::Moved { from, .. }, FileEvent::Removed(_)) => FileEvent::Removed(from),
             (moved @ FileEvent::Moved { .. }, FileEvent::Created(_) | FileEvent::Modified(_)) => {

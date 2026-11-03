@@ -6,6 +6,10 @@ use knowcraft_core::store::Store;
 use knowcraft_core::watcher::{FileEvent, Watcher};
 use knowcraft_core::workflow::Workflow;
 
+fn path_str(path: &std::path::Path) -> String {
+    path.to_string_lossy().into_owned()
+}
+
 fn setup(suffix: &str) -> (Watcher, Store, Index, PathBuf) {
     let dir = std::env::temp_dir().join(format!("kc-wt-{}-{suffix}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
@@ -122,6 +126,51 @@ fn merge_state_transitions_reflect_final_state() {
     assert!(matches!(Watcher::merge_event(m(), c()), FileEvent::Created(_)));
     assert!(matches!(Watcher::merge_event(m(), r()), FileEvent::Removed(_)));
     assert!(matches!(Watcher::merge_event(r(), m()), FileEvent::Created(_)));
+}
+
+#[test]
+fn merge_chained_renames_links_source_to_final_target() {
+    let a = PathBuf::from("/tmp/a.md");
+    let b = PathBuf::from("/tmp/b.md");
+    let c = PathBuf::from("/tmp/c.md");
+    let merged = Watcher::merge_event(
+        FileEvent::Moved { from: a.clone(), to: b.clone() },
+        FileEvent::Moved { from: b, to: c.clone() },
+    );
+    assert_eq!(
+        merged,
+        FileEvent::Moved { from: a, to: c },
+        "chained renames A->B->C must collapse to A->C"
+    );
+}
+
+#[test]
+fn chained_rename_in_same_window_leaves_no_orphan() {
+    // 回归 Important：同窗口 A->B->C 若只执行 B->C，doc 仍登记在 A，
+    // 退化为 Created(C) 后 A 的行与索引残留为孤儿。
+    let (watcher, store, index, dir) = setup("chain");
+    let a = dir.join("inbox").join("delta-a.md");
+    let b = dir.join("inbox").join("delta-b.md");
+    let c = dir.join("inbox").join("delta-c.md");
+    std::fs::write(&a, "# Delta\nchained rename orphan guard").unwrap();
+
+    watcher.handle(FileEvent::Created(a.clone())).unwrap();
+    std::fs::rename(&a, &b).unwrap();
+    std::fs::rename(&b, &c).unwrap();
+
+    let merged = Watcher::merge_event(
+        FileEvent::Moved { from: a.clone(), to: b.clone() },
+        FileEvent::Moved { from: b, to: c.clone() },
+    );
+    watcher.handle(merged).unwrap();
+
+    assert!(store.find_by_path(&path_str(&a)).unwrap().is_none());
+    let doc = store
+        .find_by_path(&path_str(&c))
+        .unwrap()
+        .expect("document registered at final path C");
+    let hits = index.search("chained").unwrap();
+    assert!(hits.iter().any(|h| h.document_id == doc.id));
 }
 
 #[test]
