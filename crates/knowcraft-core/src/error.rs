@@ -32,4 +32,7 @@ impl From<std::io::Error> for Error {
 impl From<rusqlite::Error> for Error {
     fn from(e: rusqlite::Error) -> Self { Error::Store(e.to_string()) }
 }
+impl From<tantivy::TantivyError> for Error {
+    fn from(e: tantivy::TantivyError) -> Self { Error::Index(e.to_string()) }
+}
 pub type Result<T> = std::result::Result<T, Error>;
