@@ -6,4 +6,5 @@ pub mod index;
 pub mod model;
 pub mod store;
 pub mod tags;
+pub mod watcher;
 pub mod workflow;

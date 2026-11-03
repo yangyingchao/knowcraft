@@ -137,6 +137,67 @@ impl Store {
         Ok(rows.next().transpose()?)
     }
 
+    pub fn find_by_path(&self, path: &str) -> Result<Option<Document>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE path = ?1",
+        )?;
+        let mut rows = stmt.query_map(params![path], |r| {
+            Ok(Document {
+                id: r.get(0)?,
+                path: r.get(1)?,
+                doc_type: r.get(2)?,
+                title: r.get(3)?,
+                source_url: r.get(4)?,
+                size: r.get(5)?,
+                created_at: r.get(6)?,
+                updated_at: r.get(7)?,
+                checksum: r.get(8)?,
+                ai_summary: r.get(9)?,
+                lifecycle: r.get(10)?,
+                index_status: r.get(11)?,
+            })
+        })?;
+        Ok(rows.next().transpose()?)
+    }
+
+    pub fn set_index_status(&self, id: i64, status: &str) -> Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "UPDATE documents SET index_status = ?1 WHERE id = ?2",
+            params![status, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn clear_ai_summary(&self, id: i64) -> Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "UPDATE documents SET ai_summary = NULL, updated_at = ?2 WHERE id = ?1",
+            params![id, now()],
+        )?;
+        Ok(())
+    }
+
+    /// 删除文档及其关联子表行。顺序先子表后父表，满足外键约束。
+    pub fn delete_document(&self, id: i64) -> Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "DELETE FROM document_tags WHERE document_id = ?1",
+            params![id],
+        )?;
+        conn.execute(
+            "DELETE FROM notes WHERE document_id = ?1",
+            params![id],
+        )?;
+        conn.execute(
+            "DELETE FROM annotations WHERE document_id = ?1",
+            params![id],
+        )?;
+        conn.execute("DELETE FROM documents WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
     pub fn set_lifecycle(&self, id: i64, lifecycle: &str) -> Result<()> {
         let conn = self.lock();
         conn.execute(

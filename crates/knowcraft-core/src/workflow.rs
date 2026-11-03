@@ -57,6 +57,44 @@ impl Workflow {
             .ok_or_else(|| Error::Store("missing".into()))
     }
 
+    /// 登记直接出现在 inbox/ 内的新文件：不做拷贝，checksum 去重。
+    pub fn register_inbox_file(&self, path: &Path) -> Result<Document> {
+        self.register_created(path, "pending")
+    }
+
+    /// 登记直接出现在 library/ 内的新文件：归档态，供检索索引。
+    pub fn register_library_file(&self, path: &Path) -> Result<Document> {
+        self.register_created(path, "archived")
+    }
+
+    fn register_created(&self, path: &Path, lifecycle: &str) -> Result<Document> {
+        let sum = self.checksum(path)?;
+        if self.store.find_by_checksum(&sum)?.is_some() {
+            return Err(Error::Workflow("duplicate document".into()));
+        }
+        let fname = path
+            .file_name()
+            .ok_or_else(|| Error::Workflow("no file name".into()))?;
+        let doc = Document {
+            id: 0,
+            path: path.to_string_lossy().into_owned(),
+            doc_type: detect_type(fname),
+            title: fname.to_string_lossy().into_owned(),
+            source_url: None,
+            size: std::fs::metadata(path)?.len() as i64,
+            created_at: now(),
+            updated_at: now(),
+            checksum: sum,
+            ai_summary: None,
+            lifecycle: lifecycle.into(),
+            index_status: "pending".into(),
+        };
+        let id = self.store.insert_document(&doc)?;
+        self.store
+            .get_document(id)?
+            .ok_or_else(|| Error::Store("missing".into()))
+    }
+
     pub fn dispatch(&self, doc_id: i64, category: &str) -> Result<Document> {
         let doc = self
             .store

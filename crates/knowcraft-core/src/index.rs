@@ -31,6 +31,7 @@ pub struct IndexHit {
 }
 
 /// tantivy 索引句柄。
+#[derive(Clone)]
 pub struct Index {
     index: TIndex,
 }
@@ -71,6 +72,17 @@ impl Index {
         let field = self.index.schema().get_field(DOCUMENT_ID)?;
         let mut writer: IndexWriter = self.index.writer(50_000_000)?;
         writer.delete_term(Term::from_field_i64(field, doc_id));
+        writer.commit()?;
+        Ok(())
+    }
+
+    /// 重索引单个文档：同一提交内删除旧条目再写入新内容，避免重复命中。
+    pub fn reindex_document(&self, doc: &Document) -> Result<()> {
+        let content = crate::extract::extract_text(Path::new(&doc.path)).unwrap_or_default();
+        let mut writer: IndexWriter = self.index.writer(50_000_000)?;
+        let id_field = self.index.schema().get_field(DOCUMENT_ID)?;
+        writer.delete_term(Term::from_field_i64(id_field, doc.id));
+        self.add_document(&mut writer, doc, content)?;
         writer.commit()?;
         Ok(())
     }

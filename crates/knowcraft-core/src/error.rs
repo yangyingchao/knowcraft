@@ -7,6 +7,7 @@ pub enum Error {
     Ai(String),
     Capture(String),
     Workflow(String),
+    Watcher(String),
     Io(std::io::Error),
 }
 
@@ -20,6 +21,7 @@ impl std::fmt::Display for Error {
             Error::Ai(s) => write!(f, "ai error: {s}"),
             Error::Capture(s) => write!(f, "capture error: {s}"),
             Error::Workflow(s) => write!(f, "workflow error: {s}"),
+            Error::Watcher(s) => write!(f, "watcher error: {s}"),
             Error::Io(e) => write!(f, "io error: {e}"),
         }
     }
@@ -34,5 +36,8 @@ impl From<rusqlite::Error> for Error {
 }
 impl From<tantivy::TantivyError> for Error {
     fn from(e: tantivy::TantivyError) -> Self { Error::Index(e.to_string()) }
+}
+impl From<notify::Error> for Error {
+    fn from(e: notify::Error) -> Self { Error::Watcher(e.to_string()) }
 }
 pub type Result<T> = std::result::Result<T, Error>;
