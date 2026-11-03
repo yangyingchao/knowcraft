@@ -1,0 +1,55 @@
+{"scenario":"browser-workers-reuse-processes","modes":["columns","icons","list"],"layout":"us","mutation":null,"known_bug":null,"env":{"KNOWCRAFT_THUMBNAIL_WORKERS":"2","KNOWCRAFT_THUMBNAIL_IDLE_SECONDS":"60","RUST_LOG":"knowcraft=info,knowcraft::sandbox::browser=debug"},"setup":[{"fs":{"path":"photos-a","mkdir":true}},{"fs":{"path":"photos-a/photo-{0..5}.png","image":{"width":320,"height":180,"rgb":[40,160,80],"width_step":1}}},{"fs":{"path":"photos-a/model.3mf","zip":[["3D/3dmodel.model","geometry must not be parsed"],["Metadata/thumbnail.png",{"image":{"width":32,"height":32,"rgb":[220,40,80]}}],["Metadata/broken-thumbnail.png","invalid image"]]}},{"fs":{"path":"photos-a/model.FCStd","zip":[["3D/3dmodel.model","geometry must not be parsed"],["thumbnails/Thumbnail.png",{"image":{"width":32,"height":32,"rgb":[220,40,80]}}]]}},{"fs":{"path":"photos-a/plain.stl","write":"solid empty\nendsolid\n"}},{"fs":{"path":"photos-b","mkdir":true}},{"fs":{"path":"photos-b/photo-{0..5}.png","image":{"width":320,"height":180,"rgb":[40,160,80],"width_step":1}}},{"fs":{"path":"photos-b/model.3mf","zip":[["3D/3dmodel.model","geometry must not be parsed"],["Metadata/thumbnail.png",{"image":{"width":32,"height":32,"rgb":[220,40,80]}}],["Metadata/broken-thumbnail.png","invalid image"]]}},{"fs":{"path":"photos-b/model.FCStd","zip":[["3D/3dmodel.model","geometry must not be parsed"],["thumbnails/Thumbnail.png",{"image":{"width":32,"height":32,"rgb":[220,40,80]}}]]}},{"fs":{"path":"photos-b/plain.stl","write":"solid empty\nendsolid\n"}},{"fs":{"path":"photos-c","mkdir":true}},{"fs":{"path":"photos-c/photo-{0..5}.png","image":{"width":320,"height":180,"rgb":[40,160,80],"width_step":1}}},{"fs":{"path":"photos-c/model.3mf","zip":[["3D/3dmodel.model","geometry must not be parsed"],["Metadata/thumbnail.png",{"image":{"width":32,"height":32,"rgb":[220,40,80]}}],["Metadata/broken-thumbnail.png","invalid image"]]}},{"fs":{"path":"photos-c/model.FCStd","zip":[["3D/3dmodel.model","geometry must not be parsed"],["thumbnails/Thumbnail.png",{"image":{"width":32,"height":32,"rgb":[220,40,80]}}]]}},{"fs":{"path":"photos-c/plain.stl","write":"solid empty\nendsolid\n"}}],"cost":{"columns":1.1,"icons":1.4,"list":1.5},"quality":{"impact":2,"coverage":4,"criticality":4,"diagnostic":3,"score":38,"note":"Sandbox pool reuse across folders and replacement after a killed worker; only scenario killing a worker, idle-workers covers retirement"}}
+{"expect":{"view_mode":"$view"}}
+{"select":{"entry":"photos-a"},"modes":["columns"]}
+{"click":{"entry":"photos-a"},"count":2,"modes":["icons","list"]}
+{"wait":{"directory":"photos-a"},"message":"the browser to be working in 'photos-a'"}
+{"settle":{"pane":"photos-a"}}
+{"fs":{"path":"photos-a","all_cached_in":"$cache/thumbnails/large","except_suffix":".stl"},"message":"first folder thumbnails persisted"}
+{"log":{"count":"browser sandbox started"},"as":"initial"}
+{"log":{"contains":"retaining one-shot sandboxes"},"as":"one_shot"}
+{"log":{"count":"browser sandbox started","at_least":1,"at_most":2},"timeout_ms":0,"unless":"one_shot"}
+{"log":{"count":"browser sandbox started","equals":0},"timeout_ms":0,"if":"one_shot"}
+{"wait":{"present":{"role":"label","name":"320×180"}},"message":"original image dimensions","modes":["icons"]}
+{"wait":{"present":{"role":"label","name":"321×180"}},"message":"original image dimensions","modes":["icons"]}
+{"wait":{"present":{"role":"label","name":"322×180"}},"message":"original image dimensions","modes":["icons"]}
+{"wait":{"present":{"role":"label","name":"323×180"}},"message":"original image dimensions","modes":["icons"]}
+{"wait":{"present":{"role":"label","name":"324×180"}},"message":"original image dimensions","modes":["icons"]}
+{"wait":{"present":{"role":"label","name":"325×180"}},"message":"original image dimensions","modes":["icons"]}
+{"key":"alt+Left"}
+{"wait":{"entry":"photos-b"},"message":"parent folder"}
+{"select":{"entry":"photos-b"},"modes":["columns"]}
+{"click":{"entry":"photos-b"},"count":2,"modes":["icons","list"]}
+{"wait":{"directory":"photos-b"},"message":"the browser to be working in 'photos-b'"}
+{"settle":{"pane":"photos-b"}}
+{"fs":{"path":"photos-b","all_cached_in":"$cache/thumbnails/large","except_suffix":".stl"},"message":"second folder thumbnails persisted"}
+{"wait":{"present":{"role":"label","name":"320×180"}},"message":"second folder image dimensions","modes":["icons"]}
+{"wait":{"present":{"role":"label","name":"321×180"}},"message":"second folder image dimensions","modes":["icons"]}
+{"wait":{"present":{"role":"label","name":"322×180"}},"message":"second folder image dimensions","modes":["icons"]}
+{"wait":{"present":{"role":"label","name":"323×180"}},"message":"second folder image dimensions","modes":["icons"]}
+{"wait":{"present":{"role":"label","name":"324×180"}},"message":"second folder image dimensions","modes":["icons"]}
+{"wait":{"present":{"role":"label","name":"325×180"}},"message":"second folder image dimensions","modes":["icons"]}
+{"log":{"count":"browser sandbox started","at_most":2},"timeout_ms":0,"message":"navigation must reuse the process-wide pool"}
+{"log":{"count":"browser worker completed","at_least":16},"timeout_ms":0}
+{"fs":{"path":"photos-a/model.3mf","cached_in":"$cache/thumbnails/large","pixel":{"at":[0,0],"rgb":[220,40,80]}},"timeout_ms":0}
+{"fs":{"path":"photos-a/model.FCStd","cached_in":"$cache/thumbnails/large","pixel":{"at":[0,0],"rgb":[220,40,80]}},"timeout_ms":0}
+{"fs":{"path":"photos-a/plain.stl","cached_in":"$cache/thumbnails/large","exists":false},"timeout_ms":0}
+{"fs":{"path":"photos-b/model.3mf","cached_in":"$cache/thumbnails/large","pixel":{"at":[0,0],"rgb":[220,40,80]}},"timeout_ms":0}
+{"fs":{"path":"photos-b/model.FCStd","cached_in":"$cache/thumbnails/large","pixel":{"at":[0,0],"rgb":[220,40,80]}},"timeout_ms":0}
+{"fs":{"path":"photos-b/plain.stl","cached_in":"$cache/thumbnails/large","exists":false},"timeout_ms":0}
+{"log":{"matches":"browser sandbox started pid=(\\d+)","pick":-1},"unless":"one_shot","as":"pid"}
+{"proc":{"parent_is_app":"$pid"},"timeout_ms":0,"unless":"one_shot"}
+{"proc":{"kill":"$pid"},"unless":"one_shot"}
+{"key":"alt+Left","unless":"one_shot"}
+{"wait":{"entry":"photos-c"},"message":"parent after worker loss","unless":"one_shot"}
+{"select":{"entry":"photos-c"},"modes":["columns"],"unless":"one_shot"}
+{"click":{"entry":"photos-c"},"count":2,"modes":["icons","list"],"unless":"one_shot"}
+{"wait":{"directory":"photos-c"},"message":"the browser to be working in 'photos-c'","unless":"one_shot"}
+{"settle":{"pane":"photos-c"},"unless":"one_shot"}
+{"fs":{"path":"photos-c","all_cached_in":"$cache/thumbnails/large","except_suffix":".stl"},"message":"replacement worker to finish the next folder","unless":"one_shot"}
+{"log":{"count":"browser sandbox started","equals":"$initial","plus":1},"timeout_ms":0,"unless":"one_shot"}
+{"fs":{"path":"photos-a/photo-0.png","pixel":{"at":[0,0],"rgb":[40,160,80]}},"timeout_ms":0}
+{"fs":{"path":"photos-a/photo-1.png","pixel":{"at":[0,0],"rgb":[40,160,80]}},"timeout_ms":0}
+{"fs":{"path":"photos-a/photo-2.png","pixel":{"at":[0,0],"rgb":[40,160,80]}},"timeout_ms":0}
+{"fs":{"path":"photos-a/photo-3.png","pixel":{"at":[0,0],"rgb":[40,160,80]}},"timeout_ms":0}
+{"fs":{"path":"photos-a/photo-4.png","pixel":{"at":[0,0],"rgb":[40,160,80]}},"timeout_ms":0}
+{"fs":{"path":"photos-a/photo-5.png","pixel":{"at":[0,0],"rgb":[40,160,80]}},"timeout_ms":0}

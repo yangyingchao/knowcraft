@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["crates/knowcraft-core"]
+members = ["crates/knowcraft-core", "crates/knowcraft"]
+default-members = ["crates/knowcraft-core"]
 exclude = ["crates/vendor"]
 
 # Vendored, patched third-party crates for the pdfcraft-render text-extraction stack
@@ -16,3 +17,9 @@ hayro-jbig2 = { path = "crates/vendor/pdfcraft/vendor/hayro-jbig2" }
 lopdf = { path = "crates/vendor/pdfcraft/vendor/lopdf" }
 vello_common = { path = "crates/vendor/pdfcraft/vendor/vello_common" }
 vello_cpu = { path = "crates/vendor/pdfcraft/vendor/vello_cpu" }
+
+[profile.release]
+# Whole-program optimization for knowcraft's hot listing/sort/insert paths.
+# Build-time only: no runtime behavior change.
+lto = true
+codegen-units = 1

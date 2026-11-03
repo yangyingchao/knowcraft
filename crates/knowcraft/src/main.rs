@@ -1,0 +1,545 @@
+// SPDX-License-Identifier: MIT
+
+// build.rs embeds data/locales; this path holds no catalogs, so the macro adds none itself.
+rust_i18n::i18n!(
+    "src/i18n/no-catalogs",
+    fallback = "en",
+    backend = crate::i18n::Catalogs::compiled()
+);
+
+mod adapters;
+mod app;
+mod assets;
+mod build_info;
+mod child_environment;
+mod i18n;
+mod knowledge;
+mod logging;
+mod media;
+mod metrics;
+mod model;
+mod portal;
+#[cfg(feature = "qa")]
+mod qa;
+#[cfg(feature = "rar")]
+mod rar_extraction;
+mod sandbox;
+mod sandbox_helper;
+mod services;
+mod storage;
+#[cfg(test)]
+mod test_support;
+mod trusted_command;
+mod ui;
+mod util;
+
+use std::{
+    cell::OnceCell, ffi::OsString, ops::ControlFlow, os::unix::process::CommandExt, process::Stdio,
+    time::Duration,
+};
+
+use gtk::{gio, glib, prelude::*};
+
+use ui::UnlockTarget;
+
+const APPLICATION_ID: &str = "io.github.knowcraft.Knowcraft";
+const CAIRO_SELECTED_BY_KNOWCRAFT: &str = "KNOWCRAFT_CAIRO_SELECTED_BY_KNOWCRAFT";
+const GVFS_PROBE_ARGUMENT: &str = "--gvfs-probe";
+const GVFS_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
+const GIO_FALLBACK_BACKENDS: [(&str, &str); 2] =
+    [("GIO_USE_VFS", "local"), ("GIO_USE_VOLUME_MONITOR", "unix")];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LaunchMode {
+    PreviewHelper,
+    BrowserWorker,
+    GvfsProbe,
+    Version,
+    #[cfg(feature = "qa")]
+    Qa,
+    Application,
+}
+
+/// Byte-safe: a non-UTF-8 path argument is an ordinary application launch,
+/// not a reason to abort before GIO ever sees it.
+fn launch_mode(arguments: &[OsString]) -> LaunchMode {
+    match arguments.get(1).and_then(|argument| argument.to_str()) {
+        Some("--preview-helper") => LaunchMode::PreviewHelper,
+        Some("--browser-worker") => LaunchMode::BrowserWorker,
+        Some(GVFS_PROBE_ARGUMENT) => LaunchMode::GvfsProbe,
+        Some("--version") => LaunchMode::Version,
+        #[cfg(feature = "qa")]
+        Some("--qa") => LaunchMode::Qa,
+        _ => LaunchMode::Application,
+    }
+}
+
+/// `GTK_THEME` replaces GTK's theme regardless of its settings, so it is dropped
+/// before GTK starts; `ui::theme` pins the built-in theme from there on.
+const DESKTOP_THEME_OVERRIDE: &str = "GTK_THEME";
+
+fn has_desktop_theme_override() -> bool {
+    std::env::var_os(DESKTOP_THEME_OVERRIDE).is_some()
+}
+
+/// GTK reads its renderer and theme override during startup. Re-exec before
+/// initializing GTK rather than mutating the environment after libraries may
+/// have started threads. Returns only when the restart fails.
+fn restart_for_gtk_environment(
+    arguments: &[OsString],
+    select_cairo: bool,
+) -> gtk::glib::ExitCode {
+    let Ok(executable) = std::env::current_exe() else {
+        eprintln!("Unable to locate Knowcraft to restart it");
+        return gtk::glib::ExitCode::FAILURE;
+    };
+    let mut command = std::process::Command::new(executable);
+    command
+        .args(&arguments[1..])
+        .env_remove(DESKTOP_THEME_OVERRIDE);
+    if select_cairo {
+        command
+            .env("GSK_RENDERER", "cairo")
+            .env(CAIRO_SELECTED_BY_KNOWCRAFT, "1");
+    }
+    let error = command.exec();
+    eprintln!("Unable to restart Knowcraft: {error}");
+    gtk::glib::ExitCode::FAILURE
+}
+
+fn should_select_cairo(
+    supplied_renderer: Option<&std::ffi::OsStr>,
+    choice: ui::preferences::InterfaceRenderer,
+) -> bool {
+    supplied_renderer.is_none() && choice == ui::preferences::InterfaceRenderer::Cairo
+}
+
+fn version_line() -> String {
+    format!(
+        "{} {}",
+        env!("CARGO_BIN_NAME"),
+        build_info::displayed_version()
+    )
+}
+
+fn main() -> gtk::glib::ExitCode {
+    let arguments: Vec<OsString> = std::env::args_os().collect();
+    let mode = launch_mode(&arguments);
+    match mode {
+        LaunchMode::BrowserWorker => {
+            return match sandbox::browser::run() {
+                Ok(()) => gtk::glib::ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("Browser helper failed: {error}");
+                    gtk::glib::ExitCode::FAILURE
+                }
+            };
+        }
+        LaunchMode::PreviewHelper => {
+            if let Err(error) = run_preview_helper(&arguments[2..]) {
+                eprintln!("Preview helper failed: {error}");
+                return gtk::glib::ExitCode::FAILURE;
+            }
+            return gtk::glib::ExitCode::SUCCESS;
+        }
+        LaunchMode::GvfsProbe => {
+            let _vfs = gio::Vfs::default();
+            let _volumes = gio::VolumeMonitor::get();
+            return gtk::glib::ExitCode::SUCCESS;
+        }
+        LaunchMode::Version => {
+            println!("{}", version_line());
+            return gtk::glib::ExitCode::SUCCESS;
+        }
+        #[cfg(feature = "qa")]
+        LaunchMode::Qa => {}
+        LaunchMode::Application => {}
+    }
+
+    #[cfg(feature = "qa")]
+    let qa_session = match mode {
+        LaunchMode::Qa => match qa::Session::prepare(&arguments) {
+            Ok(session) => Some(session),
+            Err(error) => {
+                eprintln!("{error}");
+                return gtk::glib::ExitCode::FAILURE;
+            }
+        },
+        _ => None,
+    };
+    #[cfg(feature = "qa")]
+    let application_arguments = qa_session.as_ref().map_or_else(
+        || arguments.clone(),
+        |session| session.application_arguments().to_vec(),
+    );
+    #[cfg(not(feature = "qa"))]
+    let application_arguments = arguments.clone();
+
+    install_application_identity();
+    metrics::initialize();
+    logging::initialize();
+    // Timed from here so `window presented` covers the whole launch, the way
+    // the field harness measures mapped from process start.
+    let launched = std::time::Instant::now();
+    // Before anything creates GIO's default VFS: a hung gvfsd blocks that for
+    // about 25 s, and loading preferences already creates it.
+    restart_with_local_vfs_if_gvfs_is_unresponsive();
+    tracing::debug!(
+        elapsed_ms = launched.elapsed().as_millis() as u64,
+        "startup gvfs probe finished"
+    );
+    let select_cairo = should_select_cairo(
+        std::env::var_os("GSK_RENDERER").as_deref(),
+        ui::preferences::PreferenceManager::shared().interface_renderer(),
+    );
+    if select_cairo || has_desktop_theme_override() {
+        // Replies already own the original stdout, which a restart would lose.
+        #[cfg(feature = "qa")]
+        if qa_session.is_some() {
+            eprintln!("--qa needs GSK_RENDERER set and GTK_THEME unset");
+            return gtk::glib::ExitCode::FAILURE;
+        }
+        return restart_for_gtk_environment(&arguments, select_cairo);
+    }
+
+    let assets_started = std::time::Instant::now();
+    if let Err(error) = assets::prepare() {
+        eprintln!("Unable to prepare bundled assets: {error}");
+    }
+    tracing::debug!(
+        elapsed_ms = assets_started.elapsed().as_millis() as u64,
+        total_elapsed_ms = launched.elapsed().as_millis() as u64,
+        "startup bundled assets prepared"
+    );
+
+    let application = gtk::Application::builder()
+        .application_id(APPLICATION_ID)
+        .flags(gio::ApplicationFlags::HANDLES_OPEN | gio::ApplicationFlags::HANDLES_COMMAND_LINE)
+        .build();
+
+    application.add_main_option(
+        "unlock-volume",
+        glib::Char(0),
+        glib::OptionFlags::NONE,
+        glib::OptionArg::String,
+        "Unlock an encrypted volume and show the password prompt",
+        Some("DEVICE"),
+    );
+    application.connect_handle_local_options(|_, _| ControlFlow::Continue(()));
+    application.connect_startup(move |_| {
+        VOLUME_MONITOR.with(|monitor| {
+            monitor.get_or_init(gio::VolumeMonitor::get);
+        });
+        tracing::debug!(
+            elapsed_ms = launched.elapsed().as_millis() as u64,
+            "startup volume monitor ready"
+        );
+    });
+    application.connect_startup(|application| {
+        if application
+            .flags()
+            .contains(gio::ApplicationFlags::IS_SERVICE)
+        {
+            leave_launch_folder();
+        }
+    });
+    application.connect_startup(|_| install_x11_program_class());
+    application.connect_startup(|_| {
+        knowledge::init();
+    });
+    application.connect_startup(|_application| ui::schedule_rollback_cleanup());
+    application.connect_shutdown(|_| {
+        ui::preferences::flush_pending_folder_views();
+        storage::writer::flush_at_exit();
+    });
+    application.connect_activate(|application| {
+        if let Err(error) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            ui::present(application);
+        })) {
+            tracing::error!("panic during application activation: {error:?}");
+        }
+    });
+    application.connect_open(|application, files, _| {
+        if let Err(error) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if files.is_empty() {
+                ui::present(application);
+            }
+            for file in files {
+                ui::present_open(application, file.clone());
+            }
+        })) {
+            tracing::error!("panic during application open: {error:?}");
+        }
+    });
+    application.connect_command_line(|application, cmdline| {
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            handle_command_line(application, cmdline)
+        })) {
+            Ok(code) => code,
+            Err(error) => {
+                tracing::error!("panic during command line handling: {error:?}");
+                glib::ExitCode::FAILURE
+            }
+        }
+    });
+    #[cfg(feature = "qa")]
+    if let Some(session) = qa_session {
+        session.attach(&application);
+    }
+    adapters::mount_watch::start();
+    ui::read_install_facts();
+    util::ui_thread::mark();
+    util::ui_thread::stalls::start();
+    application.run_with_args_os(&application_arguments)
+}
+
+thread_local! {
+    static VOLUME_MONITOR: OnceCell<gio::VolumeMonitor> = const { OnceCell::new() };
+}
+
+const UNLOCK_VOLUME_WITH_FILES: &str = "cannot combine --unlock-volume with file arguments";
+
+#[derive(Debug)]
+enum CommandLineAction {
+    Unlock(UnlockTarget),
+    Open(Vec<gio::File>),
+    Activate,
+    ServiceNoop,
+    Usage(&'static str),
+}
+
+fn classify_command_line(
+    unlock_volume: Option<&str>,
+    remaining_files: &[gio::File],
+    is_service: bool,
+    is_remote: bool,
+) -> CommandLineAction {
+    match unlock_volume {
+        Some(_) if !remaining_files.is_empty() => {
+            CommandLineAction::Usage(UNLOCK_VOLUME_WITH_FILES)
+        }
+        Some(operand) => match UnlockTarget::parse(operand) {
+            Ok(target) => CommandLineAction::Unlock(target),
+            Err(message) => CommandLineAction::Usage(message),
+        },
+        None if !remaining_files.is_empty() => CommandLineAction::Open(remaining_files.to_vec()),
+        None if !is_remote && is_service => CommandLineAction::ServiceNoop,
+        None => CommandLineAction::Activate,
+    }
+}
+
+fn handle_command_line(
+    application: &gtk::Application,
+    cmdline: &gio::ApplicationCommandLine,
+) -> glib::ExitCode {
+    let unlock_volume = cmdline
+        .options_dict()
+        .lookup::<String>("unlock-volume")
+        .ok()
+        .flatten();
+    let files: Vec<gio::File> = cmdline
+        .arguments()
+        .iter()
+        .skip(1)
+        .map(|argument| cmdline.create_file_for_arg(argument))
+        .collect();
+    leave_launch_folder();
+    let is_service = application
+        .flags()
+        .contains(gio::ApplicationFlags::IS_SERVICE);
+    match classify_command_line(
+        unlock_volume.as_deref(),
+        &files,
+        is_service,
+        cmdline.is_remote(),
+    ) {
+        CommandLineAction::Unlock(target) => {
+            ui::present_unlock(application, target);
+            glib::ExitCode::SUCCESS
+        }
+        CommandLineAction::Open(files) => {
+            application.open(&files, "");
+            glib::ExitCode::SUCCESS
+        }
+        CommandLineAction::Activate => {
+            application.activate();
+            glib::ExitCode::SUCCESS
+        }
+        CommandLineAction::ServiceNoop => glib::ExitCode::SUCCESS,
+        CommandLineAction::Usage(message) => {
+            print_command_line_error(cmdline, message);
+            glib::ExitCode::FAILURE
+        }
+    }
+}
+
+/// Prints to the stderr of the process that ran the command, which is not
+/// this one when Knowcraft was already running.
+#[expect(
+    unsafe_code,
+    reason = "gio-rs binds printerr_literal only from GLib 2.80, above the 2.72 Knowcraft supports"
+)]
+fn print_command_line_error(cmdline: &gio::ApplicationCommandLine, message: &str) {
+    use glib::translate::ToGlibPtr as _;
+    let Ok(line) = std::ffi::CString::new(format!("{message}\n")) else {
+        return;
+    };
+    // SAFETY: the command line and both strings outlive the call, and the "%s"
+    // format consumes exactly the one NUL-terminated string passed after it.
+    unsafe {
+        gio::ffi::g_application_command_line_printerr(
+            cmdline.to_glib_none().0,
+            c"%s".as_ptr(),
+            line.as_ptr(),
+        );
+    }
+}
+
+fn leave_launch_folder() {
+    if let Err(error) = std::env::set_current_dir("/") {
+        tracing::warn!(%error, "unable to leave the launch folder");
+    }
+}
+
+fn install_application_identity() {
+    glib::set_prgname(Some(APPLICATION_ID));
+    glib::set_application_name("Knowcraft");
+}
+
+fn install_x11_program_class() {
+    let Some(display) = gtk::gdk::Display::default() else {
+        return;
+    };
+    let Ok(x11) = display.downcast::<gdk4_x11::X11Display>() else {
+        return;
+    };
+    x11.set_program_class(APPLICATION_ID);
+}
+
+fn run_preview_helper(arguments: &[OsString]) -> Result<(), String> {
+    let arguments = arguments
+        .iter()
+        .map(|argument| {
+            argument
+                .to_str()
+                .map(str::to_owned)
+                .ok_or_else(|| "Invalid UTF-8 in preview helper arguments".to_owned())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    sandbox_helper::run(&arguments)
+}
+
+/// GIO registers its built-in implementations, `GLocalVfs` among them, when it
+/// first loads its modules, as creating its default VFS does.
+fn gio_modules_loaded() -> bool {
+    glib::Type::from_name("GLocalVfs").is_some()
+}
+
+fn restart_with_local_vfs_if_gvfs_is_unresponsive() {
+    debug_assert!(
+        !gio_modules_loaded(),
+        "GIO loaded its modules before the GVfs probe; a hung gvfsd blocks its default VFS"
+    );
+    if std::env::var_os("GIO_USE_VFS").is_some() {
+        return;
+    }
+    // Skip the subprocess probe when the marker matches the current `gvfsd`
+    // generation; a daemon restart (new pid) re-arms it. A daemon wedging
+    // under the same pid is not detected.
+    if gvfs_probe_marker_is_fresh() {
+        return;
+    }
+    let Ok(executable) = std::env::current_exe() else {
+        return;
+    };
+    let responsive = sandbox_helper::run_command_with_timeout(
+        std::process::Command::new(&executable)
+            .arg(GVFS_PROBE_ARGUMENT)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null()),
+        GVFS_PROBE_TIMEOUT,
+    )
+    .unwrap_or(true);
+    if responsive {
+        write_gvfs_probe_marker();
+        return;
+    }
+
+    eprintln!("GVFS is unresponsive; using local filesystem and volume support for this session.");
+    let error = std::process::Command::new(executable)
+        .args(std::env::args_os().skip(1))
+        .envs(GIO_FALLBACK_BACKENDS)
+        .exec();
+    eprintln!("Unable to restart Knowcraft with local filesystem and volume support: {error}");
+}
+
+fn gvfs_probe_marker_path() -> Option<std::path::PathBuf> {
+    gvfs_probe_marker_path_in(std::env::var_os("XDG_RUNTIME_DIR"))
+}
+
+fn gvfs_probe_marker_path_in(runtime: Option<std::ffi::OsString>) -> Option<std::path::PathBuf> {
+    let runtime = runtime?;
+    if runtime.is_empty() {
+        return None;
+    }
+    Some(std::path::Path::new(&runtime).join("knowcraft-gvfs-probe-ok"))
+}
+
+/// Kernel pids of `gvfsd*` processes, read from `/proc` to avoid a subprocess
+/// spawn; any restart re-arms the probe.
+fn gvfs_daemon_pids(proc_root: &std::path::Path) -> Vec<u32> {
+    let mut pids = Vec::new();
+    let Ok(entries) = std::fs::read_dir(proc_root) else {
+        return pids;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(pid): Option<u32> = name.to_str().and_then(|name| name.parse().ok()) else {
+            continue;
+        };
+        let comm = entry.path().join("comm");
+        if std::fs::read_to_string(comm)
+            .is_ok_and(|contents| contents.trim_end().starts_with("gvfsd"))
+        {
+            pids.push(pid);
+        }
+    }
+    pids.sort_unstable();
+    pids
+}
+
+fn encode_daemon_pids(pids: &[u32]) -> String {
+    pids.iter()
+        .map(u32::to_string)
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn gvfs_probe_marker_is_fresh() -> bool {
+    let Some(path) = gvfs_probe_marker_path() else {
+        return false;
+    };
+    gvfs_probe_marker_is_fresh_at(&path, std::path::Path::new("/proc"))
+}
+
+fn gvfs_probe_marker_is_fresh_at(path: &std::path::Path, proc_root: &std::path::Path) -> bool {
+    let Ok(stored) = std::fs::read_to_string(path) else {
+        return false;
+    };
+    stored == encode_daemon_pids(&gvfs_daemon_pids(proc_root))
+}
+
+fn write_gvfs_probe_marker() {
+    let Some(path) = gvfs_probe_marker_path() else {
+        return;
+    };
+    if let Some(parent) = path.parent() {
+        let _ignored = std::fs::create_dir_all(parent);
+    }
+    let contents = encode_daemon_pids(&gvfs_daemon_pids(std::path::Path::new("/proc")));
+    let _ignored = std::fs::write(&path, contents);
+}
+
+#[cfg(test)]
+mod tests;

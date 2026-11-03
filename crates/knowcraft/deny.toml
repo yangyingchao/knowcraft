@@ -1,0 +1,56 @@
+[graph]
+all-features = true
+
+[advisories]
+# Remove once docx-rs releases on zip 9 (#2035).
+ignore = [
+  { id = "RUSTSEC-2026-0429", reason = "zip 8 only via docx-rs, which never calls extract" },
+  { id = "RUSTSEC-2026-0367", reason = "zip 8 only via docx-rs, which never calls extract" },
+  { id = "RUSTSEC-2026-0368", reason = "zip 8 only via docx-rs, which never calls extract" },
+  { id = "RUSTSEC-2026-0369", reason = "zip 8 only via docx-rs, which never calls extract" },
+  { id = "RUSTSEC-2026-0370", reason = "zbus 5 is required by ashpd 0.13" },
+  { id = "RUSTSEC-2026-0371", reason = "zbus 5 is required by ashpd 0.13" },
+  { id = "RUSTSEC-2026-0372", reason = "zbus 5 is required by ashpd 0.13" },
+]
+
+[licenses]
+confidence-threshold = 0.8
+allow = [
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-3-Clause",
+  "bzip2-1.0.6",
+  "CC0-1.0",
+  "CDLA-Permissive-2.0",
+  "ISC",
+  "MIT",
+  "MIT-0",
+  "Unicode-3.0",
+  "Unlicense",
+  "Zlib",
+]
+
+# tiny-skia dependency; its redistribution notice is in THIRD_PARTY_LICENSES.md.
+[[licenses.exceptions]]
+name = "arrayref"
+allow = ["BSD-2-Clause"]
+
+# RAW metadata dependencies; their redistribution notices are in THIRD_PARTY_LICENSES.md.
+[[licenses.exceptions]]
+name = "kamadak-exif"
+allow = ["BSD-2-Clause"]
+
+[[licenses.exceptions]]
+name = "mutate_once"
+allow = ["BSD-2-Clause"]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "simplest-path"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
