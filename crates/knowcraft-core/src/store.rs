@@ -53,7 +53,7 @@ impl Store {
 
     // Poisoning only happens if a panic occurred while holding the lock; the
     // connection itself stays valid, so recover the guard instead of panicking.
-    fn lock(&self) -> MutexGuard<'_, Connection> {
+    pub(crate) fn lock(&self) -> MutexGuard<'_, Connection> {
         self.conn.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -224,7 +224,7 @@ impl Store {
     }
 }
 
-fn now() -> String {
+pub(crate) fn now() -> String {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs().to_string())
