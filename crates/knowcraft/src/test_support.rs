@@ -13,7 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use gtk::glib;
+use gtk::{glib, prelude::*};
 use tracing_subscriber::fmt::MakeWriter;
 
 pub(crate) struct TestMutex(Mutex<()>);
@@ -257,6 +257,19 @@ pub(crate) fn present_window(window: &gtk::Window) {
     );
 }
 
+/// 测试窗口使用独立的 app_id（`io.github.knowcraft.KnowcraftTest`），
+/// compositor 可据此与主程序窗口区分，避免测试窗口抢焦点。
+fn install_test_identity() {
+    const TEST_APP_ID: &str = "io.github.knowcraft.KnowcraftTest";
+    glib::set_prgname(Some(TEST_APP_ID));
+    glib::set_application_name("Knowcraft Tests");
+    if let Some(display) = gtk::gdk::Display::default()
+        && let Ok(x11) = display.downcast::<gdk4_x11::X11Display>()
+    {
+        x11.set_program_class(TEST_APP_ID);
+    }
+}
+
 /// GTK initialization is thread-affine; each UI test gets a process and disposable preferences.
 pub(crate) fn gtk_test(name: &str, run: impl FnOnce()) {
     gtk_test_with_env(name, std::iter::empty::<(&str, &std::ffi::OsStr)>(), run);
@@ -277,6 +290,7 @@ pub(crate) fn gtk_test_with_env(
             eprintln!("Skipping {name}: {error}");
             return;
         }
+        install_test_identity();
         crate::assets::prepare().expect("bundled assets");
         crate::assets::register_icon_theme();
         crate::adapters::mount_watch::start();
