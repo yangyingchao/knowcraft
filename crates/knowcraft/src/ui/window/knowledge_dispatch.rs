@@ -9,6 +9,7 @@ use std::time::Duration;
 use gtk::{glib, prelude::*};
 
 use crate::i18n::tr;
+use crate::knowledge::IndexProgress;
 
 /// 输入框内容优先；否则取列表选中项。空输入且无有效选中时返回 `None`。
 pub(super) fn chosen_category(
@@ -68,6 +69,7 @@ pub(crate) fn present_import_folder_dialog(
     start: Option<PathBuf>,
     refresh: Rc<dyn Fn()>,
     feedback: Rc<dyn Fn(&str)>,
+    overlay: gtk::Overlay,
 ) {
     let mut builder = gtk::FileDialog::builder()
         .title(tr("Select folder to import"))
@@ -76,24 +78,135 @@ pub(crate) fn present_import_folder_dialog(
         builder = builder.initial_folder(&gio::File::for_path(start));
     }
     let dialog = builder.build();
+    let import_overlay = overlay.clone();
     dialog.select_folder(Some(parent), gio::Cancellable::NONE, move |result| {
         if let Ok(file) = result
             && let Some(path) = file.path()
         {
-            run_import(path, refresh.clone(), feedback.clone());
+            run_import(path, refresh.clone(), feedback.clone(), import_overlay.clone());
         }
     });
 }
 
-fn run_import(src: PathBuf, refresh: Rc<dyn Fn()>, feedback: Rc<dyn Fn(&str)>) {
-    let (sender, receiver) = std::sync::mpsc::channel::<Result<String, String>>();
+/// One indexing run's events: widget-free so the worker thread can send them.
+enum ImportEvent {
+    Progress(IndexProgress),
+    Finished(Result<String, String>),
+}
+
+fn run_import(
+    src: PathBuf,
+    refresh: Rc<dyn Fn()>,
+    feedback: Rc<dyn Fn(&str)>,
+    overlay: gtk::Overlay,
+) {
+    let (sender, receiver) = std::sync::mpsc::channel::<ImportEvent>();
     std::thread::spawn(move || {
         let result = crate::knowledge::init()
             .ok_or_else(|| "知识库不可用".to_owned())
-            .and_then(|knowledge| knowledge.import_directory(&src).map(import_message));
+            .and_then(|knowledge| {
+                let report = knowledge
+                    .import_directory(&src)
+                    .map_err(|error| error.to_string())?;
+                let pending = knowledge.pending_documents(&knowledge.data_dir().join("inbox"));
+                if !pending.is_empty() {
+                    let sender = sender.clone();
+                    knowledge.index_documents_with_progress(&pending, |progress| {
+                        let _ = sender.send(ImportEvent::Progress(progress));
+                    });
+                }
+                Ok(import_message(report))
+            });
+        let _ = sender.send(ImportEvent::Finished(result));
+    });
+    poll_import(receiver, refresh, feedback, overlay);
+}
+
+/// Reindexes one knowledge file in the background, reporting on the dock.
+pub(crate) fn reindex_file(
+    path: PathBuf,
+    refresh: Rc<dyn Fn()>,
+    feedback: Rc<dyn Fn(&str)>,
+    overlay: gtk::Overlay,
+) {
+    crate::ui::notice::show_status(&overlay, &tr("Indexing…"), Duration::from_secs(10));
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<(), String>>();
+    std::thread::spawn(move || {
+        let result = crate::knowledge::init()
+            .ok_or_else(|| "知识库不可用".to_owned())
+            .and_then(|knowledge| knowledge.reindex_path(&path));
         let _ = sender.send(result);
     });
-    poll_result(receiver, refresh, feedback);
+    glib::timeout_add_local(Duration::from_millis(50), move || {
+        match receiver.try_recv() {
+            Ok(Ok(())) => {
+                crate::ui::notice::show_status(&overlay, &tr("Reindexed"), Duration::from_secs(2));
+                refresh();
+                glib::ControlFlow::Break
+            }
+            Ok(Err(error)) => {
+                feedback(&error);
+                glib::ControlFlow::Break
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => glib::ControlFlow::Break,
+        }
+    });
+}
+
+fn poll_import(
+    receiver: std::sync::mpsc::Receiver<ImportEvent>,
+    refresh: Rc<dyn Fn()>,
+    feedback: Rc<dyn Fn(&str)>,
+    overlay: gtk::Overlay,
+) {
+    let done = std::rc::Rc::new(std::cell::Cell::new(0usize));
+    let total = std::rc::Rc::new(std::cell::Cell::new(0usize));
+    glib::timeout_add_local(Duration::from_millis(50), move || loop {
+        match receiver.try_recv() {
+            Ok(ImportEvent::Progress(progress)) => match progress {
+                IndexProgress::Begin { total: count } => total.set(count),
+                IndexProgress::Started { path } => {
+                    let name = path
+                        .file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                        .unwrap_or_default();
+                    let text = rust_i18n::t!(
+                        "Indexing %{done}/%{total}: %{name}",
+                        done = done.get() + 1,
+                        total = total.get().max(1),
+                        name = name
+                    )
+                    .into_owned();
+                    crate::ui::notice::show_status(&overlay, &text, Duration::from_secs(10));
+                }
+                IndexProgress::Finished { .. } => done.set(done.get() + 1),
+                IndexProgress::Done { ok, failed } => {
+                    let text = if failed == 0 {
+                        rust_i18n::t!("Indexed %{count} files", count = ok).into_owned()
+                    } else {
+                        rust_i18n::t!(
+                            "Indexed %{ok} files, %{failed} failed",
+                            ok = ok,
+                            failed = failed
+                        )
+                        .into_owned()
+                    };
+                    crate::ui::notice::show_status(&overlay, &text, Duration::from_secs(3));
+                }
+            },
+            Ok(ImportEvent::Finished(result)) => {
+                match result {
+                    Ok(message) => feedback(&message),
+                    Err(error) => feedback(&error),
+                }
+                refresh();
+                return glib::ControlFlow::Break;
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => return glib::ControlFlow::Continue,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => return glib::ControlFlow::Break,
+        }
+    });
 }
 
 /// 导入报告文案：全零时提示无可导入文件，否则汇报导入数与跳过数。

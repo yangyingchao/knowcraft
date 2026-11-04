@@ -25,7 +25,7 @@ pub(super) fn add_notice(
 }
 
 /// A notice without the success check, for reporting a value as it changes.
-pub(super) fn show_status(overlay: &gtk::Overlay, text: &str, duration: Duration) {
+pub(in crate::ui) fn show_status(overlay: &gtk::Overlay, text: &str, duration: Duration) {
     show(overlay, false, true, None, text, duration);
 }
 

@@ -178,6 +178,7 @@ impl ListFactory {
         }
         row.icon.set_hidden(binding.entry.is_hidden);
         row.icon.set_base_opacity(1.0);
+        crate::ui::index_badge::apply(row.widget.upcast_ref(), &binding.entry.location);
     }
 }
 
@@ -253,6 +254,7 @@ impl ListRow {
         self.size.set_label("");
         self.kind.set_label("");
         crate::util::set_modified_date(&self.modified, None, "");
+        crate::ui::index_badge::clear(self.widget.upcast_ref());
     }
 }
 
@@ -329,5 +331,6 @@ pub(super) fn refresh_list_section(
         crate::util::set_modified_date(&row.modified, Some(&entry), "—");
         row.icon.set_hidden(is_hidden);
         row.icon.set_base_opacity(1.0);
+        crate::ui::index_badge::apply(row.widget.upcast_ref(), &entry.location);
     });
 }

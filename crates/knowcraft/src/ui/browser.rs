@@ -144,6 +144,8 @@ type PinStatusHandler = Rc<dyn Fn(&Location) -> PinStatus>;
 type DispatchHandler = Rc<dyn Fn(std::path::PathBuf)>;
 /// Opens a folder picker for importing the picked directory into the inbox.
 type ImportHandler = Rc<dyn Fn(Option<std::path::PathBuf>)>;
+/// Rebuilds the search index for one knowledge file.
+type ReindexHandler = Rc<dyn Fn(std::path::PathBuf)>;
 type PreparingTransfer = (
     transfer::Preparing,
     gio::Cancellable,
@@ -284,6 +286,7 @@ pub(super) struct ViewState {
     pin_status_handler: RefCell<Option<PinStatusHandler>>,
     dispatch_handler: RefCell<Option<DispatchHandler>>,
     import_handler: RefCell<Option<ImportHandler>>,
+    reindex_handler: RefCell<Option<ReindexHandler>>,
     search_selection_handlers: RefCell<Vec<Rc<dyn Fn()>>>,
     pending_select: RefCell<Vec<String>>,
     pending_properties: RefCell<Option<Location>>,
@@ -489,9 +492,11 @@ impl BrowserView {
         &self,
         dispatch_handler: DispatchHandler,
         import_handler: ImportHandler,
+        reindex_handler: ReindexHandler,
     ) {
         self.state.dispatch_handler.replace(Some(dispatch_handler));
         self.state.import_handler.replace(Some(import_handler));
+        self.state.reindex_handler.replace(Some(reindex_handler));
     }
 
     pub fn set_operation_provider(&self, provider: Rc<dyn OperationProvider>) {

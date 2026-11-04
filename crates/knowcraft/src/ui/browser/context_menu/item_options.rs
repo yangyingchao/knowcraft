@@ -220,6 +220,7 @@ pub(super) struct SingleEditOptions {
     pub(super) copy_to: gtk::Button,
     pub(super) compress: gtk::Button,
     pub(super) dispatch: gtk::Button,
+    pub(super) reindex: gtk::Button,
     pub(super) pin: gtk::Button,
     pub(super) customize: gtk::Button,
     pub(super) copy_path: gtk::Button,
@@ -256,6 +257,10 @@ fn dispatch_option() -> gtk::Button {
     item_context_option(icons::FOLDER_ARCHIVE, "Archive", ContextHint::None)
 }
 
+fn reindex_option() -> gtk::Button {
+    item_context_option(icons::REFRESH, "Reindex", ContextHint::None)
+}
+
 fn properties_option() -> gtk::Button {
     item_context_option(icons::INFO, "Properties", ContextHint::Properties)
 }
@@ -272,6 +277,7 @@ impl SingleEditOptions {
             copy_to: copy_to_option(),
             compress: compress_option(),
             dispatch: dispatch_option(),
+            reindex: reindex_option(),
             pin: item_context_option(icons::PIN, "Pin to sidebar", ContextHint::Pin),
             customize: item_context_option(icons::PALETTE, "Customize…", ContextHint::None),
             copy_path: item_context_option(icons::ROUTE, "Copy path", ContextHint::CopyPath),
@@ -292,6 +298,7 @@ impl SingleEditOptions {
                 separator().upcast_ref(),
                 options.compress.upcast_ref(),
                 options.dispatch.upcast_ref(),
+                options.reindex.upcast_ref(),
                 separator().upcast_ref(),
                 options.pin.upcast_ref(),
                 options.customize.upcast_ref(),

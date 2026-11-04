@@ -8,8 +8,9 @@
 //! folders, and exposes the reads and writes the shell needs.
 
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
-    sync::OnceLock,
+    sync::{Mutex, MutexGuard, OnceLock},
 };
 
 use knowcraft_core::{
@@ -23,6 +24,38 @@ use knowcraft_core::{
 };
 
 static KNOWLEDGE: OnceLock<Option<Knowledge>> = OnceLock::new();
+
+/// Serialises every tantivy write in this process. The writer lock inside
+/// tantivy is non-blocking, so concurrent warm-up, import and manual reindex
+/// requests must queue here instead of racing each other.
+static INDEX_LOCK: Mutex<()> = Mutex::new(());
+
+/// Last known `index_status` per knowledge path, invalidated whenever this
+/// process changes one. Avoids a store round-trip for every file row.
+static STATUS_CACHE: Mutex<Option<HashMap<PathBuf, String>>> = Mutex::new(None);
+
+/// Paths this process is indexing right now, so rows can show a busy mark.
+static ACTIVE_INDEX: Mutex<Option<HashMap<PathBuf, ()>>> = Mutex::new(None);
+
+fn with_active_index<T>(update: impl FnOnce(&mut HashMap<PathBuf, ()>) -> T) -> T {
+    let mut active = ACTIVE_INDEX.lock().unwrap_or_else(|error| error.into_inner());
+    update(active.get_or_insert_with(HashMap::new))
+}
+
+fn index_guard() -> MutexGuard<'static, ()> {
+    INDEX_LOCK.lock().unwrap_or_else(|error| error.into_inner())
+}
+
+fn with_status_cache<T>(update: impl FnOnce(&mut HashMap<PathBuf, String>) -> T) -> T {
+    let mut cache = STATUS_CACHE.lock().unwrap_or_else(|error| error.into_inner());
+    update(cache.get_or_insert_with(HashMap::new))
+}
+
+fn cache_index_status(path: &str, status: &str) {
+    with_status_cache(|cache| {
+        cache.insert(PathBuf::from(path), status.to_owned());
+    });
+}
 
 pub(crate) const FOLDERS: [(&str, bool); 4] = [
     ("inbox", true),
@@ -46,6 +79,15 @@ pub(crate) struct WarmReport {
     pub(crate) registered: usize,
     pub(crate) indexed: usize,
     pub(crate) failed: usize,
+}
+
+/// One step of a UI-visible indexing run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum IndexProgress {
+    Begin { total: usize },
+    Started { path: PathBuf },
+    Finished { path: PathBuf, ok: bool },
+    Done { ok: usize, failed: usize },
 }
 
 impl Knowledge {
@@ -190,6 +232,144 @@ impl Knowledge {
         }
         Ok(dispatched)
     }
+
+    /// Whether `path` sits in one of the knowledge folders.
+    pub(crate) fn contains(&self, path: &Path) -> bool {
+        FOLDERS
+            .iter()
+            .any(|(folder, _)| path.starts_with(self.data_dir.join(folder)))
+    }
+
+    /// Documents whose path is directly under `dir`.
+    pub(crate) fn documents_under(&self, dir: &Path) -> Vec<Document> {
+        self.store
+            .documents_under(&dir.to_string_lossy())
+            .unwrap_or_default()
+    }
+
+    /// Documents under `dir` that still need indexing.
+    pub(crate) fn pending_documents(&self, dir: &Path) -> Vec<Document> {
+        self.documents_under(dir)
+            .into_iter()
+            .filter(|doc| doc.index_status != "indexed")
+            .collect()
+    }
+
+    /// The cached `index_status` for a knowledge path, or `None` when untracked.
+    pub(crate) fn index_status(&self, path: &Path) -> Option<String> {
+        if with_active_index(|active| active.contains_key(path)) {
+            return Some("indexing".to_owned());
+        }
+        let cached = with_status_cache(|cache| cache.get(path).cloned());
+        if cached.is_some() {
+            return cached;
+        }
+        let status = self
+            .store
+            .find_by_path(&path.to_string_lossy())
+            .ok()
+            .flatten()
+            .map(|doc| doc.index_status);
+        if let Some(status) = status.as_ref() {
+            with_status_cache(|cache| {
+                cache.insert(path.to_path_buf(), status.clone());
+            });
+        }
+        status
+    }
+
+    /// Indexes `docs` one by one, reporting progress. Serialised against every
+    /// other tantivy write in this process.
+    pub(crate) fn index_documents_with_progress(
+        &self,
+        docs: &[Document],
+        mut report: impl FnMut(IndexProgress),
+    ) {
+        let _guard = index_guard();
+        let (mut ok, mut failed) = (0, 0);
+        report(IndexProgress::Begin {
+            total: docs.len(),
+        });
+        for doc in docs {
+            let path = PathBuf::from(&doc.path);
+            with_active_index(|active| {
+                active.insert(path.clone(), ());
+            });
+            report(IndexProgress::Started { path: path.clone() });
+            let result = self.index.reindex_document(doc);
+            let succeeded = result.is_ok();
+            match result {
+                Ok(()) => {
+                    let _ = self.store.set_index_status(doc.id, "indexed");
+                    with_status_cache(|cache| {
+                        cache.insert(path.clone(), "indexed".to_owned());
+                    });
+                    ok += 1;
+                }
+                Err(error) => {
+                    tracing::warn!(%error, "index failed for {}", doc.path);
+                    let _ = self.store.set_index_status(doc.id, "error");
+                    with_status_cache(|cache| {
+                        cache.insert(path.clone(), "error".to_owned());
+                    });
+                    failed += 1;
+                }
+            }
+            report(IndexProgress::Finished {
+                path: path.clone(),
+                ok: succeeded,
+            });
+            with_active_index(|active| {
+                active.remove(&path);
+            });
+        }
+        report(IndexProgress::Done { ok, failed });
+    }
+
+    /// Reindexes one knowledge file, registering it first when it is new.
+    pub(crate) fn reindex_path(&self, path: &Path) -> Result<(), String> {
+        let path_text = path.to_string_lossy();
+        let doc = match self
+            .store
+            .find_by_path(&path_text)
+            .map_err(|error| error.to_string())?
+        {
+            Some(doc) => doc,
+            None => {
+                let inbox = path.starts_with(self.data_dir.join("inbox"));
+                let registered = if inbox {
+                    self.workflow.register_inbox_file(path)
+                } else {
+                    self.workflow.register_library_file(path)
+                };
+                registered.map_err(|error| error.to_string())?
+            }
+        };
+        let _guard = index_guard();
+        with_active_index(|active| {
+            active.insert(path.to_path_buf(), ());
+        });
+        let outcome = match self.index.reindex_document(&doc) {
+            Ok(()) => {
+                let _ = self.store.set_index_status(doc.id, "indexed");
+                with_status_cache(|cache| {
+                    cache.insert(path.to_path_buf(), "indexed".to_owned());
+                });
+                Ok(())
+            }
+            Err(error) => {
+                let _ = self.store.set_index_status(doc.id, "error");
+                with_status_cache(|cache| {
+                    cache.insert(path.to_path_buf(), "error".to_owned());
+                });
+                Err(error.to_string())
+            }
+        };
+        with_active_index(|active| {
+            active.remove(path);
+        });
+        outcome
+    }
 }
 
 /// Registers files found in the knowledge folders and indexes the ones still pending.
@@ -235,11 +415,13 @@ pub(crate) fn warm_index(knowledge: &Knowledge) -> WarmReport {
             }
         }
     }
+    let _guard = index_guard();
     for chunk in pending.chunks(16) {
         match knowledge.index.index_documents(chunk) {
             Ok(()) => {
                 for doc in chunk {
                     let _ = knowledge.store.set_index_status(doc.id, "indexed");
+                    cache_index_status(&doc.path, "indexed");
                     report.indexed += 1;
                 }
             }
@@ -250,10 +432,12 @@ pub(crate) fn warm_index(knowledge: &Knowledge) -> WarmReport {
                     match knowledge.index.index_documents(single) {
                         Ok(()) => {
                             let _ = knowledge.store.set_index_status(doc.id, "indexed");
+                            cache_index_status(&doc.path, "indexed");
                             report.indexed += 1;
                         }
                         Err(_) => {
                             let _ = knowledge.store.set_index_status(doc.id, "error");
+                            cache_index_status(&doc.path, "error");
                             report.failed += 1;
                         }
                     }

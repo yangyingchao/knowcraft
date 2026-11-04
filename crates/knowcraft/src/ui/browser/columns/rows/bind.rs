@@ -122,8 +122,10 @@ impl RowBinding<'_> {
         let show_sizes = crate::ui::preferences::PreferenceManager::shared().columns_show_sizes();
         if let Some(entry) = self.entry.as_ref() {
             self.show_entry_icon(entry, show_sizes);
+            crate::ui::index_badge::apply(self.widgets.row.upcast_ref(), &entry.location);
         } else {
             self.show_placeholder_icon();
+            crate::ui::index_badge::clear(self.widgets.row.upcast_ref());
         }
         let size = &self.widgets.size;
         let size_text = column_size_text(self.entry.as_ref());

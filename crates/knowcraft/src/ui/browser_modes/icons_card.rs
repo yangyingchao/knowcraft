@@ -69,6 +69,7 @@ impl IconsCard {
         } else {
             self.refresh_chrome(item, entry, look.marks);
         }
+        crate::ui::index_badge::apply(self.card.upcast_ref(), &entry.location);
         if pending_name.is_some() {
             accessibility::set_description(&self.label, Some(shown_name));
             accessibility::describe_entry(item, shown_name, Some(entry));
@@ -142,5 +143,6 @@ impl CardRefresh<'_> {
         if thumbnail::near_viewport(&card) {
             parts.refresh_chrome(&item, &entry, self.marks);
         }
+        crate::ui::index_badge::apply(card.upcast_ref(), &entry.location);
     }
 }

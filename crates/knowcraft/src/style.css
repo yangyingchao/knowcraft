@@ -7675,3 +7675,20 @@ popover.settings-action-library > contents {
   color: @knowcraft_text;
   padding: 2px 8px;
 }
+
+/* Search-index status on file rows: pending, indexing, indexed, failed. */
+.index-pending {
+  border-left: 3px solid #8a8f98;
+}
+
+.index-active {
+  border-left: 3px solid #3b8eea;
+}
+
+.index-indexed {
+  border-left: 3px solid #3ba55d;
+}
+
+.index-error {
+  border-left: 3px solid #e5534b;
+}

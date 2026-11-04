@@ -170,6 +170,39 @@ impl Store {
         Ok(rows.next().transpose()?)
     }
 
+    /// Documents whose path sits under `directory`, for one directory listing.
+    ///
+    /// `directory` must end with a separator or be a file's parent; the match is
+    /// a plain prefix so no wildcard escaping is needed.
+    pub fn documents_under(&self, directory: &str) -> Result<Vec<Document>> {
+        let prefix = if directory.ends_with(std::path::MAIN_SEPARATOR) {
+            directory.to_owned()
+        } else {
+            format!("{directory}{}", std::path::MAIN_SEPARATOR)
+        };
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE substr(path, 1, length(?1)) = ?1",
+        )?;
+        let rows = stmt.query_map(params![prefix], |r| {
+            Ok(Document {
+                id: r.get(0)?,
+                path: r.get(1)?,
+                doc_type: r.get(2)?,
+                title: r.get(3)?,
+                source_url: r.get(4)?,
+                size: r.get(5)?,
+                created_at: r.get(6)?,
+                updated_at: r.get(7)?,
+                checksum: r.get(8)?,
+                ai_summary: r.get(9)?,
+                lifecycle: r.get(10)?,
+                index_status: r.get(11)?,
+            })
+        })?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
     pub fn set_index_status(&self, id: i64, status: &str) -> Result<()> {
         let conn = self.lock();
         conn.execute(

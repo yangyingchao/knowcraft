@@ -247,6 +247,13 @@ impl ItemMenu {
                 handler(path);
             }
         });
+        self.on_entry(&single.reindex, |state, _, entry| {
+            if let Some(path) = entry.location.native_path().map(PathBuf::from)
+                && let Some(handler) = state.reindex_handler.borrow().as_ref()
+            {
+                handler(path);
+            }
+        });
         self.on_entry(&single.copy_path, |_, _, entry| copy_locations(&[entry]));
         self.on_entry(&single.copy_name, |_, _, entry| copy_names(&[entry]));
         self.on_entry(&single.rename, move |state, position, entry| {
@@ -613,6 +620,12 @@ impl ItemMenuOptions {
         self.single
             .dispatch
             .set_visible(pending && !self.in_trash);
+        let in_knowledge = knowledge.is_some_and(|knowledge| {
+            native_path.is_some_and(|path| knowledge.contains(path))
+        });
+        self.single
+            .reindex
+            .set_visible(in_knowledge && !self.in_trash);
         self.single.customize.set_visible(
             !self.in_trash && target.entries.len() == 1 && entry.location.native_path().is_some(),
         );

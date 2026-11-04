@@ -294,6 +294,7 @@ impl IconsCardFactory {
             edit.field.set_visible(edit.is_editing());
         }
         self.request_metadata(card, entry, binding);
+        crate::ui::index_badge::apply(card.upcast_ref(), &entry.location);
     }
 
     fn request_metadata(&self, card: &gtk::Box, entry: &FileEntry, binding: &CardBinding) {

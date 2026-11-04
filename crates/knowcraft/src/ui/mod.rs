@@ -31,6 +31,7 @@ mod missing_tools;
 mod modal;
 mod motion;
 mod notice;
+mod index_badge;
 mod open_with;
 mod pointer;
 pub(crate) mod preferences;
