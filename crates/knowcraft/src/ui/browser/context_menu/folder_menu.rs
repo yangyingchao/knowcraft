@@ -15,6 +15,7 @@ use crate::ui::shortcut_reference::ContextHint;
 use gtk::glib;
 use gtk::prelude::*;
 use std::cell::{Cell, RefCell};
+use std::path::Path;
 use std::rc::{Rc, Weak};
 
 type RecentApps = Rc<RefCell<Option<crate::ui::recent_apps::State>>>;
@@ -32,6 +33,7 @@ struct FolderMenuOptions {
     remaining: gtk::Box,
     new_folder: gtk::Button,
     new_file: gtk::Button,
+    import_folder: gtk::Button,
     open_with: gtk::Button,
     open_terminal: gtk::Button,
     paste: gtk::Button,
@@ -64,6 +66,11 @@ impl FolderMenuOptions {
                 ContextHint::NewFolder,
             ),
             new_file: context_menu_option(icons::FILE_PLUS, "New File", ContextHint::None),
+            import_folder: context_menu_option(
+                icons::FOLDER_PLUS,
+                "Import Folder…",
+                ContextHint::None,
+            ),
             open_with: context_menu_option(icons::APP_WINDOW, "Open With…", ContextHint::None),
             open_terminal: context_menu_option(
                 icons::TERMINAL,
@@ -95,6 +102,13 @@ impl FolderMenuOptions {
             .set_visible(directory_actions && location.native_path().is_some());
         self.new_folder.set_visible(directory_actions);
         self.new_file.set_visible(directory_actions);
+        // 导入仅在知识库内的真实目录可用（Trash 与 Recent 由
+        // directory_actions 排除）。
+        self.import_folder.set_visible(
+            directory_actions
+                && location.native_path().is_some()
+                && crate::knowledge::init().is_some(),
+        );
         self.open_with
             .set_visible(directory_actions && !location.is_administrator());
         self.open_terminal.set_visible(directory_actions);
@@ -106,6 +120,7 @@ impl FolderMenuOptions {
         self.content.append(&self.new_folder);
         self.content.append(&self.new_file);
         self.content.append(&self.paste);
+        self.content.append(&self.import_folder);
         self.content
             .append(&gtk::Separator::new(gtk::Orientation::Horizontal));
         self.content.append(&self.open_with);
@@ -186,6 +201,11 @@ impl FolderMenu {
         self.connect_new_entries(&options.new_folder, &options.new_file);
         self.on_click(&options.paste, |state, menu| {
             state.paste_into(menu.location.clone());
+        });
+        self.on_click(&options.import_folder, |state, menu| {
+            if let Some(handler) = state.import_handler.borrow().as_ref() {
+                handler(menu.location.native_path().map(Path::to_path_buf));
+            }
         });
         self.on_click(&options.select_all, |state, menu| {
             state.select_all(menu.depth)

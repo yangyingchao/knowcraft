@@ -218,7 +218,6 @@ pub(super) struct SingleEditOptions {
     pub(super) rename: gtk::Button,
     pub(super) move_to: gtk::Button,
     pub(super) copy_to: gtk::Button,
-    pub(super) import: gtk::Button,
     pub(super) compress: gtk::Button,
     pub(super) dispatch: gtk::Button,
     pub(super) pin: gtk::Button,
@@ -249,10 +248,6 @@ fn copy_to_option() -> gtk::Button {
     item_context_option(icons::FOLDER_OUTPUT, "Copy to…", ContextHint::CopyTo)
 }
 
-fn import_option() -> gtk::Button {
-    item_context_option(icons::FOLDER_PLUS, "Import Folder…", ContextHint::None)
-}
-
 fn compress_option() -> gtk::Button {
     item_context_option(icons::PACKAGE_PLUS, "Compress…", ContextHint::None)
 }
@@ -275,7 +270,6 @@ impl SingleEditOptions {
             rename: item_context_option(icons::PENCIL, "Rename", ContextHint::Rename),
             move_to: move_to_option(),
             copy_to: copy_to_option(),
-            import: import_option(),
             compress: compress_option(),
             dispatch: dispatch_option(),
             pin: item_context_option(icons::PIN, "Pin to sidebar", ContextHint::Pin),
@@ -295,7 +289,6 @@ impl SingleEditOptions {
                 separator().upcast_ref(),
                 options.move_to.upcast_ref(),
                 options.copy_to.upcast_ref(),
-                options.import.upcast_ref(),
                 separator().upcast_ref(),
                 options.compress.upcast_ref(),
                 options.dispatch.upcast_ref(),

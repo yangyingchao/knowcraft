@@ -62,7 +62,7 @@ fn run_dispatch(
 
 /// 弹出目录选择对话框；选定后在后台把所选目录递归导入
 /// `inbox/<目录名>/`，结果经 `feedback` 展示，完成后调用 `refresh`。
-/// `start` 为对话框的起始目录（右键目录取其自身，右键文件取其父目录）。
+/// `start` 为对话框的起始目录（右键空白处取当前浏览目录）。
 pub(crate) fn present_import_folder_dialog(
     parent: &gtk::Window,
     start: Option<PathBuf>,
