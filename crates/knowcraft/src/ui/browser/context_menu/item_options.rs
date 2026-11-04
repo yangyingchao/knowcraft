@@ -250,7 +250,7 @@ fn copy_to_option() -> gtk::Button {
 }
 
 fn import_option() -> gtk::Button {
-    item_context_option(icons::FILE_PLUS, "Import to Inbox", ContextHint::None)
+    item_context_option(icons::FOLDER_PLUS, "Import Folder…", ContextHint::None)
 }
 
 fn compress_option() -> gtk::Button {

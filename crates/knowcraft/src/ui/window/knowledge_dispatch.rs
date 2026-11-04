@@ -60,42 +60,61 @@ fn run_dispatch(
     poll_result(receiver, refresh, feedback);
 }
 
-/// 把外部文件批量导入 `inbox/`（checksum 去重），完成后回报导入数量与失败原因。
-pub(crate) fn import_to_inbox(
-    paths: Vec<PathBuf>,
+/// 弹出目录选择对话框；选定后在后台把所选目录递归导入
+/// `inbox/<目录名>/`，结果经 `feedback` 展示，完成后调用 `refresh`。
+/// `start` 为对话框的起始目录（右键目录取其自身，右键文件取其父目录）。
+pub(crate) fn present_import_folder_dialog(
+    parent: &gtk::Window,
+    start: Option<PathBuf>,
     refresh: Rc<dyn Fn()>,
     feedback: Rc<dyn Fn(&str)>,
 ) {
+    let mut builder = gtk::FileDialog::builder()
+        .title(tr("Select folder to import"))
+        .modal(true);
+    if let Some(start) = start {
+        builder = builder.initial_folder(&gio::File::for_path(start));
+    }
+    let dialog = builder.build();
+    dialog.select_folder(Some(parent), gio::Cancellable::NONE, move |result| {
+        if let Ok(file) = result
+            && let Some(path) = file.path()
+        {
+            run_import(path, refresh.clone(), feedback.clone());
+        }
+    });
+}
+
+fn run_import(src: PathBuf, refresh: Rc<dyn Fn()>, feedback: Rc<dyn Fn(&str)>) {
     let (sender, receiver) = std::sync::mpsc::channel::<Result<String, String>>();
     std::thread::spawn(move || {
         let result = crate::knowledge::init()
             .ok_or_else(|| "知识库不可用".to_owned())
-            .and_then(|knowledge| {
-                let mut imported = 0usize;
-                let mut first_error = None;
-                for path in &paths {
-                    match knowledge.add_to_inbox(path) {
-                        Ok(_) => imported += 1,
-                        Err(error) if first_error.is_none() => first_error = Some(error),
-                        Err(_) => {}
-                    }
-                }
-                match (imported, first_error) {
-                    (0, Some(error)) => Err(error),
-                    (imported, maybe_error) => {
-                        let mut message =
-                            rust_i18n::t!("Imported %{count} files", count = imported).into_owned();
-                        if let Some(error) = maybe_error {
-                            message.push_str("; ");
-                            message.push_str(&error);
-                        }
-                        Ok(message)
-                    }
-                }
-            });
+            .and_then(|knowledge| knowledge.import_directory(&src).map(import_message));
         let _ = sender.send(result);
     });
     poll_result(receiver, refresh, feedback);
+}
+
+/// 导入报告文案：全零时提示无可导入文件，否则汇报导入数与跳过数。
+fn import_message(report: knowcraft_core::workflow::ImportReport) -> String {
+    if report.imported == 0
+        && report.skipped_existing == 0
+        && report.skipped_duplicate == 0
+    {
+        return tr("No importable files in the selected folder");
+    }
+    let mut message =
+        rust_i18n::t!("Imported %{count} files", count = report.imported).into_owned();
+    let skipped = report.skipped_existing + report.skipped_duplicate;
+    if skipped > 0 {
+        message.push_str("; ");
+        message.push_str(
+            &rust_i18n::t!("Skipped %{count} (existing or duplicate)", count = skipped)
+                .into_owned(),
+        );
+    }
+    message
 }
 
 /// GTK 对象不能跨线程移动，回到主线程用轮询收结果。

@@ -11,6 +11,16 @@ use crate::error::{Error, Result};
 use crate::model::Document;
 use crate::store::Store;
 
+/// 目录导入的计数结果，供界面生成报告。
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct ImportReport {
+    pub imported: usize,
+    /// inbox 内已有同名路径而跳过的文件数。
+    pub skipped_existing: usize,
+    /// 内容重复（checksum 命中）而跳过的文件数。
+    pub skipped_duplicate: usize,
+}
+
 pub struct Workflow {
     store: Store,
     data_dir: PathBuf,
@@ -42,17 +52,26 @@ impl Workflow {
             .ok_or_else(|| Error::Workflow("no file name".into()))?;
         let target = self.data_dir.join("inbox").join(fname);
         self.copy_cloned(src, &target)?;
+        self.register_document(&target, sum)
+    }
+
+    /// 把已拷贝到 `path` 的文件登记为 pending 文档；add_to_inbox 与
+    /// 目录导入共用。
+    fn register_document(&self, path: &Path, checksum: String) -> Result<Document> {
+        let fname = path
+            .file_name()
+            .ok_or_else(|| Error::Workflow("no file name".into()))?;
         let doc = Document {
             id: 0,
-            path: target.to_string_lossy().into_owned(),
+            path: path.to_string_lossy().into_owned(),
             doc_type: detect_type(fname),
-            title: crate::extract::extract_title(&target)
+            title: crate::extract::extract_title(path)
                 .unwrap_or_else(|| fname.to_string_lossy().into_owned()),
             source_url: None,
-            size: std::fs::metadata(src)?.len() as i64,
+            size: std::fs::metadata(path)?.len() as i64,
             created_at: now(),
             updated_at: now(),
-            checksum: sum,
+            checksum,
             ai_summary: None,
             lifecycle: "pending".into(),
             index_status: "pending".into(),
@@ -61,6 +80,43 @@ impl Workflow {
         self.store
             .get_document(id)?
             .ok_or_else(|| Error::Store("missing".into()))
+    }
+
+    /// 递归导入 `src` 目录到 `inbox/<目录名>/`，保留层级。inbox 内已有
+    /// 同名路径的文件与内容重复（checksum 命中）的文件跳过；隐藏项
+    /// （`.` 开头）不导入。拷贝优先使用文件系统 COW（见
+    /// [`Workflow::copy_cloned`]，reflink 降级 `copy_file_range` 再降级
+    /// 普通拷贝）。
+    pub fn import_directory(&self, src: &Path) -> Result<ImportReport> {
+        if !src.is_dir() {
+            return Err(Error::Workflow("not a directory".into()));
+        }
+        let dir_name = src
+            .file_name()
+            .ok_or_else(|| Error::Workflow("no directory name".into()))?;
+        let mut report = ImportReport::default();
+        for file in collect_files(src) {
+            let relative = file
+                .strip_prefix(src)
+                .map_err(|_| Error::Workflow("file outside source directory".into()))?;
+            let target = self.data_dir.join("inbox").join(dir_name).join(relative);
+            if target.exists() {
+                report.skipped_existing += 1;
+                continue;
+            }
+            let sum = self.checksum(&file)?;
+            if self.store.find_by_checksum(&sum)?.is_some() {
+                report.skipped_duplicate += 1;
+                continue;
+            }
+            if let Some(parent) = target.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            self.copy_cloned(&file, &target)?;
+            self.register_document(&target, sum)?;
+            report.imported += 1;
+        }
+        Ok(report)
     }
 
     /// 拷贝文件并尽量使用文件系统 COW：先 reflink（零拷贝克隆），
@@ -195,6 +251,31 @@ fn best_effort_permissions(target: &File, mode: Mode) {
 
 fn io_error(error: Errno) -> std::io::Error {
     std::io::Error::from_raw_os_error(error.raw_os_error())
+}
+
+/// 递归收集 `root` 下的普通文件，按路径排序；隐藏项（`.` 开头的文件与
+/// 目录）跳过，符号链接等其余类型忽略。
+fn collect_files(root: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if entry.file_name().to_string_lossy().starts_with('.') {
+                continue;
+            }
+            let path = entry.path();
+            match entry.file_type() {
+                Ok(kind) if kind.is_dir() => stack.push(path),
+                Ok(kind) if kind.is_file() => files.push(path),
+                _ => {}
+            }
+        }
+    }
+    files.sort();
+    files
 }
 
 fn detect_type(name: &std::ffi::OsStr) -> String {

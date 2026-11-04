@@ -106,9 +106,15 @@ impl Knowledge {
         self.tags.documents_with_tag(name).unwrap_or_default()
     }
 
-    /// Copies an external file into `inbox/` and registers it (checksum dedup).
-    pub(crate) fn add_to_inbox(&self, src: &Path) -> Result<Document, String> {
-        self.workflow.add_to_inbox(src).map_err(|error| error.to_string())
+    /// 递归导入外部目录到 `inbox/<目录名>/`（保留层级，同名与 checksum
+    /// 重复的文件跳过）。
+    pub(crate) fn import_directory(
+        &self,
+        src: &Path,
+    ) -> Result<knowcraft_core::workflow::ImportReport, String> {
+        self.workflow
+            .import_directory(src)
+            .map_err(|error| error.to_string())
     }
 
     /// 文档的标签；`None` 表示路径不在知识库中。

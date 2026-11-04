@@ -29,7 +29,7 @@ use crate::ui::browser_modes::BrowserMode;
 use gtk::glib;
 use gtk::prelude::*;
 use std::cell::RefCell;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
 
 pub(in crate::ui) fn install_item_context_menu(
@@ -248,16 +248,17 @@ impl ItemMenu {
             }
         });
         self.on_selection(&single.import, |state, entries| {
-            let paths: Vec<PathBuf> = entries
-                .iter()
-                .filter(|entry| !entry.is_directory())
-                .filter_map(|entry| entry.location.native_path().map(PathBuf::from))
-                .collect();
-            if paths.is_empty() {
-                return;
-            }
+            // 传入对话框起始目录：目录取其自身，文件取其父目录。
+            let start = entries.first().and_then(|entry| {
+                let path = entry.location.native_path().map(PathBuf::from)?;
+                if entry.is_directory() {
+                    Some(path)
+                } else {
+                    path.parent().map(Path::to_path_buf)
+                }
+            });
             if let Some(handler) = state.import_handler.borrow().as_ref() {
-                handler(paths);
+                handler(start);
             }
         });
         self.on_entry(&single.copy_path, |_, _, entry| copy_locations(&[entry]));

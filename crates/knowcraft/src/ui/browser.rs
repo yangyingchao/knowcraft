@@ -142,8 +142,8 @@ type UnpinHandler = Rc<dyn Fn(&Location)>;
 type PinStatusHandler = Rc<dyn Fn(&Location) -> PinStatus>;
 /// Archives the knowledge document at `path` into a library category.
 type DispatchHandler = Rc<dyn Fn(std::path::PathBuf)>;
-/// Imports files into the knowledge inbox (checksum dedup).
-type ImportHandler = Rc<dyn Fn(Vec<std::path::PathBuf>)>;
+/// Opens a folder picker for importing the picked directory into the inbox.
+type ImportHandler = Rc<dyn Fn(Option<std::path::PathBuf>)>;
 type PreparingTransfer = (
     transfer::Preparing,
     gio::Cancellable,
