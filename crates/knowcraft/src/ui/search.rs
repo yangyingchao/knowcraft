@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 
+mod knowledge;
 mod panel;
+mod provider;
 mod results;
 
 use std::{
     cell::{Cell, RefCell},
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     path::PathBuf,
     rc::Rc,
     sync::mpsc::{Receiver, TryRecvError},
@@ -23,7 +25,8 @@ use crate::services::{
     index_trees_with_exclusions,
 };
 use panel::SearchWidgets;
-use results::{refresh_visible_thumbnails, render_results, scroll_row_into_view};
+use provider::HitAction;
+use results::{Entry, render_sections, scroll_row_into_view};
 
 const MAX_RESULT_UPDATES_PER_FRAME: usize = 8;
 
@@ -44,9 +47,11 @@ struct SearchState {
     results: gtk::Stack,
     status: gtk::Label,
     truncated_hint: gtk::Box,
+    visible_entries: RefCell<Vec<Entry>>,
+    /// 文件名命中（兼容文件搜索读取），供测试与 reveal 复用。
     visible_results: RefCell<Vec<SearchItem>>,
     positions: Rc<RefCell<HashMap<gtk::ListBoxRow, usize>>>,
-    requested_thumbnails: RefCell<HashSet<PathBuf>>,
+    requested_thumbnails: RefCell<std::collections::HashSet<PathBuf>>,
     rendered_query: RefCell<String>,
     search: RefCell<Option<SearchHandle>>,
     history: RefCell<Option<Rc<NavigationHistory>>>,
@@ -55,16 +60,30 @@ struct SearchState {
     navigation_started: Cell<bool>,
     reconciling_results: Cell<bool>,
     activate: Rc<dyn Fn(SearchItem)>,
+    open_path: Rc<dyn Fn(PathBuf)>,
     reveal: Rc<dyn Fn(SearchItem)>,
     context_menu: RefCell<Option<gtk::Popover>>,
     dismiss: Rc<dyn Fn()>,
+    /// 文件名 provider 最近一次命中的分段，供与知识段合并渲染。
+    file_section: RefCell<Vec<provider::Section>>,
+    /// 知识 provider 最近一次写回的分段（文档内容 + 标签）。
+    knowledge_sections: RefCell<Vec<provider::Section>>,
+    knowledge: Rc<knowledge::KnowledgeSections>,
+    tag_mode: RefCell<Option<TagMode>>,
     /// Cleared when a result is chosen, so focus follows the browser, not the opener.
     focus_restore: Rc<Cell<bool>>,
+}
+
+/// 标签模式：展示某标签下的文档列表，Esc 退出并重跑原查询。
+struct TagMode {
+    name: String,
+    query: String,
 }
 
 impl SearchDialog {
     pub fn new(
         activate: Rc<dyn Fn(SearchItem)>,
+        open_path: Rc<dyn Fn(PathBuf)>,
         reveal: Rc<dyn Fn(SearchItem)>,
         dismiss: Rc<dyn Fn()>,
     ) -> Self {
@@ -85,9 +104,10 @@ impl SearchDialog {
             results: widgets.results,
             status: widgets.status,
             truncated_hint: widgets.truncated_hint,
+            visible_entries: RefCell::new(Vec::new()),
             visible_results: RefCell::new(Vec::new()),
             positions: widgets.positions,
-            requested_thumbnails: RefCell::new(HashSet::new()),
+            requested_thumbnails: RefCell::new(std::collections::HashSet::new()),
             rendered_query: RefCell::new(String::new()),
             search: RefCell::new(None),
             history: RefCell::new(None),
@@ -96,9 +116,14 @@ impl SearchDialog {
             navigation_started: Cell::new(false),
             reconciling_results: Cell::new(false),
             activate,
+            open_path,
             reveal,
             context_menu: RefCell::new(None),
             dismiss,
+            file_section: RefCell::new(Vec::new()),
+            knowledge_sections: RefCell::new(Vec::new()),
+            knowledge: Rc::new(knowledge::KnowledgeSections::new()),
+            tag_mode: RefCell::new(None),
             focus_restore,
         });
 
@@ -198,6 +223,9 @@ fn handle_key(state: &Rc<SearchState>, press: &KeyPress) -> glib::Propagation {
     record_interaction(state);
     let press = &press.untyped();
     if press.is(ESCAPE_ANY) {
+        if leave_tag_mode(state) {
+            return glib::Propagation::Stop;
+        }
         hide(state);
         return glib::Propagation::Stop;
     }
@@ -218,10 +246,13 @@ fn handle_key(state: &Rc<SearchState>, press: &KeyPress) -> glib::Propagation {
 fn reveal_selected(state: &SearchState) {
     if let Some(item) = state.list.selected_row().and_then(|row| {
         state
-            .visible_results
+            .visible_entries
             .borrow()
             .get(row.index() as usize)
-            .cloned()
+            .and_then(|entry| match entry {
+                Entry::Hit(hit) => hit.item.clone(),
+                Entry::Header(_) => None,
+            })
     }) {
         reveal_result(state, item);
     }
@@ -289,7 +320,7 @@ fn follow_scrolling(state: &Rc<SearchState>) {
 
 fn refresh_unless_reconciling(state: &SearchState) {
     if !state.reconciling_results.get() {
-        refresh_visible_thumbnails(state);
+        results::refresh_visible_thumbnails(state);
     }
 }
 
@@ -391,26 +422,63 @@ fn apply_search_event(state: &Rc<SearchState>, event: SearchEvent) {
         coverage,
         ..
     } = event;
-    show_indexing(state, indexing);
-    let current = query == state.field.text().trim();
-    if current {
-        show_coverage(&state.truncated_hint, coverage);
-    }
-    if current && !query.is_empty() {
+    if query == state.field.text().trim() && !query.is_empty() {
         render_results(state, items, indexing, coverage);
     }
+}
+
+/// 文件名命中的兼容入口：更新文件段、可见项并合并渲染。
+fn render_results(
+    state: &Rc<SearchState>,
+    items: Vec<SearchItem>,
+    indexing: bool,
+    coverage: SearchCoverage,
+) {
+    show_indexing(state, indexing);
+    show_coverage(&state.truncated_hint, coverage);
+    state.visible_results.replace(items.clone());
+    let section = provider::Section::new(
+        "文件名",
+        10,
+        items.into_iter().map(provider::Hit::file).collect(),
+    );
+    state.file_section.replace(vec![section]);
+    render_current(state);
+}
+
+/// 合并文件名段与知识段（文档内容 + 标签）后渲染。
+fn render_current(state: &Rc<SearchState>) {
+    state.visible_results.replace(
+        state
+            .file_section
+            .borrow()
+            .iter()
+            .flat_map(|section| section.hits.iter())
+            .filter_map(|hit| hit.item.clone())
+            .collect(),
+    );
+    let mut sections = state.file_section.borrow().clone();
+    sections.extend(state.knowledge_sections.borrow().iter().cloned());
+    render_sections(state, sections);
 }
 
 fn begin_query(state: &Rc<SearchState>, query: &str) {
     record_interaction(state);
     state.navigation_started.set(false);
+    state.tag_mode.borrow_mut().take();
+    state.file_section.borrow_mut().clear();
+    state.knowledge_sections.borrow_mut().clear();
     if let Some(history) = state.history.borrow().clone() {
-        render_results(
-            state,
-            history.search(query),
-            false,
-            SearchCoverage::default(),
+        let section = provider::Section::new(
+            "历史",
+            10,
+            history
+                .search(query)
+                .into_iter()
+                .map(provider::Hit::file)
+                .collect(),
         );
+        render_sections(state, vec![section]);
         return;
     }
     if query.trim().is_empty() {
@@ -419,13 +487,23 @@ fn begin_query(state: &Rc<SearchState>, query: &str) {
         state.status.set_text(
             &crate::i18n::tr("Type to search the knowledge base\nFuzzy matching · try a name or path fragment"),
         );
-    } else if state.visible_results.borrow().is_empty() {
-        state.results.set_visible_child_name("status");
-        state.status.set_text(&crate::i18n::tr("Searching…"));
+        return;
     }
+    state.results.set_visible_child_name("status");
+    state.status.set_text(&crate::i18n::tr("Searching…"));
     if let Some(search) = state.search.borrow().as_ref() {
         search.query(query);
     }
+    let deliver = {
+        let state = Rc::downgrade(state);
+        Rc::new(move |sections: Vec<provider::Section>| {
+            if let Some(state) = state.upgrade() {
+                state.knowledge_sections.replace(sections);
+                render_current(&state);
+            }
+        })
+    };
+    state.knowledge.query(query.to_owned(), deliver);
 }
 
 fn close_result_menu(state: &SearchState) {
@@ -459,16 +537,26 @@ fn move_selection(state: &SearchState, direction: i32) {
     if !contains_keyboard_focus(state.field.upcast_ref()) {
         state.field.grab_focus_without_selecting();
     }
-    let count = state.visible_results.borrow().len() as i32;
-    if count == 0 {
+    let entries = state.visible_entries.borrow();
+    if entries.is_empty() {
         return;
     }
-
-    state.navigation_started.set(true);
-    let next = state
+    let current = state
         .list
         .selected_row()
-        .map_or(0, |row| (row.index() + direction).clamp(0, count - 1));
+        .map_or(0, |row| row.index());
+    let mut next = current;
+    loop {
+        next += direction;
+        if next < 0 || next as usize >= entries.len() {
+            return;
+        }
+        if matches!(entries[next as usize], Entry::Hit(_)) {
+            break;
+        }
+    }
+    drop(entries);
+    state.navigation_started.set(true);
     if let Some(row) = state.list.row_at_index(next) {
         state.list.select_row(Some(&row));
         scroll_row_into_view(state, &row);
@@ -484,15 +572,25 @@ fn activate_selected(state: &Rc<SearchState>) -> bool {
 }
 
 fn activate_position(state: &Rc<SearchState>, position: i32) {
-    let Some(item) = usize::try_from(position)
+    let Some(entry) = usize::try_from(position)
         .ok()
-        .and_then(|position| state.visible_results.borrow().get(position).cloned())
+        .and_then(|position| state.visible_entries.borrow().get(position).cloned())
     else {
         return;
     };
-    skip_focus_restore(state);
-    hide(state);
-    (state.activate)(item);
+    let Entry::Hit(hit) = entry else {
+        return;
+    };
+    match hit.action {
+        HitAction::Open(path) => {
+            skip_focus_restore(state);
+            hide(state);
+            (state.open_path)(path);
+        }
+        HitAction::ShowTag(name) => {
+            show_tag(state, name);
+        }
+    }
 }
 
 fn skip_focus_restore(state: &SearchState) {
@@ -531,7 +629,7 @@ fn hide_then(state: &SearchState, after_dismiss: impl FnOnce() + 'static) {
 fn clear_results(state: &SearchState) {
     state.navigation_started.set(false);
     state.reconciling_results.set(true);
-    state.visible_results.borrow_mut().clear();
+    state.visible_entries.borrow_mut().clear();
     state.rendered_query.borrow_mut().clear();
     state.positions.borrow_mut().clear();
     state.requested_thumbnails.borrow_mut().clear();
@@ -541,6 +639,47 @@ fn clear_results(state: &SearchState) {
         state.list.remove(&child);
     }
     state.reconciling_results.set(false);
+}
+
+fn enter_tag_mode(state: &Rc<SearchState>, name: &str) -> bool {
+    let query = state.field.text().to_string();
+    let documents = crate::knowledge::init()
+        .map(|knowledge| knowledge.documents_with_tag(name))
+        .unwrap_or_default();
+    let hits = documents
+        .into_iter()
+        .map(|doc| {
+            provider::Hit::content(
+                doc.title,
+                doc.path.clone(),
+                PathBuf::from(&doc.path),
+            )
+        })
+        .collect();
+    state.tag_mode.replace(Some(TagMode {
+        name: name.to_owned(),
+        query: query.clone(),
+    }));
+    set_field_prompt(&state.field, &format!("#{name}"));
+    render_sections(
+        state,
+        vec![provider::Section::new(format!("标签：{name}"), 10, hits)],
+    );
+    true
+}
+
+fn leave_tag_mode(state: &Rc<SearchState>) -> bool {
+    let Some(mode) = state.tag_mode.borrow_mut().take() else {
+        return false;
+    };
+    set_field_prompt(&state.field, &crate::i18n::tr("Search the knowledge base…"));
+    state.field.set_text(&mode.query);
+    begin_query(state, &mode.query);
+    true
+}
+
+fn show_tag(state: &Rc<SearchState>, name: String) {
+    enter_tag_mode(state, &name);
 }
 
 /// The hint names why results are partial and, for limit stops, where to raise the limits.

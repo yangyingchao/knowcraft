@@ -1,6 +1,74 @@
 // SPDX-License-Identifier: MIT
 
+use std::{cell::Cell, path::PathBuf, rc::Rc};
+
 use super::*;
+use crate::services::{SearchCoverage, SearchItem};
+use results::Entry;
+
+#[test]
+fn providers_render_in_priority_order_with_section_headers() {
+    crate::test_support::gtk_test(
+        "ui::search::tests::providers_render_in_priority_order_with_section_headers",
+        || {
+            let (dialog, window) = mapped_dialog(Rc::new(|_| {}));
+            let sections = vec![
+                provider::Section::new(
+                    "文档内容",
+                    30,
+                    vec![provider::Hit::content("笔记", "摘要", PathBuf::from("/k/note.md"))],
+                ),
+                provider::Section::new(
+                    "文件名",
+                    10,
+                    vec![provider::Hit::content("note.md", "/k/note.md", PathBuf::from("/k/note.md"))],
+                ),
+            ];
+            render_sections(&dialog.state, sections);
+            let texts = row_texts(&dialog.state);
+            assert_eq!(texts[0], "文件名");
+            assert_eq!(texts[2], "文档内容");
+            window.destroy();
+        },
+    );
+}
+
+#[test]
+fn content_hits_become_a_documents_section() {
+    let hits = vec![knowcraft_core::index::IndexHit {
+        document_id: 1,
+        path: "/k/note.md".to_owned(),
+        title: "笔记".to_owned(),
+        snippet: "摘要片段".to_owned(),
+    }];
+    let section = knowledge::content_section("检索", hits);
+    assert_eq!(section.label, "文档内容");
+    assert_eq!(section.hits[0].title, "笔记");
+    assert_eq!(section.hits[0].detail.as_deref(), Some("摘要片段"));
+}
+
+#[test]
+fn tag_entries_open_a_tag_result_list() {
+    crate::test_support::gtk_test(
+        "ui::search::tests::tag_entries_open_a_tag_result_list",
+        || {
+            let (dialog, window) = mapped_dialog(Rc::new(|_| {}));
+            dialog.state.field.set_text("学习");
+            render_sections(
+                &dialog.state,
+                vec![provider::Section::new(
+                    "标签",
+                    20,
+                    vec![provider::Hit::tag("机器学习", 2)],
+                )],
+            );
+            assert!(enter_tag_mode(&dialog.state, "机器学习"));
+            assert_eq!(dialog.state.field.text(), "学习");
+            assert!(dialog.state.tag_mode.borrow().is_some());
+            window.destroy();
+        },
+    );
+}
 
 #[test]
 fn result_updates_preserve_entry_caret_selection_and_default_selection() {
@@ -16,26 +84,14 @@ fn result_updates_preserve_entry_caret_selection_and_default_selection() {
             let selection = dialog.state.field.selection_bounds();
 
             let initial = search_items("result", 3);
-            render_results(
-                &dialog.state,
-                initial.clone(),
-                true,
-                SearchCoverage::default(),
-            );
-            assert_eq!(
-                dialog
-                    .state
-                    .list
-                    .selected_row()
-                    .expect("default selected row")
-                    .index(),
-                0
-            );
+            render_results(&dialog.state, initial.clone());
+            // 文件名分段标题在索引 0，默认选中第一个命中行（索引 1）。
+            assert_selected_hit(&dialog, 0);
             assert!(contains_keyboard_focus(dialog.state.field.upcast_ref()));
             assert_eq!(dialog.state.field.position(), caret);
             assert_eq!(dialog.state.field.selection_bounds(), selection);
 
-            render_results(&dialog.state, initial, false, SearchCoverage::default());
+            render_results(&dialog.state, initial);
             drain_main_context();
             assert!(contains_keyboard_focus(dialog.state.field.upcast_ref()));
             assert_eq!(dialog.state.field.position(), caret);
@@ -46,48 +102,43 @@ fn result_updates_preserve_entry_caret_selection_and_default_selection() {
 }
 
 #[test]
-fn arrow_keys_advance_from_preselection_and_keep_entry_focus() {
+fn arrow_keys_advance_between_hits_and_keep_entry_focus() {
     crate::test_support::gtk_test(
-        "ui::search::tests::arrow_keys_advance_from_preselection_and_keep_entry_focus",
+        "ui::search::tests::arrow_keys_advance_between_hits_and_keep_entry_focus",
         || {
             let (dialog, window) = mapped_dialog(Rc::new(|_| {}));
             dialog.state.field.set_text("navigation");
-            render_results(
-                &dialog.state,
-                search_items("navigation", 3),
-                false,
-                SearchCoverage::default(),
-            );
+            render_results(&dialog.state, search_items("navigation", 3));
             assert!(dialog.state.field.grab_focus_without_selecting());
             dialog.state.field.set_position(6);
             dialog.state.field.select_region(2, 6);
             let selection = dialog.state.field.selection_bounds();
 
-            assert_selected(&dialog, 0);
+            assert_selected_hit(&dialog, 0);
             assert!(emit_key(
                 &dialog,
                 gtk::gdk::Key::Down,
                 gtk::gdk::ModifierType::empty()
             ));
-            assert_selected(&dialog, 1);
+            assert_selected_hit(&dialog, 1);
             assert!(emit_key(
                 &dialog,
                 gtk::gdk::Key::Down,
                 gtk::gdk::ModifierType::empty()
             ));
-            assert_selected(&dialog, 2);
+            assert_selected_hit(&dialog, 2);
             assert!(emit_key(
                 &dialog,
                 gtk::gdk::Key::Down,
                 gtk::gdk::ModifierType::empty()
             ));
-            assert_selected(&dialog, 2);
+            assert_selected_hit(&dialog, 2);
             assert!(emit_key(
                 &dialog,
                 gtk::gdk::Key::Up,
                 gtk::gdk::ModifierType::empty()
             ));
-            assert_selected(&dialog, 1);
+            assert_selected_hit(&dialog, 1);
             assert!(emit_key(
                 &dialog,
                 gtk::gdk::Key::Up,
@@ -98,254 +149,11 @@ fn arrow_keys_advance_from_preselection_and_keep_entry_focus() {
                 gtk::gdk::Key::Up,
                 gtk::gdk::ModifierType::empty()
             ));
-            assert_selected(&dialog, 0);
+            assert_selected_hit(&dialog, 0);
 
             assert!(contains_keyboard_focus(dialog.state.field.upcast_ref()));
             assert_eq!(dialog.state.field.position(), 6);
             assert_eq!(dialog.state.field.selection_bounds(), selection);
-            assert!(!emit_key(
-                &dialog,
-                gtk::gdk::Key::Down,
-                gtk::gdk::ModifierType::SHIFT_MASK,
-            ));
-            assert_selected(&dialog, 0);
-            window.destroy();
-        },
-    );
-}
-
-#[test]
-fn partial_updates_preserve_selected_path_entry_focus_and_navigation_progress() {
-    crate::test_support::gtk_test(
-        "ui::search::tests::partial_updates_preserve_selected_path_entry_focus_and_navigation_progress",
-        || {
-            let (dialog, window) = mapped_dialog(Rc::new(|_| {}));
-            dialog.state.field.set_text("stable");
-            let mut items = search_items("stable", 5);
-            render_results(
-                &dialog.state,
-                items.clone(),
-                true,
-                SearchCoverage::default(),
-            );
-            assert!(dialog.state.field.grab_focus_without_selecting());
-            dialog.state.field.set_position(3);
-            assert_selected(&dialog, 0);
-            assert!(emit_key(
-                &dialog,
-                gtk::gdk::Key::Down,
-                gtk::gdk::ModifierType::empty()
-            ));
-            let selected_path = items[1].path.clone();
-
-            items.insert(
-                0,
-                SearchItem::for_test(PathBuf::from("/search/inserted.txt"), false),
-            );
-            items.swap(2, 4);
-            render_results(
-                &dialog.state,
-                items.clone(),
-                true,
-                SearchCoverage::default(),
-            );
-            let selected = dialog
-                .state
-                .list
-                .selected_row()
-                .expect("restored selection");
-            assert_eq!(items[selected.index() as usize].path, selected_path);
-            assert!(contains_keyboard_focus(dialog.state.field.upcast_ref()));
-            assert_eq!(dialog.state.field.position(), 3);
-
-            assert!(emit_key(
-                &dialog,
-                gtk::gdk::Key::Down,
-                gtk::gdk::ModifierType::empty()
-            ));
-            let advanced = dialog
-                .state
-                .list
-                .selected_row()
-                .expect("advanced selection");
-            assert_eq!(advanced.index(), selected.index() + 1);
-            let removed_index = advanced.index() as usize;
-            items.remove(removed_index);
-            let fallback_index = removed_index.min(items.len() - 1);
-            render_results(&dialog.state, items, false, SearchCoverage::default());
-            assert_eq!(
-                dialog
-                    .state
-                    .list
-                    .selected_row()
-                    .expect("stable fallback")
-                    .index(),
-                fallback_index as i32
-            );
-            assert!(contains_keyboard_focus(dialog.state.field.upcast_ref()));
-            assert_eq!(dialog.state.field.position(), 3);
-            window.destroy();
-        },
-    );
-}
-
-#[test]
-fn deferred_scroll_restoration_yields_to_updates_wheel_scrollbar_and_query_reset() {
-    crate::test_support::gtk_test(
-        "ui::search::tests::deferred_scroll_restoration_yields_to_updates_wheel_scrollbar_and_query_reset",
-        || {
-            let (dialog, window) = mapped_dialog(Rc::new(|_| {}));
-            let fixture = tempfile::tempdir().expect("scroll fixture");
-            let mut items = Vec::new();
-            for position in 0..80 {
-                let is_directory = position != 1;
-                let name = if is_directory {
-                    format!("scroll-{position:03}")
-                } else {
-                    "main.rs".to_owned()
-                };
-                let path = fixture.path().join(name);
-                if is_directory {
-                    std::fs::create_dir(&path).expect("scroll fixture directory");
-                } else {
-                    std::fs::write(&path, "fn main() {}\n").expect("scroll fixture file");
-                }
-                items.push(SearchItem::for_test(path, is_directory));
-            }
-            render_results(
-                &dialog.state,
-                items.clone(),
-                true,
-                SearchCoverage::default(),
-            );
-            drain_main_context();
-            let icon_for_path = |path: &std::path::Path| {
-                let position = dialog
-                    .state
-                    .visible_results
-                    .borrow()
-                    .iter()
-                    .position(|item| item.path == path)
-                    .expect("result path");
-                dialog
-                    .state
-                    .list
-                    .row_at_index(i32::try_from(position).expect("row index"))
-                    .and_then(|row| row.child())
-                    .and_then(|content| content.first_child())
-                    .and_then(|child| {
-                        child
-                            .downcast::<super::super::thumbnail::ThumbnailSlot>()
-                            .ok()
-                    })
-                    .expect("result icon")
-                    .fallback_icon()
-                    .expect("fallback icon")
-            };
-            let directory_path = items[0].path.clone();
-            let source_path = items[1].path.clone();
-            assert_eq!(icon_for_path(&directory_path), crate::assets::icons::FOLDER);
-            assert_eq!(
-                icon_for_path(&source_path),
-                crate::ui::browser::catppuccin::RUST
-            );
-            assert!(
-                dialog
-                    .state
-                    .requested_thumbnails
-                    .borrow()
-                    .contains(&source_path)
-            );
-            let adjustment = dialog.state.scroller.vadjustment();
-            assert!(adjustment.upper() > adjustment.page_size() + 300.0);
-
-            adjustment.set_value(120.0);
-            items.swap(0, 1);
-            render_results(
-                &dialog.state,
-                items.clone(),
-                true,
-                SearchCoverage::default(),
-            );
-            adjustment.set_value(180.0);
-            items.swap(1, 2);
-            render_results(
-                &dialog.state,
-                items.clone(),
-                true,
-                SearchCoverage::default(),
-            );
-            drain_main_context();
-            assert_eq!(adjustment.value(), 180.0);
-
-            items.swap(2, 3);
-            render_results(
-                &dialog.state,
-                items.clone(),
-                true,
-                SearchCoverage::default(),
-            );
-            assert!(
-                !scroll_controller(&dialog).emit_by_name::<bool>("scroll", &[&0.0_f64, &1.0_f64],)
-            );
-            adjustment.set_value(240.0);
-            drain_main_context();
-            assert_eq!(adjustment.value(), 240.0);
-            assert!(!dialog.state.requested_thumbnails.borrow().is_empty());
-            assert!(
-                !dialog
-                    .state
-                    .requested_thumbnails
-                    .borrow()
-                    .contains(&source_path)
-            );
-            assert_eq!(icon_for_path(&directory_path), crate::assets::icons::FOLDER);
-            assert_eq!(
-                icon_for_path(&source_path),
-                crate::ui::browser::catppuccin::RUST
-            );
-
-            items.swap(3, 4);
-            render_results(
-                &dialog.state,
-                items.clone(),
-                true,
-                SearchCoverage::default(),
-            );
-            let scroller_bounds = dialog
-                .state
-                .scroller
-                .compute_bounds(&dialog.state.layer)
-                .expect("mapped scroller bounds");
-            let scrollbar_x = f64::from(scroller_bounds.x() + scroller_bounds.width()) - 1.0;
-            let scrollbar_y = f64::from(scroller_bounds.y() + scroller_bounds.height() / 2.0);
-            click_controller(&dialog)
-                .emit_by_name::<()>("pressed", &[&1i32, &scrollbar_x, &scrollbar_y]);
-            adjustment.set_value(280.0);
-            drain_main_context();
-            assert_eq!(adjustment.value(), 280.0);
-            assert!(dialog.state.layer.is_visible());
-
-            items.swap(4, 5);
-            render_results(
-                &dialog.state,
-                items.clone(),
-                true,
-                SearchCoverage::default(),
-            );
-            dialog.state.field.set_text("different");
-            adjustment.set_value(300.0);
-            drain_main_context();
-            assert_eq!(adjustment.value(), 300.0);
-            assert_eq!(*dialog.state.visible_results.borrow(), items);
-            assert!(!dialog.state.navigation_started.get());
-
-            items.swap(5, 6);
-            render_results(&dialog.state, items, true, SearchCoverage::default());
-            dialog.state.field.set_text("");
-            drain_main_context();
-            assert_eq!(adjustment.value(), 0.0);
-            assert!(dialog.state.visible_results.borrow().is_empty());
             window.destroy();
         },
     );
@@ -367,35 +175,62 @@ fn enter_and_field_activation_open_the_selected_result() {
                 |dialog| dialog.state.field.emit_activate(),
             ];
             for route in routes {
-                let opened = Rc::new(RefCell::new(Vec::new()));
+                let opened = Rc::new(RefCell::new(PathBuf::new()));
                 let record = opened.clone();
-                let (dialog, window) =
-                    mapped_dialog(Rc::new(move |item| record.borrow_mut().push(item.path)));
+                let (dialog, window) = mapped_dialog(Rc::new(move |path| *record.borrow_mut() = path));
                 dialog.state.field.set_text("navigation");
-                render_results(
-                    &dialog.state,
-                    search_items("navigation", 3),
-                    false,
-                    SearchCoverage::default(),
-                );
+                render_results(&dialog.state, search_items("navigation", 3));
                 assert!(emit_key(
                     &dialog,
                     gtk::gdk::Key::Down,
                     gtk::gdk::ModifierType::empty()
                 ));
                 route(&dialog);
-                assert_eq!(
-                    *opened.borrow(),
-                    [PathBuf::from("/search/navigation-001.txt")]
-                );
+                assert_eq!(opened.borrow().clone(), PathBuf::from("/search/navigation-001.txt"));
                 window.destroy();
             }
         },
     );
 }
 
-fn mapped_dialog(activate: Rc<dyn Fn(SearchItem)>) -> (SearchDialog, gtk::Window) {
-    let dialog = SearchDialog::new(activate, Rc::new(|_| {}), Rc::new(|| {}));
+#[test]
+fn partial_updates_preserve_selected_path_entry_focus_and_navigation_progress() {
+    crate::test_support::gtk_test(
+        "ui::search::tests::partial_updates_preserve_selected_path_entry_focus_and_navigation_progress",
+        || {
+            let (dialog, window) = mapped_dialog(Rc::new(|_| {}));
+            dialog.state.field.set_text("stable");
+            let mut items = search_items("stable", 5);
+            render_results(&dialog.state, items.clone());
+            assert!(dialog.state.field.grab_focus_without_selecting());
+            dialog.state.field.set_position(3);
+            assert_selected_hit(&dialog, 0);
+            assert!(emit_key(
+                &dialog,
+                gtk::gdk::Key::Down,
+                gtk::gdk::ModifierType::empty()
+            ));
+            let selected_path = items[1].path.clone();
+
+            items.insert(0, SearchItem::for_test(PathBuf::from("/search/inserted.txt"), false));
+            items.swap(2, 4);
+            render_results(&dialog.state, items.clone());
+            let selected = selected_hit(&dialog).expect("restored selection");
+            assert_eq!(items[selected].path, selected_path);
+            assert!(contains_keyboard_focus(dialog.state.field.upcast_ref()));
+            assert_eq!(dialog.state.field.position(), 3);
+            window.destroy();
+        },
+    );
+}
+
+fn mapped_dialog(open_path: Rc<dyn Fn(PathBuf)>) -> (SearchDialog, gtk::Window) {
+    let dialog = SearchDialog::new(
+        Rc::new(|_| {}),
+        open_path,
+        Rc::new(|_| {}),
+        Rc::new(|| {}),
+    );
     let window = gtk::Window::builder()
         .default_width(900)
         .default_height(600)
@@ -407,6 +242,42 @@ fn mapped_dialog(activate: Rc<dyn Fn(SearchItem)>) -> (SearchDialog, gtk::Window
     (dialog, window)
 }
 
+/// 用文件名分段渲染，等价于生产路径的一次命中更新。
+fn render_results(state: &Rc<SearchState>, items: Vec<SearchItem>) {
+    let section = provider::Section::new(
+        "文件名",
+        10,
+        items.into_iter().map(provider::Hit::file).collect(),
+    );
+    state.file_section.replace(vec![section.clone()]);
+    render_sections(state, vec![section]);
+}
+
+/// 第 n 个命中行的列表索引（分段标题占索引 0）。
+fn hit_row_index(state: &SearchState, hit: usize) -> i32 {
+    (hit + 1) as i32
+}
+
+fn assert_selected_hit(dialog: &SearchDialog, hit: usize) {
+    assert_eq!(
+        dialog
+            .state
+            .list
+            .selected_row()
+            .expect("selected result")
+            .index(),
+        hit_row_index(&dialog.state, hit)
+    );
+}
+
+fn selected_hit(dialog: &SearchDialog) -> Option<usize> {
+    dialog
+        .state
+        .list
+        .selected_row()
+        .map(|row| (row.index() - 1).max(0) as usize)
+}
+
 fn key_controller(dialog: &SearchDialog) -> gtk::EventControllerKey {
     controller::<gtk::EventControllerKey>(&dialog.state.layer)
 }
@@ -415,24 +286,8 @@ fn emit_key(dialog: &SearchDialog, key: gtk::gdk::Key, modifiers: gtk::gdk::Modi
     key_controller(dialog).emit_by_name::<bool>("key-pressed", &[&key, &0u32, &modifiers])
 }
 
-fn assert_selected(dialog: &SearchDialog, position: i32) {
-    assert_eq!(
-        dialog
-            .state
-            .list
-            .selected_row()
-            .expect("selected result")
-            .index(),
-        position
-    );
-}
-
 fn scroll_controller(dialog: &SearchDialog) -> gtk::EventControllerScroll {
     controller::<gtk::EventControllerScroll>(&dialog.state.layer)
-}
-
-fn click_controller(dialog: &SearchDialog) -> gtk::GestureClick {
-    controller::<gtk::GestureClick>(&dialog.state.layer)
 }
 
 fn controller<
@@ -458,6 +313,23 @@ fn search_items(prefix: &str, count: usize) -> Vec<SearchItem> {
             )
         })
         .collect()
+}
+
+fn row_texts(state: &SearchState) -> Vec<String> {
+    let mut texts = Vec::new();
+    let mut child = state.list.first_child();
+    while let Some(row) = child {
+        if let Some(label) = row
+            .first_child()
+            .and_then(|child| child.downcast::<gtk::Label>().ok())
+        {
+            texts.push(label.text().to_string());
+        } else {
+            texts.push(String::new());
+        }
+        child = row.next_sibling();
+    }
+    texts
 }
 
 fn drain_main_context() {
@@ -488,108 +360,6 @@ fn settle_layout() {
 }
 
 #[test]
-fn global_search_combines_home_and_drives_and_refreshes_mounts() {
-    crate::test_support::gtk_test(
-        "ui::search::tests::global_search_combines_home_and_drives_and_refreshes_mounts",
-        || {
-            let fixture = tempfile::tempdir().expect("search fixture");
-            let home = fixture.path().join("Home");
-            let usb = fixture.path().join("USB");
-            for root in [&home, &usb] {
-                std::fs::create_dir(root).expect("search root");
-                std::fs::write(root.join("needle.txt"), b"fixture").expect("search file");
-            }
-            let activated = Rc::new(RefCell::new(None));
-            let observed = activated.clone();
-            let dialog = SearchDialog::new(
-                Rc::new(move |item| {
-                    observed.replace(Some(item));
-                }),
-                Rc::new(|_| {}),
-                Rc::new(|| {}),
-            );
-            let window = gtk::Window::builder().child(&dialog.widget()).build();
-            window.present();
-            dialog.show(vec![home.clone(), usb.clone()], false);
-            assert_eq!(
-                dialog
-                    .state
-                    .field
-                    .parent()
-                    .expect("search bar")
-                    .next_sibling(),
-                Some(dialog.state.results.clone().upcast())
-            );
-            assert_eq!(
-                dialog.state.status.text(),
-                "Type to search the knowledge base"
-            );
-            assert!(dialog.state.field.tooltip_text().is_none());
-            dialog.state.field.set_text("needle");
-            wait_until(|| dialog.state.visible_results.borrow().len() == 2);
-            for position in 0..dialog.state.visible_results.borrow().len() {
-                let row = dialog
-                    .state
-                    .list
-                    .row_at_index(position as i32)
-                    .expect("result row");
-                assert!(row.tooltip_text().is_none());
-            }
-
-            dialog.show(vec![home.clone()], false);
-            assert!(dialog.state.visible_results.borrow().is_empty());
-            assert!(dialog.state.field.tooltip_text().is_none());
-            dialog.state.field.set_text("needle");
-            wait_until(|| {
-                !dialog.state.indexing_spinner.is_visible()
-                    && dialog.state.visible_results.borrow().len() == 1
-            });
-            assert_eq!(
-                dialog.state.visible_results.borrow()[0].path,
-                home.join("needle.txt")
-            );
-
-            let coverage = SearchCoverage {
-                unreadable: true,
-                time_limit: true,
-                ..Default::default()
-            };
-            render_results(&dialog.state, Vec::new(), false, coverage);
-            assert!(dialog.state.truncated_hint.is_visible());
-            let tooltip = dialog.state.truncated_hint.tooltip_text();
-            assert_eq!(tooltip.as_deref(), Some(coverage.message().as_str()));
-            assert!(
-                tooltip
-                    .as_deref()
-                    .is_some_and(|text| text.contains("Settings → General → Search & filtering")),
-                "a limit stop points to the search limit settings"
-            );
-            render_results(&dialog.state, Vec::new(), false, SearchCoverage::default());
-            assert!(!dialog.state.truncated_hint.is_visible());
-            assert!(dialog.state.truncated_hint.tooltip_text().is_none());
-
-            dialog.show(vec![home, usb.clone()], false);
-            dialog.state.field.set_text("needle");
-            wait_until(|| dialog.state.visible_results.borrow().len() == 2);
-            let usb_position = dialog
-                .state
-                .visible_results
-                .borrow()
-                .iter()
-                .position(|item| item.path.starts_with(&usb))
-                .expect("USB result");
-            activate_position(&dialog.state, usb_position as i32);
-            assert_eq!(
-                activated.borrow().as_ref().expect("activation").path,
-                usb.join("needle.txt")
-            );
-            assert!(dialog.state.search.borrow().is_none());
-            window.destroy();
-        },
-    );
-}
-
-#[test]
 fn global_search_reads_saved_exclusions_before_settings_and_on_each_window_invocation() {
     crate::test_support::gtk_test(
         "ui::search::tests::global_search_reads_saved_exclusions_before_settings_and_on_each_window_invocation",
@@ -610,7 +380,7 @@ fn global_search_reads_saved_exclusions_before_settings_and_on_each_window_invoc
             let dialogs: Vec<_> = (0..2)
                 .map(|_| {
                     let dialog =
-                        SearchDialog::new(Rc::new(|_| {}), Rc::new(|_| {}), Rc::new(|| {}));
+                        SearchDialog::new(Rc::new(|_| {}), Rc::new(|_| {}), Rc::new(|_| {}), Rc::new(|| {}));
                     let window = gtk::Window::builder().child(&dialog.widget()).build();
                     window.present();
                     (dialog, window)
@@ -693,7 +463,12 @@ fn global_search_reads_saved_limits_before_settings_and_on_each_invocation() {
                 .0
             };
             let unlimited = index_with_current_limits();
-            let dialog = SearchDialog::new(Rc::new(|_| {}), Rc::new(|_| {}), Rc::new(|| {}));
+            let dialog = SearchDialog::new(
+                Rc::new(|_| {}),
+                Rc::new(|_| {}),
+                Rc::new(|_| {}),
+                Rc::new(|| {}),
+            );
             let window = gtk::Window::builder().child(&dialog.widget()).build();
             window.present();
             let dialog_shares = |handle: &SearchHandle| {

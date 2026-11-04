@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
 
+//! 搜索结果的分段渲染：文件名 / 标签 / 正文 provider 统一为 `Entry` 列表，
+//! 分段标题与命中行混合，按 provider 优先级排序后增量更新。
+
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
@@ -8,146 +11,183 @@ use std::{
 
 use gtk::{gdk, glib, prelude::*};
 
-use super::{SearchState, record_interaction, reveal_result, show_coverage};
+use super::{
+    SearchState, provider, record_interaction, reveal_result, show_coverage,
+};
 use crate::services::{SearchCoverage, SearchItem};
 
-type RowsByPath = HashMap<PathBuf, (SearchItem, gtk::ListBoxRow)>;
+type RowsByKey = HashMap<String, (Entry, gtk::ListBoxRow)>;
 type ThumbnailChange = (
     crate::ui::thumbnail::ThumbnailSlot,
     Option<PathBuf>,
     &'static str,
 );
 
+/// 列表中的一行：分段标题或一条命中。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) enum Entry {
+    Header(String),
+    Hit(provider::Hit),
+}
+
+impl Entry {
+    /// 跨渲染稳定的标识，用于恢复选中与滚动位置。
+    fn id(&self) -> String {
+        match self {
+            Entry::Header(label) => format!("header:{label}"),
+            Entry::Hit(hit) => match &hit.action {
+                provider::HitAction::Open(path) => format!("path:{}", path.display()),
+                provider::HitAction::ShowTag(name) => format!("tag:{name}"),
+            },
+        }
+    }
+}
+
+/// 分段标题优先，命中行取其中的文件路径用于缩略图与请求回收。
+fn hit_path(entry: &Entry) -> Option<PathBuf> {
+    match entry {
+        Entry::Header(_) => None,
+        Entry::Hit(hit) => match &hit.action {
+            provider::HitAction::Open(path) => Some(path.clone()),
+            provider::HitAction::ShowTag(_) => None,
+        },
+    }
+}
+
 /// What the list showed before a render, to restore selection, focus and scroll.
-struct RenderedResults {
+struct RenderedEntries {
     query: String,
     query_changed: bool,
-    items: Vec<SearchItem>,
+    entries: Vec<Entry>,
     selected_index: Option<i32>,
-    selected_path: Option<PathBuf>,
+    selected_id: Option<String>,
     focused: Option<gtk::Widget>,
-    focused_path: Option<PathBuf>,
+    focused_id: Option<String>,
     scroll_position: f64,
 }
 
-impl RenderedResults {
+impl RenderedEntries {
     fn capture(state: &SearchState) -> Self {
         let query = state.field.text().trim().to_owned();
         let query_changed = state.rendered_query.borrow().as_str() != query;
-        let items = state.visible_results.borrow().clone();
+        let entries = state.visible_entries.borrow().clone();
         let selected_index = state.list.selected_row().map(|row| row.index());
-        let selected_path = selected_index
+        let selected_id = selected_index
             .and_then(|position| usize::try_from(position).ok())
-            .and_then(|position| items.get(position))
-            .map(|item| item.path.clone());
+            .and_then(|position| entries.get(position))
+            .map(Entry::id);
         let focused = state.list.root().and_then(|root| root.focus());
-        let focused_path = focused_result_path(state, &items, focused.as_ref());
+        let focused_id = focused_entry_id(state, &entries, focused.as_ref());
         Self {
             query,
             query_changed,
-            items,
+            entries,
             selected_index,
-            selected_path,
+            selected_id,
             focused,
-            focused_path,
+            focused_id,
             scroll_position: state.scroller.vadjustment().value(),
         }
     }
 
     /// A focused result row was re-rendered away from the window.
     fn lost_result_focus(&self) -> bool {
-        self.focused_path.is_some()
+        self.focused_id.is_some()
             && self
                 .focused
                 .as_ref()
                 .is_some_and(|focused| focused.root().is_none())
     }
 
-    /// The previously selected item's new position, else its old index clamped.
-    fn restored_position(&self, items: &[SearchItem]) -> usize {
-        self.selected_path
+    /// The previously selected entry's new position, else its old index clamped.
+    fn restored_position(&self, entries: &[Entry]) -> usize {
+        self.selected_id
             .as_ref()
-            .and_then(|path| items.iter().position(|item| &item.path == path))
+            .and_then(|id| entries.iter().position(|entry| &entry.id() == id))
             .or_else(|| {
                 self.selected_index.map(|position| {
                     usize::try_from(position)
                         .unwrap_or_default()
-                        .min(items.len() - 1)
+                        .min(entries.len().saturating_sub(1))
                 })
             })
             .unwrap_or(0)
     }
 }
 
-fn focused_result_path(
+fn focused_entry_id(
     state: &SearchState,
-    items: &[SearchItem],
+    entries: &[Entry],
     focused: Option<&gtk::Widget>,
-) -> Option<PathBuf> {
-    items.iter().enumerate().find_map(|(position, item)| {
+) -> Option<String> {
+    entries.iter().enumerate().find_map(|(position, entry)| {
         let row = state.list.row_at_index(position as i32)?;
         focused
             .filter(|focused| **focused == row || focused.is_ancestor(&row))
-            .map(|_| item.path.clone())
+            .map(|_| entry.id())
     })
 }
 
-pub(super) fn render_results(
-    state: &Rc<SearchState>,
-    results: Vec<SearchItem>,
-    indexing: bool,
-    coverage: SearchCoverage,
-) {
-    let mut before = RenderedResults::capture(state);
-    let results_changed = before.items != results;
-    if results_changed {
-        reconcile_rows(state, &before.items, results);
+pub(super) fn render_sections(state: &Rc<SearchState>, mut sections: Vec<provider::Section>) {
+    sections.sort_by_key(|section| section.priority);
+    let mut entries = Vec::new();
+    for section in sections {
+        if section.hits.is_empty() {
+            continue;
+        }
+        entries.push(Entry::Header(section.label));
+        entries.extend(section.hits.into_iter().map(Entry::Hit));
     }
-
+    let empty = entries.is_empty();
+    let mut before = RenderedEntries::capture(state);
+    let entries_changed = before.entries != entries;
+    if entries_changed {
+        reconcile_entries(state, &before.entries, entries);
+    }
     let query_empty = before.query.is_empty();
     state
         .rendered_query
         .replace(std::mem::take(&mut before.query));
-    let has_results = !state.visible_results.borrow().is_empty();
-    show_coverage(&state.truncated_hint, coverage);
     state
         .results
-        .set_visible_child_name(if has_results { "results" } else { "status" });
-    if !has_results {
-        let message = empty_results_message(state, query_empty, indexing);
-        state.status.set_text(&crate::i18n::tr(message));
-    } else if results_changed || before.query_changed {
+        .set_visible_child_name(if empty { "status" } else { "results" });
+    if empty {
+        state.status.set_text(&crate::i18n::tr("No matching files or folders"));
+    } else if entries_changed || before.query_changed {
         restore_selection(state, &before);
     }
-
-    if results_changed && before.lost_result_focus() {
-        restore_result_focus(state, before.focused_path.take());
+    if entries_changed && before.lost_result_focus() {
+        restore_result_focus(state, before.focused_id.take());
     }
-    if results_changed {
+    if entries_changed {
         settle_after_reorder(state, before.scroll_position);
     }
 }
 
-/// Keeps rows whose item is unchanged and rebuilds or removes the rest.
-fn reconcile_rows(state: &Rc<SearchState>, old_items: &[SearchItem], results: Vec<SearchItem>) {
+/// Keeps rows whose entry is unchanged and rebuilds or removes the rest.
+fn reconcile_entries(
+    state: &Rc<SearchState>,
+    old_entries: &[Entry],
+    entries: Vec<Entry>,
+) {
     state.reconciling_results.set(true);
-    let mut rows = old_items
+    let mut rows = old_entries
         .iter()
         .enumerate()
-        .filter_map(|(position, item)| {
+        .filter_map(|(position, entry)| {
             state
                 .list
                 .row_at_index(position as i32)
-                .map(|row| (item.path.clone(), (item.clone(), row)))
+                .map(|row| (entry.id(), (entry.clone(), row)))
         })
-        .collect::<RowsByPath>();
+        .collect::<RowsByKey>();
     let mut requested = state.requested_thumbnails.borrow_mut();
-    let ordered_rows = results
+    let ordered_rows = entries
         .iter()
-        .map(|item| reuse_or_build_row(state, &mut rows, &mut requested, item))
+        .map(|entry| reuse_or_build_row(state, &mut rows, &mut requested, entry))
         .collect::<Vec<_>>();
-    for (path, (_, row)) in rows {
-        discard_row(state, &mut requested, &path, &row);
+    for (_, (entry, row)) in rows {
+        discard_row(state, &mut requested, hit_path(&entry).as_deref(), &row);
     }
     drop(requested);
 
@@ -155,81 +195,120 @@ fn reconcile_rows(state: &Rc<SearchState>, old_items: &[SearchItem], results: Ve
         ordered_rows
             .into_iter()
             .enumerate()
-            .map(|(position, row)| (row, position))
+            .filter_map(|(position, row)| row.map(|row| (row, position)))
             .collect(),
     );
-    state.visible_results.replace(results);
+    state.visible_entries.replace(entries);
     state.list.invalidate_sort();
     state.reconciling_results.set(false);
 }
 
 fn reuse_or_build_row(
     state: &Rc<SearchState>,
-    rows: &mut RowsByPath,
+    rows: &mut RowsByKey,
     requested: &mut HashSet<PathBuf>,
-    item: &SearchItem,
-) -> gtk::ListBoxRow {
-    let Some((previous, row)) = rows.remove(&item.path) else {
-        return append_result_row(state, item);
+    entry: &Entry,
+) -> Option<gtk::ListBoxRow> {
+    let Some((previous, row)) = rows.remove(&entry.id()) else {
+        return append_entry_row(state, entry);
     };
-    if previous == *item {
-        return row;
+    if previous == *entry {
+        return Some(row);
     }
-    discard_row(state, requested, &item.path, &row);
-    append_result_row(state, item)
+    discard_row(state, requested, hit_path(&previous).as_deref(), &row);
+    append_entry_row(state, entry)
 }
 
 fn discard_row(
     state: &SearchState,
     requested: &mut HashSet<PathBuf>,
-    path: &Path,
+    path: Option<&Path>,
     row: &gtk::ListBoxRow,
 ) {
-    requested.remove(path);
+    if let Some(path) = path {
+        requested.remove(path);
+    }
     crate::ui::thumbnail::cancel_thumbnails_in(row.upcast_ref());
     state.list.remove(row);
 }
 
-fn append_result_row(state: &Rc<SearchState>, item: &SearchItem) -> gtk::ListBoxRow {
-    let row = result_row(state, item);
+fn append_entry_row(state: &Rc<SearchState>, entry: &Entry) -> Option<gtk::ListBoxRow> {
+    let row = match entry {
+        Entry::Header(label) => section_header_row(label),
+        Entry::Hit(hit) => hit_row(state, hit),
+    };
     state.list.append(&row);
+    Some(row)
+}
+
+fn section_header_row(label: &str) -> gtk::ListBoxRow {
+    let row = gtk::ListBoxRow::new();
+    row.set_selectable(false);
+    row.set_activatable(false);
+    let text = gtk::Label::new(Some(label));
+    text.add_css_class("search-section-header");
+    text.set_xalign(0.0);
+    row.set_child(Some(&text));
     row
 }
 
-fn restore_selection(state: &SearchState, before: &RenderedResults) {
-    let items = state.visible_results.borrow();
+fn hit_row(state: &Rc<SearchState>, hit: &provider::Hit) -> gtk::ListBoxRow {
+    if let Some(item) = &hit.item {
+        return result_row(state, item);
+    }
+    let row = gtk::ListBoxRow::new();
+    row.add_css_class("search-result");
+    let line = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    let title = gtk::Label::new(Some(&hit.title));
+    title.set_xalign(0.0);
+    title.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
+    line.append(&title);
+    if let Some(detail) = &hit.detail {
+        let detail = gtk::Label::new(Some(detail));
+        detail.set_xalign(0.0);
+        detail.add_css_class("search-result-path");
+        detail.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        line.append(&detail);
+    }
+    row.set_child(Some(&line));
+    row
+}
+
+fn restore_selection(state: &SearchState, before: &RenderedEntries) {
+    let entries = state.visible_entries.borrow();
     let restored = if before.query_changed {
         0
     } else {
-        before.restored_position(&items)
+        before.restored_position(&entries)
     };
-    drop(items);
-    state
-        .list
-        .select_row(state.list.row_at_index(restored as i32).as_ref());
-}
-
-fn empty_results_message(state: &SearchState, query_empty: bool, indexing: bool) -> &'static str {
-    if state.history.borrow().is_some() {
-        if query_empty {
-            "No folder history yet"
-        } else {
-            "No matching folders"
-        }
-    } else if indexing {
-        "Searching…"
-    } else {
-        "No matching files or folders"
+    // 分段标题不可选中，落到最近的命中行。
+    let target = entries
+        .iter()
+        .enumerate()
+        .filter(|(position, _)| *position >= restored)
+        .map(|(position, entry)| (position, entry))
+        .find(|(_, entry)| matches!(entry, Entry::Hit(_)))
+        .map(|(position, _)| position)
+        .or_else(|| {
+            entries
+                .iter()
+                .position(|entry| matches!(entry, Entry::Hit(_)))
+        });
+    drop(entries);
+    if let Some(position) = target
+        && let Some(row) = state.list.row_at_index(position as i32)
+    {
+        state.list.select_row(Some(&row));
     }
 }
 
-fn restore_result_focus(state: &SearchState, focused_path: Option<PathBuf>) {
-    let focused_position = focused_path.and_then(|path| {
+fn restore_result_focus(state: &SearchState, focused_id: Option<String>) {
+    let focused_position = focused_id.and_then(|id| {
         state
-            .visible_results
+            .visible_entries
             .borrow()
             .iter()
-            .position(|item| item.path == path)
+            .position(|entry| entry.id() == id)
     });
     if let Some(row) = focused_position
         .and_then(|position| state.list.row_at_index(position as i32))
@@ -247,7 +326,6 @@ fn settle_after_reorder(state: &Rc<SearchState>, scroll_position: f64) {
     let weak = Rc::downgrade(state);
     state.list.add_tick_callback(move |_, _| {
         let weak = weak.clone();
-        // Reordered rows keep their old allocation until this frame's layout.
         glib::idle_add_local_once(move || {
             if let Some(state) = weak.upgrade() {
                 settle_rows(&state, revision, scroll_position);
@@ -377,10 +455,16 @@ pub(super) fn refresh_visible_thumbnails(state: &SearchState) {
 }
 
 fn thumbnail_changes(state: &SearchState, viewport: (f64, f64)) -> Vec<ThumbnailChange> {
-    let items = state.visible_results.borrow();
+    let entries = state.visible_entries.borrow();
     let mut requested = state.requested_thumbnails.borrow_mut();
     let mut changes = Vec::new();
-    for (position, item) in items.iter().enumerate() {
+    for (position, entry) in entries.iter().enumerate() {
+        let Entry::Hit(hit) = entry else {
+            continue;
+        };
+        let Some(item) = &hit.item else {
+            continue;
+        };
         let Some(row) = i32::try_from(position)
             .ok()
             .and_then(|position| state.list.row_at_index(position))
@@ -408,17 +492,13 @@ fn row_visible(state: &SearchState, row: &gtk::ListBoxRow, viewport: (f64, f64))
     ))
 }
 
-/// Requests a thumbnail for a row scrolled into view, or releases one scrolled out.
 fn thumbnail_change(
     row: &gtk::ListBoxRow,
     item: &SearchItem,
     visible: bool,
     requested: &mut HashSet<PathBuf>,
 ) -> Option<ThumbnailChange> {
-    let image = row
-        .child()
-        .and_then(|content| content.first_child())
-        .and_then(|child| child.downcast::<crate::ui::thumbnail::ThumbnailSlot>().ok())?;
+    let image = thumbnail_slot_in_row(row)?;
     let fallback = fallback_icon(item);
     let changed = if visible {
         requested.insert(item.path.clone())
@@ -426,6 +506,12 @@ fn thumbnail_change(
         requested.remove(&item.path)
     };
     changed.then(|| (image, visible.then(|| item.path.clone()), fallback))
+}
+
+fn thumbnail_slot_in_row(row: &gtk::ListBoxRow) -> Option<crate::ui::thumbnail::ThumbnailSlot> {
+    row.child()
+        .and_then(|content| content.first_child())
+        .and_then(|child| child.downcast::<crate::ui::thumbnail::ThumbnailSlot>().ok())
 }
 
 fn intersects_viewport(

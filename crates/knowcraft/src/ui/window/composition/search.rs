@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
 use gtk::prelude::*;
 
@@ -50,7 +50,45 @@ pub(super) fn install(
             browser.reveal_location(Location::local(item.path));
         }
     });
-    let dialog = SearchDialog::new(activate, reveal, dismiss);
+    // 正文 / 标签命中只有路径，直接打开：目录导航，文件进预览或直接打开。
+    let open_browser = content.browser.downgrade();
+    let open_preview = content.preview.clone();
+    let open_preferences = preferences.clone();
+    let open_path = Rc::new(move |path: PathBuf| {
+        let Some(browser) = open_browser.upgrade() else {
+            return;
+        };
+        let location = Location::local(path.clone());
+        if open_preferences.search_open_files_directly() {
+            browser.browser().open_location(location.clone());
+        } else {
+            open_preview.show(
+                FileEntry {
+                    location: location.clone(),
+                    native_name: path.file_name().unwrap_or_default().to_os_string(),
+                    thumbnail_path: None,
+                    display_name: path
+                        .file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                    kind: EntryKind::File,
+                    size: MetadataValue::Unknown,
+                    modified_unix_seconds: MetadataValue::Unknown,
+                    recent_unix_seconds: MetadataValue::Unknown,
+                    is_hidden: false,
+                    mode: MetadataValue::Unknown,
+                    image_dimensions: MetadataValue::Unknown,
+                    child_count: MetadataValue::Unknown,
+                    duration_seconds: MetadataValue::Unknown,
+                    listable: MetadataValue::Unknown,
+                    recent_uri: None,
+                },
+                browser.browser().active_depth(),
+            );
+        }
+        browser.reveal_location(location);
+    });
+    let dialog = SearchDialog::new(activate, open_path, reveal, dismiss);
     content.overlay.add_overlay(&dialog.widget());
     let toggle = toggle_handler(dialog.clone(), content, preferences);
     let clicked_search = toggle.clone();
