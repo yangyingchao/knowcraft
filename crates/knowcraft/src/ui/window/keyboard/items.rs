@@ -23,8 +23,6 @@ use crate::{
 };
 
 mod preview_keys;
-mod tenxer_cursor;
-mod tenxer_items;
 
 const SHIFT: Modifiers = Modifiers::SHIFT_MASK;
 const SUPER: Modifiers = Modifiers::SUPER_MASK;
@@ -36,6 +34,49 @@ enum OpenInNewTarget {
 }
 
 impl Dispatcher {
+    /// Flips the selection of the focused pane, or the filtered results.
+    pub(in crate::ui::window::keyboard) fn invert_selection(&self) -> bool {
+        self.view.invert_filter_results()
+            || (self.view.selected_search_results().is_none()
+                && self.fill_selection(self.view.invert_focused_pane()))
+    }
+
+    pub(super) fn fill_selection(&self, filled: bool) -> bool {
+        if !filled {
+            self.shortcuts
+                .show_feedback(&crate::i18n::tr("Nothing to select"));
+        }
+        true
+    }
+
+    /// Search hits shown in the listing swallow paging.
+    pub(in crate::ui::window::keyboard) fn page_cursor(&self, direction: i32, half: bool) {
+        if !self.view.listing_search_active() {
+            self.view.page_displayed_cursor(direction, half);
+        }
+    }
+
+    /// Opens the focused result while results replace the directory, and
+    /// nothing when there is none rather than the hidden directory's cursor.
+    pub(super) fn activate_focused(&self, browser: &Rc<Browser>) {
+        self.view.keyboard_navigation();
+        if self.chooser_confirm(browser) {
+            return;
+        }
+        if let Some(entry) = self.view.selected_search_result() {
+            if entry.is_directory() {
+                browser.navigate(entry.location);
+            } else {
+                browser.open_location(entry.location);
+            }
+            return;
+        }
+        if self.view.results_replace_listing() {
+            return;
+        }
+        self.view.activate_focused();
+    }
+
     /// A focused file opens as with plain Enter.
     fn open_focused_in_new(&self, browser: &Rc<Browser>, target: OpenInNewTarget) -> bool {
         // Choosers have no tabs, and Ctrl+Enter there accepts the folder.

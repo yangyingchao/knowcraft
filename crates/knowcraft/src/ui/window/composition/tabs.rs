@@ -20,7 +20,7 @@ use crate::{
     },
 };
 
-use super::{WindowContent, layout, tenxer_splash};
+use super::{WindowContent, layout};
 
 mod strip;
 use strip::TabStrip;
@@ -126,7 +126,6 @@ impl TabWindow {
                 }
             }),
         );
-        tenxer_splash::install(window, &overlay, preferences);
         preferences.register_save_notice_window(window.upcast_ref());
         let weak = Rc::downgrade(&state);
         crate::ui::close_guard::install(window, move |_| {

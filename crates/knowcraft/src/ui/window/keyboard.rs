@@ -35,7 +35,6 @@ mod items;
 mod preview;
 mod prompts;
 mod sidebar;
-mod tenxer;
 mod wheel_zoom;
 
 use footer_bindings::{
@@ -336,9 +335,6 @@ impl Dispatcher {
         if let Some(result) = self.rename_tab(press) {
             return Some(result);
         }
-        if !self.type_to_search.preferences.tenxer_mode() {
-            return self.tenxer_keys(browser, press);
-        }
         if !press.is_modifier() {
             self.open_with.invalidate();
         }
@@ -350,10 +346,9 @@ impl Dispatcher {
             {
                 return self.shortcuts.handle_key(press);
             }
-            return self.tenxer_keys(browser, press);
+            return None;
         }
         self.input_owner(browser, press)
-            .or_else(|| self.tenxer_keys(browser, press))
     }
 
     /// Focused text outside the footer prompt and a preview document.
@@ -375,9 +370,6 @@ impl Dispatcher {
             return result;
         }
         if let Some(result) = self.input_owner(browser, press) {
-            return result;
-        }
-        if let Some(result) = self.tenxer_keys(browser, press) {
             return result;
         }
         let mut event = KeyEvent {

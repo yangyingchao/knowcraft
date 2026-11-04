@@ -16,7 +16,6 @@ mod layout;
 mod search;
 mod settings;
 mod tabs;
-mod tenxer_splash;
 
 pub(super) use tabs::{TabWindow, is_tab_shortcut, tab_index};
 
@@ -71,7 +70,6 @@ impl WindowContent {
         let notice = self.bind_context(window, preferences);
         self.activate_actions(window);
         window.set_child(Some(&self.overlay));
-        tenxer_splash::install(window, &self.overlay, preferences);
         super::install_modal_focus_trap(window);
         crate::ui::keys::install_native_aliases(window);
         self.browser

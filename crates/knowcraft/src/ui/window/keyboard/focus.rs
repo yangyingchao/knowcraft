@@ -16,6 +16,18 @@ use crate::{
 };
 
 impl Dispatcher {
+    pub(super) fn text_focused(&self) -> bool {
+        gtk::prelude::RootExt::focus(&self.window).is_some_and(|focused| {
+            focused.is::<gtk::Text>() || focused.is::<gtk::TextView>() || focused.is::<gtk::Entry>()
+        })
+    }
+
+    pub(super) fn focus_in_popover(&self) -> bool {
+        gtk::prelude::RootExt::focus(&self.window).is_some_and(|focused| {
+            focused.is::<gtk::Popover>() || focused.ancestor(gtk::Popover::static_type()).is_some()
+        })
+    }
+
     pub(super) fn focus_navigation(&self, browser: &Browser, event: &mut KeyEvent) -> KeyResult {
         if self.type_to_search.preferences.tenxer_mode() {
             if let Some(result) = self.tenxer_pane_focus(browser, event) {
