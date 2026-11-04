@@ -1,6 +1,6 @@
 # knowcraft 搜索与归档 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 在 knowcraft GUI 接通知识库全文搜索（文件名 / 标签 / 正文三段 provider）与 inbox 归档（`d` 键）。
 
@@ -9,6 +9,8 @@
 **Tech Stack:** Rust 1.96、GTK4、tantivy 0.22、jieba-rs 0.11、rusqlite。
 
 **Spec:** `docs/superpowers/specs/2026-11-03-knowcraft-search-dispatch-design.md`
+
+> **状态：已完成（2026-11-04）。** Task 1-2 → `928a9aeda`；Task 3 → `0b9000bd3`；Task 4 → `c0b4b1845`；Task 5-7 → `457d2c901`；Task 8 → `55067fd5a`。计划外补充：测试窗口 app_id 隔离 `f079dc8d8`，i18n 精简与 Archive 语义修复 `7e9360954`。手动试用通过；GUI 全量测试按用户决定掠过。
 
 ## Global Constraints
 
@@ -52,14 +54,14 @@
 - Produces: `Index::open(&Path) -> Result<Index>`（schema 版本 `2`，`title`/`content` 使用 `jieba` 分词，`content` 为 `TEXT | STORED`）
 - Produces: `Index::search(&self, query: &str, limit: usize) -> Result<Vec<IndexHit>>`（本任务先改签名，摘要仍在 Task 2 完成）
 
-- [ ] **Step 1: 添加依赖**
+- [x] **Step 1: 添加依赖**
 
 ```toml
 # crates/knowcraft-core/Cargo.toml
 jieba-rs = "0.11"
 ```
 
-- [ ] **Step 2: 写失败测试**
+- [x] **Step 2: 写失败测试**
 
 在 `crates/knowcraft-core/tests/index.rs` 末尾追加：
 
@@ -96,12 +98,12 @@ fn reopening_with_an_old_schema_version_recreates_the_index() {
 
 同时把该文件内既有 `index.search("...")` 调用点更新为 `index.search("...", 10)`。
 
-- [ ] **Step 3: 运行测试确认失败**
+- [x] **Step 3: 运行测试确认失败**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft-core --test index`
 Expected: 编译失败（`search` 参数数量不符；`jieba` 未声明）
 
-- [ ] **Step 4: 实现 tokenizer**
+- [x] **Step 4: 实现 tokenizer**
 
 新建 `crates/knowcraft-core/src/index/tokenizer.rs`：
 
@@ -171,7 +173,7 @@ impl TokenStream for JiebaTokenStream {
 
 若 `token.word` 字段名或 `byte_start`/`byte_end` 与方法签名不一致，以 `cargo doc -p jieba-rs --no-deps` 或源码为准修正；不得改用 `cut` 的位置推算。
 
-- [ ] **Step 5: 改写 schema 与 open**
+- [x] **Step 5: 改写 schema 与 open**
 
 `crates/knowcraft-core/src/index.rs`：
 
@@ -257,12 +259,12 @@ pub fn search(&self, query: &str, limit: usize) -> Result<Vec<IndexHit>> {
 
 更新模块注释：删除“中文分词定案留待后续专项”的说明。
 
-- [ ] **Step 6: 运行测试确认通过**
+- [x] **Step 6: 运行测试确认通过**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft-core --test index`
 Expected: PASS（含新增两条）
 
-- [ ] **Step 7: 检查全部调用点**
+- [x] **Step 7: 检查全部调用点**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft-core`
 Expected: PASS；若 `watcher.rs` 或其它模块调用 `search`，同步补 `limit` 参数（沿用 50）。
@@ -284,7 +286,7 @@ Expected: PASS；若 `watcher.rs` 或其它模块调用 `search`，同步补 `li
 - Produces: `Tags::search(&self, query: &str) -> Result<Vec<TagHit>>`；`TagHit { name: String, documents: usize }`
 - Produces: `Tags::documents_with_tag(&self, name: &str) -> Result<Vec<Document>>`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `crates/knowcraft-core/tests/index.rs` 追加：
 
@@ -344,12 +346,12 @@ fn tags_search_reports_document_counts_and_lists_documents() {
 
 若该测试文件没有 `fixture` 辅助，复用其现有建库代码，不要新造一套。
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft-core --test index --test tags_annotations`
 Expected: 编译失败（`index_documents`、`TagHit`、`documents_with_tag` 不存在）
 
-- [ ] **Step 3: 实现批量索引与摘要**
+- [x] **Step 3: 实现批量索引与摘要**
 
 `index.rs` 中把 `index_document`、`reindex_document` 收敛到批量实现：
 
@@ -398,7 +400,7 @@ let snippet = snippet.fragment().trim().to_owned();
 
 `IndexHit.snippet` 使用该值。
 
-- [ ] **Step 4: 实现标签查询**
+- [x] **Step 4: 实现标签查询**
 
 `store.rs` 新增：
 
@@ -473,7 +475,7 @@ pub fn documents_with_tag(&self, name: &str) -> Result<Vec<Document>> {
 
 `tags.rs` 需要 `use crate::model::Document;`。
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft-core`
 Expected: PASS
@@ -494,7 +496,7 @@ Expected: PASS
 - Produces: `Knowledge::{search, search_tags, documents_with_tag, categories, dispatch}`
 - Produces: `knowledge::search_roots() -> Vec<PathBuf>`（返回 `vec![data_dir]`，库不可用时为空）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 新建 `crates/knowcraft/src/knowledge/tests.rs`：
 
@@ -550,12 +552,12 @@ fn dispatch_refuses_a_document_outside_the_inbox() {
 
 `Knowledge::open_at(dir)` 为 `open()` 的同构实现：`open()` 读取 `Config::load()` 后调用 `open_at(config.data_dir)`，测试直接给目录。
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft --bin knowcraft knowledge::tests`
 Expected: 编译失败（`open_at`、`warm_index`、`dispatch`、`categories` 不存在）
 
-- [ ] **Step 3: 实现门面**
+- [x] **Step 3: 实现门面**
 
 `knowledge.rs`：
 
@@ -769,12 +771,12 @@ application.connect_startup(|_| {
 });
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft --bin knowcraft knowledge::tests`
 Expected: PASS
 
-- [ ] **Step 5: 启动冒烟**
+- [x] **Step 5: 启动冒烟**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo build -p knowcraft --release`（debug 亦可）
 Expected: 编译通过，无新增 warning
@@ -792,7 +794,7 @@ Expected: 编译通过，无新增 warning
 **Interfaces:**
 - Consumes: `knowledge::search_roots() -> Vec<PathBuf>`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `crates/knowcraft/src/ui/search/tests.rs` 追加：
 
@@ -819,12 +821,12 @@ fn the_palette_prompt_names_the_knowledge_base() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft --bin knowcraft ui::search::tests::the_palette_prompt`
 Expected: FAIL（状态文案仍是 Home and mounted local drives）
 
-- [ ] **Step 3: 改文案与 roots**
+- [x] **Step 3: 改文案与 roots**
 
 `src/ui/search.rs` 三处文案改为“知识库”：
 
@@ -852,7 +854,7 @@ let roots = crate::knowledge::search_roots();
 
 删除该处对 `devices::global_search_roots` 的调用（函数本身保留给其它调用方）。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft --bin knowcraft ui::search`
 Expected: PASS
@@ -871,7 +873,7 @@ Expected: PASS
 - Produces: `provider::{Hit, HitAction, IconRole, ProviderId, SearchProvider}`（签名见下）
 - Produces: 对话框按 `SearchProvider::priority()` 分段渲染；`HitAction::Open(PathBuf)` 走现有 `activate_result`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `src/ui/search/tests.rs` 追加：
 
@@ -906,12 +908,12 @@ fn providers_render_in_priority_order_with_section_headers() {
 
 `row_texts` 与 `provider::Section` 一并实现，供本任务与后续任务使用。
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft --bin knowcraft ui::search::tests::providers_render`
 Expected: 编译失败（`provider`、`render_sections`、`row_texts` 不存在）
 
-- [ ] **Step 3: 实现 provider 骨架**
+- [x] **Step 3: 实现 provider 骨架**
 
 `src/ui/search/provider.rs`：
 
@@ -1005,7 +1007,7 @@ pub(super) trait SearchProvider {
 
 `Section` 用于渲染输入；具体 provider 的异步结果在 Task 6、7 接线。
 
-- [ ] **Step 4: 统一行模型与分段渲染**
+- [x] **Step 4: 统一行模型与分段渲染**
 
 `results.rs` 增加：
 
@@ -1263,12 +1265,12 @@ render_sections(state, vec![provider::Section::new("文件名", 10, hits)]);
 
 现有 `render_results` 与 `RenderedResults` 中依赖 `visible_results` 的逻辑需迁移到 `visible_entries`；`requested_thumbnails`、滚动保持、缩略图刷新改为按 `HitAction::Open` 的路径处理。
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft --bin knowcraft ui::search`
 Expected: PASS（含既有 20+ 条搜索测试）
 
-- [ ] **Step 6: 手动冒烟**
+- [x] **Step 6: 手动冒烟**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo run -p knowcraft`，Ctrl+K 输入任意 `~/Knowledge` 内文件名
 Expected: 结果正常显示，Enter 可打开
@@ -1286,7 +1288,7 @@ Expected: 结果正常显示，Enter 可打开
 - Consumes: `knowledge::search(query, 20) -> Vec<IndexHit>`
 - Produces: `knowledge_section(state, query, generation)` 异步填充“文档内容”段
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[test]
@@ -1304,12 +1306,12 @@ fn content_hits_become_a_documents_section() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft --bin knowcraft content_hits_become`
 Expected: 编译失败（`content_section` 不存在）
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 `src/ui/search/knowledge.rs`：
 
@@ -1404,12 +1406,12 @@ state.knowledge.query(query.to_owned(), deliver);
 `SearchState` 增加 `knowledge: Rc<knowledge_sections::KnowledgeSections>` 与
 `file_section: RefCell<Vec<provider::Section>>`。`apply_search_event` 更新 `file_section` 后与知识段合并渲染。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft --bin knowcraft ui::search`
 Expected: PASS
 
-- [ ] **Step 5: 手动冒烟**
+- [x] **Step 5: 手动冒烟**
 
 在 `~/Knowledge` 放入含中文正文的 PDF，重启后 Ctrl+K 搜正文关键词
 Expected: 出现“文档内容”段，摘要含关键词
@@ -1427,7 +1429,7 @@ Expected: 出现“文档内容”段，摘要含关键词
 - Consumes: `knowledge::documents_with_tag(name) -> Vec<Document>`
 - Produces: `show_tag(state, name)`：进入标签模式，渲染该标签文档；Esc 退出并重跑原查询
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[test]
@@ -1454,12 +1456,12 @@ fn tag_entries_open_a_tag_result_list() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft --bin knowcraft tag_entries_open`
 Expected: 编译失败（`enter_tag_mode`、`tag_mode` 不存在）
 
-- [ ] **Step 3: 实现标签模式**
+- [x] **Step 3: 实现标签模式**
 
 `SearchState` 增加 `tag_mode: RefCell<Option<TagMode>>`：
 
@@ -1522,7 +1524,7 @@ if press.is(ESCAPE_ANY) {
 
 标签输入变化时退出标签模式：`begin_query` 开头 `state.tag_mode.borrow_mut().take();`（用户重新输入即回到普通搜索）。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft --bin knowcraft ui::search`
 Expected: PASS
@@ -1544,7 +1546,7 @@ Expected: PASS
 - Produces: `knowledge_dispatch::present(parent: &gtk::Window, categories: Vec<String>, chosen: Rc<dyn Fn(String)>)`
 - Produces: 命令常量 `DISPATCH`（默认 `d`，tenxer `Ctrl+Shift+D`）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `src/ui/keys/command/tests.rs` 的 `commands_match_through_the_active_map` 内追加：
 
@@ -1580,12 +1582,12 @@ fn typed_category_wins_over_the_selection() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft --bin knowcraft`
 Expected: 编译失败（`DISPATCH`、`DispatchDialog` 不存在）
 
-- [ ] **Step 3: 登记键位**
+- [x] **Step 3: 登记键位**
 
 `src/ui/keys/bindings/window.rs` 在 `PROPERTIES` 之后加入：
 
@@ -1594,7 +1596,7 @@ Expected: 编译失败（`DISPATCH`、`DispatchDialog` 不存在）
             tenxer [Binding::ctrl_shift(Key::d)];
 ```
 
-- [ ] **Step 4: 实现选择器**
+- [x] **Step 4: 实现选择器**
 
 `src/ui/window/knowledge_dispatch.rs`：
 
@@ -1702,7 +1704,7 @@ pub(super) fn present(parent: &gtk::Window, categories: Vec<String>, chosen: Rc<
 
 `src/ui/window.rs` 增加 `mod knowledge_dispatch;`（与其它 `mod` 同组，`pub(super)` 可见性按现有风格）。
 
-- [ ] **Step 5: 接线命令**
+- [x] **Step 5: 接线命令**
 
 `keyboard/commands.rs` 的 `browser_commands`：
 
@@ -1784,12 +1786,12 @@ fn open_dispatch(&self) {
 "Archive to category": "Archive to category"
 ```
 
-- [ ] **Step 6: 运行测试确认通过**
+- [x] **Step 6: 运行测试确认通过**
 
 Run: `RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft --bin knowcraft`
 Expected: PASS
 
-- [ ] **Step 7: 手动验证**
+- [x] **Step 7: 手动验证**
 
 `~/Knowledge/inbox` 放一份 PDF，启动，选中后按 `d`，新建分类「论文」
 Expected: 文件移到 `library/论文/`，列表刷新，再次搜索该文件名路径已更新
