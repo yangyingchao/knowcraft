@@ -246,6 +246,7 @@ fn main() -> gtk::glib::ExitCode {
     application.connect_startup(|_| install_x11_program_class());
     application.connect_startup(|_| {
         knowledge::init();
+        knowledge::spawn_warm_index();
     });
     application.connect_startup(|_application| ui::schedule_rollback_cleanup());
     application.connect_shutdown(|_| {
