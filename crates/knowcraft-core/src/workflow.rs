@@ -1,6 +1,11 @@
 use std::collections::hash_map::DefaultHasher;
+use std::fs::File;
 use std::hash::{Hash, Hasher};
+use std::os::fd::AsFd;
 use std::path::{Path, PathBuf};
+
+use rustix::fs::{Mode, copy_file_range, fchmod, fstat, ioctl_ficlone};
+use rustix::io::Errno;
 
 use crate::error::{Error, Result};
 use crate::model::Document;
@@ -36,7 +41,7 @@ impl Workflow {
             .file_name()
             .ok_or_else(|| Error::Workflow("no file name".into()))?;
         let target = self.data_dir.join("inbox").join(fname);
-        std::fs::copy(src, &target)?;
+        self.copy_cloned(src, &target)?;
         let doc = Document {
             id: 0,
             path: target.to_string_lossy().into_owned(),
@@ -56,6 +61,34 @@ impl Workflow {
         self.store
             .get_document(id)?
             .ok_or_else(|| Error::Store("missing".into()))
+    }
+
+    /// 拷贝文件并尽量使用文件系统 COW：先 reflink（零拷贝克隆），
+    /// 失败降级到 `copy_file_range` 分块，再降级到普通拷贝。
+    /// 保留源权限位，时间戳与所有权用默认。
+    fn copy_cloned(&self, src: &Path, target: &Path) -> Result<()> {
+        let source = File::open(src)?;
+        let mode = fstat(source.as_fd())
+            .map_err(|error| Error::Io(io_error(error)))?
+            .st_mode;
+
+        let target_file = File::create(target)?;
+        match ioctl_ficlone(target_file.as_fd(), source.as_fd()) {
+            Ok(()) => {
+                best_effort_permissions(&target_file, mode.into());
+                return Ok(());
+            }
+            Err(error) if unsupported(error) => {}
+            Err(error) => return Err(Error::Io(io_error(error))),
+        }
+        if copy_ranges(&source, &target_file)? {
+            best_effort_permissions(&target_file, mode.into());
+            return Ok(());
+        }
+        drop(target_file);
+        // std::fs::copy 自带权限位复制。
+        std::fs::copy(src, target)?;
+        Ok(())
     }
 
     /// 登记直接出现在 inbox/ 内的新文件：不做拷贝，checksum 去重。
@@ -124,6 +157,44 @@ impl Workflow {
     pub fn list_library(&self) -> Result<Vec<Document>> {
         self.store.list_by_lifecycle("archived")
     }
+}
+
+/// 分块 `copy_file_range` 直到源 EOF；遇到不支持/跨文件系统则回退。
+/// 返回 `true` 表示完整拷贝，`false` 表示需要降级到普通拷贝。
+fn copy_ranges(source: &File, target: &File) -> Result<bool> {
+    let mut source_offset = 0u64;
+    let mut target_offset = 0u64;
+    loop {
+        match copy_file_range(
+            source.as_fd(),
+            Some(&mut source_offset),
+            target.as_fd(),
+            Some(&mut target_offset),
+            1 << 20,
+        ) {
+            Ok(0) => return Ok(true),
+            Ok(_) => {}
+            Err(error) if unsupported(error) => return Ok(false),
+            Err(error) => return Err(Error::Io(io_error(error))),
+        }
+    }
+}
+
+/// reflink / copy_file_range 失败时应降级的错误：跨文件系统或不支持。
+fn unsupported(error: Errno) -> bool {
+    matches!(
+        error,
+        Errno::XDEV | Errno::NOSYS | Errno::OPNOTSUPP | Errno::NOTTY
+    )
+}
+
+/// 权限复制失败不致命，忽略即可（拷贝本身已成功）。
+fn best_effort_permissions(target: &File, mode: Mode) {
+    let _ = fchmod(target.as_fd(), mode);
+}
+
+fn io_error(error: Errno) -> std::io::Error {
+    std::io::Error::from_raw_os_error(error.raw_os_error())
 }
 
 fn detect_type(name: &std::ffi::OsStr) -> String {
