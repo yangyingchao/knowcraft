@@ -101,6 +101,10 @@ pub(crate) struct DropActionInput {
     pub volume: VolumeRelation,
     pub override_with: DropOverride,
     pub strategy: CrossVolumeDropStrategy,
+    /// 知识库内互拖注入：`Some(default)` 表示无论卷关系一律先弹
+    /// 拷贝/移动确认框（`default` 为回车默认项）；`None` 维持既有
+    /// 卷关系决策。Ctrl/Shift 强制仍然优先。
+    pub confirm: Option<TransferKind>,
 }
 
 pub(crate) fn volume_relation(
@@ -137,6 +141,15 @@ pub(crate) fn drop_commit(input: DropActionInput) -> DropCommit {
         DropOverride::ForceCopy if input.can_copy => return DropCommit::Copy,
         DropOverride::ForceMove if input.can_move => return DropCommit::Move,
         DropOverride::ForceCopy | DropOverride::ForceMove | DropOverride::None => {}
+    }
+    if let Some(default) = input.confirm
+        && input.can_copy
+        && input.can_move
+    {
+        return DropCommit::Ask {
+            default,
+            volume: input.volume,
+        };
     }
     match input.volume {
         VolumeRelation::Same => {

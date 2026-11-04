@@ -315,6 +315,7 @@ fn network_mount_aliases_preserve_identity_and_plain_drop_move_policy() {
                         volume: lookup.relation,
                         override_with,
                         strategy,
+                        confirm: None,
                     }),
                     expected
                 );

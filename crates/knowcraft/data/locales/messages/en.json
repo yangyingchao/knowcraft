@@ -778,6 +778,7 @@
   "The deletion stopped unexpectedly": "The deletion stopped unexpectedly",
   "The destination file already exists. Continuing may overwrite it.": "The destination file already exists. Continuing may overwrite it.",
   "The destination has no parent directory": "The destination has no parent directory",
+  "The source and destination are inside the knowledge base.": "The source and destination are inside the knowledge base.",
   "The destination is on a different device.": "The destination is on a different device.",
   "The destination “%{path}” is not a regular file": "The destination “%{path}” is not a regular file",
   "The device could not finish writing: %{error}. Earlier writes may still be pending; wait for safe eject before unplugging.": "The device could not finish writing: %{error}. Earlier writes may still be pending; wait for safe eject before unplugging.",

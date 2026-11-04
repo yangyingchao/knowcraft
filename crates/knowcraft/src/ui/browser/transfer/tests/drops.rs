@@ -20,11 +20,11 @@ fn drop_commit_kind_describes_the_pending_cursor_action() {
 #[test]
 fn cross_volume_prompt_only_claims_another_device_when_the_lookup_resolved() {
     assert_eq!(
-        cross_volume_drop_description(VolumeRelation::Different),
+        drop_description(VolumeRelation::Different),
         "The destination is on a different device."
     );
     assert_eq!(
-        cross_volume_drop_description(VolumeRelation::Unknown),
+        drop_description(VolumeRelation::Unknown),
         "Knowcraft could not determine whether the destination is on the same device."
     );
 }

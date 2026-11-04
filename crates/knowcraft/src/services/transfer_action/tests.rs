@@ -26,6 +26,7 @@ fn input(
         volume,
         override_with,
         strategy,
+        confirm: None,
     }
 }
 
@@ -339,5 +340,63 @@ fn same_parent_batch_drop_filters_correctly() {
     assert_eq!(
         transferable_drop_sources(&dest_child, &sources),
         vec![file1, file2]
+    );
+}
+
+#[test]
+fn confirm_asks_regardless_of_volume_and_keeps_overrides() {
+    use DropOverride::ForceCopy;
+    use VolumeRelation::{Different, Same};
+
+    let confirmed = DropCommit::Ask {
+        default: TransferKind::Move,
+        volume: Same,
+    };
+    assert_eq!(
+        drop_commit(DropActionInput {
+            can_copy: true,
+            can_move: true,
+            volume: Same,
+            override_with: DropOverride::None,
+            strategy: CrossVolumeDropStrategy::Ask,
+            confirm: Some(TransferKind::Move),
+        }),
+        confirmed
+    );
+    // 同卷原本直接 Move，注入 confirm 后改为询问。
+    assert_ne!(
+        drop_commit(DropActionInput {
+            can_copy: true,
+            can_move: true,
+            volume: Same,
+            override_with: DropOverride::None,
+            strategy: CrossVolumeDropStrategy::Ask,
+            confirm: None,
+        }),
+        confirmed
+    );
+    // Ctrl 强制拷贝优先于确认框。
+    assert_eq!(
+        drop_commit(DropActionInput {
+            can_copy: true,
+            can_move: true,
+            volume: Same,
+            override_with: ForceCopy,
+            strategy: CrossVolumeDropStrategy::Ask,
+            confirm: Some(TransferKind::Move),
+        }),
+        DropCommit::Copy
+    );
+    // 不能移动时回到既有卷关系决策（仅剩拷贝一项，无需询问）。
+    assert_eq!(
+        drop_commit(DropActionInput {
+            can_copy: true,
+            can_move: false,
+            volume: Different,
+            override_with: DropOverride::None,
+            strategy: CrossVolumeDropStrategy::Ask,
+            confirm: Some(TransferKind::Move),
+        }),
+        DropCommit::Copy
     );
 }

@@ -778,6 +778,7 @@
   "The deletion stopped unexpectedly": "删除意外停止",
   "The destination file already exists. Continuing may overwrite it.": "目标文件已存在。继续操作可能会覆盖该文件。",
   "The destination has no parent directory": "目标位置没有上级目录",
+  "The source and destination are inside the knowledge base.": "源与目标都在知识库内。",
   "The destination is on a different device.": "目标位置位于其他设备上。",
   "The destination “%{path}” is not a regular file": "目标“%{path}”不是普通文件",
   "The device could not finish writing: %{error}. Earlier writes may still be pending; wait for safe eject before unplugging.": "设备无法完成写入：%{error}。之前的写入可能仍未完成；请等到可以安全弹出后再拔出设备。",

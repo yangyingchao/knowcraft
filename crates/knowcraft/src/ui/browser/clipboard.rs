@@ -669,6 +669,7 @@ struct FileDropChoice {
     override_with: DropOverride,
     is_noop: bool,
     strategy: CrossVolumeDropStrategy,
+    confirm: Option<TransferKind>,
 }
 
 impl FileDropChoice {
@@ -679,8 +680,27 @@ impl FileDropChoice {
             relation,
             self.is_noop,
             self.strategy,
+            self.confirm,
         )
     }
+}
+
+/// 源与目标都在知识库数据目录内时返回确认动作（回车默认移动）；
+/// 任一端在库外则返回 `None`，走既有卷关系决策。
+fn knowledge_internal_confirm(
+    destination: Option<&Location>,
+    sources: &[Location],
+) -> Option<TransferKind> {
+    let knowledge = crate::knowledge::init()?;
+    let root = Location::local(knowledge.data_dir());
+    let destination = destination?;
+    if sources.is_empty() || !destination.is_within(&root) {
+        return None;
+    }
+    sources
+        .iter()
+        .all(|source| source.is_within(&root))
+        .then_some(TransferKind::Move)
 }
 
 fn classify_file_drop(
@@ -731,6 +751,7 @@ fn classify_file_drop(
             override_with,
             is_noop,
             strategy,
+            confirm: knowledge_internal_confirm(Some(destination), &sources),
         },
         relation,
     ))
@@ -799,6 +820,7 @@ fn preferred_file_drop_commit(
     volume: VolumeRelation,
     is_noop: bool,
     strategy: CrossVolumeDropStrategy,
+    confirm: Option<TransferKind>,
 ) -> DropCommit {
     if is_noop {
         return DropCommit::Forbidden;
@@ -809,6 +831,7 @@ fn preferred_file_drop_commit(
         volume,
         override_with,
         strategy,
+        confirm,
     })
 }
 

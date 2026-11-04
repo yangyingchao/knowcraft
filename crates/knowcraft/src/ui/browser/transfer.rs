@@ -28,7 +28,7 @@ pub(super) use send_to::{
 #[cfg(test)]
 use {
     crate::services::VolumeRelation, collisions::conflict_explanation,
-    drop::cross_volume_drop_description,
+    drop::drop_description,
 };
 
 type RemovableRootResolver = Rc<dyn Fn(&str) -> Option<PathBuf>>;

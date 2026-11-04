@@ -2,7 +2,7 @@
 
 use super::{ConflictFocus, DialogLayer, TransferRequest};
 use crate::model::Location;
-use crate::services::{DropCommit, VolumeRelation, transferable_drop_sources};
+use crate::services::{DropCommit, TransferKind, VolumeRelation, transferable_drop_sources};
 use crate::ui::browser::ViewState;
 use crate::ui::browser::entry::item_count_label;
 use crate::ui::browser::paths::compact_display_path;
@@ -11,10 +11,11 @@ use crate::ui::modal::{ModalHost, remember_modal_focus_for_listing, show_error_d
 use gtk::prelude::*;
 use std::rc::Rc;
 
-pub(super) fn cross_volume_drop_description(volume: VolumeRelation) -> &'static str {
+pub(super) fn drop_description(volume: VolumeRelation) -> &'static str {
     match volume {
         VolumeRelation::Different => "The destination is on a different device.",
-        VolumeRelation::Same | VolumeRelation::Unknown => {
+        VolumeRelation::Same => "The source and destination are inside the knowledge base.",
+        VolumeRelation::Unknown => {
             "Knowcraft could not determine whether the destination is on the same device."
         }
     }
@@ -39,8 +40,8 @@ impl ViewState {
         match commit {
             DropCommit::Copy => self.start_drop_transfer(destination, sources, false),
             DropCommit::Move => self.start_drop_transfer(destination, sources, true),
-            DropCommit::Ask { volume, .. } => {
-                self.confirm_cross_volume_drop(destination, sources, volume);
+            DropCommit::Ask { default, volume } => {
+                self.confirm_drop(destination, sources, default, volume);
             }
             DropCommit::Forbidden => {
                 self.suppress_scroll_after_drop.set(false);
@@ -48,10 +49,12 @@ impl ViewState {
         }
     }
 
-    fn confirm_cross_volume_drop(
+    /// 拷贝/移动确认框：`default` 决定回车焦点，`volume` 决定描述文案。
+    fn confirm_drop(
         self: &Rc<Self>,
         destination: Location,
         sources: Vec<Location>,
+        default: TransferKind,
         volume: VolumeRelation,
     ) {
         let Some(host) = ModalHost::blurred_for(&self.overlay) else {
@@ -76,9 +79,9 @@ impl ViewState {
         );
         layout
             .body
-            .append(&message_dialog_description(&crate::i18n::tr(
-                cross_volume_drop_description(volume),
-            )));
+            .append(&message_dialog_description(&crate::i18n::tr(drop_description(
+                volume,
+            ))));
         let move_button = gtk::Button::with_label(&crate::i18n::tr("Move"));
         move_button.add_css_class("action-dialog-cancel");
         layout
@@ -107,7 +110,10 @@ impl ViewState {
             });
         }
         modal.dismiss_on_escape();
-        copy.grab_focus();
+        match default {
+            TransferKind::Move => move_button.grab_focus(),
+            _ => copy.grab_focus(),
+        };
     }
 
     fn start_drop_transfer(
