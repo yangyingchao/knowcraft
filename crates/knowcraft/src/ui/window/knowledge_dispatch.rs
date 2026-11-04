@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-//! 归档到 library 分类的模态选择器。
+//! 归档到 library 分类的模态选择器，以及收件箱导入的后台执行。
 
+use std::path::PathBuf;
 use std::rc::Rc;
+use std::time::Duration;
 
-use gtk::prelude::*;
+use gtk::{glib, prelude::*};
 
 use crate::i18n::tr;
 
@@ -19,6 +21,112 @@ pub(super) fn chosen_category(
         return Some(typed.to_owned());
     }
     selected.and_then(|index| categories.get(index).cloned())
+}
+
+/// 弹出归档选择器；选择分类后在后台执行归档，结果经 `feedback` 展示，
+/// 成功后调用 `refresh` 刷新文件视图。
+pub(crate) fn dispatch_path(
+    parent: &gtk::Window,
+    path: PathBuf,
+    refresh: Rc<dyn Fn()>,
+    feedback: Rc<dyn Fn(&str)>,
+) {
+    let categories = crate::knowledge::init()
+        .map(|knowledge| knowledge.categories())
+        .unwrap_or_default();
+    present(
+        parent,
+        categories,
+        Rc::new(move |category| {
+            run_dispatch(path.clone(), category, refresh.clone(), feedback.clone());
+        }),
+    );
+}
+
+fn run_dispatch(
+    path: PathBuf,
+    category: String,
+    refresh: Rc<dyn Fn()>,
+    feedback: Rc<dyn Fn(&str)>,
+) {
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<String, String>>();
+    std::thread::spawn(move || {
+        let result = crate::knowledge::init()
+            .ok_or_else(|| "知识库不可用".to_owned())
+            .and_then(|knowledge| knowledge.dispatch(&path, &category))
+            .map(|document| format!("已归档到 {}", document.path));
+        let _ = sender.send(result);
+    });
+    poll_result(receiver, refresh, feedback);
+}
+
+/// 把外部文件批量导入 `inbox/`（checksum 去重），完成后回报导入数量与失败原因。
+pub(crate) fn import_to_inbox(
+    paths: Vec<PathBuf>,
+    refresh: Rc<dyn Fn()>,
+    feedback: Rc<dyn Fn(&str)>,
+) {
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<String, String>>();
+    std::thread::spawn(move || {
+        let result = crate::knowledge::init()
+            .ok_or_else(|| "知识库不可用".to_owned())
+            .and_then(|knowledge| {
+                let mut imported = 0usize;
+                let mut first_error = None;
+                for path in &paths {
+                    match knowledge.add_to_inbox(path) {
+                        Ok(_) => imported += 1,
+                        Err(error) if first_error.is_none() => first_error = Some(error),
+                        Err(_) => {}
+                    }
+                }
+                match (imported, first_error) {
+                    (0, Some(error)) => Err(error),
+                    (imported, maybe_error) => {
+                        let mut message =
+                            rust_i18n::t!("Imported %{count} files", count = imported).into_owned();
+                        if let Some(error) = maybe_error {
+                            message.push_str("; ");
+                            message.push_str(&error);
+                        }
+                        Ok(message)
+                    }
+                }
+            });
+        let _ = sender.send(result);
+    });
+    poll_result(receiver, refresh, feedback);
+}
+
+/// GTK 对象不能跨线程移动，回到主线程用轮询收结果。
+fn poll_result(
+    receiver: std::sync::mpsc::Receiver<Result<String, String>>,
+    refresh: Rc<dyn Fn()>,
+    feedback: Rc<dyn Fn(&str)>,
+) {
+    glib::timeout_add_local(Duration::from_millis(50), move || {
+        collect_result(&receiver, &refresh, &feedback)
+    });
+}
+
+fn collect_result(
+    receiver: &std::sync::mpsc::Receiver<Result<String, String>>,
+    refresh: &Rc<dyn Fn()>,
+    feedback: &Rc<dyn Fn(&str)>,
+) -> glib::ControlFlow {
+    match receiver.try_recv() {
+        Ok(Ok(message)) => {
+            feedback(&message);
+            refresh();
+            glib::ControlFlow::Break
+        }
+        Ok(Err(error)) => {
+            feedback(&error);
+            glib::ControlFlow::Break
+        }
+        Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+        Err(std::sync::mpsc::TryRecvError::Disconnected) => glib::ControlFlow::Break,
+    }
 }
 
 pub(super) fn present(parent: &gtk::Window, categories: Vec<String>, chosen: Rc<dyn Fn(String)>) {

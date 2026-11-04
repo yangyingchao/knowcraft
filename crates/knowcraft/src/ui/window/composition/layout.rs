@@ -248,6 +248,41 @@ pub(super) fn browser_layout(
     root
 }
 
+/// 知识库归档与收件箱导入的菜单入口由窗口层注入：菜单只能触达
+/// `ViewState`，而归档选择器的父窗口与反馈栏只有这里有。
+fn bind_knowledge_handlers(
+    browser: &BrowserView,
+    window: &gtk::ApplicationWindow,
+    shortcuts: &ShortcutFooter,
+) {
+    let dispatch_window = window.clone();
+    let dispatch_browser = browser.clone();
+    let dispatch_shortcuts = shortcuts.clone();
+    let import_browser = browser.clone();
+    let import_shortcuts = shortcuts.clone();
+    browser.set_knowledge_handlers(
+        Rc::new(move |path| {
+            let view = dispatch_browser.clone();
+            let feedback = dispatch_shortcuts.clone();
+            super::super::knowledge_dispatch::dispatch_path(
+                dispatch_window.upcast_ref(),
+                path,
+                Rc::new(move || view.refresh()),
+                Rc::new(move |text| feedback.show_feedback(text)),
+            );
+        }),
+        Rc::new(move |paths| {
+            let view = import_browser.clone();
+            let feedback = import_shortcuts.clone();
+            super::super::knowledge_dispatch::import_to_inbox(
+                paths,
+                Rc::new(move || view.refresh()),
+                Rc::new(move |text| feedback.show_feedback(text)),
+            );
+        }),
+    );
+}
+
 fn bind_pin_handlers(browser: &BrowserView, sidebar: &SidebarView) {
     let weak_pin_sidebar = Rc::downgrade(&sidebar.state);
     let weak_unpin_sidebar = Rc::downgrade(&sidebar.state);
@@ -445,6 +480,7 @@ impl FooterBinding {
         let shortcuts = ShortcutFooter::new(browser.view_mode());
         shortcuts.bind_preferences(preferences);
         shortcuts.observe_browser(&browser.browser());
+        bind_knowledge_handlers(browser, window, &shortcuts);
         let jobs = crate::ui::jobs::JobsIndicator::new();
         jobs.bind_window(window);
         shortcuts.set_activity(jobs.widget());

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use std::{path::Path, rc::Rc, time::Duration};
+use std::{path::Path, rc::Rc};
 
 use gtk::{
     glib::{self, Propagation},
@@ -301,43 +301,13 @@ impl Dispatcher {
                 .show_feedback(&crate::i18n::tr("Nothing to archive"));
             return;
         };
-        let categories = crate::knowledge::init()
-            .map(|knowledge| knowledge.categories())
-            .unwrap_or_default();
         let view = self.view.clone();
         let feedback = self.shortcuts.clone();
-        super::super::knowledge_dispatch::present(
+        super::super::knowledge_dispatch::dispatch_path(
             &self.window,
-            categories,
-            Rc::new(move |category| {
-                let path = path.clone();
-                let view = view.clone();
-                let feedback = feedback.clone();
-                let (sender, receiver) = std::sync::mpsc::channel::<Result<String, String>>();
-                std::thread::spawn(move || {
-                    let result = crate::knowledge::init()
-                        .ok_or_else(|| "知识库不可用".to_owned())
-                        .and_then(|knowledge| knowledge.dispatch(&path, &category))
-                        .map(|document| format!("已归档到 {}", document.path));
-                    let _ = sender.send(result);
-                });
-                // GTK 对象不能跨线程移动，回到主线程用轮询收结果。
-                glib::timeout_add_local(Duration::from_millis(50), move || {
-                    match receiver.try_recv() {
-                        Ok(Ok(message)) => {
-                            feedback.show_feedback(&message);
-                            view.refresh();
-                            glib::ControlFlow::Break
-                        }
-                        Ok(Err(error)) => {
-                            feedback.show_feedback(&error);
-                            glib::ControlFlow::Break
-                        }
-                        Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
-                        Err(std::sync::mpsc::TryRecvError::Disconnected) => glib::ControlFlow::Break,
-                    }
-                });
-            }),
+            path,
+            Rc::new(move || view.refresh()),
+            Rc::new(move |text| feedback.show_feedback(text)),
         );
     }
 }

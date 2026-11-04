@@ -498,6 +498,8 @@
   "Image renderer stopped unexpectedly": "Image renderer stopped unexpectedly",
   "Import an action folder": "Import an action folder",
   "Import custom action": "Import custom action",
+  "Import to Inbox": "Import to Inbox",
+  "Imported %{count} files": "Imported %{count} files",
   "Import…": "Import…",
   "Include subfolders": "Include subfolders",
   "Increase text size (%{keys})": "Increase text size (%{keys})",

@@ -498,6 +498,8 @@
   "Image renderer stopped unexpectedly": "图片渲染器意外停止",
   "Import an action folder": "导入操作文件夹",
   "Import custom action": "导入自定义操作",
+  "Import to Inbox": "导入至收件箱",
+  "Imported %{count} files": "已导入 %{count} 个文件",
   "Import…": "导入…",
   "Include subfolders": "包含子文件夹",
   "Increase text size (%{keys})": "增大文字大小（%{keys}）",

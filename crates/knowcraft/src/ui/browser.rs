@@ -140,6 +140,10 @@ type PinCompletion = Box<dyn FnOnce(bool)>;
 type PinHandler = Rc<dyn Fn(Location, String, PinCompletion)>;
 type UnpinHandler = Rc<dyn Fn(&Location)>;
 type PinStatusHandler = Rc<dyn Fn(&Location) -> PinStatus>;
+/// Archives the knowledge document at `path` into a library category.
+type DispatchHandler = Rc<dyn Fn(std::path::PathBuf)>;
+/// Imports files into the knowledge inbox (checksum dedup).
+type ImportHandler = Rc<dyn Fn(Vec<std::path::PathBuf>)>;
 type PreparingTransfer = (
     transfer::Preparing,
     gio::Cancellable,
@@ -278,6 +282,8 @@ pub(super) struct ViewState {
     pin_handler: RefCell<Option<PinHandler>>,
     unpin_handler: RefCell<Option<UnpinHandler>>,
     pin_status_handler: RefCell<Option<PinStatusHandler>>,
+    dispatch_handler: RefCell<Option<DispatchHandler>>,
+    import_handler: RefCell<Option<ImportHandler>>,
     search_selection_handlers: RefCell<Vec<Rc<dyn Fn()>>>,
     pending_select: RefCell<Vec<String>>,
     pending_properties: RefCell<Option<Location>>,
@@ -475,6 +481,17 @@ impl BrowserView {
         self.state.pin_handler.replace(Some(handler));
         self.state.unpin_handler.replace(Some(unpin_handler));
         self.state.pin_status_handler.replace(Some(status_handler));
+    }
+
+    /// Injects the knowledge-archive and inbox-import entry points; the window
+    /// layer owns them because the menu only reaches `ViewState`.
+    pub(super) fn set_knowledge_handlers(
+        &self,
+        dispatch_handler: DispatchHandler,
+        import_handler: ImportHandler,
+    ) {
+        self.state.dispatch_handler.replace(Some(dispatch_handler));
+        self.state.import_handler.replace(Some(import_handler));
     }
 
     pub fn set_operation_provider(&self, provider: Rc<dyn OperationProvider>) {

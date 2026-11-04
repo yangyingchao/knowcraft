@@ -106,6 +106,20 @@ impl Knowledge {
         self.tags.documents_with_tag(name).unwrap_or_default()
     }
 
+    /// Copies an external file into `inbox/` and registers it (checksum dedup).
+    pub(crate) fn add_to_inbox(&self, src: &Path) -> Result<Document, String> {
+        self.workflow.add_to_inbox(src).map_err(|error| error.to_string())
+    }
+
+    /// The tags of the knowledge document at `path`; unknown paths have none.
+    pub(crate) fn tags_for(&self, path: &Path) -> Vec<String> {
+        let path_text = path.to_string_lossy();
+        let Some(doc) = self.store.find_by_path(&path_text).unwrap_or_default() else {
+            return Vec::new();
+        };
+        self.tags.list_for(doc.id).unwrap_or_default()
+    }
+
     /// The categories already present under `library/`.
     pub(crate) fn categories(&self) -> Vec<String> {
         let library = self.data_dir.join("library");

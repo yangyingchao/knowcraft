@@ -413,6 +413,8 @@ fn new_view_state(parts: StateParts) -> Rc<ViewState> {
         pin_handler: RefCell::new(None),
         unpin_handler: RefCell::new(None),
         pin_status_handler: RefCell::new(None),
+        dispatch_handler: RefCell::new(None),
+        import_handler: RefCell::new(None),
         search_selection_handlers: RefCell::new(Vec::new()),
         pending_select: RefCell::new(Vec::new()),
         pending_properties: RefCell::new(None),

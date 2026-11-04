@@ -218,7 +218,9 @@ pub(super) struct SingleEditOptions {
     pub(super) rename: gtk::Button,
     pub(super) move_to: gtk::Button,
     pub(super) copy_to: gtk::Button,
+    pub(super) import: gtk::Button,
     pub(super) compress: gtk::Button,
+    pub(super) dispatch: gtk::Button,
     pub(super) pin: gtk::Button,
     pub(super) customize: gtk::Button,
     pub(super) copy_path: gtk::Button,
@@ -247,8 +249,16 @@ fn copy_to_option() -> gtk::Button {
     item_context_option(icons::FOLDER_OUTPUT, "Copy to…", ContextHint::CopyTo)
 }
 
+fn import_option() -> gtk::Button {
+    item_context_option(icons::FILE_PLUS, "Import to Inbox", ContextHint::None)
+}
+
 fn compress_option() -> gtk::Button {
     item_context_option(icons::PACKAGE_PLUS, "Compress…", ContextHint::None)
+}
+
+fn dispatch_option() -> gtk::Button {
+    item_context_option(icons::FOLDER_ARCHIVE, "Archive", ContextHint::None)
 }
 
 fn properties_option() -> gtk::Button {
@@ -265,7 +275,9 @@ impl SingleEditOptions {
             rename: item_context_option(icons::PENCIL, "Rename", ContextHint::Rename),
             move_to: move_to_option(),
             copy_to: copy_to_option(),
+            import: import_option(),
             compress: compress_option(),
+            dispatch: dispatch_option(),
             pin: item_context_option(icons::PIN, "Pin to sidebar", ContextHint::Pin),
             customize: item_context_option(icons::PALETTE, "Customize…", ContextHint::None),
             copy_path: item_context_option(icons::ROUTE, "Copy path", ContextHint::CopyPath),
@@ -283,8 +295,10 @@ impl SingleEditOptions {
                 separator().upcast_ref(),
                 options.move_to.upcast_ref(),
                 options.copy_to.upcast_ref(),
+                options.import.upcast_ref(),
                 separator().upcast_ref(),
                 options.compress.upcast_ref(),
+                options.dispatch.upcast_ref(),
                 separator().upcast_ref(),
                 options.pin.upcast_ref(),
                 options.customize.upcast_ref(),

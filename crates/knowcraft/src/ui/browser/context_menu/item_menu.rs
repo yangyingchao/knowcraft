@@ -240,6 +240,26 @@ impl ItemMenu {
                 handler(entry.location, entry.display_name, Box::new(|_| {}));
             }
         });
+        self.on_entry(&single.dispatch, |state, _, entry| {
+            if let Some(path) = entry.location.native_path().map(PathBuf::from)
+                && let Some(handler) = state.dispatch_handler.borrow().as_ref()
+            {
+                handler(path);
+            }
+        });
+        self.on_selection(&single.import, |state, entries| {
+            let paths: Vec<PathBuf> = entries
+                .iter()
+                .filter(|entry| !entry.is_directory())
+                .filter_map(|entry| entry.location.native_path().map(PathBuf::from))
+                .collect();
+            if paths.is_empty() {
+                return;
+            }
+            if let Some(handler) = state.import_handler.borrow().as_ref() {
+                handler(paths);
+            }
+        });
         self.on_entry(&single.copy_path, |_, _, entry| copy_locations(&[entry]));
         self.on_entry(&single.copy_name, |_, _, entry| copy_names(&[entry]));
         self.on_entry(&single.rename, move |state, position, entry| {
@@ -596,6 +616,15 @@ impl ItemMenuOptions {
             .pin
             .set_visible(entry.is_directory() && !is_trash_location(&entry.location));
         self.single.pin.set_sensitive(target.pin_available());
+        // 归档与导入只对知识库可达的本地文件开放；是否已归档由 dispatch 反馈提示。
+        let knowledge_available = crate::knowledge::init().is_some();
+        let native_path = entry.location.native_path().is_some();
+        self.single
+            .import
+            .set_visible(knowledge_available && native_path && !self.in_trash);
+        self.single
+            .dispatch
+            .set_visible(knowledge_available && native_path && !self.in_trash);
         self.single.customize.set_visible(
             !self.in_trash && target.entries.len() == 1 && entry.location.native_path().is_some(),
         );
