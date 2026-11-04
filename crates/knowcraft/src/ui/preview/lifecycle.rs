@@ -114,11 +114,9 @@ impl PreviewState {
         };
         let generation = self.tags_generation.get().saturating_add(1);
         self.tags_generation.set(generation);
-        let (sender, receiver) = std::sync::mpsc::channel::<(u64, Vec<String>)>();
+        let (sender, receiver) = std::sync::mpsc::channel::<(u64, Option<Vec<String>>)>();
         std::thread::spawn(move || {
-            let tags = crate::knowledge::init()
-                .map(|knowledge| knowledge.tags_for(&path))
-                .unwrap_or_default();
+            let tags = crate::knowledge::init().and_then(|knowledge| knowledge.tags_of(&path));
             let _ = sender.send((generation, tags));
         });
         let weak = Rc::downgrade(self);
@@ -130,7 +128,7 @@ impl PreviewState {
             match receiver.try_recv() {
                 Ok((requested, tags)) => {
                     if state.tags_generation.get() == requested {
-                        state.tags_bar.set_tags(&tags);
+                        state.tags_bar.set_tags(tags.as_deref());
                     }
                     glib::ControlFlow::Break
                 }

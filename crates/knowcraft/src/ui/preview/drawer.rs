@@ -51,6 +51,7 @@ impl PreviewDrawer {
             resize_grip,
         });
         connect_panel_action(&state);
+        connect_tags_bar(&state);
         install_preview_drag(&header.handle, &state);
         state.install_keyboard_ownership();
         state.install_find();
@@ -447,6 +448,35 @@ fn connect_panel_action(state: &Rc<PreviewState>) {
             let (entry, depth) = state.selected_entry();
             state.toggle_panel(entry, depth);
         }
+    });
+}
+
+/// 标签栏「+」：对当前预览文档弹出添加标签对话框。
+fn connect_tags_bar(state: &Rc<PreviewState>) {
+    let weak = Rc::downgrade(state);
+    state.tags_bar.connect_add_clicked(move |parent| {
+        let Some(state) = weak.upgrade() else {
+            return;
+        };
+        let Some(entry) = state.current.borrow().clone() else {
+            return;
+        };
+        let Some(path) = entry.location.native_path().map(PathBuf::from) else {
+            return;
+        };
+        let on_added = Rc::downgrade(&state);
+        tags_bar::show_add_tag_modal(
+            parent,
+            path,
+            Rc::new(move || {
+                if let Some(state) = on_added.upgrade() {
+                    let entry = state.current.borrow().clone();
+                    if let Some(entry) = entry {
+                        state.update_tags(&entry);
+                    }
+                }
+            }),
+        );
     });
 }
 

@@ -111,13 +111,27 @@ impl Knowledge {
         self.workflow.add_to_inbox(src).map_err(|error| error.to_string())
     }
 
-    /// The tags of the knowledge document at `path`; unknown paths have none.
-    pub(crate) fn tags_for(&self, path: &Path) -> Vec<String> {
+    /// 文档的标签；`None` 表示路径不在知识库中。
+    pub(crate) fn tags_of(&self, path: &Path) -> Option<Vec<String>> {
+        let path_text = path.to_string_lossy();
+        self.store
+            .find_by_path(&path_text)
+            .unwrap_or_default()
+            .map(|doc| self.tags.list_for(doc.id).unwrap_or_default())
+    }
+
+    /// 全部标签名，供输入补全。
+    pub(crate) fn list_all_tags(&self) -> Vec<String> {
+        self.tags.list_all().unwrap_or_default()
+    }
+
+    /// 为文档添加标签（数据库层去重）；路径不在知识库时返回错误。
+    pub(crate) fn add_tag(&self, path: &Path, name: &str) -> Result<(), String> {
         let path_text = path.to_string_lossy();
         let Some(doc) = self.store.find_by_path(&path_text).unwrap_or_default() else {
-            return Vec::new();
+            return Err("文档不在知识库中".to_owned());
         };
-        self.tags.list_for(doc.id).unwrap_or_default()
+        self.tags.add(doc.id, name).map_err(|error| error.to_string())
     }
 
     /// 未归档判定：文件位于 `inbox/` 内。dispatch 会把文档移出 inbox，
