@@ -41,7 +41,8 @@ impl Workflow {
             id: 0,
             path: target.to_string_lossy().into_owned(),
             doc_type: detect_type(fname),
-            title: fname.to_string_lossy().into_owned(),
+            title: crate::extract::extract_title(&target)
+                .unwrap_or_else(|| fname.to_string_lossy().into_owned()),
             source_url: None,
             size: std::fs::metadata(src)?.len() as i64,
             created_at: now(),
@@ -79,7 +80,8 @@ impl Workflow {
             id: 0,
             path: path.to_string_lossy().into_owned(),
             doc_type: detect_type(fname),
-            title: fname.to_string_lossy().into_owned(),
+            title: crate::extract::extract_title(path)
+                .unwrap_or_else(|| fname.to_string_lossy().into_owned()),
             source_url: None,
             size: std::fs::metadata(path)?.len() as i64,
             created_at: now(),

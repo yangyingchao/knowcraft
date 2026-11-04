@@ -30,6 +30,66 @@ pub fn extract_text(path: &Path) -> Result<String> {
     }
 }
 
+/// 从文档内容解析标题：PDF 元数据标题、docx 核心属性 `dc:title`、HTML
+/// `<title>`、markdown 首个一级标题；解析不出返回 `None`，调用方回退文件名。
+pub fn extract_title(path: &Path) -> Option<String> {
+    let ext = path
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    let title = match ext.as_str() {
+        "pdf" => pdf_title(path),
+        "docx" => docx_title(path),
+        "html" | "htm" => html_title(&std::fs::read_to_string(path).ok()?),
+        "md" | "markdown" => markdown_title(&std::fs::read_to_string(path).ok()?),
+        _ => None,
+    }?;
+    let title = title.trim();
+    (!title.is_empty()).then(|| title.to_owned())
+}
+
+fn pdf_title(path: &Path) -> Option<String> {
+    let bytes = std::sync::Arc::new(std::fs::read(path).ok()?);
+    pdfcraft_render::inspect(bytes, None).ok()?.title
+}
+
+fn docx_title(path: &Path) -> Option<String> {
+    let file = std::fs::File::open(path).ok()?;
+    let mut zip = zip::ZipArchive::new(file).ok()?;
+    let mut core = zip.by_name("docProps/core.xml").ok()?;
+    let mut xml = String::new();
+    std::io::Read::read_to_string(&mut core, &mut xml).ok()?;
+    xml_text(&xml, "dc:title")
+}
+
+/// 抽取 `<tag ...>text</tag>` 的文本节点（与 [`extract_docx`] 的简易抽取同风格）。
+fn xml_text(xml: &str, tag: &str) -> Option<String> {
+    let open = format!("<{tag}");
+    let after_open = xml.find(&open)? + open.len();
+    let rest = &xml[after_open..];
+    let after_gt = rest.find('>')? + 1;
+    let rest = &rest[after_gt..];
+    let end = rest.find("</")?;
+    Some(rest[..end].to_owned())
+}
+
+fn html_title(html: &str) -> Option<String> {
+    let lower = html.to_lowercase();
+    let after_open = lower.find("<title")? + "<title".len();
+    let after_gt = html[after_open..].find('>')? + 1;
+    let rest = &html[after_open + after_gt..];
+    let end = rest.to_lowercase().find("</title>")?;
+    Some(rest[..end].to_owned())
+}
+
+fn markdown_title(md: &str) -> Option<String> {
+    md.lines().find_map(|line| {
+        line.trim_start()
+            .strip_prefix("# ")
+            .map(|title| title.trim().to_owned())
+    })
+}
+
 /// Extract text runs from a `.docx` package by reading `word/document.xml` directly.
 fn extract_docx(path: &Path) -> Result<String> {
     let file = std::fs::File::open(path)?;

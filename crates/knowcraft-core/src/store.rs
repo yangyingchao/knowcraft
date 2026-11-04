@@ -113,6 +113,15 @@ impl Store {
         Ok(())
     }
 
+    pub fn update_title(&self, id: i64, title: &str) -> Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "UPDATE documents SET title = ?1, updated_at = ?2 WHERE id = ?3",
+            params![title, now(), id],
+        )?;
+        Ok(())
+    }
+
     pub fn find_by_checksum(&self, checksum: &str) -> Result<Option<Document>> {
         let conn = self.lock();
         let mut stmt = conn.prepare(

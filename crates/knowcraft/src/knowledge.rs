@@ -212,6 +212,18 @@ pub(crate) fn warm_index(knowledge: &Knowledge) -> WarmReport {
                 }
                 Err(_) => continue,
             };
+            if doc.lifecycle == "pending" {
+                // inbox 内文档每次对齐重算内容标题：新登记的文件在
+                // register_inbox_file 已解析，这里覆盖 title 仍是文件名的
+                // 存量文档；标题进入全文索引，变化时标记重索引。
+                if let Some(title) = knowcraft_core::extract::extract_title(&path)
+                    && title != doc.title
+                {
+                    if knowledge.store.update_title(doc.id, &title).is_ok() {
+                        let _ = knowledge.store.set_index_status(doc.id, "pending");
+                    }
+                }
+            }
             if doc.index_status != "indexed" {
                 pending.push(doc);
             }
