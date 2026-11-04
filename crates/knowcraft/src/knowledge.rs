@@ -90,6 +90,14 @@ pub(crate) enum IndexProgress {
     Done { ok: usize, failed: usize },
 }
 
+/// A library category recommended for an incoming document.
+#[derive(Debug, Clone)]
+pub(crate) struct CategorySuggestion {
+    pub(crate) category: String,
+    pub(crate) score: f32,
+    pub(crate) sample: Option<String>,
+}
+
 impl Knowledge {
     fn open() -> Result<Self, String> {
         let config = Config::load().map_err(|error| error.to_string())?;
@@ -369,6 +377,69 @@ impl Knowledge {
             active.remove(path);
         });
         outcome
+    }
+
+    /// Suggests library categories for `path` by content similarity.
+    ///
+    /// Returns an empty list when the document has no usable text or the index
+    /// is empty, so callers fall back to manual entry.
+    pub(crate) fn suggest_categories(&self, path: &Path, limit: usize) -> Vec<CategorySuggestion> {
+        let title = knowcraft_core::extract::extract_title(path)
+            .or_else(|| {
+                path.file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+            })
+            .unwrap_or_default();
+        let content = knowcraft_core::extract::extract_text(path).unwrap_or_default();
+        if title.trim().is_empty() && content.trim().is_empty() {
+            return Vec::new();
+        }
+        let hits = match self
+            .index
+            .similar_to_text(&title, &content, limit.max(1) * 8)
+        {
+            Ok(hits) => hits,
+            Err(error) => {
+                tracing::warn!(%error, "category suggestion query failed");
+                return Vec::new();
+            }
+        };
+        let library = self.data_dir.join("library");
+        let self_path = path.to_string_lossy();
+        let mut by_category: HashMap<String, (f32, Option<String>)> = HashMap::new();
+        for hit in hits {
+            if hit.path == self_path {
+                continue;
+            }
+            let Ok(relative) = Path::new(&hit.path).strip_prefix(&library) else {
+                continue;
+            };
+            let Some(category) = relative.components().next() else {
+                continue;
+            };
+            let category = category.as_os_str().to_string_lossy().into_owned();
+            if category.is_empty() {
+                continue;
+            }
+            let entry = by_category
+                .entry(category)
+                .or_insert((hit.score, Some(hit.title.clone())));
+            if hit.score > entry.0 {
+                entry.0 = hit.score;
+                entry.1 = Some(hit.title);
+            }
+        }
+        let mut suggestions: Vec<CategorySuggestion> = by_category
+            .into_iter()
+            .map(|(category, (score, sample))| CategorySuggestion {
+                category,
+                score,
+                sample,
+            })
+            .collect();
+        suggestions.sort_by(|left, right| right.score.total_cmp(&left.score));
+        suggestions.truncate(limit);
+        suggestions
     }
 }
 

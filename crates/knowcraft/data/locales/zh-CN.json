@@ -1058,6 +1058,7 @@
   "Show thumbnails": "显示缩略图",
   "Show thumbnails instead of file-type icons. The preview panel stays available.": "使用缩略图代替文件类型图标。预览面板仍然可用。",
   "Shown in the context menu": "显示在右键菜单中",
+  "Similar to %{title}": "与 %{title} 相似",
   "Single-click file previews": "单击预览文件",
   "Size": "大小",
   "Skip": "跳过",

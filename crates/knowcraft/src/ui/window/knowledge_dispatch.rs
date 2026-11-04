@@ -9,7 +9,7 @@ use std::time::Duration;
 use gtk::{glib, prelude::*};
 
 use crate::i18n::tr;
-use crate::knowledge::IndexProgress;
+use crate::knowledge::{CategorySuggestion, IndexProgress};
 
 /// 输入框内容优先；否则取列表选中项。空输入且无有效选中时返回 `None`。
 pub(super) fn chosen_category(
@@ -35,13 +35,32 @@ pub(crate) fn dispatch_path(
     let categories = crate::knowledge::init()
         .map(|knowledge| knowledge.categories())
         .unwrap_or_default();
-    present(
+    let chosen_path = path.clone();
+    let fill = present(
         parent,
         categories,
         Rc::new(move |category| {
-            run_dispatch(path.clone(), category, refresh.clone(), feedback.clone());
+            run_dispatch(chosen_path.clone(), category, refresh.clone(), feedback.clone());
         }),
     );
+    let (sender, receiver) = std::sync::mpsc::channel::<Vec<CategorySuggestion>>();
+    let index_path = path.clone();
+    std::thread::spawn(move || {
+        let suggestions = crate::knowledge::init()
+            .map(|knowledge| knowledge.suggest_categories(&index_path, 3))
+            .unwrap_or_default();
+        let _ = sender.send(suggestions);
+    });
+    glib::timeout_add_local(Duration::from_millis(50), move || {
+        match receiver.try_recv() {
+            Ok(suggestions) => {
+                fill(suggestions);
+                glib::ControlFlow::Break
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => glib::ControlFlow::Break,
+        }
+    });
 }
 
 fn run_dispatch(
@@ -261,12 +280,16 @@ fn collect_result(
     }
 }
 
-pub(super) fn present(parent: &gtk::Window, categories: Vec<String>, chosen: Rc<dyn Fn(String)>) {
+pub(super) fn present(
+    parent: &gtk::Window,
+    categories: Vec<String>,
+    chosen: Rc<dyn Fn(String)>,
+) -> Rc<dyn Fn(Vec<CategorySuggestion>)> {
     let window = gtk::Window::builder()
         .modal(true)
         .transient_for(parent)
         .title(tr("Archive to category"))
-        .default_width(360)
+        .default_width(480)
         .build();
     let outer = gtk::Box::new(gtk::Orientation::Vertical, 8);
     outer.set_margin_top(12);
@@ -277,12 +300,10 @@ pub(super) fn present(parent: &gtk::Window, categories: Vec<String>, chosen: Rc<
     let list = gtk::ListBox::new();
     list.set_selection_mode(gtk::SelectionMode::Single);
     list.add_css_class("dispatch-categories");
+    let displayed = std::rc::Rc::new(std::cell::RefCell::new(Vec::<String>::new()));
     for category in &categories {
-        let row = gtk::ListBoxRow::new();
-        let label = gtk::Label::new(Some(category));
-        label.set_xalign(0.0);
-        row.set_child(Some(&label));
-        list.append(&row);
+        append_category_row(&list, category, None);
+        displayed.borrow_mut().push(category.clone());
     }
     outer.append(&list);
 
@@ -305,13 +326,14 @@ pub(super) fn present(parent: &gtk::Window, categories: Vec<String>, chosen: Rc<
         let window = window.clone();
         let list = list.clone();
         let entry = entry.clone();
-        let categories = categories.clone();
+        let displayed = displayed.clone();
         let chosen = chosen.clone();
         Rc::new(move || {
             let selected = list
                 .selected_row()
                 .and_then(|row| usize::try_from(row.index()).ok());
-            if let Some(name) = chosen_category(&entry.text(), selected, &categories) {
+            let displayed = displayed.borrow();
+            if let Some(name) = chosen_category(&entry.text(), selected, displayed.as_slice()) {
                 (chosen)(name);
                 window.close();
             }
@@ -331,7 +353,70 @@ pub(super) fn present(parent: &gtk::Window, categories: Vec<String>, chosen: Rc<
     }
     let window_for_cancel = window.clone();
     cancel.connect_clicked(move |_| window_for_cancel.close());
+    let escape_window = window.clone();
+    crate::ui::modal::close_on_escape(&window, move || escape_window.close());
     window.present();
+
+    let fill = {
+        let list = list.clone();
+        let displayed = displayed.clone();
+        let categories = categories.clone();
+        Rc::new(move |suggestions: Vec<CategorySuggestion>| {
+            while let Some(child) = list.first_child() {
+                list.remove(&child);
+            }
+            displayed.borrow_mut().clear();
+            for suggestion in &suggestions {
+                append_category_row(&list, &suggestion.category, suggestion.sample.as_deref());
+                displayed.borrow_mut().push(suggestion.category.clone());
+            }
+            for category in &categories {
+                if !suggestions
+                    .iter()
+                    .any(|suggestion| suggestion.category == *category)
+                {
+                    append_category_row(&list, category, None);
+                    displayed.borrow_mut().push(category.clone());
+                }
+            }
+            if let Some(first) = list.row_at_index(0) {
+                list.select_row(Some(&first));
+                first.grab_focus();
+            }
+        })
+    };
+    fill
+}
+
+fn append_category_row(list: &gtk::ListBox, category: &str, sample: Option<&str>) {
+    let row = gtk::ListBoxRow::new();
+    row.set_margin_top(2);
+    row.set_margin_bottom(2);
+    let label = gtk::Label::new(Some(category));
+    label.set_xalign(0.0);
+    if let Some(sample) = sample {
+        let column = gtk::Box::new(gtk::Orientation::Vertical, 6);
+        column.set_margin_top(4);
+        column.set_margin_bottom(4);
+        column.set_margin_start(4);
+        column.set_margin_end(4);
+        column.append(&label);
+        let detail = gtk::Label::new(Some(
+            &rust_i18n::t!("Similar to %{title}", title = sample).into_owned(),
+        ));
+        detail.add_css_class("dispatch-suggestion-sample");
+        detail.set_xalign(0.0);
+        detail.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        column.append(&detail);
+        row.set_child(Some(&column));
+    } else {
+        label.set_margin_top(4);
+        label.set_margin_bottom(4);
+        label.set_margin_start(4);
+        label.set_margin_end(4);
+        row.set_child(Some(&label));
+    }
+    list.append(&row);
 }
 
 #[cfg(test)]

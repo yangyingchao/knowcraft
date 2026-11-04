@@ -129,3 +129,37 @@ fn search_finds_a_word_inside_a_longer_chinese_compound() {
             .any(|hit| hit.document_id == 1)
     );
 }
+
+#[test]
+fn similar_to_text_ranks_the_matching_topic() {
+    let dir = test_dir("similar");
+    let index = Index::open(&dir).unwrap();
+    let docs = vec![
+        make_doc(1, &dir, "ml-a.md", "md", "神经网络 深度学习 模型 训练 反向传播 梯度"),
+        make_doc(2, &dir, "ml-b.md", "md", "机器学习 分类器 特征 训练 神经网络 模型"),
+        make_doc(3, &dir, "cook-a.md", "md", "红烧肉 食谱 五花肉 酱油 冰糖 烹饪"),
+        make_doc(4, &dir, "cook-b.md", "md", "面包 烘焙 面粉 酵母 烤箱 食谱"),
+    ];
+    index.index_documents(&docs).unwrap();
+    let hits = index
+        .similar_to_text("神经网络模型", "深度学习 训练 梯度 神经网络", 10)
+        .unwrap();
+    assert!(!hits.is_empty(), "应返回相似文档");
+    assert!(
+        hits[0].path.contains("ml-"),
+        "top 命中应属于机器学习主题: {hits:?}"
+    );
+}
+
+#[test]
+fn similar_to_text_works_on_a_tiny_corpus() {
+    let dir = test_dir("similar-small");
+    let index = Index::open(&dir).unwrap();
+    let docs = vec![
+        make_doc(1, &dir, "one.md", "md", "苹果 香蕉 水果"),
+        make_doc(2, &dir, "two.md", "md", "汽车 发动机 轮胎"),
+    ];
+    index.index_documents(&docs).unwrap();
+    let hits = index.similar_to_text("水果", "苹果 香蕉", 10).unwrap();
+    assert!(!hits.is_empty(), "小语料也应产生结果");
+}

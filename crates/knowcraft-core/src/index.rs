@@ -12,10 +12,10 @@ mod tokenizer;
 use std::path::Path;
 
 use tantivy::collector::TopDocs;
-use tantivy::query::QueryParser;
+use tantivy::query::{MoreLikeThisQuery, QueryParser};
 use tantivy::snippet::SnippetGenerator;
 use tantivy::schema::{
-    IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Value, INDEXED, STORED,
+    IndexRecordOption, OwnedValue, Schema, TextFieldIndexing, TextOptions, Value, INDEXED, STORED,
 };
 use tantivy::{doc, Index as TIndex, IndexWriter, TantivyDocument, Term};
 
@@ -38,6 +38,14 @@ pub struct IndexHit {
     pub path: String,
     pub title: String,
     pub snippet: String,
+}
+
+/// 与给定文本相似的文档，供归档分类推荐。
+#[derive(Debug, Clone)]
+pub struct SimilarHit {
+    pub path: String,
+    pub title: String,
+    pub score: f32,
 }
 
 /// tantivy 索引句柄。
@@ -142,6 +150,44 @@ impl Index {
                     .fragment()
                     .trim()
                     .to_owned(),
+            });
+        }
+        Ok(hits)
+    }
+
+    /// 按标题与正文查找相似文档，用于归档分类推荐。
+    ///
+    /// 调用方提供文本，因此未索引或刚导入的文档也能得到建议。
+    pub fn similar_to_text(
+        &self,
+        title: &str,
+        content: &str,
+        limit: usize,
+    ) -> Result<Vec<SimilarHit>> {
+        if title.trim().is_empty() && content.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+        let reader = self.index.reader()?;
+        let searcher = reader.searcher();
+        let schema = self.index.schema();
+        let title_field = schema.get_field(TITLE)?;
+        let content_field = schema.get_field(CONTENT)?;
+        let query = MoreLikeThisQuery::builder()
+            .with_min_doc_frequency(1)
+            .with_min_term_frequency(1)
+            .with_max_query_terms(25)
+            .with_document_fields(vec![
+                (title_field, vec![OwnedValue::Str(title.to_owned())]),
+                (content_field, vec![OwnedValue::Str(content.to_owned())]),
+            ]);
+        let top = searcher.search(&query, &TopDocs::with_limit(limit.max(1)))?;
+        let mut hits = Vec::with_capacity(top.len());
+        for (score, addr) in top {
+            let retrieved = searcher.doc::<TantivyDocument>(addr)?;
+            hits.push(SimilarHit {
+                path: self.stored_text(&retrieved, PATH),
+                title: self.stored_text(&retrieved, TITLE),
+                score,
             });
         }
         Ok(hits)
