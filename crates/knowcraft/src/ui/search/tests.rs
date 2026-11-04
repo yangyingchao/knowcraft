@@ -522,7 +522,7 @@ fn global_search_combines_home_and_drives_and_refreshes_mounts() {
             );
             assert_eq!(
                 dialog.state.status.text(),
-                "Type to search Home and mounted local drives"
+                "Type to search the knowledge base"
             );
             assert!(dialog.state.field.tooltip_text().is_none());
             dialog.state.field.set_text("needle");
@@ -734,4 +734,21 @@ fn wait_until(condition: impl Fn() -> bool) {
         glib::MainContext::default().iteration(false);
         std::thread::sleep(Duration::from_millis(1));
     }
+}
+
+#[test]
+fn the_palette_prompt_names_the_knowledge_base() {
+    crate::test_support::gtk_test(
+        "ui::search::tests::the_palette_prompt_names_the_knowledge_base",
+        || {
+            let (dialog, window) = mapped_dialog(Rc::new(|_| {}));
+            dialog.show(vec![std::path::PathBuf::from("/tmp/knowledge")], false);
+            assert!(
+                dialog.state.status.text().contains("knowledge base"),
+                "状态: {}",
+                dialog.state.status.text()
+            );
+            window.destroy();
+        },
+    );
 }

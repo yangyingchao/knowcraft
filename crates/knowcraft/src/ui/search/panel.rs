@@ -110,7 +110,7 @@ fn search_bar() -> (gtk::Box, gtk::Entry, gtk::Spinner) {
 
 fn status_label() -> gtk::Label {
     let status = gtk::Label::new(Some(&crate::i18n::tr(
-        "Type to search Home and mounted local drives",
+        "Type to search the knowledge base",
     )));
     status.add_css_class("search-status");
     status.set_wrap(true);

@@ -137,7 +137,7 @@ fn toggle_handler(
             dialog.hide();
             return;
         }
-        let roots = super::super::devices::global_search_roots();
+        let roots = crate::knowledge::search_roots();
         button.add_css_class("active");
         root.set_blurred(true);
         dialog.show(roots, preferences.sort_preferences().show_hidden);

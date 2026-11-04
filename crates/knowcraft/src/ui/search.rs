@@ -301,7 +301,7 @@ fn set_field_prompt(field: &gtk::Entry, prompt: &str) {
 }
 
 fn reset_for_search(state: &SearchState, roots: &[PathBuf]) {
-    set_field_prompt(&state.field, &crate::i18n::tr("Search files and folders…"));
+    set_field_prompt(&state.field, &crate::i18n::tr("Search the knowledge base…"));
     let locations = roots
         .iter()
         .map(|root| root.display().to_string())
@@ -320,7 +320,7 @@ fn reset_for_search(state: &SearchState, roots: &[PathBuf]) {
     state.field.set_text("");
     state.status.set_visible(true);
     state.status.set_text(&crate::i18n::tr(
-        "Type to search Home and mounted local drives",
+        "Type to search the knowledge base",
     ));
     state.truncated_hint.set_visible(false);
     show_indexing(state, true);
@@ -417,7 +417,7 @@ fn begin_query(state: &Rc<SearchState>, query: &str) {
         clear_results(state);
         state.results.set_visible_child_name("status");
         state.status.set_text(
-            &crate::i18n::tr("Type to search Home and mounted local drives\nFuzzy matching · try a name or path fragment"),
+            &crate::i18n::tr("Type to search the knowledge base\nFuzzy matching · try a name or path fragment"),
         );
     } else if state.visible_results.borrow().is_empty() {
         state.results.set_visible_child_name("status");
