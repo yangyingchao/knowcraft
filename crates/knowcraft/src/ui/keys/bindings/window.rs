@@ -26,6 +26,9 @@ catalog! {
         DELETE_PERMANENTLY: Command "delete_permanently" =>
             default [Binding::shift(Key::Delete)],
             tenxer [Binding::shift(Key::d), Binding::shift(Key::Delete)];
+        /// Archives the focused document into a library category.
+        DISPATCH: Command "dispatch" => default [Binding::plain(Key::d)],
+            tenxer [Binding::ctrl_shift(Key::d)];
 
         SEARCH: Command "search" = Binding::ctrl(Key::k);
         LOCATION: Command "location" = Binding::ctrl(Key::l);

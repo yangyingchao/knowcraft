@@ -252,7 +252,7 @@ fn commands_match_through_the_active_map() {
         || {
             use super::super::bindings::{
                 DUPLICATE, GO_PROMPT, HALF_PAGE_DOWN, MOVE_TO_TRASH, OPEN_IN_NEW_TAB, RENAME,
-                SIDEBAR,
+                SIDEBAR, DISPATCH,
             };
             let press = |key, modifiers| KeyPress::from_signal(key, 0, modifiers);
             let ctrl = Modifiers::CONTROL_MASK;
@@ -288,6 +288,11 @@ fn commands_match_through_the_active_map() {
                     .ignoring(Modifiers::SHIFT_MASK);
                 assert!(press(Key::Delete, Modifiers::SHIFT_MASK).is(trash));
                 assert!(!press(Key::d, Modifiers::empty()).is(trash));
+                assert_eq!(press(Key::d, Modifiers::empty()).is(DISPATCH), !tenxer);
+                assert_eq!(
+                    press(Key::d, ctrl | Modifiers::SHIFT_MASK).is(DISPATCH),
+                    tenxer
+                );
             }
             preferences.set_tenxer_mode(false);
         },

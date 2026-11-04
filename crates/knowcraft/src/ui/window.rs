@@ -24,6 +24,7 @@ mod drive_ops;
 mod gio_devices;
 mod key_routing;
 mod keyboard;
+mod knowledge_dispatch;
 mod launch;
 mod modal_layers;
 mod network_location;
