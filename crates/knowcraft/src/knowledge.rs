@@ -120,6 +120,12 @@ impl Knowledge {
         self.tags.list_for(doc.id).unwrap_or_default()
     }
 
+    /// 未归档判定：文件位于 `inbox/` 内。dispatch 会把文档移出 inbox，
+    /// 因此不在 inbox 的文件一律视为已归档（或尚未导入知识库）。
+    pub(crate) fn is_pending(&self, path: &Path) -> bool {
+        path.starts_with(self.data_dir.join("inbox"))
+    }
+
     /// The categories already present under `library/`.
     pub(crate) fn categories(&self) -> Vec<String> {
         let library = self.data_dir.join("library");

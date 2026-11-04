@@ -7653,3 +7653,25 @@ popover.settings-action-library > contents {
 .settings-dialog.modal-constrained {
   min-width: 0;
 }
+
+.preview-tags-bar {
+  border-left: 1px solid alpha(@knowcraft_border, 0.6);
+  background: @knowcraft_surface;
+  color: @knowcraft_text;
+  padding: 8px 8px 8px 10px;
+}
+
+.preview-tags-title {
+  font-size: 0.85em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: alpha(@knowcraft_text, 0.7);
+}
+
+.preview-tag-chip {
+  background: alpha(@knowcraft_muted, 0.55);
+  border: 1px solid alpha(@knowcraft_border, 0.4);
+  border-radius: 4px;
+  color: @knowcraft_text;
+  padding: 2px 8px;
+}

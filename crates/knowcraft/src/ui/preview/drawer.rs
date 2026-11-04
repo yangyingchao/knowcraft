@@ -23,7 +23,14 @@ impl PreviewDrawer {
         let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
         content.add_css_class("preview-content");
         content.set_vexpand(true);
-        pane.append(&content);
+
+        // 标签栏挂在内容右侧，与内容同高；无标签时整体隐藏。
+        let tags_bar = tags_bar::TagsBar::new();
+        let body = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        body.set_vexpand(true);
+        body.append(&content);
+        body.append(tags_bar.widget());
+        pane.append(&body);
 
         let (raw_details, raw_details_scroll) = raw_details_section();
         pane.append(&raw_details_scroll);
@@ -36,6 +43,7 @@ impl PreviewDrawer {
             header: &header,
             find,
             content,
+            tags_bar,
             raw_details,
             raw_details_scroll,
             revealer,
@@ -258,6 +266,7 @@ struct DrawerParts<'a> {
     header: &'a Header,
     find: find::PreviewFind,
     content: gtk::Box,
+    tags_bar: tags_bar::TagsBar,
     raw_details: super::super::raw_details::RawDetails,
     raw_details_scroll: gtk::ScrolledWindow,
     revealer: gtk::Revealer,
@@ -285,6 +294,8 @@ impl PreviewState {
             modified: header.metadata.modified.clone(),
             content_type: header.metadata.content_type.clone(),
             content: parts.content,
+            tags_bar: parts.tags_bar,
+            tags_generation: Cell::new(0),
             document_view_button: header.document_view_button.clone(),
             document_view_icon: header.document_view_icon.clone(),
             document_view: Cell::new(DocumentView::Rendered),

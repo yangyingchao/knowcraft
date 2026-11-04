@@ -3,7 +3,7 @@
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
-    path::Path,
+    path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
     time::{Duration, Instant},
@@ -52,6 +52,7 @@ mod media_session;
 mod pdf;
 mod render;
 mod source_view;
+mod tags_bar;
 pub(super) use document::document_notice;
 use document::{DocumentPreview, DocumentView};
 pub(in crate::ui) use layout::{separator, separator_width};
@@ -160,6 +161,9 @@ struct PreviewState {
     modified: gtk::Label,
     content_type: gtk::Label,
     content: gtk::Box,
+    tags_bar: tags_bar::TagsBar,
+    /// 请求序号；快速切换文件时只接受最新一次的标签查询结果。
+    tags_generation: Cell<u64>,
     document_view_button: gtk::Button,
     document_view_icon: gtk::Image,
     document_view: Cell<DocumentView>,

@@ -616,15 +616,19 @@ impl ItemMenuOptions {
             .pin
             .set_visible(entry.is_directory() && !is_trash_location(&entry.location));
         self.single.pin.set_sensitive(target.pin_available());
-        // 归档与导入只对知识库可达的本地文件开放；是否已归档由 dispatch 反馈提示。
-        let knowledge_available = crate::knowledge::init().is_some();
-        let native_path = entry.location.native_path().is_some();
+        // 导入对任何知识库可达的本地文件开放；归档仅对 inbox 内的未归档
+        // 文件开放，已归档（不在 inbox）的文件不显示该入口。
+        let knowledge = crate::knowledge::init();
+        let native_path = entry.location.native_path();
         self.single
             .import
-            .set_visible(knowledge_available && native_path && !self.in_trash);
+            .set_visible(knowledge.is_some() && native_path.is_some() && !self.in_trash);
+        let pending = knowledge.is_some_and(|knowledge| {
+            native_path.is_some_and(|path| knowledge.is_pending(path))
+        });
         self.single
             .dispatch
-            .set_visible(knowledge_available && native_path && !self.in_trash);
+            .set_visible(pending && !self.in_trash);
         self.single.customize.set_visible(
             !self.in_trash && target.entries.len() == 1 && entry.location.native_path().is_some(),
         );

@@ -74,6 +74,7 @@ impl PreviewState {
             self.model_view.set(Default::default());
             self.model.borrow_mut().take();
         }
+        self.update_tags(&entry);
         self.cancel_pending_show();
         self.retain_pending_playback(&entry);
         if self.handed_off.borrow().as_ref() != Some(&entry.location) {
@@ -103,6 +104,40 @@ impl PreviewState {
         if reload {
             self.load(entry, 0);
         }
+    }
+
+    /// 后台查询当前文档的标签；只接受最新一次请求的结果。
+    pub(super) fn update_tags(self: &Rc<Self>, entry: &FileEntry) {
+        let Some(path) = entry.location.native_path().map(PathBuf::from) else {
+            self.tags_bar.clear();
+            return;
+        };
+        let generation = self.tags_generation.get().saturating_add(1);
+        self.tags_generation.set(generation);
+        let (sender, receiver) = std::sync::mpsc::channel::<(u64, Vec<String>)>();
+        std::thread::spawn(move || {
+            let tags = crate::knowledge::init()
+                .map(|knowledge| knowledge.tags_for(&path))
+                .unwrap_or_default();
+            let _ = sender.send((generation, tags));
+        });
+        let weak = Rc::downgrade(self);
+        // GTK 对象不能跨线程移动，回到主线程用轮询收结果。
+        glib::timeout_add_local(Duration::from_millis(50), move || {
+            let Some(state) = weak.upgrade() else {
+                return glib::ControlFlow::Break;
+            };
+            match receiver.try_recv() {
+                Ok((requested, tags)) => {
+                    if state.tags_generation.get() == requested {
+                        state.tags_bar.set_tags(&tags);
+                    }
+                    glib::ControlFlow::Break
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => glib::ControlFlow::Break,
+            }
+        });
     }
 
     /// Keeps `entry` as the target until the split has room to show it.
