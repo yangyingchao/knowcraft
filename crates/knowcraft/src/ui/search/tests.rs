@@ -518,11 +518,10 @@ fn the_palette_prompt_names_the_knowledge_base() {
         || {
             let (dialog, window) = mapped_dialog(Rc::new(|_| {}));
             dialog.show(vec![std::path::PathBuf::from("/tmp/knowledge")], false);
-            assert!(
-                dialog.state.status.text().contains("knowledge base"),
-                "状态: {}",
-                dialog.state.status.text()
-            );
+            let prompt = dialog.state.status.text().to_string();
+            // 文案来自知识库键（语言无关），且不再指向主文件夹搜索。
+            assert_eq!(prompt, crate::i18n::tr("Type to search the knowledge base"));
+            assert!(!prompt.contains("Home and mounted local drives"));
             window.destroy();
         },
     );

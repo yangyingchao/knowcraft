@@ -8,7 +8,7 @@ fn saved_language_applies_before_settings_and_changes_only_after_restart() {
         "ui::preferences::tests::preferences::loading::saved_language_applies_before_settings_and_changes_only_after_restart",
         || {
             let mut preferences = non_default_preferences();
-            preferences.language = crate::i18n::Language::French;
+            preferences.language = crate::i18n::Language::SimplifiedChinese;
             fs::create_dir_all(settings_path().parent().expect("settings directory"))
                 .expect("create settings directory");
             fs::write(
@@ -17,23 +17,23 @@ fn saved_language_applies_before_settings_and_changes_only_after_restart() {
             )
             .expect("save fixture");
             let manager = PreferenceManager::load();
-            assert_eq!(crate::i18n::tr("Language"), "Langue");
+            assert_eq!(crate::i18n::tr("Language"), "语言");
             assert!(!manager.language_restart_required());
-            manager.set_language(crate::i18n::Language::Japanese);
+            manager.set_language(crate::i18n::Language::English);
             assert!(manager.language_restart_required());
-            assert_eq!(crate::i18n::tr("Language"), "Langue");
+            assert_eq!(crate::i18n::tr("Language"), "语言");
             crate::storage::writer::settle();
             assert_eq!(
                 read_preferences().expect("read saved language").language,
-                crate::i18n::Language::Japanese
+                crate::i18n::Language::English
             );
-            manager.set_language(crate::i18n::Language::French);
+            manager.set_language(crate::i18n::Language::SimplifiedChinese);
             assert!(!manager.language_restart_required());
-            manager.set_language(crate::i18n::Language::Japanese);
+            manager.set_language(crate::i18n::Language::English);
             crate::storage::writer::settle();
             let restarted = PreferenceManager::load();
             assert!(!restarted.language_restart_required());
-            assert_eq!(&*rust_i18n::locale(), "ja");
+            assert_eq!(&*rust_i18n::locale(), "en");
         },
     );
 }

@@ -28,10 +28,10 @@ fn language_choices_and_restart_notice_synchronize_without_changing_running_ui()
             let running = rust_i18n::locale().to_string();
             let (first, _, _) = general_page(manager.clone());
             let (second, _, _) = general_page(manager.clone());
-            let alternate = if running == "ja" {
-                crate::i18n::Language::French
+            let alternate = if running == "zh-CN" {
+                crate::i18n::Language::English
             } else {
-                crate::i18n::Language::Japanese
+                crate::i18n::Language::SimplifiedChinese
             };
             manager.set_language(alternate);
             for page in [&first, &second] {
@@ -41,10 +41,10 @@ fn language_choices_and_restart_notice_synchronize_without_changing_running_ui()
                     .expect("language menu button");
                 assert_eq!(
                     choice.label().expect("selected language label"),
-                    if alternate == crate::i18n::Language::Japanese {
-                        "日本語"
+                    if alternate == crate::i18n::Language::SimplifiedChinese {
+                        "简体中文"
                     } else {
-                        "Français"
+                        "English"
                     }
                 );
                 assert!(

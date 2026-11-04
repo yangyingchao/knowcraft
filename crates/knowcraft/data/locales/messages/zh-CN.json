@@ -903,6 +903,7 @@
   "Type a full path here": "请在此处输入完整路径",
   "Type a path": "输入路径",
   "Type to search Home and mounted local drives\nFuzzy matching · try a name or path fragment": "输入以搜索主文件夹和已挂载的本地驱动器\n模糊匹配 · 可输入名称或部分路径",
+  "Type to search the knowledge base\nFuzzy matching · try a name or path fragment": "输入以搜索知识库\n模糊匹配 · 可输入名称或部分路径",
   "Unable to check folder": "无法检查文件夹",
   "Unable to determine the selected file type": "无法确定所选文件的类型",
   "Unable to determine the trash volume because the mount table is unavailable": "挂载表不可用，无法确定回收站所在的卷",

@@ -2,9 +2,7 @@
 
 use std::{collections::BTreeSet, path::Path};
 
-const LOCALES: [&str; 13] = [
-    "en", "fr", "hu", "de", "es", "ja", "pt-BR", "ko", "vi", "it", "ru", "zh-CN", "zh-TW",
-];
+const LOCALES: [&str; 2] = ["en", "zh-CN"];
 
 fn placeholders(text: &str) -> BTreeSet<&str> {
     text.split("%{")

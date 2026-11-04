@@ -9,69 +9,25 @@ use serde::{Deserialize, Serialize};
 pub(crate) enum Language {
     #[serde(rename = "en")]
     English,
-    #[serde(rename = "fr")]
-    French,
-    #[serde(rename = "de")]
-    German,
-    #[serde(rename = "hu")]
-    Hungarian,
-    #[serde(rename = "es")]
-    Spanish,
-    #[serde(rename = "ja")]
-    Japanese,
-    #[serde(rename = "pt-BR")]
-    BrazilianPortuguese,
-    #[serde(rename = "ko")]
-    Korean,
-    #[serde(rename = "vi")]
-    Vietnamese,
-    #[serde(rename = "it")]
-    Italian,
-    #[serde(rename = "ru")]
-    Russian,
     #[serde(rename = "zh-CN")]
     SimplifiedChinese,
-    #[serde(rename = "zh-TW")]
-    TraditionalChinese,
     #[default]
     #[serde(other, rename = "auto")]
     Auto,
 }
 
 impl Language {
-    pub const CHOICES: [(&'static str, Self); 14] = [
+    pub const CHOICES: [(&'static str, Self); 3] = [
         ("Auto-detect", Self::Auto),
         ("English", Self::English),
-        ("Français", Self::French),
-        ("Magyar", Self::Hungarian),
-        ("Deutsch", Self::German),
-        ("Español", Self::Spanish),
-        ("日本語", Self::Japanese),
-        ("Português (Brasil)", Self::BrazilianPortuguese),
-        ("한국어", Self::Korean),
-        ("Tiếng Việt", Self::Vietnamese),
-        ("Italiano", Self::Italian),
-        ("Русский", Self::Russian),
         ("简体中文", Self::SimplifiedChinese),
-        ("正體中文", Self::TraditionalChinese),
     ];
 
     pub fn locale(self) -> &'static str {
         match self {
             Self::Auto => detected_locale(),
             Self::English => "en",
-            Self::French => "fr",
-            Self::German => "de",
-            Self::Hungarian => "hu",
-            Self::Spanish => "es",
-            Self::Japanese => "ja",
-            Self::BrazilianPortuguese => "pt-BR",
-            Self::Korean => "ko",
-            Self::Vietnamese => "vi",
-            Self::Italian => "it",
-            Self::Russian => "ru",
             Self::SimplifiedChinese => "zh-CN",
-            Self::TraditionalChinese => "zh-TW",
         }
     }
 }
@@ -85,20 +41,9 @@ fn supported_locale(value: &str) -> Option<&'static str> {
         .to_ascii_lowercase();
     match value.split('-').next()? {
         "en" | "c" | "posix" => Some("en"),
-        "fr" => Some("fr"),
-        "de" => Some("de"),
-        "hu" => Some("hu"),
-        "es" => Some("es"),
-        "ja" => Some("ja"),
-        "pt" => Some("pt-BR"),
-        "ko" => Some("ko"),
-        "vi" => Some("vi"),
-        "it" => Some("it"),
-        "ru" => Some("ru"),
-        "zh" => match value.split('-').nth(1) {
-            Some("hant" | "tw" | "hk" | "mo") => Some("zh-TW"),
-            _ => Some("zh-CN"),
-        },
+        // 界面只提供英文与简体中文；繁体环境同样回落到简体中文，
+        // 对中文用户而言比回落到英文可读性更好。
+        "zh" => Some("zh-CN"),
         _ => None,
     }
 }
