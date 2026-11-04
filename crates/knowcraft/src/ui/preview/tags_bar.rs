@@ -21,16 +21,20 @@ pub(super) struct TagsBar {
     add_button: gtk::Button,
 }
 
+/// 标签栏宽度；长标签截断显示，悬停看全文。
+const TAGS_BAR_WIDTH: i32 = 150;
+
 impl TagsBar {
     pub(super) fn new() -> Self {
         let widget = gtk::Box::new(gtk::Orientation::Vertical, 6);
         widget.add_css_class("preview-tags-bar");
         widget.set_visible(false);
+        widget.set_size_request(TAGS_BAR_WIDTH, -1);
 
         let title = gtk::Label::new(Some(&crate::i18n::tr("Tags")));
         title.add_css_class("preview-tags-title");
         title.set_xalign(0.0);
-        title.set_wrap(true);
+        title.set_ellipsize(gtk::pango::EllipsizeMode::End);
         title.set_hexpand(true);
 
         let add_button = gtk::Button::new();
@@ -90,7 +94,7 @@ impl TagsBar {
             let chip = gtk::Label::new(Some(tag));
             chip.add_css_class("preview-tag-chip");
             chip.set_xalign(0.0);
-            chip.set_wrap(true);
+            chip.set_ellipsize(gtk::pango::EllipsizeMode::End);
             chip.set_tooltip_text(Some(tag));
             self.chips.append(&chip);
         }

@@ -23,6 +23,7 @@ impl PreviewDrawer {
         let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
         content.add_css_class("preview-content");
         content.set_vexpand(true);
+        content.set_hexpand(true);
 
         // 标签栏挂在内容右侧，与内容同高；无标签时整体隐藏。
         let tags_bar = tags_bar::TagsBar::new();
