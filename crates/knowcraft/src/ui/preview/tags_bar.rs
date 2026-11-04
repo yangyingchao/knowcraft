@@ -24,12 +24,17 @@ pub(super) struct TagsBar {
 /// 标签栏宽度；长标签截断显示，悬停看全文。
 const TAGS_BAR_WIDTH: i32 = 150;
 
+/// chip 文本的最大字符数；配合省略号钳制自然宽度（`set_size_request`
+/// 只是下限，撑不住内容，13px 字号下 9 个中文字符加内边距约 150px）。
+const TAG_CHIP_MAX_CHARS: i32 = 9;
+
 impl TagsBar {
     pub(super) fn new() -> Self {
         let widget = gtk::Box::new(gtk::Orientation::Vertical, 6);
         widget.add_css_class("preview-tags-bar");
         widget.set_visible(false);
         widget.set_size_request(TAGS_BAR_WIDTH, -1);
+        widget.set_hexpand(false);
 
         let title = gtk::Label::new(Some(&crate::i18n::tr("Tags")));
         title.add_css_class("preview-tags-title");
@@ -95,6 +100,7 @@ impl TagsBar {
             chip.add_css_class("preview-tag-chip");
             chip.set_xalign(0.0);
             chip.set_ellipsize(gtk::pango::EllipsizeMode::End);
+            chip.set_max_width_chars(TAG_CHIP_MAX_CHARS);
             chip.set_tooltip_text(Some(tag));
             self.chips.append(&chip);
         }

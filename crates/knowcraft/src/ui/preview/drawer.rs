@@ -23,19 +23,15 @@ impl PreviewDrawer {
         let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
         content.add_css_class("preview-content");
         content.set_vexpand(true);
-        content.set_hexpand(true);
+        pane.append(&content);
 
-        // 标签栏挂在内容右侧，与内容同高；无标签时整体隐藏。
         let tags_bar = tags_bar::TagsBar::new();
-        let body = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        body.set_vexpand(true);
-        body.append(&content);
-        body.append(tags_bar.widget());
-        pane.append(&body);
 
         let (raw_details, raw_details_scroll) = raw_details_section();
         pane.append(&raw_details_scroll);
         let (revealer, slot, resize_grip) = drawer_slot(&pane);
+        // 标签栏与预览抽屉平级（抽屉右侧），宽度不随预览内容的伸缩变化。
+        slot.append(tags_bar.widget());
 
         let state = PreviewState::new(DrawerParts {
             provider,
