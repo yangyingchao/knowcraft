@@ -1,7 +1,14 @@
 use rusqlite::params;
 
 use crate::error::Result;
+use crate::model::Document;
 use crate::store::Store;
+
+/// 标签搜索命中。
+pub struct TagHit {
+    pub name: String,
+    pub documents: usize,
+}
 
 pub struct Tags {
     store: Store,
@@ -42,6 +49,29 @@ impl Tags {
         )?;
         let rows = stmt.query_map(params![document_id], |r| r.get::<_, String>(0))?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// 标签搜索命中：名称与文档数。
+    pub fn search(&self, query: &str) -> Result<Vec<TagHit>> {
+        let pattern = format!("%{}%", query.trim());
+        let conn = self.store.lock();
+        let mut stmt = conn.prepare(
+            "SELECT t.name, COUNT(dt.document_id) FROM tags t \
+             LEFT JOIN document_tags dt ON dt.tag_id = t.id \
+             WHERE t.name LIKE ?1 GROUP BY t.id ORDER BY t.name",
+        )?;
+        let rows = stmt.query_map(params![pattern], |row| {
+            Ok(TagHit {
+                name: row.get(0)?,
+                documents: row.get::<_, i64>(1)? as usize,
+            })
+        })?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// 某个标签下的文档，按标题排序。
+    pub fn documents_with_tag(&self, name: &str) -> Result<Vec<Document>> {
+        self.store.documents_with_tag(name)
     }
 
     pub fn list_all(&self) -> Result<Vec<String>> {

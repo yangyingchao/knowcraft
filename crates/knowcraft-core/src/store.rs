@@ -212,22 +212,20 @@ impl Store {
         let mut stmt = conn.prepare(
             "SELECT id, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE lifecycle = ?1",
         )?;
-        let rows = stmt.query_map(params![lifecycle], |r| {
-            Ok(Document {
-                id: r.get(0)?,
-                path: r.get(1)?,
-                doc_type: r.get(2)?,
-                title: r.get(3)?,
-                source_url: r.get(4)?,
-                size: r.get(5)?,
-                created_at: r.get(6)?,
-                updated_at: r.get(7)?,
-                checksum: r.get(8)?,
-                ai_summary: r.get(9)?,
-                lifecycle: r.get(10)?,
-                index_status: r.get(11)?,
-            })
-        })?;
+        let rows = stmt.query_map(params![lifecycle], read_document)?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// 某标签下的全部文档，按标题排序。
+    pub fn documents_with_tag(&self, name: &str) -> Result<Vec<Document>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT d.id, d.path, d.doc_type, d.title, d.source_url, d.size, d.created_at, \
+             d.updated_at, d.checksum, d.ai_summary, d.lifecycle, d.index_status \
+             FROM documents d JOIN document_tags dt ON dt.document_id = d.id \
+             JOIN tags t ON t.id = dt.tag_id WHERE t.name = ?1 ORDER BY d.title",
+        )?;
+        let rows = stmt.query_map(params![name], read_document)?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
     }
 
@@ -296,4 +294,21 @@ pub(crate) fn now() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs().to_string())
         .unwrap_or_default()
+}
+
+fn read_document(row: &rusqlite::Row<'_>) -> rusqlite::Result<Document> {
+    Ok(Document {
+        id: row.get(0)?,
+        path: row.get(1)?,
+        doc_type: row.get(2)?,
+        title: row.get(3)?,
+        source_url: row.get(4)?,
+        size: row.get(5)?,
+        created_at: row.get(6)?,
+        updated_at: row.get(7)?,
+        checksum: row.get(8)?,
+        ai_summary: row.get(9)?,
+        lifecycle: row.get(10)?,
+        index_status: row.get(11)?,
+    })
 }

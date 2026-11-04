@@ -1,28 +1,38 @@
-//! tantivy 全文索引封装，供 CLI/HTTP 搜索使用。
+//! tantivy 全文索引封装，供 GUI 搜索、CLI 与 HTTP 使用。
 //!
 //! 索引目录位于 `data_dir/.index`，schema 字段：`document_id`（i64，索引 + 存储）、
-//! `path`（存储）、`title`（分词索引 + 存储）、`content`（分词索引，不存储）。
+//! `path`（存储）、`title`（分词索引 + 存储）、`content`（分词索引 + 存储）。
 //! 正文提取复用 [`crate::extract::extract_text`]，提取失败以空串兜底。
 //!
-//! 当前分词采用 tantivy 默认 tokenizer（英文/ASCII 分词）。中文分词定案留待后续专项，
-//! 故搜索测试以英文词验证，中文用例未启用。
+//! `title` 与 `content` 使用 jieba 分词，中文按词命中；`content` 存储正文以生成摘要。
+//! schema 变更时靠 `.index/schema-version` 判定，旧版本目录直接重建。
+
+mod tokenizer;
 
 use std::path::Path;
 
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-use tantivy::schema::{Schema, Value, INDEXED, STORED, TEXT};
+use tantivy::snippet::SnippetGenerator;
+use tantivy::schema::{
+    IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Value, INDEXED, STORED,
+};
 use tantivy::{doc, Index as TIndex, IndexWriter, TantivyDocument, Term};
 
 use crate::error::{Error, Result};
 use crate::model::Document;
+use tokenizer::JiebaTokenizer;
 
 const DOCUMENT_ID: &str = "document_id";
 const PATH: &str = "path";
 const TITLE: &str = "title";
 const CONTENT: &str = "content";
+const SCHEMA_VERSION: &str = "2";
+const TOKENIZER: &str = "jieba";
+const SNIPPET_CHARS: usize = 60;
 
 /// 搜索命中的单条结果。
+#[derive(Debug)]
 pub struct IndexHit {
     pub document_id: i64,
     pub path: String,
@@ -36,12 +46,21 @@ pub struct Index {
     index: TIndex,
 }
 
+fn text_field() -> TextOptions {
+    let indexing = TextFieldIndexing::default()
+        .set_tokenizer(TOKENIZER)
+        .set_index_option(IndexRecordOption::WithFreqsAndPositions);
+    TextOptions::default()
+        .set_indexing_options(indexing)
+        .set_stored()
+}
+
 fn build_schema() -> Schema {
     let mut builder = Schema::builder();
     builder.add_i64_field(DOCUMENT_ID, INDEXED | STORED);
     builder.add_text_field(PATH, STORED);
-    builder.add_text_field(TITLE, TEXT | STORED);
-    builder.add_text_field(CONTENT, TEXT);
+    builder.add_text_field(TITLE, text_field());
+    builder.add_text_field(CONTENT, text_field());
     builder.build()
 }
 
@@ -49,20 +68,35 @@ impl Index {
     /// 打开（或首次创建）`data_dir/.index` 目录下的索引。
     pub fn open(data_dir: &Path) -> Result<Index> {
         let dir = data_dir.join(".index");
+        reset_outdated_schema(&dir)?;
         std::fs::create_dir_all(&dir)?;
         // 已存在则打开；不存在则按 schema 创建。
         let index = match TIndex::open_in_dir(&dir) {
             Ok(index) => index,
             Err(_) => TIndex::create_in_dir(&dir, build_schema())?,
         };
+        index.tokenizers().register(TOKENIZER, JiebaTokenizer);
+        std::fs::write(dir.join("schema-version"), SCHEMA_VERSION)?;
         Ok(Index { index })
     }
 
     /// 索引单个文档：提取正文写入 `content` 字段并提交。
     pub fn index_document(&self, doc: &Document) -> Result<()> {
-        let content = crate::extract::extract_text(Path::new(&doc.path)).unwrap_or_default();
+        self.index_documents(std::slice::from_ref(doc))
+    }
+
+    /// 批量索引：同一次提交内按 `document_id` 先删后加，重复执行不产生重复命中。
+    pub fn index_documents(&self, docs: &[Document]) -> Result<()> {
+        if docs.is_empty() {
+            return Ok(());
+        }
         let mut writer: IndexWriter = self.index.writer(50_000_000)?;
-        self.add_document(&mut writer, doc, content)?;
+        let id_field = self.index.schema().get_field(DOCUMENT_ID)?;
+        for doc in docs {
+            writer.delete_term(Term::from_field_i64(id_field, doc.id));
+            let content = crate::extract::extract_text(Path::new(&doc.path)).unwrap_or_default();
+            self.add_document(&mut writer, doc, content)?;
+        }
         writer.commit()?;
         Ok(())
     }
@@ -78,17 +112,11 @@ impl Index {
 
     /// 重索引单个文档：同一提交内删除旧条目再写入新内容，避免重复命中。
     pub fn reindex_document(&self, doc: &Document) -> Result<()> {
-        let content = crate::extract::extract_text(Path::new(&doc.path)).unwrap_or_default();
-        let mut writer: IndexWriter = self.index.writer(50_000_000)?;
-        let id_field = self.index.schema().get_field(DOCUMENT_ID)?;
-        writer.delete_term(Term::from_field_i64(id_field, doc.id));
-        self.add_document(&mut writer, doc, content)?;
-        writer.commit()?;
-        Ok(())
+        self.index_documents(std::slice::from_ref(doc))
     }
 
-    /// 全文搜索，返回命中列表（snippet 暂为空串）。
-    pub fn search(&self, query: &str) -> Result<Vec<IndexHit>> {
+    /// 全文搜索，返回最多 `limit` 条命中。
+    pub fn search(&self, query: &str, limit: usize) -> Result<Vec<IndexHit>> {
         let reader = self.index.reader()?;
         let searcher = reader.searcher();
         let schema = self.index.schema();
@@ -98,7 +126,9 @@ impl Index {
         let query = parser
             .parse_query(query)
             .map_err(|e| Error::Index(e.to_string()))?;
-        let top = searcher.search(&query, &TopDocs::with_limit(50))?;
+        let top = searcher.search(&query, &TopDocs::with_limit(limit))?;
+        let mut snippets = SnippetGenerator::create(&searcher, &*query, content)?;
+        snippets.set_max_num_chars(SNIPPET_CHARS);
 
         let mut hits = Vec::with_capacity(top.len());
         for (_score, addr) in top {
@@ -107,7 +137,11 @@ impl Index {
                 document_id: self.stored_i64(&retrieved, DOCUMENT_ID),
                 path: self.stored_text(&retrieved, PATH),
                 title: self.stored_text(&retrieved, TITLE),
-                snippet: String::new(),
+                snippet: snippets
+                    .snippet_from_doc(&retrieved)
+                    .fragment()
+                    .trim()
+                    .to_owned(),
             });
         }
         Ok(hits)
@@ -165,4 +199,13 @@ impl Index {
             .unwrap_or_default()
             .to_string()
     }
+}
+/// schema 版本不符时删除旧索引；`warm_index` 会重新填充内容。
+fn reset_outdated_schema(dir: &Path) -> Result<()> {
+    let current = std::fs::read_to_string(dir.join("schema-version"))
+        .is_ok_and(|version| version.trim() == SCHEMA_VERSION);
+    if dir.exists() && !current {
+        std::fs::remove_dir_all(dir)?;
+    }
+    Ok(())
 }

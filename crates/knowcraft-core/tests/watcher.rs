@@ -35,7 +35,7 @@ fn handle_new_file_event_adds_to_inbox() {
         .expect("file registered in inbox");
     assert_eq!(doc.index_status, "indexed");
 
-    let hits = index.search("retrieval").unwrap();
+    let hits = index.search("retrieval", 10).unwrap();
     assert!(
         hits.iter().any(|h| h.document_id == doc.id),
         "indexed content searchable"
@@ -69,7 +69,7 @@ fn handle_delete_event_removes_index_entry() {
     watcher.handle(FileEvent::Removed(path.clone())).unwrap();
 
     assert!(
-        index.search("verification").unwrap().is_empty(),
+        index.search("verification", 10).unwrap().is_empty(),
         "index entry removed"
     );
     assert!(
@@ -110,7 +110,7 @@ fn create_then_modify_in_same_window_indexes_file() {
         .find_by_path(&path.to_string_lossy())
         .unwrap()
         .expect("new file registered after create+modify merge");
-    let hits = index.search("gamma").unwrap();
+    let hits = index.search("gamma", 10).unwrap();
     assert!(hits.iter().any(|h| h.document_id == doc.id));
 }
 
@@ -169,7 +169,7 @@ fn chained_rename_in_same_window_leaves_no_orphan() {
         .find_by_path(&path_str(&c))
         .unwrap()
         .expect("document registered at final path C");
-    let hits = index.search("chained").unwrap();
+    let hits = index.search("chained", 10).unwrap();
     assert!(hits.iter().any(|h| h.document_id == doc.id));
 }
 
