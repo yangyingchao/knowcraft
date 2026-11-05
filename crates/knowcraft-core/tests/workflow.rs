@@ -105,3 +105,16 @@ fn import_directory_skips_hidden_items_and_rejects_non_directory() {
     let err = wf.import_directory(&file).unwrap_err();
     assert!(err.to_string().contains("not a directory"));
 }
+
+#[test]
+fn checksum_is_stable_sha256_hex() {
+    let (wf, dir) = setup("checksum");
+    let src = dir.join("a.txt");
+    std::fs::write(&src, "abc").unwrap();
+    let doc = wf.add_to_inbox(&src).unwrap();
+    assert_eq!(doc.checksum.len(), 64);
+    assert_eq!(
+        doc.checksum,
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
+}

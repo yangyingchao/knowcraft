@@ -1,6 +1,4 @@
-use std::collections::hash_map::DefaultHasher;
 use std::fs::File;
-use std::hash::{Hash, Hasher};
 use std::os::fd::AsFd;
 use std::path::{Path, PathBuf};
 
@@ -36,10 +34,10 @@ impl Workflow {
     }
 
     fn checksum(&self, path: &Path) -> Result<String> {
+        use sha2::{Digest, Sha256};
         let bytes = std::fs::read(path)?;
-        let mut h = DefaultHasher::new();
-        bytes.hash(&mut h);
-        Ok(format!("{:x}", h.finish()))
+        let digest = Sha256::digest(bytes);
+        Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
     }
 
     pub fn add_to_inbox(&self, src: &Path) -> Result<Document> {
