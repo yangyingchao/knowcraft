@@ -13,12 +13,14 @@ use crate::sandbox::Cancellation;
 mod html;
 mod layout;
 mod markdown;
+mod org;
 
-use html::parse_html_bounded;
+use html::{parse_html_bounded, parse_html_org_bounded};
 pub use layout::layout_document;
 #[cfg(test)]
 use layout::{LayoutBudget, append_styled_text};
 use markdown::{MarkdownProfile, parse_markdown_bounded};
+use org::render_org_html;
 
 pub const DOCUMENT_INPUT_LIMIT: usize = 1024 * 1024;
 pub const DOCUMENT_EVENT_LIMIT: usize = 20_000;
@@ -36,6 +38,7 @@ pub enum DocumentKind {
     Rtf,
     Csv,
     Tsv,
+    Org,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -325,6 +328,7 @@ pub fn document_kind(content_type: &str, name: &OsStr, is_native: bool) -> Optio
         "application/rtf" | "text/rtf" => return Some(DocumentKind::Rtf),
         "text/csv" => return Some(DocumentKind::Csv),
         "text/tab-separated-values" => return Some(DocumentKind::Tsv),
+        "text/org" | "text/x-org" => return Some(DocumentKind::Org),
         _ => {}
     }
     match Path::new(name)
@@ -338,6 +342,7 @@ pub fn document_kind(content_type: &str, name: &OsStr, is_native: bool) -> Optio
         Some("rtf") => Some(DocumentKind::Rtf),
         Some("csv") => Some(DocumentKind::Csv),
         Some("tsv") => Some(DocumentKind::Tsv),
+        Some("org") => Some(DocumentKind::Org),
         _ => None,
     }
 }
@@ -380,6 +385,18 @@ fn parse_document_with_limits(
             cancellation,
             limits,
         ),
+        DocumentKind::Org => {
+            // orgize walks are roughly 2-3x the HTML token count, so the org
+            // HTML phase gets an enlarged budget; the orgize-to-HTML phase runs
+            // on its own time budget inside render_org_html.
+            let org_html = render_org_html(source, cancellation, limits.time)?;
+            let org_limits = ParseLimits {
+                events: limits.events.saturating_mul(3),
+                depth: limits.depth.saturating_add(16),
+                ..limits
+            };
+            parse_html_org_bounded(&org_html, cancellation, org_limits)
+        }
         DocumentKind::Csv => super::table::parse_delimited(source, b',', cancellation),
         DocumentKind::Tsv => super::table::parse_delimited(source, b'\t', cancellation),
     }?;

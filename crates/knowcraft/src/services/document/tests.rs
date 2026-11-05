@@ -6,6 +6,7 @@ mod limits;
 mod lists;
 mod markdown;
 mod media;
+mod org;
 
 use super::{
     DocumentBlock, DocumentKind, DocumentLayout, DocumentListChildKind, DocumentTableCell,

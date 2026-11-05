@@ -48,6 +48,9 @@ gtk = { package = "gtk4", version = "0.11.4", features = ["v4_12"] }
 hex = "0.4.3"
 html5gum = { version = "0.9", default-features = false }
 ignore = "0.4.23"
+# Org-mode preview: orgize parses org into HTML for the shared document pipeline.
+# default-features=false skips the `ser` (serde) feature, which preview does not need.
+orgize = { version = "0.9", default-features = false }
 image = { version = "0.25.10", default-features = false, features = ["bmp", "gif", "jpeg", "png", "webp"] }
 kamadak-exif = "0.6.1"
 knowcraft-core = { path = "../knowcraft-core" }

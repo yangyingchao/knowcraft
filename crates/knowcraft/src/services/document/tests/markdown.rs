@@ -131,6 +131,8 @@ fn classifies_supported_local_document_mimes_and_extensions_case_insensitively()
         "application/xhtml+xml",
         "application/rtf",
         "text/rtf",
+        "text/org",
+        "text/x-org",
     ] {
         assert!(document_kind(mime, std::ffi::OsStr::new("file.txt"), true).is_some());
     }
@@ -145,6 +147,7 @@ fn classifies_supported_local_document_mimes_and_extensions_case_insensitively()
         "a.htm",
         "a.xhtml",
         "a.RTF",
+        "a.ORG",
     ] {
         assert!(document_kind("text/plain", std::ffi::OsStr::new(name), true).is_some());
     }

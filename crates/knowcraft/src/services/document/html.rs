@@ -13,9 +13,10 @@ use crate::sandbox::Cancellation;
 
 fn html_code_language(classes: &str) -> Option<&'static str> {
     classes.split_ascii_whitespace().find_map(|class| {
+        let class = class.to_ascii_lowercase();
         class
-            .to_ascii_lowercase()
             .strip_prefix("language-")
+            .or_else(|| class.strip_prefix("src-"))
             .and_then(code_language)
     })
 }
@@ -67,12 +68,22 @@ struct HtmlState {
     preformatted: bool,
     pending_space: bool,
     at_line_start: bool,
+    /// Whether `<img>` elements are honoured as image blocks (org path).
+    images_enabled: bool,
+    /// Whether noise warnings (unknown attributes/tags/links) are suppressed
+    /// while keeping structural safety warnings (omitted active content).
+    suppress_noise_warnings: bool,
     warned: bool,
+    blocked_images: bool,
     malformed: bool,
 }
 
 impl HtmlState {
-    fn new(markup_limit: usize) -> Self {
+    fn new(
+        markup_limit: usize,
+        images_enabled: bool,
+        suppress_noise_warnings: bool,
+    ) -> Self {
         Self {
             blocks: Vec::new(),
             active: None,
@@ -91,7 +102,10 @@ impl HtmlState {
             preformatted: false,
             pending_space: false,
             at_line_start: true,
+            images_enabled,
+            suppress_noise_warnings,
             warned: false,
+            blocked_images: false,
             malformed: false,
         }
     }
@@ -145,7 +159,7 @@ impl HtmlState {
             "s" | "del" => self.start_inline("<s>"),
             "u" | "ins" => self.start_inline("<u>"),
             "a" => self.start_link(tag.href),
-            "pre" => self.start_preformatted(),
+            "pre" => self.start_preformatted(tag.language),
             "code" if !self.preformatted => {
                 self.start_inline("<tt>");
             }
@@ -159,7 +173,8 @@ impl HtmlState {
                 self.finish_list_parent();
             }
             "html" | "body" | "span" | "thead" | "tbody" | "tfoot" => {}
-            _ => self.warned = true,
+            _ if !self.suppress_noise_warnings => self.warned = true,
+            _ => {}
         }
     }
 
@@ -265,13 +280,17 @@ impl HtmlState {
 
     fn link_for(&mut self, href: Option<&str>) -> HtmlLink {
         if !self.links.is_empty() {
-            self.warned = true;
+            if !self.suppress_noise_warnings {
+                self.warned = true;
+            }
             return HtmlLink::Inert;
         }
         match href {
             Some(href) if has_web_scheme(href) => HtmlLink::External(href.to_owned()),
             Some(_) => {
-                self.warned = true;
+                if !self.suppress_noise_warnings {
+                    self.warned = true;
+                }
                 HtmlLink::Underline
             }
             None => HtmlLink::Underline,
@@ -286,13 +305,13 @@ impl HtmlState {
         self.links.push(link);
     }
 
-    fn start_preformatted(&mut self) {
+    fn start_preformatted(&mut self, language: Option<&'static str>) {
         self.finish_list_parent();
         let code = ActiveBlock::Code {
             markup: String::new(),
-            language: None,
+            language,
         };
-        self.start_active(self.nested(DocumentListChildKind::Code(None), code));
+        self.start_active(self.nested(DocumentListChildKind::Code(language), code));
         self.preformatted = true;
     }
 
@@ -647,11 +666,14 @@ impl HtmlState {
             let attribute = String::from_utf8_lossy(attribute).to_ascii_lowercase();
             match (name, attribute.as_str()) {
                 ("a", "href") => href = Some(String::from_utf8_lossy(&value.value).into_owned()),
-                ("code", "class") => {
+                ("code" | "pre", "class") => {
                     language = html_code_language(&String::from_utf8_lossy(&value.value));
-                    self.warned |= language.is_none();
+                    if !self.suppress_noise_warnings && language.is_none() {
+                        self.warned = true;
+                    }
                 }
-                _ => self.warned = true,
+                _ if !self.suppress_noise_warnings => self.warned = true,
+                _ => {}
             }
         }
         (href, language)
@@ -663,6 +685,9 @@ impl HtmlState {
         budget: &mut ParseBudget<'_>,
     ) -> Result<(), String> {
         let name = String::from_utf8_lossy(&tag.name).to_ascii_lowercase();
+        if self.images_enabled && name == "img" {
+            return self.start_image(tag, budget);
+        }
         let (href, language) = self.honoured_attributes(&name, tag);
         self.start(StartTag {
             name: &name,
@@ -670,6 +695,42 @@ impl HtmlState {
             language,
             self_closing: tag.self_closing,
         });
+        self.check_markup()?;
+        budget.nesting(self.stack.len())
+    }
+
+    /// Produces an image block for a relative `<img>`; remote/absolute sources
+    /// and table-cell images are dropped with a blocked-image warning.
+    fn start_image(
+        &mut self,
+        tag: &html5gum::StartTag<()>,
+        budget: &mut ParseBudget<'_>,
+    ) -> Result<(), String> {
+        let mut src = None;
+        let mut alt = String::new();
+        for (attribute, value) in &tag.attributes {
+            let attribute = String::from_utf8_lossy(attribute).to_ascii_lowercase();
+            match attribute.as_str() {
+                "src" => src = Some(String::from_utf8_lossy(&value.value).into_owned()),
+                "alt" => alt = String::from_utf8_lossy(&value.value).into_owned(),
+                _ => {}
+            }
+        }
+        let Some(src) = src else {
+            self.check_markup()?;
+            return budget.nesting(self.stack.len());
+        };
+        if is_relative_image(&src) && self.table_cell.is_none() {
+            let list_depth = self.list_items.last().copied();
+            let block = DocumentBlock::Image {
+                destination: src,
+                alt,
+                list_depth,
+            };
+            self.blocks.push(block);
+        } else {
+            self.blocked_images = true;
+        }
         self.check_markup()?;
         budget.nesting(self.stack.len())
     }
@@ -703,11 +764,19 @@ impl HtmlState {
             document: Document {
                 blocks: state.blocks,
             },
-            warnings: state
-                .warned
-                .then(|| "Unsupported or active HTML content was omitted.".to_owned())
-                .into_iter()
-                .collect(),
+            warnings: {
+                let mut warnings = Vec::new();
+                if state.warned {
+                    warnings.push("Unsupported or active HTML content was omitted.".to_owned());
+                }
+                if state.blocked_images {
+                    warnings.push(
+                        "Remote and absolute image URLs are not loaded. Use images inside the document's folder."
+                            .to_owned(),
+                    );
+                }
+                warnings
+            },
         })
     }
 }
@@ -719,7 +788,27 @@ pub(super) fn parse_html_bounded(
 ) -> Result<ParsedDocument, String> {
     let mut budget = ParseBudget::new(cancellation, limits);
     budget.check()?;
-    let mut state = HtmlState::new(limits.markup);
+    let mut state = HtmlState::new(limits.markup, false, false);
+    let mut emitter = DefaultEmitter::default();
+    emitter.naively_switch_states(true);
+    for token in Tokenizer::new_with_emitter(html, emitter) {
+        budget.event()?;
+        let token = token.map_err(|_| "HTML tokenization failed".to_owned())?;
+        state.token(token, &mut budget)?;
+    }
+    state.into_parsed()
+}
+
+/// org-specific HTML entry: honours `<img>` and suppresses orgize-produced
+/// attribute/tag/link noise while keeping structural safety warnings.
+pub(super) fn parse_html_org_bounded(
+    html: &str,
+    cancellation: &Cancellation,
+    limits: ParseLimits,
+) -> Result<ParsedDocument, String> {
+    let mut budget = ParseBudget::new(cancellation, limits);
+    budget.check()?;
+    let mut state = HtmlState::new(limits.markup, true, true);
     let mut emitter = DefaultEmitter::default();
     emitter.naively_switch_states(true);
     for token in Tokenizer::new_with_emitter(html, emitter) {
@@ -761,6 +850,11 @@ fn html_start_implies_end(open: &str, incoming: &str) -> bool {
                     | "table"
                     | "ul"
             ))
+}
+
+/// Only images inside the document's folder are loaded.
+fn is_relative_image(destination: &str) -> bool {
+    !destination.contains(':') && !destination.starts_with('/')
 }
 
 fn is_void_html_tag(name: &str) -> bool {
