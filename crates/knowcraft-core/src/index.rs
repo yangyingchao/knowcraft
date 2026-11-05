@@ -101,6 +101,10 @@ impl Index {
         let mut writer: IndexWriter = self.index.writer(50_000_000)?;
         let id_field = self.index.schema().get_field(DOCUMENT_ID)?;
         for doc in docs {
+            // 自动索引跳过隐藏文件与隐藏文件夹（如回收站 .trash、配置文件）。
+            if crate::util::is_hidden_path(Path::new(&doc.path)) {
+                continue;
+            }
             writer.delete_term(Term::from_field_i64(id_field, doc.id));
             let content = crate::extract::extract_text(Path::new(&doc.path)).unwrap_or_default();
             self.add_document(&mut writer, doc, content)?;

@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["crates/knowcraft-core", "crates/knowcraft"]
-default-members = ["crates/knowcraft-core", "crates/knowcraft"]
+members = ["crates/knowcraft-core", "crates/knowcraft", "crates/knowcraft-cli"]
+default-members = ["crates/knowcraft-core", "crates/knowcraft", "crates/knowcraft-cli"]
 exclude = ["crates/vendor"]
 
 # Vendored, patched third-party crates for the pdfcraft-render text-extraction stack

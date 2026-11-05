@@ -1,0 +1,123 @@
+// SPDX-License-Identifier: MIT
+//! knowcraft 命令行接口：操作 data_dir 中的核心知识库。
+//!
+//! 与 GUI/HTTP 共享 `knowcraft-core` 的写者路径（CLI 是当前唯一写者，持有
+//! SQLite/tantivy 写权限）。子命令失败以非零退出码结束。
+
+use std::path::PathBuf;
+
+use clap::{Parser, Subcommand};
+
+use knowcraft_core::index::Index;
+use knowcraft_core::workflow::Workflow;
+
+#[derive(Parser)]
+#[command(name = "knowcraft", version, about = "knowcraft 知识库命令行接口")]
+struct Cli {
+    #[command(subcommand)]
+    cmd: Cmd,
+}
+
+#[derive(Subcommand)]
+enum Cmd {
+    /// 全文搜索，返回命中的文档 id 与路径
+    Search { query: String },
+    /// 导入文件或目录到 inbox
+    Add { path: PathBuf },
+    /// 将文档归入 library 下的分类目录
+    Dispatch { id: i64, category: String },
+    /// 抓取网页入库到 captures
+    Capture { url: String },
+    /// 查看数据目录、索引文档数与 inbox 计数
+    Status,
+    /// 清理数据库中文件已不存在的失效条目
+    Cleanup,
+}
+
+fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+    let cfg = knowcraft_core::config::Config::load()?;
+    let store = knowcraft_core::store::Store::open(&cfg.data_dir)?;
+    let wf = Workflow::new(store.clone(), cfg.data_dir.clone())?;
+    match cli.cmd {
+        Cmd::Search { query } => {
+            let index = Index::open(&cfg.data_dir)?;
+            let docs = indexed_documents(&store)?;
+            if docs.is_empty() {
+                anyhow::bail!("no documents indexed yet; add files first");
+            }
+            index.index_documents(&docs)?;
+            for hit in index.search(&query, 50)? {
+                println!("{} {}", hit.document_id, hit.path);
+            }
+        }
+        Cmd::Add { path } => {
+            if path.is_dir() {
+                let report = wf.import_directory(&path)?;
+                println!(
+                    "imported: {} skipped_existing={} skipped_duplicate={}",
+                    report.imported, report.skipped_existing, report.skipped_duplicate
+                );
+            } else {
+                let doc = wf.add_to_inbox(&path)?;
+                println!("added: id={} path={}", doc.id, doc.path);
+            }
+        }
+        Cmd::Dispatch { id, category } => {
+            let doc = wf.dispatch(id, &category)?;
+            println!("dispatched: id={} path={}", doc.id, doc.path);
+        }
+        Cmd::Capture { url } => {
+            let cap = knowcraft_core::capture::Capture::new(store, cfg.data_dir)?;
+            let doc = cap.fetch(&url)?;
+            println!("captured: id={} title={}", doc.id, doc.title);
+        }
+        Cmd::Status => {
+            let inbox = wf.list_inbox()?;
+            let docs = indexed_documents(&store)?;
+            let indexed = if docs.is_empty() {
+                0
+            } else {
+                let index = Index::open(&cfg.data_dir)?;
+                index.index_documents(&docs)?;
+                docs.len()
+            };
+            println!("data_dir: {}", cfg.data_dir.display());
+            println!("indexed: {indexed}");
+            println!("inbox: {}", inbox.len());
+        }
+        Cmd::Cleanup => {
+            use std::io::{IsTerminal, Write};
+            let tty = std::io::stdout().is_terminal();
+            let index = Index::open(&cfg.data_dir)?;
+            let report = knowcraft_core::cleanup::cleanup_documents(&store, &index, |p| {
+                // fzf 风格：同一行用回车符重绘，不逐条换行刷屏；非终端不输出。
+                if tty {
+                    let pct = p.scanned as f64 * 100.0 / p.total as f64;
+                    print!(
+                        "\rcleaning {}/{} removed={} ({:.1}%)",
+                        p.scanned, p.total, p.removed, pct
+                    );
+                    let _ = std::io::stdout().flush();
+                }
+            })?;
+            if tty {
+                println!();
+            }
+            println!(
+                "cleanup: scanned={} removed={}",
+                report.scanned, report.removed
+            );
+        }
+    }
+    Ok(())
+}
+
+/// 收集需要索引进 tantivy 的文档：inbox（pending）与 library（archived）。
+fn indexed_documents(
+    store: &knowcraft_core::store::Store,
+) -> knowcraft_core::error::Result<Vec<knowcraft_core::model::Document>> {
+    let mut docs = store.list_by_lifecycle("pending")?;
+    docs.extend(store.list_by_lifecycle("archived")?);
+    Ok(docs)
+}

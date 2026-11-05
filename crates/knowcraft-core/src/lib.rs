@@ -1,5 +1,6 @@
 pub mod annotations;
 pub mod capture;
+pub mod cleanup;
 pub mod config;
 pub mod error;
 pub mod extract;
@@ -8,5 +9,6 @@ pub mod model;
 pub mod store;
 pub mod tags;
 pub mod trash;
+pub mod util;
 pub mod watcher;
 pub mod workflow;

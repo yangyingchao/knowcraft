@@ -1,0 +1,16 @@
+[package]
+name = "knowcraft-cli"
+version = "0.1.0"
+edition = "2021"
+description = "knowcraft 命令行接口"
+
+[[bin]]
+name = "knowcraft-cli"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+knowcraft-core = { path = "../knowcraft-core" }
+
+[dev-dependencies]

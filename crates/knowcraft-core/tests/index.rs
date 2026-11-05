@@ -39,6 +39,17 @@ fn index_and_search_english() {
 }
 
 #[test]
+fn index_skips_hidden_paths() {
+    let dir = test_dir("hidden");
+    let index = Index::open(&dir).unwrap();
+    let hidden_dir = dir.join(".secret");
+    std::fs::create_dir_all(&hidden_dir).unwrap();
+    let doc = make_doc(1, &hidden_dir, "hidden.md", "md", "hidden content should not be indexed");
+    index.index_document(&doc).unwrap();
+    assert!(index.search("hidden", 10).unwrap().is_empty());
+}
+
+#[test]
 fn remove_and_rebuild() {
     let dir = test_dir("idx2");
     let index = Index::open(&dir).unwrap();

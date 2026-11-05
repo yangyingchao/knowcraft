@@ -258,6 +258,16 @@ impl Store {
         Ok(rows.collect::<std::result::Result<_, _>>()?)
     }
 
+    /// 全部文档，供清理、备份等需要遍历整个库的场景使用。
+    pub fn list_documents(&self) -> Result<Vec<Document>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents",
+        )?;
+        let rows = stmt.query_map([], read_document)?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
     /// 某标签下的全部文档，按标题排序。
     pub fn documents_with_tag(&self, name: &str) -> Result<Vec<Document>> {
         let conn = self.lock();
