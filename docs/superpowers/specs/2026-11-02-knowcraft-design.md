@@ -74,6 +74,7 @@ graph TD
 
 关键约定：
 - 接口层不复制业务逻辑（DRY）；逻辑变更只发生在 core
+- **动作先落 core，多壳复用**：每个用户动作（导入、归档、索引、标签、清理等）先在 core 提供可复用接口；GUI / CLI / HTTP / MCP 只做薄壳。新增动作默认同时提供 CLI 子命令与 GUI 入口，MCP 工具复用同一接口，避免各入口形成独立实现。
 - **唯一写者 + HTTP 路由**：GUI 进程为唯一写者，持有 SQLite 与 tantivy 写权限；GUI 运行时，CLI 的写请求经 HTTP 路由到 GUI 进程执行；无 GUI 运行时 CLI 自持锁写（降级运行）；watcher 与写操作同进程时抑制自反馈
 - SQLite WAL 模式；tantivy 写入由唯一写者串行化，不存在跨进程写竞争
 - watcher 监听数据根目录文件变更，自动增量入索引；变更事件去抖节流；文档内容变更时清除 `ai_summary` 缓存

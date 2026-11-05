@@ -16,6 +16,7 @@
 - 侧边栏只显示 Knowcraft 分组（Inbox/Library/Notes/Captures/回收站）。设备、书签、系统位置链路已删除，勿复活。
 - 回收站 = `data_dir/.trash` 目录移动（非系统 GIO trash）：删除 = 移到 `.trash`，支持清空与恢复。
 - 索引/提取/watcher 接入由另一台机器负责，GUI 不触发索引。
+- **动作先落 core，多壳复用**：每个用户动作（导入、归档、索引、标签、清理等）先在 `knowcraft-core` 提供可复用接口；GUI、CLI、HTTP/MCP 只做薄壳，不复制业务逻辑。新增动作尽量同时提供 CLI 子命令与 GUI 入口，MCP 工具后续复用同一 core 接口。
 
 ## 命令
 
