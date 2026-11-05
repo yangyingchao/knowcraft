@@ -56,12 +56,12 @@ fn unyank_releases_only_our_payload(fixture: &KeyboardFixture, directory: &Path)
 }
 
 #[test]
-fn tenxer_yank_cut_and_unyank_mark_the_fill_or_cursor() {
+fn yank_cut_and_unyank_mark_the_fill_or_cursor() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::file_commands::clipboard::tenxer_yank_cut_and_unyank_mark_the_fill_or_cursor",
+        "ui::window::tests::keyboard_dispatch::file_commands::clipboard::yank_cut_and_unyank_mark_the_fill_or_cursor",
         || {
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let directory = fixture._directory.path().to_path_buf();
             let browser = fixture.view.browser();
             move_to_named(&fixture, &browser, "a.txt");
@@ -161,9 +161,9 @@ fn cut_pastes_keep_or_consume(fixture: &KeyboardFixture, directory: &Path, desti
 }
 
 #[test]
-fn tenxer_paste_focuses_the_preferred_conflict_choice() {
+fn paste_focuses_the_preferred_conflict_choice() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::file_commands::clipboard::tenxer_paste_focuses_the_preferred_conflict_choice",
+        "ui::window::tests::keyboard_dispatch::file_commands::clipboard::paste_focuses_the_preferred_conflict_choice",
         || {
             let fixture = KeyboardFixture::new();
             let directory = fixture._directory.path().to_path_buf();
@@ -173,7 +173,7 @@ fn tenxer_paste_focuses_the_preferred_conflict_choice() {
             std::fs::write(destination.join("b.txt"), "existing").expect("cut conflict");
             fixture.view.refresh();
             wait_until(|| rendered_name(&fixture.view.widget(), "dest"));
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let browser = fixture.view.browser();
 
             move_to_named(&fixture, &browser, "a.txt");

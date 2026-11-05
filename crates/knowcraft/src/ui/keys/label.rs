@@ -49,7 +49,7 @@ impl Shown {
 fn firing(command: Command, map: Map, bindings: Vec<Binding>) -> Vec<Binding> {
     let typing = map == Map::Default
         && crate::ui::preferences::PreferenceManager::existing()
-            .is_some_and(|preferences| preferences.type_to_search_active());
+            .is_some_and(|preferences| preferences.type_to_search());
     bindings
         .into_iter()
         .filter(|binding| !super::conflicts::never_fires(map, command, *binding, typing))

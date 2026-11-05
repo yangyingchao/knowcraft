@@ -276,15 +276,15 @@ fn cancelled_validation_sends_nothing_and_a_click_copies(
 }
 
 #[test]
-fn tenxer_move_and_copy_prompts_send_targets_to_a_picked_folder() {
+fn move_and_copy_prompts_send_targets_to_a_picked_folder() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::file_commands::send_to::tenxer_move_and_copy_prompts_send_targets_to_a_picked_folder",
+        "ui::window::tests::keyboard_dispatch::file_commands::send_to::move_and_copy_prompts_send_targets_to_a_picked_folder",
         || {
             let fixture = KeyboardFixture::new();
             let paths = Destinations::create(&fixture);
             fixture.view.refresh();
             wait_until(|| rendered_name(&fixture.view.widget(), "dest"));
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let browser = fixture.view.browser();
             let prompt = FolderPrompt {
                 fixture: &fixture,
@@ -312,12 +312,12 @@ fn tenxer_move_and_copy_prompts_send_targets_to_a_picked_folder() {
 
 /// Headless GVfs cannot list Trash; restore behavior is covered by the trash tests.
 #[test]
-fn tenxer_restore_key_refuses_items_outside_trash() {
+fn restore_key_refuses_items_outside_trash() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::file_commands::send_to::tenxer_restore_key_refuses_items_outside_trash",
+        "ui::window::tests::keyboard_dispatch::file_commands::send_to::restore_key_refuses_items_outside_trash",
         || {
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let browser = fixture.view.browser();
 
             fill_b_and_c(&fixture);

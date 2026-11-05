@@ -3,107 +3,9 @@
 use super::*;
 
 #[test]
-fn default_chrome_stays_operable_without_a_saved_tenxer_mode() {
-    gtk_test(
-        "ui::window::tests::preferences::tenxer_prefs::default_chrome_stays_operable_without_a_saved_tenxer_mode",
-        || {
-            let manager = PreferenceManager::shared();
-            assert!(!manager.tenxer_mode());
-            let open = OpenWindow::open();
-            let _directory = load_folder(&open);
-            assert_controls(&open, true);
-            for mode in [BrowserMode::Columns, BrowserMode::Icons, BrowserMode::List] {
-                open.content.browser.set_view_mode(mode);
-                wait_until(|| !column_loading(&open, 0));
-                assert_icon_only_tooltips(open.window.upcast_ref());
-            }
-            open.content.sidebar.state.set_rail(true);
-            assert_icon_only_tooltips(open.window.upcast_ref());
-            open.content.sidebar.state.set_rail(false);
-            assert_icon_only_tooltips(open.window.upcast_ref());
-            press(
-                &open.window,
-                gtk::gdk::Key::q,
-                gtk::gdk::ModifierType::empty(),
-            );
-            assert!(window_listed(&open.window));
-            assert!(!manager.tenxer_mode());
-        },
-    );
-}
-
-#[test]
-fn saved_tenxer_mode_applies_before_settings_and_to_lazy_views() {
-    gtk_test(
-        "ui::window::tests::preferences::tenxer_prefs::saved_tenxer_mode_applies_before_settings_and_to_lazy_views",
-        || {
-            write_settings("tenxer_mode = true\n");
-            let manager = PreferenceManager::shared();
-            assert!(manager.tenxer_mode());
-            let first = OpenWindow::open();
-            let second = OpenWindow::open();
-            assert!(settings_closed(&first));
-            assert!(settings_closed(&second));
-            let directory = load_folder(&first);
-            second
-                .content
-                .browser
-                .navigate_location(crate::model::Location::local(directory.path()));
-            wait_until(|| !column_loading(&second, 0));
-            for open in [&first, &second] {
-                assert_controls(open, false);
-                assert!(open.content.close_button().is_visible());
-                assert!(open.content.close_button().is_sensitive());
-            }
-            open_child_column(&first);
-            assert!(
-                !controls_in_shown_pane(&first.content.browser.widget(), "Close this pane")
-                    .is_empty()
-            );
-            assert_controls(&first, false);
-            first.content.browser.set_view_mode(BrowserMode::Icons);
-            wait_until(|| !column_loading(&first, 0));
-            assert_controls(&first, false);
-            first.content.browser.set_view_mode(BrowserMode::List);
-            wait_until(|| !column_loading(&first, 0));
-            assert_controls(&first, false);
-            let heading = list_heading(&first.content.browser.widget(), "Name");
-            assert!(heading.is_visible() && heading.is_sensitive());
-            let depth = first
-                .content
-                .browser
-                .browser()
-                .active_depth()
-                .expect("list depth");
-            let before = first
-                .content
-                .browser
-                .browser()
-                .column_preferences(depth)
-                .expect("list preferences")
-                .sort_direction;
-            heading.emit_clicked();
-            settle_for(std::time::Duration::from_millis(50));
-            let after = first
-                .content
-                .browser
-                .browser()
-                .column_preferences(depth)
-                .expect("sorted list preferences")
-                .sort_direction;
-            assert_ne!(before, after);
-            manager.set_tenxer_mode(false);
-            settle();
-            assert_controls(&first, true);
-            drop(directory);
-        },
-    );
-}
-
-#[test]
 fn override_change_reaches_two_windows() {
     gtk_test(
-        "ui::window::tests::preferences::tenxer_prefs::override_change_reaches_two_windows",
+        "ui::window::tests::preferences::keymap_prefs::override_change_reaches_two_windows",
         || {
             use crate::ui::keys::{Binding, Map, bindings};
             use gtk::gdk::{Key, ModifierType};
@@ -185,7 +87,7 @@ fn override_change_reaches_two_windows() {
 #[test]
 fn capture_commits_and_second_window_follows() {
     gtk_test(
-        "ui::window::tests::preferences::tenxer_prefs::capture_commits_and_second_window_follows",
+        "ui::window::tests::preferences::keymap_prefs::capture_commits_and_second_window_follows",
         || {
             use crate::ui::keys::{Binding, Map, bindings::RENAME};
             use gtk::gdk::{Key, ModifierType};
@@ -249,56 +151,14 @@ fn capture_commits_and_second_window_follows() {
 }
 
 #[test]
-fn toggle_leaves_tenxer_everywhere_and_shift_q_closes_only_the_current_window() {
+fn closed_windows_leave_no_duplicate_listeners() {
     gtk_test(
-        "ui::window::tests::preferences::tenxer_prefs::toggle_leaves_tenxer_everywhere_and_shift_q_closes_only_the_current_window",
+        "ui::window::tests::preferences::keymap_prefs::closed_windows_leave_no_duplicate_listeners",
         || {
             let manager = PreferenceManager::shared();
-            let first = OpenWindow::open();
-            let second = OpenWindow::open();
-            manager.set_tenxer_mode(true);
-            settle();
-            press(
-                &first.window,
-                gtk::gdk::Key::m,
-                gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK,
-            );
-            settle();
-            assert!(!manager.tenxer_mode());
-            assert!(window_listed(&first.window));
-            assert!(window_listed(&second.window));
-            manager.set_tenxer_mode(true);
-            settle();
-            press(
-                &first.window,
-                gtk::gdk::Key::Q,
-                gtk::gdk::ModifierType::SHIFT_MASK,
-            );
-            settle();
-            assert!(!window_listed(&first.window));
-            assert!(window_listed(&second.window));
-            assert!(manager.tenxer_mode());
-        },
-    );
-}
-
-#[test]
-fn mode_cycles_and_closed_windows_leave_no_duplicate_commands_or_listeners() {
-    gtk_test(
-        "ui::window::tests::preferences::tenxer_prefs::mode_cycles_and_closed_windows_leave_no_duplicate_commands_or_listeners",
-        || {
-            let manager = PreferenceManager::shared();
-            let toggle = gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK;
             let first = OpenWindow::open();
             settle();
             let baseline = manager.listener_count();
-            for _ in 0..3 {
-                manager.set_tenxer_mode(true);
-                settle();
-                manager.set_tenxer_mode(false);
-                settle();
-            }
-            assert_eq!(manager.listener_count(), baseline, "cycles added listeners");
 
             let closed = {
                 let window = gtk::ApplicationWindow::builder()
@@ -324,14 +184,6 @@ fn mode_cycles_and_closed_windows_leave_no_duplicate_commands_or_listeners() {
                 "a closed window was never released"
             );
             assert!(window_listed(&first.window));
-
-            let third = OpenWindow::open();
-            settle();
-            for (window, expected) in [(&third.window, true), (&first.window, false)] {
-                press(window, gtk::gdk::Key::M, toggle);
-                settle();
-                assert_eq!(manager.tenxer_mode(), expected, "one toggle per press");
-            }
         },
     );
 }

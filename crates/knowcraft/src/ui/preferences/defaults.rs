@@ -24,7 +24,6 @@ impl Default for Preferences {
             search_entry_limit: default_search_entry_limit(),
             type_to_search: true,
             arrow_navigation_scoped: false,
-            tenxer_mode: false,
             filter_include_subfolders: true,
             show_keybinding_hints: true,
             window_show_close: true,

@@ -429,16 +429,13 @@ impl ListMotion {
     }
 
     fn the_filesystem_root_stays_put(&self) {
-        let preferences = PreferenceManager::shared();
-        preferences.set_tenxer_mode(false);
         assert!(
             self.fixture.view.columns_mirror_selection_enabled(),
-            "turning the mode off restores saved column mirroring"
+            "the saved column mirroring stays enabled"
         );
 
         self.browser.navigate(Location::local("/"));
         wait_loaded(&self.browser, 0);
-        preferences.set_tenxer_mode(true);
         focus_files(&self.fixture);
         let filesystem_root = self.browser.active_location();
         self.press(Key::h);
@@ -453,20 +450,16 @@ impl ListMotion {
         );
     }
 
-    fn default_chords_return_when_the_mode_is_off(&self) {
+    fn chords_reach_the_listing(&self) {
         let fixture = &self.fixture;
-        PreferenceManager::shared().set_tenxer_mode(false);
         self.browser.navigate(Location::local(&self.root));
         wait_loaded(&self.browser, 0);
         fixture.view.set_view_mode(BrowserMode::List);
         focus_files(fixture);
-        let before_duplicate = directory_names(&self.root);
-        self.press_with(Key::d, CONTROL);
-        wait_until(|| directory_names(&self.root).len() > before_duplicate.len());
         self.press_with(Key::f, CONTROL);
         assert!(
             fixture.view.filter_has_focus(),
-            "Ctrl+F filters when the mode is off"
+            "Ctrl+F filters from the listing"
         );
         assert!(fixture.press(Key::Escape, NONE));
         assert!(fixture.sidebar_toggle.is_active());
@@ -475,12 +468,11 @@ impl ListMotion {
         self.press_with(Key::n, CONTROL);
         assert!(
             !fixture.sidebar_toggle.is_active(),
-            "Ctrl+N toggles only in 10xer mode"
+            "Ctrl+N has no listing binding"
         );
     }
 
     fn only_o_and_enter_launch_a_file(&self) {
-        PreferenceManager::shared().set_tenxer_mode(true);
         focus_files(&self.fixture);
         move_to_named(&self.fixture, &self.browser, "a.txt");
         let opened = Rc::new(RefCell::new(Vec::new()));
@@ -515,9 +507,9 @@ impl ListMotion {
 }
 
 #[test]
-fn tenxer_list_and_columns_move_enter_and_traverse_history() {
+fn list_and_columns_move_enter_and_traverse_history() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::list_motion::tenxer_list_and_columns_move_enter_and_traverse_history",
+        "ui::window::tests::keyboard_dispatch::list_motion::list_and_columns_move_enter_and_traverse_history",
         || {
             let motion = ListMotion::new();
             motion.jk_arrows_and_g_move_the_cursor();
@@ -537,7 +529,7 @@ fn tenxer_list_and_columns_move_enter_and_traverse_history() {
             motion.an_empty_child_column_opens_nothing_further();
             motion.shift_h_closes_and_l_reopens_the_column();
             motion.the_filesystem_root_stays_put();
-            motion.default_chords_return_when_the_mode_is_off();
+            motion.chords_reach_the_listing();
             motion.only_o_and_enter_launch_a_file();
         },
     );

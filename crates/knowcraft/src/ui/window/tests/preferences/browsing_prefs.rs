@@ -26,7 +26,7 @@ fn browsing_preferences_stay_saved_but_unused_until_exit() {
                 filter_buttons(&open)
                     .iter()
                     .any(|button| button.is_active()),
-                "type to search filters before 10xer is enabled"
+                "type to search filters the listing"
             );
             for button in filter_buttons(&open) {
                 if button.is_active() {
@@ -44,22 +44,6 @@ fn browsing_preferences_stay_saved_but_unused_until_exit() {
                 let switch = switch_named(open.content.overlay(), title);
                 assert!(switch.is_active() && switch.is_sensitive());
             }
-            manager.set_tenxer_mode(true);
-            settle();
-            assert!(manager.type_to_search());
-            assert!(manager.arrow_navigation_scoped());
-            assert!(
-                open.content.browser.columns_mirror_selection_enabled(),
-                "10xer Columns keep saved mirroring"
-            );
-            for title in [
-                "Type to search",
-                "Keep arrows in file list",
-                "Include subfolders",
-            ] {
-                let switch = switch_named(open.content.overlay(), title);
-                assert!(switch.is_active() && switch.is_sensitive());
-            }
             let type_to_search = switch_named(open.content.overlay(), "Type to search");
             type_to_search.set_active(false);
             settle();
@@ -67,27 +51,6 @@ fn browsing_preferences_stay_saved_but_unused_until_exit() {
             type_to_search.set_active(true);
             settle();
             assert!(manager.type_to_search());
-            close_settings(&open);
-            open.content.browser.browser().focus_active();
-            wait_until(|| open.content.browser.item_view_has_focus());
-            press(
-                &open.window,
-                gtk::gdk::Key::x,
-                gtk::gdk::ModifierType::empty(),
-            );
-            settle();
-            assert!(
-                filter_buttons(&open)
-                    .iter()
-                    .all(|button| !button.is_active()),
-                "typing does not filter while 10xer is on"
-            );
-            manager.set_tenxer_mode(false);
-            settle();
-            assert!(manager.type_to_search());
-            assert!(open.content.browser.columns_mirror_selection_enabled());
-            open.content.settings_button().emit_clicked();
-            settle();
             close_settings(&open);
             open.content.browser.set_view_mode(BrowserMode::Columns);
             wait_until(|| !column_loading(&open, 0));
@@ -103,7 +66,7 @@ fn browsing_preferences_stay_saved_but_unused_until_exit() {
                 filter_buttons(&open)
                     .iter()
                     .any(|button| button.is_active()),
-                "type to search filters again after leaving 10xer"
+                "type to search filters again after reopening settings"
             );
             drop(directory);
         },

@@ -91,23 +91,6 @@ impl PreferenceManager {
         self.save_preferences();
     }
 
-    pub fn tenxer_mode(&self) -> bool {
-        self.preferences.borrow().tenxer_mode
-    }
-
-    pub fn set_tenxer_mode(&self, enabled: bool) {
-        self.preferences.borrow_mut().tenxer_mode = enabled;
-        self.save_preferences();
-    }
-
-    pub fn type_to_search_active(&self) -> bool {
-        self.type_to_search() && !self.tenxer_mode()
-    }
-
-    pub fn arrow_navigation_scoped_active(&self) -> bool {
-        self.tenxer_mode() || self.arrow_navigation_scoped()
-    }
-
     pub fn show_keybinding_hints(&self) -> bool {
         self.preferences.borrow().show_keybinding_hints
     }

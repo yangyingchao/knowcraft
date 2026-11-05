@@ -66,19 +66,18 @@ pub(super) fn type_and_submit(fixture: &KeyboardFixture, prompt: Key, text: &str
     assert_eq!(fixture.shortcuts.open_prompt_kind(), None);
 }
 
-pub(super) fn enable_tenxer(fixture: &KeyboardFixture) -> Rc<PreferenceManager> {
+pub(super) fn enable_prompts(fixture: &KeyboardFixture) -> Rc<PreferenceManager> {
     let preferences = PreferenceManager::shared();
     fixture.shortcuts.bind_preferences(&preferences);
-    preferences.set_tenxer_mode(true);
     pump(50);
     preferences
 }
 
-/// A seeded fixture in 10xer mode whose filter stays in the open folder.
-fn tenxer_filter_fixture() -> (KeyboardFixture, Rc<PreferenceManager>) {
+/// A seeded fixture whose filter stays in the open folder.
+fn filter_fixture() -> (KeyboardFixture, Rc<PreferenceManager>) {
     let fixture = KeyboardFixture::new();
     seed_filter_tree(&fixture);
-    let preferences = enable_tenxer(&fixture);
+    let preferences = enable_prompts(&fixture);
     preferences.set_filter_include_subfolders(false);
     (fixture, preferences)
 }
@@ -137,21 +136,6 @@ pub(super) fn selected_result_names(fixture: &KeyboardFixture) -> Vec<String> {
         .collect();
     names.sort();
     names
-}
-
-fn revealed_filter_funnels(widget: &gtk::Widget) -> usize {
-    let own = widget
-        .downcast_ref::<gtk::Revealer>()
-        .is_some_and(|revealer| {
-            revealer.has_css_class("tenxer-filter-revealer") && revealer.reveals_child()
-        });
-    let mut count = usize::from(own);
-    let mut child = widget.first_child();
-    while let Some(current) = child {
-        count += revealed_filter_funnels(&current);
-        child = current.next_sibling();
-    }
-    count
 }
 
 pub(super) fn commit_filter(fixture: &KeyboardFixture, text: &str) {

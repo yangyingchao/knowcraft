@@ -40,10 +40,9 @@ fn seed_history(fixture: &KeyboardFixture) -> Places {
     places
 }
 
-fn enable_tenxer(fixture: &KeyboardFixture) {
+fn enable_prompts(fixture: &KeyboardFixture) {
     let preferences = PreferenceManager::shared();
     fixture.shortcuts.bind_preferences(&preferences);
-    preferences.set_tenxer_mode(true);
     pump(50);
 }
 
@@ -69,12 +68,12 @@ fn assert_closed_without_candidates(fixture: &KeyboardFixture) {
 }
 
 #[test]
-fn tenxer_z_ranks_history_and_opens_the_chosen_folder_once() {
+fn z_ranks_history_and_opens_the_chosen_folder_once() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::folder_jump::tenxer_z_ranks_history_and_opens_the_chosen_folder_once",
+        "ui::window::tests::keyboard_dispatch::folder_jump::z_ranks_history_and_opens_the_chosen_folder_once",
         || {
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let places = seed_history(&fixture);
             let browser = fixture.view.browser();
             let origin = browser.active_location();
@@ -178,12 +177,12 @@ fn tenxer_z_ranks_history_and_opens_the_chosen_folder_once() {
 }
 
 #[test]
-fn tenxer_history_prompts_end_without_opening_the_chosen_folder() {
+fn history_prompts_end_without_opening_the_chosen_folder() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::folder_jump::tenxer_history_prompts_end_without_opening_the_chosen_folder",
+        "ui::window::tests::keyboard_dispatch::folder_jump::history_prompts_end_without_opening_the_chosen_folder",
         || {
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let places = seed_history(&fixture);
             let browser = fixture.view.browser();
             let origin = browser.active_location();
@@ -201,14 +200,8 @@ fn tenxer_history_prompts_end_without_opening_the_chosen_folder() {
 
             open(&fixture, Key::z);
             press(&fixture, Key::Down);
-            PreferenceManager::shared().set_tenxer_mode(false);
-            pump(50);
-            assert_closed_without_candidates(&fixture);
-            pump(50);
-            assert_eq!(browser.active_location(), origin);
+            press(&fixture, Key::Escape);
 
-            PreferenceManager::shared().set_tenxer_mode(true);
-            pump(50);
             open(&fixture, Key::z);
             fixture.shortcuts.click_candidate(2);
             assert_closed_without_candidates(&fixture);

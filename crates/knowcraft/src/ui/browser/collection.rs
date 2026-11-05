@@ -262,7 +262,7 @@ pub(crate) fn restore_filter_controls(
         entry.set_text("");
         return;
     }
-    // A 10xer footer filter never revealed the funnel, so a rebuild keeps it hidden.
+    // A footer filter never revealed the funnel, so a rebuild keeps it hidden.
     button.set_active(filter.revealed);
     entry.set_text(&filter.query);
 }

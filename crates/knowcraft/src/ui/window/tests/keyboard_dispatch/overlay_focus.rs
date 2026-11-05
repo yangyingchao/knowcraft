@@ -13,7 +13,6 @@ struct ComposedFolder {
 impl ComposedFolder {
     fn open() -> Self {
         PreferenceManager::seed_saved_preferences_for_test();
-        PreferenceManager::shared().set_tenxer_mode(false);
         crate::storage::writer::settle();
         let (window, content) = composed_window();
         let directory = tempfile::tempdir().expect("overlay folder");

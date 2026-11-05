@@ -175,11 +175,11 @@ fn enter_opens_the_hit_and_ends_the_search(fixture: &KeyboardFixture, mode: Brow
 }
 
 #[test]
-fn tenxer_search_covers_the_current_tree_and_restores_the_filter() {
+fn search_covers_the_current_tree_and_restores_the_filter() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::footer_prompt::search::tenxer_search_covers_the_current_tree_and_restores_the_filter",
+        "ui::window::tests::keyboard_dispatch::footer_prompt::search::search_covers_the_current_tree_and_restores_the_filter",
         || {
-            let (fixture, preferences) = tenxer_filter_fixture();
+            let (fixture, preferences) = filter_fixture();
             let browser = fixture.view.browser();
 
             for mode in ALL_MODES {
@@ -201,9 +201,9 @@ fn tenxer_search_covers_the_current_tree_and_restores_the_filter() {
 }
 
 #[test]
-fn tenxer_search_caps_hits_and_retires_stale_queries() {
+fn search_caps_hits_and_retires_stale_queries() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::footer_prompt::search::tenxer_search_caps_hits_and_retires_stale_queries",
+        "ui::window::tests::keyboard_dispatch::footer_prompt::search::search_caps_hits_and_retires_stale_queries",
         || {
             let fixture = KeyboardFixture::new();
             seed_filter_tree(&fixture);
@@ -216,7 +216,7 @@ fn tenxer_search_caps_hits_and_retires_stale_queries() {
             let browser = fixture.view.browser();
             fixture.view.refresh();
             wait_loaded(&browser, 0);
-            let preferences = enable_tenxer(&fixture);
+            let preferences = enable_prompts(&fixture);
             preferences.set_filter_include_subfolders(false);
             let none = ModifierType::empty();
 
@@ -267,13 +267,13 @@ fn rebuild_keeps_search(first: &KeyboardFixture, mode: BrowserMode) {
 }
 
 #[test]
-fn tenxer_search_survives_view_rebuilds_and_ends_with_the_mode() {
+fn search_survives_view_rebuilds() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::footer_prompt::search::tenxer_search_survives_view_rebuilds_and_ends_with_the_mode",
+        "ui::window::tests::keyboard_dispatch::footer_prompt::search::search_survives_view_rebuilds_and_ends_with_the_mode",
         || {
             let first = KeyboardFixture::new();
             let second = KeyboardFixture::new();
-            let preferences = enable_tenxer(&first);
+            let preferences = enable_prompts(&first);
             second.shortcuts.bind_preferences(&preferences);
             preferences.set_filter_include_subfolders(false);
             for fixture in [&first, &second] {
@@ -298,14 +298,6 @@ fn tenxer_search_survives_view_rebuilds_and_ends_with_the_mode() {
             commit_search(&first, "report");
             wait_results(&first, &ALL_REPORTS);
 
-            preferences.set_tenxer_mode(false);
-            pump(50);
-            for fixture in [&first, &second] {
-                wait_until(|| fixture.view.selected_search_results().is_none());
-                assert!(!fixture.view.listing_search_active());
-                assert_eq!(fixture.view.listing_filter(), None);
-                wait_until(|| fixture.shortcuts.filter_mark().is_none());
-            }
             assert!(!preferences.filter_include_subfolders());
         },
     );
@@ -394,11 +386,11 @@ fn assert_search_survived(fixture: &KeyboardFixture, case: RenamedFolder) {
 }
 
 #[test]
-fn tenxer_search_ends_only_when_an_outside_rename_moves_its_folder() {
+fn search_ends_only_when_an_outside_rename_moves_its_folder() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::footer_prompt::search::tenxer_search_ends_only_when_an_outside_rename_moves_its_folder",
+        "ui::window::tests::keyboard_dispatch::footer_prompt::search::search_ends_only_when_an_outside_rename_moves_its_folder",
         || {
-            let (fixture, _preferences) = tenxer_filter_fixture();
+            let (fixture, _preferences) = filter_fixture();
             let root = fixture._directory.path().to_path_buf();
 
             // The root search runs first, before the other cases add folders below it.
@@ -448,11 +440,11 @@ fn go_hit_folder_reveals(
 }
 
 #[test]
-fn tenxer_go_hit_folder_reveals_the_cursor_hit() {
+fn go_hit_folder_reveals_the_cursor_hit() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::footer_prompt::search::tenxer_go_hit_folder_reveals_the_cursor_hit",
+        "ui::window::tests::keyboard_dispatch::footer_prompt::search::go_hit_folder_reveals_the_cursor_hit",
         || {
-            let (fixture, _preferences) = tenxer_filter_fixture();
+            let (fixture, _preferences) = filter_fixture();
             let browser = fixture.view.browser();
 
             for mode in [BrowserMode::Icons, BrowserMode::Columns, BrowserMode::List] {

@@ -465,7 +465,7 @@ impl Dispatcher {
     fn arrows_scoped_to_content(&self) -> bool {
         self.type_to_search
             .preferences
-            .arrow_navigation_scoped_active()
+            .arrow_navigation_scoped()
     }
 
     fn enter_sidebar(&self, event: &KeyEvent) {

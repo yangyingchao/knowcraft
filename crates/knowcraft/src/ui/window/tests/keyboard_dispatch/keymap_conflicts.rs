@@ -166,7 +166,6 @@ impl Window {
         .expect("clip");
         let preferences = PreferenceManager::shared();
         fixture.shortcuts.bind_preferences(&preferences);
-        preferences.set_tenxer_mode(false);
         pump(50);
         preferences.set_type_to_search(false);
         preferences.set_group_by_type(false);
@@ -426,8 +425,7 @@ fn tab_strip_order_matches_the_conflict_check() {
         "ui::window::tests::keyboard_dispatch::keymap_conflicts::tab_strip_order_matches_the_conflict_check",
         || {
             let preferences = PreferenceManager::shared();
-            preferences.set_tenxer_mode(false);
-            let application =
+                let application =
                 gtk::Application::new(None::<&str>, gtk::gio::ApplicationFlags::NON_UNIQUE);
             application
                 .register(None::<&gtk::gio::Cancellable>)

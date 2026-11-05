@@ -52,7 +52,7 @@ pub(crate) enum Kind {
     /// count only against steps of their group and the keys an armed chord
     /// reads before its steps.
     Duplicate(Command),
-    /// A top-level key equal to a 10xer chord trigger, so one of them never
+    /// A top-level key equal to a chord group's trigger, so one of them never
     /// acts.
     ShadowsChordGroup(Group),
     /// A Sort step with Shift, which reverses a step.
@@ -354,7 +354,7 @@ pub(crate) fn duplicate_outcome(
 /// Where a command's bindings are matched.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Place {
-    /// Only while its 10xer chord is armed.
+    /// Only while its chord is armed.
     Step(Group),
     Top(Scope),
     /// A chord trigger in the default map, which has no chords.

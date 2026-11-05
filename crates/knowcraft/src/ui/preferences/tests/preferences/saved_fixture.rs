@@ -50,12 +50,11 @@ fn assert_saved_keyboard_and_window(manager: &PreferenceManager) {
         [
             manager.type_to_search(),
             manager.arrow_navigation_scoped(),
-            manager.tenxer_mode(),
             manager.filter_include_subfolders(),
             manager.show_keybinding_hints(),
         ],
-        [false, true, true, false, false],
-        "(type to search, scoped arrows, tenxer mode, filter subfolders, keybinding hints)"
+        [false, true, false, false],
+        "(type to search, scoped arrows, filter subfolders, keybinding hints)"
     );
     assert_eq!(
         [

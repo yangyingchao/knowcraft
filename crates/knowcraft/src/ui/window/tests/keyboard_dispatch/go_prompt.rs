@@ -68,12 +68,12 @@ impl FileSource for InertUris {
 }
 
 #[test]
-fn tenxer_go_works_after_dialog_close_and_chained_confirmation() {
+fn go_works_after_dialog_close_and_chained_confirmation() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::go_prompt::tenxer_go_works_after_dialog_close_and_chained_confirmation",
+        "ui::window::tests::keyboard_dispatch::go_prompt::go_works_after_dialog_close_and_chained_confirmation",
         || {
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             install_modal_focus_trap(&fixture.window);
             let row = sidebar_button(crate::assets::icons::HARD_DRIVE, "Drive");
             fixture.sidebar.state.places_for_test().append(&row);
@@ -148,10 +148,9 @@ fn tenxer_go_works_after_dialog_close_and_chained_confirmation() {
     );
 }
 
-fn enable_tenxer(fixture: &KeyboardFixture) {
+fn enable_prompts(fixture: &KeyboardFixture) {
     let preferences = PreferenceManager::shared();
     fixture.shortcuts.bind_preferences(&preferences);
-    preferences.set_tenxer_mode(true);
     pump(50);
 }
 
@@ -210,12 +209,12 @@ fn undo(fixture: &KeyboardFixture) {
 }
 
 #[test]
-fn tenxer_g_space_opens_go_and_submits_typed_paths() {
+fn g_space_opens_go_and_submits_typed_paths() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::go_prompt::tenxer_g_space_opens_go_and_submits_typed_paths",
+        "ui::window::tests::keyboard_dispatch::go_prompt::g_space_opens_go_and_submits_typed_paths",
         || {
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let root = seed_folders(&fixture, &["nested", "ghosts"]);
             std::fs::write(root.join("hosts"), b"hosts").expect("fixture file");
             let browser = fixture.view.browser();
@@ -318,12 +317,12 @@ fn tenxer_g_space_opens_go_and_submits_typed_paths() {
 }
 
 #[test]
-fn tenxer_go_clears_typed_text_on_every_dismissal() {
+fn go_clears_typed_text_on_every_dismissal() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::go_prompt::tenxer_go_clears_typed_text_on_every_dismissal",
+        "ui::window::tests::keyboard_dispatch::go_prompt::go_clears_typed_text_on_every_dismissal",
         || {
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let browser = fixture.view.browser();
             let origin = browser.active_location();
             let secret = "sftp://user:hunter2@inert.invalid/srv";
@@ -379,7 +378,6 @@ fn tenxer_go_clears_typed_text_on_every_dismissal() {
 
             open_go(&fixture);
             type_text(&fixture, secret);
-            PreferenceManager::shared().set_tenxer_mode(false);
             pump(50);
             assert_eq!(fixture.shortcuts.open_prompt_kind(), None);
             assert!(
@@ -393,16 +391,16 @@ fn tenxer_go_clears_typed_text_on_every_dismissal() {
 }
 
 #[test]
-fn tenxer_go_submits_uris_unchanged_and_never_probes_them_first() {
+fn go_submits_uris_unchanged_and_never_probes_them_first() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::go_prompt::tenxer_go_submits_uris_unchanged_and_never_probes_them_first",
+        "ui::window::tests::keyboard_dispatch::go_prompt::go_submits_uris_unchanged_and_never_probes_them_first",
         || {
             let source = Rc::new(InertUris::default());
             let validated = source.validated.clone();
             let fixture = KeyboardFixture::with_parts(Rc::new(TextPreview), || {
                 BrowserView::new(source, crate::ui::browser::PeekBehavior::default())
             });
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let browser = fixture.view.browser();
             let origin = browser.active_location();
             let uri = "sftp://user:hunter2@inert.invalid/srv/with/slashes";
@@ -440,14 +438,14 @@ fn tenxer_go_submits_uris_unchanged_and_never_probes_them_first() {
 }
 
 #[test]
-fn tenxer_go_lists_matching_folders_and_tab_fills_the_chosen_one() {
+fn go_lists_matching_folders_and_tab_fills_the_chosen_one() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::go_prompt::tenxer_go_lists_matching_folders_and_tab_fills_the_chosen_one",
+        "ui::window::tests::keyboard_dispatch::go_prompt::go_lists_matching_folders_and_tab_fills_the_chosen_one",
         || {
             let home = PathBuf::from(std::env::var_os("HOME").expect("isolated HOME"));
             std::fs::create_dir_all(home.join("Projects")).expect("home folder");
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let root = seed_folders(&fixture, &["alpha", "beta", ".alcove"]);
             std::fs::create_dir(root.join("alpha/inner")).expect("nested folder");
             std::fs::write(root.join("alpine.txt"), b"file").expect("fixture file");

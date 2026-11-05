@@ -22,8 +22,8 @@ pub(crate) enum Map {
 }
 
 impl Map {
-    /// The map the preferences select now, read at each press. The tenxer
-    /// keymap is gone, so this is always the default map.
+    /// The single keymap every press reads; kept as a type so bindings and
+    /// labels stay map-qualified.
     pub(crate) fn active() -> Self {
         Self::Default
     }

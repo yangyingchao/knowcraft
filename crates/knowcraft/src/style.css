@@ -3631,30 +3631,6 @@ entry.preview-command-entry selection {
   color: @knowcraft_accent;
 }
 
-.tenxer-splash {
-  opacity: 0;
-  transform: translateY(16px) scale(0.88);
-  transition: opacity 220ms ease-out, transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
-  border: 1px solid alpha(@knowcraft_accent, 0.65);
-  box-shadow: 0 0 36px alpha(@knowcraft_glow, 0.4);
-}
-
-.tenxer-splash.tenxer-splash-visible {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-
-.tenxer-splash.tenxer-splash-exiting {
-  opacity: 0;
-  transform: translateY(-8px) scale(1);
-  transition: opacity 300ms ease-in, transform 300ms ease-in;
-}
-
-.tenxer-splash.tenxer-splash-static {
-  transform: none;
-  transition: none;
-}
-
 .shortcut-footer {
   background: @knowcraft_surface;
   color: @knowcraft_text;
@@ -3666,7 +3642,6 @@ entry.preview-command-entry selection {
 }
 
 .shortcut-footer-count,
-.tenxer-experimental,
 .shortcut-footer-chord,
 .shortcut-footer-feedback {
   color: @knowcraft_text;
@@ -3709,7 +3684,6 @@ entry.form-control.shortcut-footer-prompt:focus-within {
   outline: none;
 }
 
-.tenxer-tag,
 .shortcut-footer-chord-pill,
 .shortcut-footer-paste {
   color: @knowcraft_accent;
@@ -3911,11 +3885,6 @@ button.shortcut-footer-button:disabled {
 .shortcut-reference-scroll:focus,
 .shortcut-reference-scroll:focus-visible {
   background: alpha(@knowcraft_accent, 0.06);
-}
-
-.shortcut-reference-panel.tenxer-active scrolledwindow:focus,
-.shortcut-reference-panel.tenxer-active scrolledwindow:focus-visible {
-  outline: none;
 }
 
 .columns {

@@ -43,7 +43,7 @@ pub(super) fn build_chooser_hosted(
     footer.set_chooser(chooser_reference(&request.kind));
 
     let details = ChooserDetails::build(&request, &filters, selected_filter, &source, &view);
-    let actions = ChooserActions::build(&request, &theme);
+    let actions = ChooserActions::build(&request);
     let details_scroll = details_scroll(&details, &request, &filters);
     let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
     root.append(&header.bar);
@@ -104,7 +104,6 @@ pub(super) fn build_chooser_hosted(
             sidebar: &panes.sidebar,
             sidebar_toggle: header.sidebar_toggle.upcast_ref(),
             header: &header.content,
-            options: &details.options,
             preview: &preview,
             footer: &footer,
         },
@@ -340,7 +339,6 @@ fn preview_split(content: &gtk::Paned, preview: &PreviewDrawer) -> gtk::Paned {
 struct ChooserDetails {
     details: gtk::Box,
     filename: Option<gtk::Entry>,
-    options: gtk::FlowBox,
     filter_dropdown: Option<ChooserDropdown>,
     choices: Vec<ChoiceControl>,
     read_only: Option<gtk::CheckButton>,
@@ -377,7 +375,6 @@ impl ChooserDetails {
         Self {
             details,
             filename,
-            options,
             filter_dropdown,
             choices,
             read_only,
@@ -476,7 +473,7 @@ struct ChooserActions {
 }
 
 impl ChooserActions {
-    fn build(request: &ChooserRequest, theme: &Rc<PreferenceManager>) -> Self {
+    fn build(request: &ChooserRequest) -> Self {
         let error = gtk::Label::builder()
             .accessible_role(gtk::AccessibleRole::Alert)
             .xalign(0.0)
@@ -508,9 +505,6 @@ impl ChooserActions {
         download_holder.set_visible(false);
         let normal_status = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         normal_status.append(&download_holder);
-        if let Some(hints) = save_hints(&request.kind, theme) {
-            normal_status.append(&hints);
-        }
         let action_status = gtk::Stack::builder()
             .hexpand(true)
             .hhomogeneous(false)
@@ -760,50 +754,6 @@ pub(super) fn apply_external_parent(window: &gtk::Window, parent: Option<&Window
     }
 }
 
-pub(super) fn save_hints(
-    kind: &ChooserKind,
-    preferences: &Rc<PreferenceManager>,
-) -> Option<gtk::Box> {
-    use crate::ui::keys::{
-        self, Keys, Shown,
-        bindings::{ENTER, RENAME},
-    };
-    let hints: &[(Shown, &str)] = match kind {
-        ChooserKind::SaveFile { .. } => &[
-            (ENTER.shown(), "Save here"),
-            (RENAME.alternate(0).shown(), "Edit name"),
-        ],
-        ChooserKind::SaveFiles { .. } => &[(ENTER.shown(), "Save here")],
-        ChooserKind::Open { .. } => return None,
-    };
-    let row = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    row.add_css_class("chooser-save-hints");
-    row.set_valign(gtk::Align::Center);
-    for (index, (binding, action)) in hints.iter().enumerate() {
-        let keycap = gtk::Label::new(None);
-        let shown = *binding;
-        crate::ui::shortcut_reference::follow_keys(&keycap, move |keycap| {
-            keycap.set_text(&keys::label_in_map(
-                &rust_i18n::locale(),
-                &Keys::One(shown),
-                Map::Default,
-            ));
-        });
-        keycap.add_css_class("sidebar-keycap");
-        if index > 0 {
-            keycap.set_margin_start(10);
-        }
-        let label = gtk::Label::new(Some(&crate::i18n::tr(action)));
-        label.add_css_class("shortcut-footer-chord-hint");
-        row.append(&keycap);
-        row.append(&label);
-    }
-    preferences.bind_preference(&row, PreferenceManager::tenxer_mode, |row, enabled| {
-        row.set_visible(enabled)
-    });
-    Some(row)
-}
-
 pub(super) fn chooser_reference(kind: &ChooserKind) -> crate::ui::shortcut_reference::ChooserScope {
     use crate::ui::shortcut_reference::{ChooserRequest, ChooserScope};
     let (request, multiple) = match kind {
@@ -833,11 +783,8 @@ pub(super) fn chooser_footer(
     let holder = gtk::Box::new(gtk::Orientation::Vertical, 0);
     holder.add_css_class("chooser-footer");
     holder.append(footer.widget());
-    preferences.bind_preference(
-        &holder,
-        PreferenceManager::tenxer_mode,
-        |holder, enabled| holder.set_visible(enabled),
-    );
+    // chooser 不显示快捷键页脚；页脚实例仍承载按键处理所需的提示与反馈状态。
+    holder.set_visible(false);
     (footer, holder)
 }
 

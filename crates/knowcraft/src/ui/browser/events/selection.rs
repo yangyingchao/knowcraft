@@ -189,7 +189,7 @@ impl ViewState {
     }
 
     /// A filtered or still-validating column must not mirror: opening or closing the
-    /// child column would end a 10xer range, and the validating folder takes the focus itself.
+    /// child column would end a selection range, and the validating folder takes the focus itself.
     fn child_mirror_blocked_at(&self, depth: usize, force: bool) -> bool {
         let filtered = self
             .columns

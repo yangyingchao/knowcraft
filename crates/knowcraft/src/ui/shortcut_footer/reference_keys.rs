@@ -142,7 +142,7 @@ impl ShortcutFooter {
         Some(self.handle_reference_key(press))
     }
 
-    /// A key that types, as 10xer's ~ does, toggles only where it would not type.
+    /// A key that types toggles the reference only where it would not type.
     fn press_toggles_reference(&self, press: &KeyPress, reference_open: bool) -> bool {
         if press.text().is_some() {
             self.typed_key_toggles(press, reference_open)

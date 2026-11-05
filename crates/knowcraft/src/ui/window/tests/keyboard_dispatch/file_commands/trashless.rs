@@ -104,7 +104,6 @@ fn modal_text_contains(fixture: &KeyboardFixture, text: &str) -> bool {
 #[derive(Clone, Copy)]
 struct TrashlessDelete {
     read_only: bool,
-    tenxer: bool,
     key: Key,
 }
 
@@ -137,7 +136,7 @@ fn without_trash_cancel_is_focused_and_enter_cancels(
     held: &HeldOperations,
     case: TrashlessDelete,
 ) {
-    let TrashlessDelete { tenxer, key, .. } = case;
+    let TrashlessDelete { key, .. } = case;
     assert_eq!(
         (
             held.delete_requests.borrow().len(),
@@ -146,7 +145,7 @@ fn without_trash_cancel_is_focused_and_enter_cancels(
             modal_text_contains(fixture, "doesn't support Trash"),
         ),
         (0, true, false, true),
-        "{:?} (tenxer: {tenxer}): (delete requests started, dialog open, \
+        "{:?}: (delete requests started, dialog open, \
          is the Move to Trash dialog, explains missing Trash)",
         key.name()
     );
@@ -157,12 +156,10 @@ fn without_trash_cancel_is_focused_and_enter_cancels(
         Some("Cancel".into()),
         "the size summary must not move focus to Permanently delete"
     );
-    if tenxer {
-        modal_key(fixture, Key::d);
-        pump(100);
-        assert!(modal_visible(&fixture.overlay), "d never confirms it");
-        assert!(held.delete_requests.borrow().is_empty());
-    }
+    modal_key(fixture, Key::d);
+    pump(100);
+    assert!(modal_visible(&fixture.overlay), "d never confirms it");
+    assert!(held.delete_requests.borrow().is_empty());
     assert!(modal_key(fixture, Key::Return));
     wait_until(|| !modal_visible(&fixture.overlay));
     assert!(
@@ -207,9 +204,6 @@ fn delete_without_trash_case(case: TrashlessDelete) {
         (Some(false), Some(!case.read_only)),
         "precondition"
     );
-    if case.tenxer {
-        enable_tenxer(&fixture);
-    }
     press_delete_on_a(&fixture, case.key);
     pump(100);
     if case.read_only {
@@ -225,17 +219,12 @@ fn delete_without_trash_support_confirms_permanently_with_cancel_focused() {
     crate::test_support::gtk_test(
         "ui::window::tests::keyboard_dispatch::file_commands::trashless::delete_without_trash_support_confirms_permanently_with_cancel_focused",
         || {
-            for (read_only, tenxer, key) in [
-                (false, false, Key::Delete),
-                (false, true, Key::d),
-                (false, true, Key::Delete),
-                (true, false, Key::Delete),
+            for (read_only, key) in [
+                (false, Key::Delete),
+                (false, Key::d),
+                (true, Key::Delete),
             ] {
-                delete_without_trash_case(TrashlessDelete {
-                    read_only,
-                    tenxer,
-                    key,
-                });
+                delete_without_trash_case(TrashlessDelete { read_only, key });
             }
         },
     );

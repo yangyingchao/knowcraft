@@ -100,8 +100,7 @@ fn type_pending_create(fixture: &KeyboardFixture, name: &str) {
     fixture.shortcuts.prompt().set_text(name);
 }
 
-/// Escape, a row click, another prompt, and leaving tenxer mode all discard a
-/// typed name.
+/// Escape, a row click, and another prompt all discard a typed name.
 fn discarded_prompts_create_nothing(fixture: &KeyboardFixture, directory: &Path) {
     let names = directory_names(directory);
     type_pending_create(fixture, "escaped.txt");
@@ -114,10 +113,6 @@ fn discarded_prompts_create_nothing(fixture: &KeyboardFixture, directory: &Path)
     assert!(fixture.shortcuts.prompt().text().is_empty());
     type_pending_create(fixture, "replaced.txt");
     plain(fixture, Key::Escape);
-    type_pending_create(fixture, "mode-exit.txt");
-    PreferenceManager::shared().set_tenxer_mode(false);
-    pump(50);
-    assert_eq!(fixture.shortcuts.open_prompt_kind(), None);
     pump(200);
     assert_eq!(
         directory_names(directory),
@@ -127,12 +122,12 @@ fn discarded_prompts_create_nothing(fixture: &KeyboardFixture, directory: &Path)
 }
 
 #[test]
-fn tenxer_create_prompt_makes_exact_files_and_folders() {
+fn create_prompt_makes_exact_files_and_folders() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::file_commands::create::tenxer_create_prompt_makes_exact_files_and_folders",
+        "ui::window::tests::keyboard_dispatch::file_commands::create::create_prompt_makes_exact_files_and_folders",
         || {
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let directory = fixture._directory.path().to_path_buf();
 
             creates_exact_names(&fixture, &directory);

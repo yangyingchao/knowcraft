@@ -89,7 +89,6 @@ impl IconMotion {
     fn new() -> Self {
         let fixture = KeyboardFixture::new();
         let preferences = PreferenceManager::shared();
-        preferences.set_tenxer_mode(true);
         preferences.set_folder_peeking(false);
         preferences.set_single_click_previews(true);
         let browser = fixture.view.browser();
@@ -498,7 +497,6 @@ impl IconMotion {
         focus_files(fixture);
         let cursor = depth_and_position(&self.browser);
         preferences.set_filter_include_subfolders(true);
-        preferences.set_tenxer_mode(false);
         assert!(fixture.view.show_filter_with_query("tile"));
         self.focus_recursive_search_hits();
         assert_eq!(
@@ -507,7 +505,6 @@ impl IconMotion {
             "focusing search results moved the hidden directory cursor"
         );
         let start = fixture.view.selected_search_result().expect("search hit");
-        preferences.set_tenxer_mode(true);
         let start_name = start.display_name.clone();
         let start_path = start.location.native_path().expect("search hit path");
         wait_until(|| fixture.view.focus_search_result(start_path));
@@ -528,9 +525,9 @@ impl IconMotion {
 }
 
 #[test]
-fn tenxer_icons_move_spatially_open_explicitly_and_peek() {
+fn icons_move_spatially_open_explicitly_and_peek() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::icon_motion::tenxer_icons_move_spatially_open_explicitly_and_peek",
+        "ui::window::tests::keyboard_dispatch::icon_motion::icons_move_spatially_open_explicitly_and_peek",
         || {
             let motion = IconMotion::new();
             motion.letter_arrow_and_keypad_aliases_land_together();

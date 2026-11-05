@@ -43,14 +43,14 @@ fn focus_left_the_list_container(fixture: &KeyboardFixture) -> bool {
 }
 
 #[test]
-fn tenxer_list_headings_follow_keyboard_sorting() {
+fn list_headings_follow_keyboard_sorting() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::file_verbs::sorting::tenxer_list_headings_follow_keyboard_sorting",
+        "ui::window::tests::keyboard_dispatch::file_verbs::sorting::list_headings_follow_keyboard_sorting",
         || {
             let fixture = KeyboardFixture::new();
             let directory = fixture._directory.path().to_path_buf();
             let sorting = seed_sorting(&directory);
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let browser = fixture.view.browser();
             browser.navigate(Location::local(&sorting));
             wait_until(|| browser.active_location() == Some(Location::local(&sorting)));
@@ -141,14 +141,14 @@ fn filter_hidden_toggles_stay_in_the_filter(fixture: &KeyboardFixture) {
 }
 
 #[test]
-fn tenxer_dot_toggles_hidden_files_in_every_window_and_filter() {
+fn dot_toggles_hidden_files_in_every_window_and_filter() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::file_verbs::sorting::tenxer_dot_toggles_hidden_files_in_every_window_and_filter",
+        "ui::window::tests::keyboard_dispatch::file_verbs::sorting::dot_toggles_hidden_files_in_every_window_and_filter",
         || {
             let fixture = KeyboardFixture::new();
             let directory = fixture._directory.path().to_path_buf();
             std::fs::write(directory.join(".secret.txt"), "hidden").expect("hidden file");
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let browser = fixture.view.browser();
             refresh(&fixture, ".secret.txt");
             let other = browser_for_window();

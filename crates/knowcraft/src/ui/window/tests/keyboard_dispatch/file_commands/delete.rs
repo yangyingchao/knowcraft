@@ -87,12 +87,12 @@ fn enter_confirms_permanent_deletion(fixture: &KeyboardFixture, directory: &Path
 }
 
 #[test]
-fn tenxer_delete_confirms_trash_and_permanent_deletion() {
+fn delete_confirms_trash_and_permanent_deletion() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::file_commands::delete::tenxer_delete_confirms_trash_and_permanent_deletion",
+        "ui::window::tests::keyboard_dispatch::file_commands::delete::delete_confirms_trash_and_permanent_deletion",
         || {
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let directory = fixture._directory.path().to_path_buf();
 
             trash_keys_wait_for_confirmation(&fixture, &directory);
@@ -199,12 +199,12 @@ fn closing_a_cancelled_folder_deletion_focuses_the_folder_row() {
 }
 
 #[test]
-fn tenxer_delete_targets_the_open_folder_when_the_child_selects_nothing() {
+fn delete_targets_the_open_folder_when_the_child_selects_nothing() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::file_commands::delete::tenxer_delete_targets_the_open_folder_when_the_child_selects_nothing",
+        "ui::window::tests::keyboard_dispatch::file_commands::delete::delete_targets_the_open_folder_when_the_child_selects_nothing",
         || {
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let directory = fixture._directory.path().to_path_buf();
             seed_folder(&fixture, "folder");
             activate_folder(&fixture, "folder");
@@ -257,12 +257,12 @@ fn empty_hits_delete_nothing(fixture: &KeyboardFixture, directory: &Path, search
 }
 
 #[test]
-fn tenxer_delete_with_no_search_or_filter_hits_preserves_the_open_folder() {
+fn delete_with_no_search_or_filter_hits_preserves_the_open_folder() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::file_commands::delete::tenxer_delete_with_no_search_or_filter_hits_preserves_the_open_folder",
+        "ui::window::tests::keyboard_dispatch::file_commands::delete::delete_with_no_search_or_filter_hits_preserves_the_open_folder",
         || {
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let directory = fixture._directory.path().to_path_buf();
             seed_folder(&fixture, "folder");
             enter_folder(&fixture, "folder");

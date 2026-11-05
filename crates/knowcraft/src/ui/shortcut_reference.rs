@@ -273,7 +273,7 @@ pub(crate) fn legend_markup(hints: &[(Keys, &str)]) -> String {
 pub(crate) enum ContextHint {
     None,
     Preview,
-    /// The file chooser previews with Space only; it has no 10xer `i` preview.
+    /// The file chooser previews with Space only.
     ChooserPreview,
     CopyPath,
     CopyPaths,
@@ -314,7 +314,7 @@ pub(crate) fn context_hint_for(
     hint: ContextHint,
     preferences: &super::preferences::PreferenceManager,
 ) -> Option<Keys> {
-    default_hint(hint, preferences.type_to_search_active())
+    default_hint(hint, preferences.type_to_search())
 }
 
 /// The binding a menu row's `accel` carries; only the first alternative fits.
@@ -570,8 +570,7 @@ const DEFAULT_FILES: &[Shortcut] = &[
     ),
 ];
 
-/// 10xer renames in the footer; the context menu still renames inline, and
-/// only there does Tab move the editor.
+/// The context menu renames inline, and only there does Tab move the editor.
 const DEFAULT_TOOLS: &[Shortcut] = &[
     row(One(SEARCH.shown()), "Open global search"),
     row(One(JUMP_TO_FOLDER.shown()), "Jump to a recent folder"),

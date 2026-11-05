@@ -35,9 +35,9 @@ fn assert_shared_handlers_recommended(sections: &Sections) {
 }
 
 #[test]
-fn tenxer_open_with_offers_shared_handlers_for_the_fill() {
+fn open_with_offers_shared_handlers_for_the_fill() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::file_verbs::open_with::tenxer_open_with_offers_shared_handlers_for_the_fill",
+        "ui::window::tests::keyboard_dispatch::file_verbs::open_with::open_with_offers_shared_handlers_for_the_fill",
         || {
             let output = glib::user_data_dir().join("received");
             // GIO indexes applications on first use.
@@ -51,7 +51,7 @@ fn tenxer_open_with_offers_shared_handlers_for_the_fill() {
             let fixture = KeyboardFixture::new();
             let directory = fixture._directory.path().to_path_buf();
             std::fs::write(directory.join("picture.png"), b"\x89PNG\r\n\x1a\n").expect("png");
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             refresh(&fixture, "picture.png");
 
             fill_text_and_picture(&fixture);
@@ -91,9 +91,9 @@ fn interrupted_lookup_shows_nothing(fixture: &KeyboardFixture, interrupt: impl F
 }
 
 #[test]
-fn tenxer_open_with_drops_a_lookup_overtaken_by_a_newer_interaction() {
+fn open_with_drops_a_lookup_overtaken_by_a_newer_interaction() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::file_verbs::open_with::tenxer_open_with_drops_a_lookup_overtaken_by_a_newer_interaction",
+        "ui::window::tests::keyboard_dispatch::file_verbs::open_with::open_with_drops_a_lookup_overtaken_by_a_newer_interaction",
         || {
             recorder_app(
                 "knowcraft-text",
@@ -106,7 +106,7 @@ fn tenxer_open_with_drops_a_lookup_overtaken_by_a_newer_interaction() {
             std::fs::create_dir(directory.join("folder")).expect("folder");
             std::os::unix::fs::symlink(directory.join("missing"), directory.join("link"))
                 .expect("dangling link");
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let browser = fixture.view.browser();
             refresh(&fixture, "link");
 
@@ -118,11 +118,6 @@ fn tenxer_open_with_drops_a_lookup_overtaken_by_a_newer_interaction() {
             browser.navigate(Location::local(&directory));
             wait_loaded(&browser, 0);
             focus_files(&fixture);
-            interrupted_lookup_shows_nothing(&fixture, || {
-                PreferenceManager::shared().set_tenxer_mode(false);
-            });
-            PreferenceManager::shared().set_tenxer_mode(true);
-            pump(50);
             interrupted_lookup_shows_nothing(&fixture, || {
                 fixture.sidebar.state.focus_active_place();
             });
@@ -172,7 +167,7 @@ fn default_activation_records_application_history_for_files_and_folders() {
             let fixture = KeyboardFixture::new();
             let directory = fixture._directory.path().to_path_buf();
             let browser = fixture.view.browser();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
 
             launch_recorder("knowcraft-dirs", &[(&directory, "inode/directory")]);
             wait_until(|| received(&output_dirs) == [directory.clone()]);

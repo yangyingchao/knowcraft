@@ -212,8 +212,8 @@ impl PreviewDrawer {
             .is_some_and(|action| *focused == action)
     }
 
-    /// Plain media keys for a keyboard-owned media preview, plus `<` / `>` from
-    /// the 10xer listing while an audio preview is open.
+    /// Plain media keys for a keyboard-owned media preview, plus `<` / `>`
+    /// while an audio preview is open.
     pub(in crate::ui) fn media_key(&self, command: MediaCommand) -> bool {
         self.has_video() && self.state.media_command(command)
     }

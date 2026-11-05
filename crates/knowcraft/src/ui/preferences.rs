@@ -157,8 +157,6 @@ pub(in crate::ui) struct Preferences {
     type_to_search: bool,
     #[serde(default)]
     arrow_navigation_scoped: bool,
-    #[serde(default)]
-    tenxer_mode: bool,
     #[serde(default = "default_enabled")]
     filter_include_subfolders: bool,
     #[serde(default = "default_enabled")]

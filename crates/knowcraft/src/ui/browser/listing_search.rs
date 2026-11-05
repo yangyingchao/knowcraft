@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! 10xer recursive **s** search. It borrows the focused listing's filter field
+//! Recursive **s** search. It borrows the focused listing's filter field
 //! with its scope forced to include subfolders, so the filter's name rules, the
 //! 100-hit cap, and stale-work cancellation stay the search's rules. The saved
 //! **Include subfolders** preference is never written, and dismissal puts back

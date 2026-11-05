@@ -125,12 +125,12 @@ fn a_nested_name_moves_into_a_new_folder(fixture: &KeyboardFixture, directory: &
 }
 
 #[test]
-fn tenxer_footer_rename_changes_only_the_focused_item_on_enter() {
+fn footer_rename_changes_only_the_focused_item_on_enter() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::file_verbs::rename::tenxer_footer_rename_changes_only_the_focused_item_on_enter",
+        "ui::window::tests::keyboard_dispatch::file_verbs::rename::footer_rename_changes_only_the_focused_item_on_enter",
         || {
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let directory = fixture._directory.path().to_path_buf();
             let browser = fixture.view.browser();
             move_to_named(&fixture, &browser, "c.txt");
@@ -161,7 +161,7 @@ fn typed_rename_drops_a_dismissed_request_and_refuses_a_hard_link_name() {
         "ui::window::tests::keyboard_dispatch::file_verbs::rename::typed_rename_drops_a_dismissed_request_and_refuses_a_hard_link_name",
         || {
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let directory = fixture._directory.path().to_path_buf();
             let browser = fixture.view.browser();
             std::fs::hard_link(directory.join("a.txt"), directory.join("link.txt"))
@@ -203,7 +203,7 @@ fn type_pending_rename(fixture: &KeyboardFixture) {
     fixture.shortcuts.prompt().set_text("stale.txt");
 }
 
-/// A row click, another prompt, and leaving tenxer mode each discard a typed rename.
+/// A row click and another prompt each discard a typed rename.
 fn discarded_renames_rename_nothing(fixture: &KeyboardFixture, directory: &Path) {
     let browser = fixture.view.browser();
     let names = directory_names(directory);
@@ -217,40 +217,33 @@ fn discarded_renames_rename_nothing(fixture: &KeyboardFixture, directory: &Path)
     fixture.shortcuts.prompt().set_text("c");
     plain(fixture, Key::Return);
     assert_eq!(focused_name(&browser), "c.txt");
-
-    type_pending_rename(fixture);
-    PreferenceManager::shared().set_tenxer_mode(false);
-    pump(50);
-    assert_eq!(fixture.shortcuts.open_prompt_kind(), None);
     pump(200);
     assert_eq!(directory_names(directory), names, "nothing was renamed");
 }
 
-fn default_map_keeps_inline_rename(fixture: &KeyboardFixture) {
+fn f2_keeps_inline_rename(fixture: &KeyboardFixture) {
     move_to_named(fixture, &fixture.view.browser(), "a.txt");
     assert!(fixture.press(Key::F2, ModifierType::empty()));
     assert!(
         fixture.view.rename_is_active(),
-        "the default map keeps inline rename"
+        "F2 keeps inline rename"
     );
     assert!(fixture.press(Key::Escape, ModifierType::empty()));
     assert!(!fixture.view.rename_is_active());
 }
 
 #[test]
-fn tenxer_footer_rename_leaves_no_stale_target() {
+fn footer_rename_leaves_no_stale_target() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::file_verbs::rename::tenxer_footer_rename_leaves_no_stale_target",
+        "ui::window::tests::keyboard_dispatch::file_verbs::rename::footer_rename_leaves_no_stale_target",
         || {
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let directory = fixture._directory.path().to_path_buf();
 
             discarded_renames_rename_nothing(&fixture, &directory);
-            default_map_keeps_inline_rename(&fixture);
+            f2_keeps_inline_rename(&fixture);
 
-            PreferenceManager::shared().set_tenxer_mode(true);
-            pump(50);
             super::super::footer_prompt::commit_filter(&fixture, "b");
             wait_until(|| fixture.view.filter_result_names() == ["b.txt"]);
             open_rename(&fixture, Key::r);

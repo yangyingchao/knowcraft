@@ -22,13 +22,13 @@ fn a_save_keeps_the_settings_another_process_wrote() {
             repairable.insert("search_time_limit".into(), toml::Value::Integer(45));
             write(&repairable);
             let manager = PreferenceManager::load();
-            let (peeking, tenxer) = {
+            let peeking = {
                 let preferences = manager.preferences.borrow();
-                (preferences.folder_peeking, preferences.tenxer_mode)
+                preferences.folder_peeking
             };
 
             let mut other = read();
-            other.insert("tenxer_mode".into(), toml::Value::Boolean(!tenxer));
+            other.insert("show_keybinding_hints".into(), toml::Value::Boolean(true));
             other.insert(
                 "list_hidden_columns".into(),
                 toml::Value::Array(vec!["size".into()]),
@@ -54,7 +54,7 @@ fn a_save_keeps_the_settings_another_process_wrote() {
                 Some(60),
                 "a repair made at startup is saved"
             );
-            assert_eq!(table["tenxer_mode"].as_bool(), Some(!tenxer));
+            assert_eq!(table["show_keybinding_hints"].as_bool(), Some(true));
             assert_eq!(table["list_hidden_columns"], other["list_hidden_columns"]);
             assert_eq!(table["future_setting"].as_str(), Some("kept"));
             assert!(!table.contains_key("auto_refresh_interval"));
@@ -65,7 +65,7 @@ fn a_save_keeps_the_settings_another_process_wrote() {
             manager.set_folder_peeking(peeking);
             let table = saved();
             assert_eq!(table["folder_peeking"].as_bool(), Some(peeking));
-            assert_eq!(table["tenxer_mode"].as_bool(), Some(!tenxer));
+            assert_eq!(table["show_keybinding_hints"].as_bool(), Some(true));
             assert_eq!(table["future_setting"].as_str(), Some("kept"));
 
             let broken = "this is not valid toml [";

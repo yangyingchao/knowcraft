@@ -3,32 +3,16 @@
 use super::*;
 
 impl ChooserShortcuts {
-    /// In 10xer mode a focused name or location field types every key but these.
-    /// Tab and Shift+Tab leave the name for the options or the files, never Cancel.
-    pub(super) fn tenxer_text_keeps_key(
-        &self,
-        context: &KeyContext<'_>,
-    ) -> Option<glib::Propagation> {
-        if !context.tenxer() {
-            return None;
-        }
-        let typing = context.name_has_focus() || context.view().location_has_focus();
-        let reaches_chooser = context.press.is_any::<keys::Matcher>(&[
-            REFERENCE.in_map(Map::Default).ignoring(SHORTCUT_MODIFIERS),
-            ESCAPE_ANY,
-        ]);
-        let name_tab = context.name_has_focus() && context.tab().is_some();
-        (typing && !reaches_chooser && !name_tab).then_some(glib::Propagation::Proceed)
+    /// The chooser's window dispatcher: prompts, previews, the reference, and
+    /// its own confirm and cancel own keys before the stages read them.
+    pub(super) fn dispatcher_key(&self, context: &KeyContext<'_>) -> Option<glib::Propagation> {
+        self.keys.handle(&context.press)
     }
 
     pub(super) fn reset_pdf_zoom(&self, context: &KeyContext<'_>) -> Option<glib::Propagation> {
         self.preview
             .reset_pdf_zoom(&context.press)
             .then_some(glib::Propagation::Stop)
-    }
-
-    pub(super) fn tenxer_key(&self, context: &KeyContext<'_>) -> Option<glib::Propagation> {
-        self.tenxer.handle(&context.press)
     }
 
     pub(super) fn text_size(&self, context: &KeyContext<'_>) -> Option<glib::Propagation> {
@@ -52,7 +36,7 @@ impl ChooserShortcuts {
         &self,
         _context: &KeyContext<'_>,
     ) -> Option<glib::Propagation> {
-        self.tenxer
+        self.keys
             .reference_is_open()
             .then_some(glib::Propagation::Proceed)
     }
@@ -134,10 +118,6 @@ impl ChooserShortcuts {
 
     fn escape_ends_editing(&self, context: &KeyContext<'_>) -> bool {
         if context.state.dismiss_dropdown() {
-            return true;
-        }
-        if context.tenxer() && context.name_has_focus() {
-            context.browser.focus_active();
             return true;
         }
         if context.view().cancel_new_entry() || context.view().cancel_rename() {

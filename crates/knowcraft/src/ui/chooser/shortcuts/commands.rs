@@ -27,9 +27,7 @@ impl ChooserShortcuts {
         if !lost {
             return None;
         }
-        if context.tenxer() {
-            context.browser.focus_active();
-        } else if let Some(filename) = context.state.filename.as_ref() {
+        if let Some(filename) = context.state.filename.as_ref() {
             filename.grab_focus();
         } else {
             self.sidebar_toggle.grab_focus();
@@ -104,32 +102,8 @@ impl ChooserShortcuts {
         if !context.press.is(SIDEBAR_FOCUS) {
             return None;
         }
-        if context.tenxer() {
-            self.tenxer_sidebar_focus(context);
-        } else {
-            self.toggle_sidebar_focus(context);
-        }
+        self.toggle_sidebar_focus(context);
         STOP
-    }
-
-    /// 10xer mode only moves focus into a sidebar that is already shown.
-    fn tenxer_sidebar_focus(&self, context: &KeyContext<'_>) {
-        if !self.sidebar_toggle.is_active() {
-            return;
-        }
-        if !self.sidebar_has_focus(context) {
-            self.enter_sidebar(context);
-            context.state.window.set_focus_visible(true);
-            return;
-        }
-        let restored = self
-            .focus_before_sidebar
-            .borrow_mut()
-            .take()
-            .is_some_and(|widget| widget.is_mapped() && widget.grab_focus());
-        if !restored {
-            context.browser.focus_active();
-        }
     }
 
     fn toggle_sidebar_focus(&self, context: &KeyContext<'_>) {

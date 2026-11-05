@@ -400,17 +400,6 @@ fn filter_shows_rows_whose_action_name_matches() {
 }
 
 #[test]
-fn tables_list_only_what_the_map_can_run() {
-    let listed = sections(Map::Default);
-    let has = |command: Command| {
-        listed
-            .iter()
-            .any(|(_, commands)| commands.contains(&command))
-    };
-    assert!(listed.iter().all(|(title, _)| *title != "10xer mode"));
-}
-
-#[test]
 fn captures_in_two_windows_stay_armed() {
     gtk_test(
         "ui::settings::keyboard::tests::captures_in_two_windows_stay_armed",

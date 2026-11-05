@@ -105,8 +105,6 @@ fn repeated_navigation_releases_context_menu_bindings() {
     crate::test_support::gtk_test(
         "ui::browser::context_menu::tests::menus::repeated_navigation_releases_context_menu_bindings",
         || {
-            let manager = crate::ui::preferences::PreferenceManager::shared();
-            manager.set_tenxer_mode(false);
             for mode in [BrowserMode::Columns, BrowserMode::List, BrowserMode::Icons] {
                 let first = tempfile::tempdir().expect("first menu fixture");
                 let second = tempfile::tempdir().expect("second menu fixture");
@@ -258,7 +256,6 @@ fn context_hints_follow_the_active_map() {
         "ui::browser::context_menu::tests::menus::context_hints_follow_the_active_map",
         || {
             let manager = crate::ui::preferences::PreferenceManager::shared();
-            manager.set_tenxer_mode(false);
             let fixture = tempfile::tempdir().expect("menu fixture");
             let view = BrowserView::new(Rc::new(MenuSource), PeekBehavior::default());
             view.set_operation_provider(Rc::new(crate::adapters::LocalOperationProvider));
@@ -293,36 +290,6 @@ fn context_hints_follow_the_active_map() {
             );
             menu.popdown();
             wait_until(|| !menu.is_mapped());
-            manager.set_tenxer_mode(true);
-            let menu = open_menu(&view, Some("notes.txt"));
-            let hints = label_texts(&menu);
-            assert!(!hints.iter().any(|hint| hint == "Space"), "{hints:?}");
-            let after = |label: &str| {
-                hints
-                    .iter()
-                    .position(|hint| hint == label)
-                    .and_then(|index| hints.get(index + 1))
-                    .map(String::as_str)
-            };
-            for (label, hint) in [
-                ("Rename", "r"),
-                ("Cut", "x"),
-                ("Copy", "y"),
-                ("Move to Trash", "d"),
-                ("Permanently delete", "D"),
-                ("Copy path", "Copy name"),
-            ] {
-                assert_eq!(after(label), Some(hint), "{hints:?}");
-            }
-            assert!(
-                !hints.iter().any(|hint| hint.starts_with("Ctrl+")),
-                "{hints:?}"
-            );
-            assert!(
-                hints.iter().any(|hint| hint == "i"),
-                "the menu shows Knowcraft's label, not GTK's rendering of the accelerator: {hints:?}"
-            );
-            menu.popdown();
             view.browser().clear_observer();
             window.destroy();
         },
@@ -339,7 +306,6 @@ fn context_hints_and_accelerators_follow_keymap_overrides() {
                 bindings::{COPY_PATH, RENAME},
             };
             let manager = crate::ui::preferences::PreferenceManager::shared();
-            manager.set_tenxer_mode(false);
             let fixture = tempfile::tempdir().expect("menu fixture");
             let view = BrowserView::new(Rc::new(MenuSource), PeekBehavior::default());
             view.set_operation_provider(Rc::new(crate::adapters::LocalOperationProvider));
@@ -499,7 +465,6 @@ fn directory_rows_offer_the_open_in_submenu() {
         "ui::browser::context_menu::tests::menus::directory_rows_offer_the_open_in_submenu",
         || {
             let manager = crate::ui::preferences::PreferenceManager::shared();
-            manager.set_tenxer_mode(false);
             manager.set_type_to_search(false);
             let fixture = tempfile::tempdir().expect("menu fixture");
             let view = BrowserView::new(Rc::new(MenuSource), PeekBehavior::default());
@@ -543,7 +508,6 @@ fn folder_open_with_reads_history_when_the_menu_opens() {
     crate::test_support::gtk_test(
         "ui::browser::context_menu::tests::menus::folder_open_with_reads_history_when_the_menu_opens",
         || {
-            crate::ui::preferences::PreferenceManager::shared().set_tenxer_mode(false);
             let fixture = tempfile::tempdir().expect("menu fixture");
             let view = BrowserView::new(Rc::new(MenuSource), PeekBehavior::default());
             let window = gtk::Window::builder()

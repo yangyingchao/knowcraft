@@ -85,7 +85,6 @@ fn committed_filter_leaves_hidden_directory(
             && fixture.shortcuts.filter_mark().as_deref() == Some("filter: report")
     });
     wait_until(|| fixture.shortcuts.count_text() == ("3 items".to_owned(), String::new()));
-    assert_eq!(revealed_filter_funnels(&fixture.view.widget()), 0);
     assert_eq!(fill_names(&browser), ["beta.txt"], "{mode:?}");
 
     let first = selected_result_names(fixture);
@@ -204,11 +203,11 @@ fn committing_opens_nothing_until_enter(fixture: &KeyboardFixture, mode: Browser
 }
 
 #[test]
-fn tenxer_filter_commits_results_without_touching_the_hidden_directory() {
+fn filter_commits_results_without_touching_the_hidden_directory() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::footer_prompt::filter::tenxer_filter_commits_results_without_touching_the_hidden_directory",
+        "ui::window::tests::keyboard_dispatch::footer_prompt::filter::filter_commits_results_without_touching_the_hidden_directory",
         || {
-            let (fixture, _preferences) = tenxer_filter_fixture();
+            let (fixture, _preferences) = filter_fixture();
             let browser = fixture.view.browser();
 
             for mode in ALL_MODES {
@@ -308,25 +307,14 @@ fn selection_and_miss_keep_totals(
     );
 }
 
-fn mark_follows_tenxer_mode(
+fn mark_follows_the_filter(
     fixture: &KeyboardFixture,
-    preferences: &PreferenceManager,
     mode: BrowserMode,
     directory_count: &(String, String),
 ) {
-    preferences.set_tenxer_mode(true);
-    wait_footer(fixture, &format!("{mode:?}: 10xer shows the mark"), || {
+    wait_footer(fixture, &format!("{mode:?}: the filter shows its mark"), || {
         fixture.shortcuts.filter_mark().as_deref() == Some("filter: zzz")
     });
-    preferences.set_tenxer_mode(false);
-    wait_footer(
-        fixture,
-        &format!("{mode:?}: leaving 10xer hides the mark, keeps the total"),
-        || {
-            fixture.shortcuts.filter_mark().is_none()
-                && fixture.shortcuts.count_text().0 == "0 items"
-        },
-    );
 
     fixture.view.clear_listing_filter();
     wait_until(|| fixture.view.listing_filter().is_none());
@@ -338,15 +326,14 @@ fn mark_follows_tenxer_mode(
 }
 
 #[test]
-fn default_filter_shows_the_result_total_without_a_footer_mark() {
+fn the_footer_tracks_filter_counts_and_marks() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::footer_prompt::filter::default_filter_shows_the_result_total_without_a_footer_mark",
+        "ui::window::tests::keyboard_dispatch::footer_prompt::filter::the_footer_tracks_filter_counts_and_marks",
         || {
             let fixture = KeyboardFixture::new();
             seed_filter_tree(&fixture);
             let preferences = PreferenceManager::shared();
             fixture.shortcuts.bind_preferences(&preferences);
-            assert!(!preferences.tenxer_mode());
             preferences.set_filter_include_subfolders(false);
             let browser = fixture.view.browser();
 
@@ -364,7 +351,7 @@ fn default_filter_shows_the_result_total_without_a_footer_mark() {
                 let entry = typed_query_counts_results(&fixture, mode, &directory_count);
                 subfolder_scope_restarts_the_count(&fixture, &preferences, mode, &directory_count);
                 selection_and_miss_keep_totals(&fixture, &entry, mode);
-                mark_follows_tenxer_mode(&fixture, &preferences, mode, &directory_count);
+                mark_follows_the_filter(&fixture, mode, &directory_count);
             }
         },
     );
@@ -382,11 +369,6 @@ fn rebuild_keeps_filter(first: &KeyboardFixture, mode: BrowserMode, accent: &str
     crate::ui::browser::find::apply_theme(accent, "#000000");
     wait_until(|| highlight_colors(&first.view.widget()).contains(&drawn.to_owned()));
     wait_until(|| first.shortcuts.filter_mark().as_deref() == Some("filter: gamma"));
-    assert_eq!(
-        revealed_filter_funnels(&first.view.widget()),
-        0,
-        "{mode:?}: a rebuild keeps the funnel closed"
-    );
 
     let browser = first.view.browser();
     browser.reload_active();
@@ -401,13 +383,13 @@ fn rebuild_keeps_filter(first: &KeyboardFixture, mode: BrowserMode, accent: &str
 }
 
 #[test]
-fn tenxer_filter_ignores_include_subfolders_and_survives_view_rebuilds() {
+fn filter_ignores_include_subfolders_and_survives_view_rebuilds() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::footer_prompt::filter::tenxer_filter_ignores_include_subfolders_and_survives_view_rebuilds",
+        "ui::window::tests::keyboard_dispatch::footer_prompt::filter::filter_ignores_include_subfolders_and_survives_view_rebuilds",
         || {
             let first = KeyboardFixture::new();
             let second = KeyboardFixture::new();
-            let preferences = enable_tenxer(&first);
+            let preferences = enable_prompts(&first);
             second.shortcuts.bind_preferences(&preferences);
             preferences.set_filter_include_subfolders(true);
             for fixture in [&first, &second] {
@@ -436,15 +418,6 @@ fn tenxer_filter_ignores_include_subfolders_and_survives_view_rebuilds() {
             ] {
                 rebuild_keeps_filter(&first, mode, accent, drawn);
             }
-
-            preferences.set_tenxer_mode(false);
-            pump(50);
-            for fixture in [&first, &second] {
-                wait_until(|| fixture.view.listing_filter().is_none());
-                wait_until(|| fixture.view.selected_search_results().is_none());
-                assert_eq!(fixture.shortcuts.filter_mark(), None);
-                assert_eq!(revealed_filter_funnels(&fixture.view.widget()), 0);
-            }
         },
     );
 }
@@ -454,7 +427,7 @@ fn tenxer_filter_ignores_include_subfolders_and_survives_view_rebuilds() {
 fn outside_deletion_case(mode: BrowserMode, prompt: Prompt) -> Result<(), String> {
     let fixture = KeyboardFixture::new();
     seed_filter_tree(&fixture);
-    enable_tenxer(&fixture);
+    enable_prompts(&fixture);
     fixture.view.set_view_mode(mode);
     let browser = fixture.view.browser();
     wait_loaded(&browser, 0);
@@ -491,9 +464,9 @@ fn outside_deletion_case(mode: BrowserMode, prompt: Prompt) -> Result<(), String
 }
 
 #[test]
-fn tenxer_filter_prompts_keep_focus_through_an_outside_deletion() {
+fn filter_prompts_keep_focus_through_an_outside_deletion() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::footer_prompt::filter::tenxer_filter_prompts_keep_focus_through_an_outside_deletion",
+        "ui::window::tests::keyboard_dispatch::footer_prompt::filter::filter_prompts_keep_focus_through_an_outside_deletion",
         || {
             let mut failures = Vec::new();
             for mode in ALL_MODES {

@@ -18,11 +18,10 @@ mod recent_apps;
 mod rename;
 mod sorting;
 
-fn enable_tenxer(fixture: &KeyboardFixture) {
+fn enable_prompts(fixture: &KeyboardFixture) {
     let preferences = PreferenceManager::shared();
     fixture.shortcuts.bind_preferences(&preferences);
     preferences.set_filter_include_subfolders(false);
-    preferences.set_tenxer_mode(true);
     pump(50);
     fixture.view.browser().clear_active_selection();
 }

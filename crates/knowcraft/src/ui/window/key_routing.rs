@@ -41,7 +41,7 @@ pub(in crate::ui) enum TypeToSearchQuery {
 
 impl TypeToSearch {
     pub(in crate::ui) fn show(&self, query: TypeToSearchQuery) -> bool {
-        self.preferences.type_to_search_active()
+        self.preferences.type_to_search()
             && match query {
                 TypeToSearchQuery::Empty => self.view.show_filter(),
                 TypeToSearchQuery::Character(character) => {

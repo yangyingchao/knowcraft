@@ -24,7 +24,6 @@ pub(in crate::ui) fn non_default_preferences() -> Preferences {
         search_entry_limit: 1_000_000,
         type_to_search: false,
         arrow_navigation_scoped: true,
-        tenxer_mode: true,
         filter_include_subfolders: false,
         show_keybinding_hints: false,
         window_show_close: false,
@@ -193,7 +192,6 @@ impl PreferenceManager {
     /// command ids and their accelerators.
     pub(in crate::ui) fn seed_saved_keymap_for_test(default: &[(&str, &[&str])]) {
         let preferences = Preferences {
-            tenxer_mode: false,
             keymap: KeymapOverrides {
                 default: default.iter().copied().map(keymap_entry).collect(),
             },

@@ -89,7 +89,6 @@ fn older_preferences_keep_backward_compatible_behavior_defaults() {
             open_folder_after_drop: false,
             date_format: "relative".into(),
             send_to_recent_destinations: HashMap::new(),
-            tenxer_mode: false,
             omarchy_variants: HashMap::new(),
             file_icon_colors: FileIconColors::Brand,
             folder_peeking: false,

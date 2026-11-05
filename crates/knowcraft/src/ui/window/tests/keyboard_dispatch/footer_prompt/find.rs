@@ -42,12 +42,12 @@ fn location_field_keeps_f(fixture: &KeyboardFixture, other: &gtk::Window) {
 }
 
 #[test]
-fn tenxer_routes_listing_shortcuts_from_non_text_controls() {
+fn routes_listing_shortcuts_from_non_text_controls() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::footer_prompt::find::tenxer_routes_listing_shortcuts_from_non_text_controls",
+        "ui::window::tests::keyboard_dispatch::footer_prompt::find::routes_listing_shortcuts_from_non_text_controls",
         || {
             let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             let container = fixture.overlay.child().expect("content container");
             container.set_focusable(true);
             let other = gtk::Window::new();

@@ -4,15 +4,13 @@ use super::*;
 
 const NONE: ModifierType = ModifierType::empty();
 const CONTROL: ModifierType = ModifierType::CONTROL_MASK;
-const MODE_CHORD: ModifierType = ModifierType::CONTROL_MASK.union(ModifierType::SHIFT_MASK);
 
 #[test]
-fn appearance_menu_shows_i_preview_while_tenxer_is_on() {
+fn appearance_menu_shows_the_preview_shortcut() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::entry_keys::appearance_menu_shows_i_preview_while_tenxer_is_on",
+        "ui::window::tests::keyboard_dispatch::entry_keys::appearance_menu_shows_the_preview_shortcut",
         || {
             let preferences = PreferenceManager::shared();
-            preferences.set_tenxer_mode(false);
             let view = browser_for_window();
             let preview = PreviewDrawer::new(Rc::new(TextPreview), false);
             let menu = build_appearance_menu(&view, &view.browser(), preferences.clone(), &preview);
@@ -23,13 +21,8 @@ fn appearance_menu_shows_i_preview_while_tenxer_is_on() {
             let popover = menu.popover().expect("appearance popover");
             let toggle = widget_with_class(popover.upcast_ref(), "preview-panel-option")
                 .expect("preview panel option");
-            assert_eq!(preview_shortcut(&toggle), "Space");
-            assert!(toggle.tooltip_text().is_none());
-            preferences.set_tenxer_mode(true);
             assert_eq!(preview_shortcut(&toggle), "i");
             assert!(toggle.tooltip_text().is_none());
-            preferences.set_tenxer_mode(false);
-            assert_eq!(preview_shortcut(&toggle), "Space");
             window.destroy();
         },
     );
@@ -57,11 +50,10 @@ fn russian_tilde(fixture: &KeyboardFixture) -> bool {
     )
 }
 
-/// (handled, 10xer on, selection, files)
-fn letter_outcome(fixture: &KeyboardFixture, key: Key) -> (bool, bool, Vec<usize>, Vec<String>) {
+/// (handled, selection, files)
+fn letter_outcome(fixture: &KeyboardFixture, key: Key) -> (bool, Vec<usize>, Vec<String>) {
     (
         fixture.press(key, NONE),
-        PreferenceManager::shared().tenxer_mode(),
         fixture.selected(),
         directory_names(fixture._directory.path()),
     )
@@ -85,7 +77,7 @@ fn an_inline_rename_types_the_letters(fixture: &KeyboardFixture, names: &[String
     for key in [Key::q, Key::d, Key::p, Key::a] {
         assert_eq!(
             letter_outcome(fixture, key),
-            (false, true, vec![0], names.to_vec()),
+            (false, vec![0], names.to_vec()),
             "{key:?}"
         );
         assert_eq!(field.text(), "kept.txt");
@@ -106,7 +98,7 @@ fn the_location_types_the_letters_and_tildes(fixture: &KeyboardFixture, names: &
     for key in [Key::q, Key::d, Key::p, Key::a] {
         assert_eq!(
             letter_outcome(fixture, key),
-            (false, true, vec![0], names.to_vec()),
+            (false, vec![0], names.to_vec()),
             "{key:?}"
         );
         assert_eq!(location.text(), "kept-location");
@@ -129,16 +121,6 @@ fn the_location_types_the_letters_and_tildes(fixture: &KeyboardFixture, names: &
     assert_selects_all(&location);
 }
 
-fn the_mode_chord_toggles_from_the_location(fixture: &KeyboardFixture) {
-    let preferences = PreferenceManager::shared();
-    assert!(fixture.press(Key::m, MODE_CHORD));
-    assert!(!preferences.tenxer_mode());
-    assert!(fixture.view.location_has_focus());
-    assert!(fixture.press(Key::m, MODE_CHORD));
-    assert!(preferences.tenxer_mode());
-    assert!(fixture.press(Key::Escape, NONE));
-}
-
 fn the_reference_search_keeps_its_keys(fixture: &KeyboardFixture, names: &[String]) {
     focus_files(fixture);
     assert!(fixture.press(Key::F1, NONE));
@@ -148,10 +130,10 @@ fn the_reference_search_keeps_its_keys(fixture: &KeyboardFixture, names: &[Strin
         "Ё is typed into the reference search"
     );
     assert!(fixture.shortcuts.reference_is_open());
-    let (_, tenxer, selected, files) = letter_outcome(fixture, Key::q);
+    let (_, selected, files) = letter_outcome(fixture, Key::q);
     assert_eq!(
-        (tenxer, files, selected),
-        (true, names.to_vec(), vec![0]),
+        (files, selected),
+        (names.to_vec(), vec![0]),
         "q in the reference search"
     );
     fixture.press(Key::Delete, NONE);
@@ -179,12 +161,11 @@ fn the_context_menu_keeps_its_keys(fixture: &KeyboardFixture, names: &[String]) 
     }
     assert_eq!(
         (
-            PreferenceManager::shared().tenxer_mode(),
             directory_names(fixture._directory.path()),
             fixture.selected()
         ),
-        (true, names.to_vec(), vec![0]),
-        "q d a in the context menu: (10xer on, files, selection)"
+        (names.to_vec(), vec![0]),
+        "q d a in the context menu: (files, selection)"
     );
     visible_menu(window).expect("menu").popdown();
 }
@@ -198,15 +179,10 @@ fn focused_modal_layer(overlay: &gtk::Overlay) -> gtk::Box {
     modal
 }
 
-fn a_modal_layer_keeps_the_mode(fixture: &KeyboardFixture) {
-    let preferences = PreferenceManager::shared();
+fn a_modal_layer_keeps_its_keys(fixture: &KeyboardFixture) {
     let modal = focused_modal_layer(&fixture.overlay);
     wait_until(|| modal.has_focus());
-    fixture.press(Key::m, MODE_CHORD);
-    assert!(preferences.tenxer_mode());
-    assert!(modal.is_visible());
     let capture = fixture.press(Key::comma, CONTROL);
-    assert!(preferences.tenxer_mode());
     assert!(modal.has_focus() || capture);
 }
 
@@ -219,7 +195,6 @@ fn settings_shown(content: &super::super::super::composition::WindowContent) -> 
 }
 
 fn ctrl_comma_reaches_settings_until_a_modal_blocks_it() {
-    let preferences = PreferenceManager::shared();
     let (window, content) = composed_window();
     let directory = tempfile::tempdir().expect("settings folder");
     content
@@ -238,27 +213,23 @@ fn ctrl_comma_reaches_settings_until_a_modal_blocks_it() {
     let blocking = focused_modal_layer(content.overlay());
     press_settings(&window, gtk::PropagationPhase::Bubble);
     assert!(!settings_shown(&content));
-    press_phase(&window, gtk::PropagationPhase::Capture, Key::m, MODE_CHORD);
-    assert!(preferences.tenxer_mode());
     assert!(blocking.is_visible());
     window.destroy();
 }
 
 #[test]
-fn tenxer_entries_menus_and_reference_keep_their_keys() {
+fn entries_menus_and_reference_keep_their_keys() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::entry_keys::tenxer_entries_menus_and_reference_keep_their_keys",
+        "ui::window::tests::keyboard_dispatch::entry_keys::entries_menus_and_reference_keep_their_keys",
         || {
             let fixture = KeyboardFixture::new();
-            PreferenceManager::shared().set_tenxer_mode(true);
             let names = directory_names(fixture._directory.path());
 
             an_inline_rename_types_the_letters(&fixture, &names);
             the_location_types_the_letters_and_tildes(&fixture, &names);
-            the_mode_chord_toggles_from_the_location(&fixture);
             the_reference_search_keeps_its_keys(&fixture, &names);
             the_context_menu_keeps_its_keys(&fixture, &names);
-            a_modal_layer_keeps_the_mode(&fixture);
+            a_modal_layer_keeps_its_keys(&fixture);
             ctrl_comma_reaches_settings_until_a_modal_blocks_it();
         },
     );

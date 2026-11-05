@@ -68,37 +68,28 @@ fn alias_rewrites_typed_keys_only_outside_text_and_popovers() {
             assert!(rewrite(ctrl_m, type_to_search).is(ENTER));
             assert!(!rewrite(e, type_to_search).is(ENTER));
 
-            // The shipped h j k l follow the same rule in both maps.
-            let preferences = crate::ui::preferences::PreferenceManager::shared();
-            for tenxer in [false, true] {
-                preferences.set_tenxer_mode(tenxer);
-                for (letter, arrow) in [
-                    (Key::h, LEFT),
-                    (Key::j, DOWN),
-                    (Key::k, UP),
-                    (Key::l, RIGHT),
+            // The shipped h j k l read as arrows on the listing.
+            for (letter, arrow) in [
+                (Key::h, LEFT),
+                (Key::j, DOWN),
+                (Key::k, UP),
+                (Key::l, RIGHT),
+            ] {
+                let plain = press(letter, NONE);
+                assert!(rewrite(plain, listing()).is(arrow), "{letter:?}");
+                assert!(!rewrite(plain, type_to_search).is(arrow));
+                assert!(!rewrite(plain, Context::of(Some(text.upcast_ref()), false)).is(arrow));
+                // A read-only text view is not read as a document.
+                assert!(!rewrite(plain, Context::of(Some(document.upcast_ref()), false)).is(arrow));
+                for modifier in [
+                    Modifiers::SHIFT_MASK,
+                    Modifiers::CONTROL_MASK,
+                    Modifiers::ALT_MASK,
+                    Modifiers::SUPER_MASK,
                 ] {
-                    let plain = press(letter, NONE);
-                    assert!(rewrite(plain, listing()).is(arrow), "{letter:?} {tenxer}");
-                    assert!(!rewrite(plain, type_to_search).is(arrow));
-                    assert!(!rewrite(plain, Context::of(Some(text.upcast_ref()), false)).is(arrow));
-                    // Only 10xer reads a read-only text view as a document.
-                    assert_eq!(
-                        rewrite(plain, Context::of(Some(document.upcast_ref()), false)).is(arrow),
-                        tenxer,
-                        "{letter:?}"
-                    );
-                    for modifier in [
-                        Modifiers::SHIFT_MASK,
-                        Modifiers::CONTROL_MASK,
-                        Modifiers::ALT_MASK,
-                        Modifiers::SUPER_MASK,
-                    ] {
-                        assert!(!rewrite(press(letter, modifier), listing()).aliased());
-                    }
+                    assert!(!rewrite(press(letter, modifier), listing()).aliased());
                 }
             }
-            preferences.set_tenxer_mode(false);
         },
     );
 }

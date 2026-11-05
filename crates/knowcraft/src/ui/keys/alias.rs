@@ -44,7 +44,7 @@ impl Context {
             .and_then(|widget| widget.root())
             .and_then(|root| root.focus());
         let type_to_search = crate::ui::preferences::PreferenceManager::existing()
-            .is_some_and(|preferences| preferences.type_to_search_active());
+            .is_some_and(|preferences| preferences.type_to_search());
         Self::of(focused.as_ref(), type_to_search)
     }
 

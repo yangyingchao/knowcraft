@@ -89,23 +89,13 @@ impl TypedEntry {
 }
 
 impl BrowserView {
-    /// 10xer falls back to the item under the cursor; the default map acts on
-    /// the selection only, as its Copy and Delete do.
+    /// Copy and Delete act on the selection, as their window counterparts do.
     pub fn command_targets(&self) -> Vec<FileEntry> {
-        let tenxer = crate::ui::preferences::PreferenceManager::shared().tenxer_mode();
         if let Some(results) = self.selected_search_results() {
-            if !results.is_empty() || !tenxer {
-                return results;
-            }
-            return self.selected_search_result().into_iter().collect();
+            return results;
         }
         self.state.sync_mode_selection();
-        if !tenxer {
-            return self.state.browser.transfer_entries();
-        }
-        self.focused_listing_depth()
-            .map(|depth| self.state.browser.command_entries(depth))
-            .unwrap_or_default()
+        self.state.browser.transfer_entries()
     }
 
     pub fn create_new_folder_for_selection(&self) -> bool {

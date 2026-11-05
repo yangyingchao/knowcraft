@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! 10xer selection among results that replace the listing. Results keep their
+//! Selection among results that replace the listing. Results keep their
 //! own selection, apart from the hidden directory's, so a fill made with
 //! **Space** or **v** / **V** is the results' selection. Motion over a fill
 //! moves only the keyboard cursor. A selection changed any other way, such as

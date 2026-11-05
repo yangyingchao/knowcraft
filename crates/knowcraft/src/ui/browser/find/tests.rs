@@ -79,14 +79,11 @@ fn find_highlights_follow_the_applied_theme_colors() {
 }
 
 #[test]
-fn listing_filters_use_and_highlight_fuzzy_terms_only_in_tenxer_mode() {
+fn listing_filters_match_and_find_highlights_terms() {
     crate::test_support::gtk_test(
-        "ui::browser::find::tests::listing_filters_use_and_highlight_fuzzy_terms_only_in_tenxer_mode",
+        "ui::browser::find::tests::listing_filters_match_and_find_highlights_terms",
         || {
-            use crate::{
-                services::fold_for_search, ui::browser::entry::entry_matches,
-                ui::preferences::PreferenceManager,
-            };
+            use crate::{services::fold_for_search, ui::browser::entry::entry_matches};
             use gtk::prelude::*;
 
             let matches =
@@ -97,27 +94,19 @@ fn listing_filters_use_and_highlight_fuzzy_terms_only_in_tenxer_mode() {
                 super::highlight_listing_name(label.upcast_ref(), Some(folded.as_str()));
                 label.attributes().is_some()
             };
-            let preferences = PreferenceManager::shared();
-
-            preferences.set_tenxer_mode(false);
-            assert!(matches("*.md"));
-            assert!(matches("rep md"));
-            assert!(!matches("^gamma .md$"));
-            assert!(!highlighted("report"), "ordinary filters do not highlight");
-
-            preferences.set_tenxer_mode(true);
             for (query, expected) in [
                 ("rep md", true),
                 ("MD Rep", true),
-                ("^gamma .md$", true),
+                ("^gamma .md$", false),
                 ("rep !gamma", false),
-                ("*.md", false),
+                ("*.md", true),
                 ("reports", false),
             ] {
                 assert_eq!(matches(query), expected, "{query:?}");
             }
             assert!(highlighted("rep md"));
             assert!(!highlighted(""));
+            assert!(!highlighted("report"), "ordinary filters do not highlight");
         },
     );
 }

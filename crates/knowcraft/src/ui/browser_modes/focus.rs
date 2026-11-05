@@ -415,7 +415,7 @@ pub(super) fn pane_contains_focus(pane: &Pane) -> bool {
 }
 
 /// The listing itself holds focus: the pane surface or one of its item views, not the
-/// filter field or the results that replace the listing, 10xer's included. Loads and
+/// filter field or the results that replace the listing. Loads and
 /// live changes refocus the listing only then.
 pub(super) fn pane_holds_keyboard_focus(pane: &Pane) -> bool {
     let focused = pane.stack.root().and_then(|root| root.focus());

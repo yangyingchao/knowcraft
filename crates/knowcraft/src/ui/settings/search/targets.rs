@@ -384,7 +384,7 @@ pub(super) const TARGETS: &[Target] = &[
         id: KEYBOARD_SHORTCUTS,
         page: "keyboard",
         title: "Keyboard shortcuts",
-        aliases: "keymap keybindings hotkeys accelerators rebind remap keys 10xer default reset",
+        aliases: "keymap keybindings hotkeys accelerators rebind remap keys default reset",
     },
 ];
 

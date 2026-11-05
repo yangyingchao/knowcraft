@@ -13,7 +13,6 @@ fn reference_follows_keymap_overrides_without_reopening() {
                 bindings::{SEARCH, TAB_NEXT},
             };
             let manager = PreferenceManager::shared();
-            manager.set_tenxer_mode(false);
             let footer = ShortcutFooter::new(BrowserMode::Columns);
             footer.bind_preferences(&manager);
             let labels = reference_labels(&footer);

@@ -75,26 +75,23 @@ fn sidebar_context_shortcuts_open_place_trash_and_device_menus() {
             state.places_for_test().append(&device);
             let preferences = PreferenceManager::shared();
             fixture.shortcuts.bind_preferences(&preferences);
-            for tenxer in [false, true] {
-                preferences.set_tenxer_mode(tenxer);
-                pump(50);
-                for row in [&trash, &device] {
-                    let popover = widget_with_class(row.upcast_ref(), "folder-context-popover")
-                        .expect("row context menu")
-                        .downcast::<gtk::Popover>()
-                        .expect("popover");
-                    for (key, modifiers) in OPENS {
-                        assert!(row.grab_focus());
-                        assert!(fixture.press(key, modifiers), "{modifiers:?}+{key:?}");
-                        wait_until(|| popover.is_visible());
-                        popover.popdown();
-                        wait_until(|| !popover.is_visible());
-                    }
-                    for (key, modifiers) in NEAR_MISSES {
-                        row.grab_focus();
-                        fixture.press(key, modifiers);
-                        assert!(!popover.is_visible(), "{modifiers:?}+{key:?}");
-                    }
+            pump(50);
+            for row in [&trash, &device] {
+                let popover = widget_with_class(row.upcast_ref(), "folder-context-popover")
+                    .expect("row context menu")
+                    .downcast::<gtk::Popover>()
+                    .expect("popover");
+                for (key, modifiers) in OPENS {
+                    assert!(row.grab_focus());
+                    assert!(fixture.press(key, modifiers), "{modifiers:?}+{key:?}");
+                    wait_until(|| popover.is_visible());
+                    popover.popdown();
+                    wait_until(|| !popover.is_visible());
+                }
+                for (key, modifiers) in NEAR_MISSES {
+                    row.grab_focus();
+                    fixture.press(key, modifiers);
+                    assert!(!popover.is_visible(), "{modifiers:?}+{key:?}");
                 }
             }
         },

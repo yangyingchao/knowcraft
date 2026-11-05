@@ -74,7 +74,7 @@ fn open_with_shows_recently_used_first_and_excludes_it_from_recommended() {
             let fixture = KeyboardFixture::new();
             let directory = fixture._directory.path().to_path_buf();
             let browser = fixture.view.browser();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
 
             open_single_with_dialog(&fixture, &browser, "a.txt");
             assert_no_recently_used(&chooser_sections(&fixture.overlay));
@@ -133,7 +133,7 @@ fn open_with_keeps_independent_histories_per_file_type() {
             let directory = fixture._directory.path().to_path_buf();
             write_picture(&directory);
             let browser = fixture.view.browser();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             refresh(&fixture, "picture.png");
 
             launch_with_text("knowcraft-alpha", &directory.join("a.txt"));
@@ -168,7 +168,7 @@ fn open_with_recently_used_intersects_multi_type_selections() {
             let directory = fixture._directory.path().to_path_buf();
             write_picture(&directory);
             let browser = fixture.view.browser();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             refresh(&fixture, "picture.png");
 
             launch_recorder(
@@ -216,7 +216,7 @@ fn open_with_recently_used_surfaces_launched_apps_without_declared_handler() {
             let fixture = KeyboardFixture::new();
             let directory = fixture._directory.path().to_path_buf();
             let browser = fixture.view.browser();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
 
             let app = installed_app("image/png", "knowcraft-oddball.desktop");
             crate::ui::open_with::launch(
@@ -245,7 +245,7 @@ fn open_with_recently_used_caps_displayed_entries_at_five() {
             let fixture = KeyboardFixture::new();
             let directory = fixture._directory.path().to_path_buf();
             let browser = fixture.view.browser();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
             for index in 0..6 {
                 let output = data_file(&format!("received-{index}"));
                 recorder_app(
@@ -289,7 +289,7 @@ fn open_with_hides_recently_used_for_uninstalled_applications() {
             let fixture = KeyboardFixture::new();
             let directory = fixture._directory.path().to_path_buf();
             let browser = fixture.view.browser();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
 
             launch_with_text("knowcraft-gone", &directory.join("a.txt"));
             open_single_with_dialog(&fixture, &browser, "b.txt");
@@ -320,7 +320,7 @@ fn open_with_keeps_the_default_first_when_recently_used_is_present() {
             let fixture = KeyboardFixture::new();
             let directory = fixture._directory.path().to_path_buf();
             let browser = fixture.view.browser();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
 
             launch_with_text("knowcraft-alpha", &directory.join("a.txt"));
             open_single_with_dialog(&fixture, &browser, "b.txt");
@@ -355,7 +355,7 @@ fn open_with_deduplicates_the_default_application_inside_recently_used() {
             let fixture = KeyboardFixture::new();
             let directory = fixture._directory.path().to_path_buf();
             let browser = fixture.view.browser();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
 
             open_single_with_dialog(&fixture, &browser, "a.txt");
             let baseline = chooser_sections(&fixture.overlay);
@@ -401,7 +401,7 @@ fn open_with_search_hides_recently_used_without_match_and_confirms_selection() {
             let fixture = KeyboardFixture::new();
             let directory = fixture._directory.path().to_path_buf();
             let browser = fixture.view.browser();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
 
             launch_with_text("knowcraft-alpha", &directory.join("a.txt"));
             open_single_with_dialog(&fixture, &browser, "b.txt");
@@ -450,7 +450,7 @@ fn open_with_survives_malformed_history() {
             std::fs::write(history_path(), "not = [valid toml").expect("malformed history");
             let fixture = KeyboardFixture::new();
             let browser = fixture.view.browser();
-            enable_tenxer(&fixture);
+            enable_prompts(&fixture);
 
             open_single_with_dialog(&fixture, &browser, "a.txt");
             let sections = chooser_sections(&fixture.overlay);

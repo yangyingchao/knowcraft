@@ -9,10 +9,10 @@ use std::{
 use gtk::{gdk, glib, prelude::*};
 
 pub(in crate::ui) use candidates::CandidateKeys;
-use catalog::{ReferenceView, WeakReferenceView, rebuild_reference};
+use catalog::{ReferenceView, rebuild_reference};
 use indicators::{CurrentHit, update_visual_mode};
 pub(in crate::ui) use prompt::Prompt;
-use prompt::{PromptBar, WeakPromptBar};
+use prompt::PromptBar;
 use reference::{ReferenceArea, ReferenceSession};
 #[cfg(test)]
 use status::selection_details;
@@ -62,40 +62,6 @@ pub(super) struct ShortcutFooter {
     reference_scope: Rc<Cell<ReferenceScope>>,
 }
 
-/// The chrome the tenxer preference binding clears when the mode turns off.
-struct TenxerChrome {
-    feedback: glib::WeakRef<gtk::Label>,
-    prompt: WeakPromptBar,
-    view: WeakReferenceView,
-    primed: Cell<bool>,
-}
-
-impl TenxerChrome {
-    fn apply(&self, enabled: bool) {
-        if !self.view.reference_alive() {
-            return;
-        }
-        let starting = !self.primed.replace(true);
-        if !starting && !enabled {
-            self.clear_session_marks();
-        }
-        if let Some(view) = self.view.upgrade() {
-            rebuild_reference(&view);
-        }
-    }
-
-    fn clear_session_marks(&self) {
-        let Some(feedback) = self.feedback.upgrade() else {
-            return;
-        };
-        feedback.set_text("");
-        feedback.set_visible(false);
-        if let Some(prompt) = self.prompt.upgrade() {
-            prompt.close();
-        }
-    }
-}
-
 impl ShortcutFooter {
     pub fn widget(&self) -> &gtk::Stack {
         &self.root
@@ -120,17 +86,6 @@ impl ShortcutFooter {
     }
 
     pub fn bind_preferences(&self, manager: &super::preferences::PreferenceManager) {
-        let chrome = TenxerChrome {
-            feedback: self.feedback.downgrade(),
-            prompt: self.prompt.downgrade(),
-            view: self.reference_view().downgrade(),
-            primed: Cell::new(false),
-        };
-        manager.bind_preference(
-            &self.root,
-            super::preferences::PreferenceManager::tenxer_mode,
-            move |_, enabled| chrome.apply(enabled),
-        );
         let view = self.reference_view().downgrade();
         let primed = Cell::new(false);
         manager.bind_preference(

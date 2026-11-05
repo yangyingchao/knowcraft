@@ -91,7 +91,7 @@ fn plain_printable_override_yields_to_typing() {
 }
 
 /// A typed key bound to the reference opens it in the default map where it
-/// would not type, as 10xer's ~ does.
+/// would not type.
 #[test]
 fn typed_reference_key_toggles_the_reference() {
     crate::test_support::gtk_test(
@@ -99,7 +99,6 @@ fn typed_reference_key_toggles_the_reference() {
         || {
             let (preferences, fixture) =
                 fixture_with_saved(&[("shortcut_reference", &["question"])]);
-            preferences.set_tenxer_mode(false);
             preferences.set_type_to_search(false);
             focus_files(&fixture);
             assert!(fixture.press(Key::question, ModifierType::SHIFT_MASK));
@@ -121,7 +120,6 @@ fn document_zoom_reset_follows_its_own_keys() {
             ]);
             let preferences = PreferenceManager::shared();
             let fixture = super::preview_ownership::ownership_fixture();
-            preferences.set_tenxer_mode(false);
             let resets = Rc::new(Cell::new(0));
             let reset = gtk::gio::SimpleAction::new("reset-zoom", None);
             let counter = resets.clone();

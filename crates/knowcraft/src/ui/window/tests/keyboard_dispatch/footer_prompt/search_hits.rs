@@ -231,11 +231,11 @@ fn escape_keeps_the_hidden_selection(hits: &Hits<'_>, hidden: &[String]) {
 }
 
 #[test]
-fn tenxer_search_hits_fill_and_range_apart_from_the_hidden_directory() {
+fn search_hits_fill_and_range_apart_from_the_hidden_directory() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::footer_prompt::search_hits::tenxer_search_hits_fill_and_range_apart_from_the_hidden_directory",
+        "ui::window::tests::keyboard_dispatch::footer_prompt::search_hits::search_hits_fill_and_range_apart_from_the_hidden_directory",
         || {
-            let (fixture, _preferences) = tenxer_filter_fixture();
+            let (fixture, _preferences) = filter_fixture();
             let browser = fixture.view.browser();
 
             for mode in ALL_MODES {
@@ -366,11 +366,11 @@ fn go_home_ends_the_search(fixture: &KeyboardFixture, mode: BrowserMode, folder:
 }
 
 #[test]
-fn tenxer_search_hit_keys_peek_preview_and_yield_to_chords() {
+fn search_hit_keys_peek_preview_and_yield_to_chords() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::footer_prompt::search_hits::tenxer_search_hit_keys_peek_preview_and_yield_to_chords",
+        "ui::window::tests::keyboard_dispatch::footer_prompt::search_hits::search_hit_keys_peek_preview_and_yield_to_chords",
         || {
-            let (fixture, _preferences) = tenxer_filter_fixture();
+            let (fixture, _preferences) = filter_fixture();
             let browser = fixture.view.browser();
             let folder = fixture_name(&fixture).to_string();
 

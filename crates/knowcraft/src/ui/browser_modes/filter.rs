@@ -44,7 +44,7 @@ pub(crate) fn filter_controls(
         .build();
     let button = gtk::ToggleButton::new();
     let labelled_entry = entry.clone();
-    // 10xer hides the button, so it names the default map's key.
+    // There is a single keymap, so the button names its key.
     crate::ui::shortcut_reference::follow_keys(&button, move |button| {
         let keys = crate::ui::keys::label_in_map(
             &rust_i18n::locale(),
@@ -314,7 +314,7 @@ fn open_filtered_entry(
     }
 }
 
-/// Only a revealed funnel counts: a 10xer footer filter leaves it closed and has its own
+/// Only a revealed funnel counts: a footer filter leaves it closed and has its own
 /// Escape order. Away from native folders the filter narrows the listing in place, so its
 /// narrowed rows are the results.
 pub(super) fn pane_filter_focus(pane: &Pane, focused: Option<&gtk::Widget>) -> Option<FilterFocus> {

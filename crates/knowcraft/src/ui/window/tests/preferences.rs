@@ -10,8 +10,8 @@ mod browsing_prefs;
 mod column_prefs;
 mod folder_views;
 mod item_customizations;
+mod keymap_prefs;
 mod sidebar_prefs;
-mod tenxer_prefs;
 
 struct OpenWindow {
     window: gtk::ApplicationWindow,
@@ -171,9 +171,6 @@ fn assert_controls(open: &OpenWindow, operable: bool) {
     assert_pane_toolbar(open, operable);
     assert_filter_controls(open, operable);
     let browser = open.content.browser.widget();
-    for control in class_in_shown_pane(&browser, "tenxer-sort-direction") {
-        assert_operable(&control, operable, "tenxer-sort-direction");
-    }
     for control in controls_in_shown_pane(&browser, "Close this pane") {
         assert_operable(&control, operable, "Close this pane");
     }

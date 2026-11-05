@@ -87,7 +87,6 @@ fn localized_reference_names_keys_in_the_interface_language() {
             let manager = crate::ui::preferences::PreferenceManager::shared();
             // The shared manager applies the saved startup language first.
             rust_i18n::set_locale("de");
-            manager.set_tenxer_mode(true);
             let footer = ShortcutFooter::new(BrowserMode::Columns);
             footer.bind_preferences(&manager);
             settle();

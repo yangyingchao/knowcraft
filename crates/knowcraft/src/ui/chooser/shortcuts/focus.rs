@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-use super::super::state::select_name_stem;
 use super::*;
 
 impl ChooserShortcuts {
@@ -17,9 +16,6 @@ impl ChooserShortcuts {
     }
 
     pub(super) fn default_tab(&self, context: &KeyContext<'_>) -> Option<glib::Propagation> {
-        if context.tenxer() {
-            return None;
-        }
         let direction = context.tab()?;
         if context.focus_in_popover() {
             return None;
@@ -28,70 +24,6 @@ impl ChooserShortcuts {
             .view()
             .default_tab(direction)
             .then_some(glib::Propagation::Stop)
-    }
-
-    /// In 10xer mode Tab goes from the header to the name field, and from the
-    /// name into the request's options, or back to the files without any.
-    pub(super) fn tenxer_name_tab(&self, context: &KeyContext<'_>) -> Option<glib::Propagation> {
-        if !context.tenxer() || context.focus_in_popover() {
-            return None;
-        }
-        let direction = context.tab()?;
-        if context.name_has_focus() {
-            let into_options = direction == gtk::DirectionType::TabForward
-                && self.focus_options(context, direction);
-            if !into_options {
-                context.browser.focus_active();
-            }
-            return STOP;
-        }
-        if !context.focus_within(&self.header) {
-            return None;
-        }
-        self.tab_from_header(context);
-        STOP
-    }
-
-    /// A request without a name field goes on to its options, then the files.
-    fn tab_from_header(&self, context: &KeyContext<'_>) {
-        if let Some(filename) = context.state.filename.as_ref() {
-            focus_name(filename);
-        } else if !self.focus_options(context, gtk::DirectionType::TabForward) {
-            context.browser.focus_active();
-        }
-    }
-
-    /// In 10xer mode Tab walks the options, then returns to the files;
-    /// Shift+Tab from the first option returns to the name field.
-    pub(super) fn tenxer_options_tab(&self, context: &KeyContext<'_>) -> Option<glib::Propagation> {
-        if !context.tenxer() || context.focus_in_popover() {
-            return None;
-        }
-        let direction = context.tab()?;
-        if !context.focus_within(&self.options) {
-            return None;
-        }
-        if self.focus_options(context, direction) {
-            return STOP;
-        }
-        let back_to_name = context
-            .state
-            .filename
-            .as_ref()
-            .filter(|_| direction == gtk::DirectionType::TabBackward);
-        match back_to_name {
-            Some(filename) => focus_name(filename),
-            None => context.browser.focus_active(),
-        }
-        STOP
-    }
-
-    fn focus_options(&self, context: &KeyContext<'_>, direction: gtk::DirectionType) -> bool {
-        let moved = self.options.child_focus(direction);
-        if moved {
-            context.state.window.set_focus_visible(true);
-        }
-        moved
     }
 
     pub(super) fn focused_widget_key(&self, context: &KeyContext<'_>) -> Option<glib::Propagation> {
@@ -110,42 +42,13 @@ impl ChooserShortcuts {
         crate::ui::focus_navigation::editable(focused).then_some(glib::Propagation::Proceed)
     }
 
-    pub(super) fn tenxer_tab_to_header(
-        &self,
-        context: &KeyContext<'_>,
-    ) -> Option<glib::Propagation> {
-        if !context.tenxer() || !context.view().item_view_has_focus() {
-            return None;
-        }
-        if context.tab() != Some(gtk::DirectionType::TabForward) {
-            return None;
-        }
-        if self.header.child_focus(gtk::DirectionType::TabForward) {
-            context.state.window.set_focus_visible(true);
-        }
-        STOP
-    }
-
-    pub(super) fn tenxer_tab(&self, context: &KeyContext<'_>) -> Option<glib::Propagation> {
-        if !context.tenxer() || context.tab().is_none() {
-            return None;
-        }
-        if !crate::ui::focus_navigation::contains_widget(
-            &context.view().widget(),
-            context.focused.as_ref(),
-        ) {
-            context.browser.focus_active();
-        }
-        STOP
-    }
-
     pub(super) fn header_actions(&self, context: &KeyContext<'_>) -> Option<glib::Propagation> {
         if !context.view().header_actions_have_focus() {
             return None;
         }
         let press = &context.press;
         if press.is(LEFT.ignoring(FOCUS_MODIFIERS).or_alternates()) {
-            if context.view().move_header_focus(gtk::DirectionType::Left) || context.tenxer() {
+            if context.view().move_header_focus(gtk::DirectionType::Left) {
                 return STOP;
             }
             context.header_left_boundary.set(true);
@@ -160,7 +63,7 @@ impl ChooserShortcuts {
     }
 
     pub(super) fn sidebar_arrows(&self, context: &KeyContext<'_>) -> Option<glib::Propagation> {
-        if !self.sidebar_has_focus(context) || context.tenxer() {
+        if !self.sidebar_has_focus(context) {
             return None;
         }
         let direction = vim_focus_direction(&context.press)
@@ -192,12 +95,6 @@ impl ChooserShortcuts {
         }
         if context.header_left_boundary.get() {
             return None;
-        }
-        if context.tenxer() && focus_direction_key(&context.press) {
-            context.browser.focus_active();
-            return vim_focus_direction(&context.press)
-                .is_some()
-                .then_some(glib::Propagation::Stop);
         }
         Some(move_between_controls(context))
     }
@@ -232,15 +129,6 @@ fn move_between_controls(context: &KeyContext<'_>) -> glib::Propagation {
         return glib::Propagation::Stop;
     }
     glib::Propagation::Proceed
-}
-
-fn focus_name(filename: &gtk::Entry) {
-    filename.grab_focus_without_selecting();
-    select_name_stem(filename);
-}
-
-fn focus_direction_key(press: &KeyPress) -> bool {
-    arrow_direction(press, FOCUS_MODIFIERS).is_some() || vim_focus_direction(press).is_some()
 }
 
 fn within_chooser_options(focused: Option<&gtk::Widget>) -> bool {

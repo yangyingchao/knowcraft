@@ -281,9 +281,8 @@ impl ChooserState {
         self.action_status.set_visible_child_name("normal");
     }
 
-    /// The selected results or the fill; in 10xer mode an unfilled cursor
-    /// row counts too. The automatic first-row selection counts only when
-    /// `load_cursor` allows it.
+    /// The selected results or the fill. The automatic first-row selection
+    /// counts only when `load_cursor` allows it.
     pub(super) fn chosen_entries(&self, load_cursor: bool) -> Vec<FileEntry> {
         let browser = self.view.browser();
 
@@ -810,12 +809,6 @@ impl ChooserState {
             return;
         }
         self.activate_file(&entry.location);
-    }
-
-    pub(super) fn name_has_focus(&self, focused: Option<&gtk::Widget>) -> bool {
-        self.filename.as_ref().is_some_and(|filename| {
-            focused.is_some_and(|focused| focused == filename || focused.is_ancestor(filename))
-        })
     }
 
     pub(super) fn edit_name(&self) {

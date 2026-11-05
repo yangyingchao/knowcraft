@@ -227,9 +227,9 @@ fn shift_enter_on_a_focused_file_opens_with_the_default_app() {
 }
 
 #[test]
-fn tenxer_ctrl_and_shift_enter_open_a_directory_in_a_new_tab_or_window() {
+fn ctrl_and_shift_enter_open_a_directory_in_a_new_tab_or_window() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::open_in_new::tenxer_ctrl_and_shift_enter_open_a_directory_in_a_new_tab_or_window",
+        "ui::window::tests::keyboard_dispatch::open_in_new::ctrl_and_shift_enter_open_a_directory_in_a_new_tab_or_window",
         || {
             let fixture = KeyboardFixture::new();
             let browser = fixture.view.browser();
@@ -238,7 +238,6 @@ fn tenxer_ctrl_and_shift_enter_open_a_directory_in_a_new_tab_or_window() {
             let folder = root.path().join("folder");
             let preferences = PreferenceManager::shared();
             fixture.shortcuts.bind_preferences(&preferences);
-            preferences.set_tenxer_mode(true);
             pump(50);
             move_to_named(&fixture, &browser, "folder");
 

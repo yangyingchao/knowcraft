@@ -84,7 +84,7 @@ fn audio_steps_follow_search_results_including_subfolders() {
                 };
                 std::fs::write(root.join(name), bytes).expect("filter fixture");
             }
-            let preferences = footer_prompt::enable_tenxer(&fixture);
+            let preferences = footer_prompt::enable_prompts(&fixture);
             preferences.set_group_by_type(false);
             let browser = fixture.view.browser();
             fixture.preview.observe_browser(&browser);
@@ -152,9 +152,9 @@ fn audio_steps_follow_search_results_including_subfolders() {
 }
 
 #[test]
-fn tenxer_angle_brackets_step_through_audio_files_from_the_preview() {
+fn angle_brackets_step_through_audio_files_from_the_preview() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::audio_tracks::tenxer_angle_brackets_step_through_audio_files_from_the_preview",
+        "ui::window::tests::keyboard_dispatch::audio_tracks::angle_brackets_step_through_audio_files_from_the_preview",
         || {
             let fixture = KeyboardFixture::with_provider(Rc::new(AudioPreview));
             let root = fixture._directory.path();
@@ -162,7 +162,6 @@ fn tenxer_angle_brackets_step_through_audio_files_from_the_preview() {
                 std::fs::write(root.join(name), WAV_BYTES).expect("audio fixture");
             }
             let preferences = PreferenceManager::shared();
-            preferences.set_tenxer_mode(true);
             preferences.set_group_by_type(false);
             let browser = fixture.view.browser();
             fixture.preview.observe_browser(&browser);

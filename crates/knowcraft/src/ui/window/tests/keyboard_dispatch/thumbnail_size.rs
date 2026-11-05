@@ -110,18 +110,17 @@ fn thumbnail_shortcuts_and_shift_wheel_step_icons_sizes_and_leave_other_views_al
                 Some(format!("Text size: {}px", text_size + 1))
             );
 
-            preferences.set_tenxer_mode(true);
             focus_files(&fixture);
             for (key, modifiers, expected) in [
                 (Key::plus, ModifierType::SHIFT_MASK, 80),
                 (Key::minus, ModifierType::empty(), 72),
                 (Key::equal, ModifierType::empty(), 80),
             ] {
-                assert!(fixture.press(key, modifiers), "10xer {key:?}");
-                assert_eq!(thumbnail_size(&fixture), expected, "10xer {key:?}");
+                assert!(fixture.press(key, modifiers), "{key:?}");
+                assert_eq!(thumbnail_size(&fixture), expected, "{key:?}");
             }
             assert!(fixture.press(Key::plus, control_alt));
-            assert_eq!(thumbnail_size(&fixture), 96, "10xer keeps Ctrl+Alt++");
+            assert_eq!(thumbnail_size(&fixture), 96, "Ctrl+Alt++ keeps the step size");
 
             for mode in [BrowserMode::Columns, BrowserMode::List] {
                 fixture.view.set_view_mode(mode);

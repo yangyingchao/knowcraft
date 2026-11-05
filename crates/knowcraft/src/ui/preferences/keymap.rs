@@ -155,12 +155,11 @@ impl PreferenceManager {
         self.keymap_revision.get()
     }
 
-    /// What a shortcut label depends on: the active map, whether
-    /// type-to-search types the keys a user added, and the keys.
-    pub(crate) fn shown_keys(&self) -> (bool, bool, u64) {
+    /// What a shortcut label depends on: whether type-to-search types the
+    /// keys a user added, and the keys.
+    pub(crate) fn shown_keys(&self) -> (bool, u64) {
         (
-            self.tenxer_mode(),
-            self.type_to_search_active(),
+            self.type_to_search(),
             self.keymap_revision(),
         )
     }

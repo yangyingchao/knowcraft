@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! 10xer footer filter. It drives the focused pane's own filter field without
+//! Footer filter. It drives the focused pane's own filter field without
 //! revealing the funnel, so that field's name rules, **Include subfolders**
 //! scope, and stale-work cancellation stay the filter's rules.
 
@@ -27,7 +27,7 @@ pub(super) struct FilterState {
     /// first result.
     focus_on_arrival: Cell<bool>,
     notify_scheduled: Cell<bool>,
-    /// Whether a footer prompt that filters this browser, 10xer's **f** or **s**, has focus.
+    /// Whether a footer prompt that filters this browser has focus.
     footer_focus: RefCell<Option<Rc<dyn Fn() -> bool>>>,
     /// The search query and the hit the cursor last rested on in its results.
     cursor_hit: RefCell<Option<(String, PathBuf)>>,
@@ -282,7 +282,7 @@ impl Target {
     }
 }
 
-/// Only a revealed funnel counts: a 10xer footer filter leaves it closed and has its
+/// Only a revealed funnel counts: a footer filter leaves it closed and has its
 /// own Escape order.
 pub(super) fn column_filter_focus(
     column: &ColumnView,
@@ -420,7 +420,8 @@ pub(super) fn filter_shows_query(target: &Target) -> bool {
 
 pub(super) fn set_filter_text(target: &Target, query: &str) {
     if query.is_empty() {
-        // Closing a funnel that 10xer hides clears nothing; the text is cleared below.
+        // Closing a funnel a footer filter keeps hidden clears nothing; the text is
+        // cleared below.
         target.button().set_active(false);
     }
     if target.entry().text() != query {
@@ -645,7 +646,7 @@ impl BrowserView {
         }
     }
 
-    /// Clears the filters 10xer left behind a closed funnel in every pane.
+    /// Clears the filters a footer prompt left behind a closed funnel in every pane.
     pub(in crate::ui) fn clear_hidden_filters(&self) {
         self.state.listing_filter.focus_on_arrival.set(false);
         self.state.forget_result_fill();

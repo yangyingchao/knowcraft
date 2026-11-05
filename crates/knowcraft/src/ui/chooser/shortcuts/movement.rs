@@ -137,7 +137,7 @@ impl ChooserShortcuts {
     }
 
     fn open_focused(&self, context: &KeyContext<'_>) {
-        if !self.tenxer.confirm_focused() {
+        if !self.keys.confirm_focused() {
             context.view().activate_focused();
         }
     }

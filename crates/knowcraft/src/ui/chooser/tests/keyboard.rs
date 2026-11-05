@@ -23,23 +23,17 @@ struct Chooser {
 
 impl Chooser {
     fn open(kind: ChooserKind, mode: BrowserMode, tree: &[&str]) -> Self {
-        Self::open_with(kind, mode, tree, true)
-    }
-
-    fn open_with(kind: ChooserKind, mode: BrowserMode, tree: &[&str], tenxer: bool) -> Self {
-        Self::open_configured(mode, tree, tenxer, move |request| request.kind = kind)
+        Self::open_configured(mode, tree, move |request| request.kind = kind)
     }
 
     fn open_configured(
         mode: BrowserMode,
         tree: &[&str],
-        tenxer: bool,
         configure: impl FnOnce(&mut ChooserRequest),
     ) -> Self {
         crate::ui::prepare_portal_ui();
         let preferences = PreferenceManager::shared();
         preferences.set_browser_mode(mode);
-        preferences.set_tenxer_mode(tenxer);
         let root = tempfile::tempdir().expect("fixture");
         for path in tree {
             let target = root.path().join(path.trim_end_matches('/'));
@@ -170,11 +164,6 @@ impl Chooser {
             .expect("footer prompt")
     }
 
-    fn footer_visible(&self) -> bool {
-        widget_with_class(self.state.window.upcast_ref(), "chooser-footer")
-            .is_some_and(|footer| footer.is_visible())
-    }
-
     fn reference_search_focused(&self) -> bool {
         widget_with_class(self.state.window.upcast_ref(), "shortcut-reference-search").is_some_and(
             |search| {
@@ -245,9 +234,9 @@ fn multiple_files() -> ChooserKind {
 }
 
 #[test]
-fn tenxer_keys_choose_the_cursor_file_in_every_view() {
+fn keys_choose_the_cursor_file_in_every_view() {
     crate::test_support::gtk_test(
-        "ui::chooser::tests::keyboard::tenxer_keys_choose_the_cursor_file_in_every_view",
+        "ui::chooser::tests::keyboard::keys_choose_the_cursor_file_in_every_view",
         || {
             for (mode, confirm) in [
                 (BrowserMode::Columns, Key::Return),
@@ -257,7 +246,6 @@ fn tenxer_keys_choose_the_cursor_file_in_every_view() {
                 let chooser =
                     Chooser::open(single_file(), mode, &["alpha.txt", "beta.txt", "folder/"]);
                 wait_until(|| chooser.state.view.item_view_has_focus());
-                assert!(chooser.footer_visible(), "{mode:?}");
                 chooser.move_to("beta.txt");
                 assert!(chooser.open_request(), "{mode:?} motion chose a file");
 
@@ -468,7 +456,7 @@ fn dialogs_dismiss_on_escape_alternate() {
                 (Key::Escape, ModifierType::empty()),
             ] {
                 let chooser =
-                    Chooser::open_with(single_file(), BrowserMode::List, &["a.txt"], false);
+                    Chooser::open(single_file(), BrowserMode::List, &["a.txt"]);
                 chooser.focus_files();
                 assert!(chooser.press_with(key, modifiers));
                 assert!(chooser.cancelled(), "{key:?}");
@@ -489,7 +477,7 @@ fn modified_arrow_alternate_moves_the_cursor() {
             let keymap = Keymap::defaults().with(Map::Default, DOWN, bindings);
             let _keymap = use_keymap(keymap);
             let chooser =
-                Chooser::open_with(single_file(), BrowserMode::List, &["a.txt", "b.txt"], false);
+                Chooser::open(single_file(), BrowserMode::List, &["a.txt", "b.txt"]);
             chooser.focus_files();
             chooser.press(Key::Home);
             wait_until(|| chooser.cursor_name().as_deref() == Some("a.txt"));
@@ -533,16 +521,14 @@ fn escape_dismisses_one_interaction_before_cancelling_and_the_toggle_keeps_the_r
 }
 
 #[test]
-fn chooser_shortcuts_stay_off_while_the_reference_stays_open_outside_tenxer() {
+fn chooser_shortcuts_stay_off_while_the_reference_is_open() {
     crate::test_support::gtk_test(
-        "ui::chooser::tests::keyboard::chooser_shortcuts_stay_off_while_the_reference_stays_open_outside_tenxer",
+        "ui::chooser::tests::keyboard::chooser_shortcuts_stay_off_while_the_reference_is_open",
         || {
             let chooser = Chooser::open(single_file(), BrowserMode::List, &["a.txt", "folder/"]);
             chooser.focus_files();
             assert!(chooser.press(Key::F1));
             wait_until(|| chooser.reference_search_focused());
-            PreferenceManager::shared().set_tenxer_mode(false);
-            wait_until(|| !chooser.footer_visible());
             assert!(chooser.reference_visible());
             let browser = chooser.state.view.browser();
             let location = browser.active_location();
@@ -636,13 +622,6 @@ fn save_starts_in_the_files_r_edits_the_name_and_enter_saves_here() {
                     .is_some_and(|focus| focus.is_ancestor(&name))
             };
             wait_until(|| chooser.state.view.item_view_has_focus());
-            let hints = widget_with_class(chooser.state.window.upcast_ref(), "chooser-save-hints")
-                .expect("save hints");
-            assert!(hints.is_visible());
-            PreferenceManager::shared().set_tenxer_mode(false);
-            assert!(!hints.is_visible());
-            PreferenceManager::shared().set_tenxer_mode(true);
-            assert!(hints.is_visible());
             chooser.move_to("other.txt");
             chooser.move_to("folder");
             assert_eq!(name.text(), "output.txt", "the cursor renamed the file");
@@ -659,7 +638,6 @@ fn save_starts_in_the_files_r_edits_the_name_and_enter_saves_here() {
             ] {
                 assert!(!chooser.press_with(key, modifiers), "{key:?} was not typed");
             }
-            assert!(PreferenceManager::shared().tenxer_mode());
             name.set_text("report.txt");
             assert!(chooser.press(Key::Escape));
             assert!(chooser.state.view.item_view_has_focus());
@@ -721,9 +699,9 @@ fn folder_with_choice(request: &mut ChooserRequest) {
 }
 
 #[test]
-fn tenxer_tab_cycles_files_header_name_options_and_back_to_files() {
+fn tab_cycles_files_header_name_options_and_back_to_files() {
     crate::test_support::gtk_test(
-        "ui::chooser::tests::keyboard::tenxer_tab_cycles_files_header_name_options_and_back_to_files",
+        "ui::chooser::tests::keyboard::tab_cycles_files_header_name_options_and_back_to_files",
         || {
             // Each case's stops after the header: name field, then options.
             let cases: [(&str, ConfigureRequest, usize); 4] = [
@@ -734,7 +712,7 @@ fn tenxer_tab_cycles_files_header_name_options_and_back_to_files() {
             ];
             for (case, configure, after_header) in cases {
                 let chooser =
-                    Chooser::open_configured(BrowserMode::List, &["existing.txt"], true, configure);
+                    Chooser::open_configured(BrowserMode::List, &["existing.txt"], configure);
                 let header = widget_with_class(chooser.state.window.upcast_ref(), "browser-header")
                     .expect("header");
                 let name = chooser.state.filename.clone();
@@ -852,13 +830,12 @@ fn save_file_initial_name_selection_stops_before_the_dot() {
     crate::test_support::gtk_test(
         "ui::chooser::tests::keyboard::save_file_initial_name_selection_stops_before_the_dot",
         || {
-            let chooser = Chooser::open_with(
+            let chooser = Chooser::open(
                 ChooserKind::SaveFile {
                     current_name: Some("report.draft.pdf".into()),
                 },
                 BrowserMode::List,
                 &[],
-                false,
             );
             while gtk::glib::MainContext::default().iteration(false) {}
             let name = chooser.state.filename.clone().expect("name field");
@@ -988,7 +965,7 @@ fn default_map_enter_returns_the_whole_fill_in_every_view() {
             ];
             for (mode, fill, expected) in cases {
                 let chooser =
-                    Chooser::open_with(multiple_files(), mode, &["a.txt", "b.txt", "c.txt"], false);
+                    Chooser::open(multiple_files(), mode, &["a.txt", "b.txt", "c.txt"]);
                 chooser.focus_files();
                 fill(&chooser);
                 assert!(chooser.open_request(), "{mode:?} filling chose a file");
@@ -1014,11 +991,10 @@ fn default_map_enter_returns_only_the_files_of_a_fill_with_a_folder() {
     crate::test_support::gtk_test(
         "ui::chooser::tests::keyboard::default_map_enter_returns_only_the_files_of_a_fill_with_a_folder",
         || {
-            let chooser = Chooser::open_with(
+            let chooser = Chooser::open(
                 multiple_files(),
                 BrowserMode::List,
                 &["a.txt", "b.txt", "sub/"],
-                false,
             );
             chooser.focus_files();
             chooser.press_with(Key::a, ModifierType::CONTROL_MASK);
@@ -1048,7 +1024,7 @@ fn saved_overrides_reach_the_chooser_dispatcher() {
                 "[keymap.default]\ntoggle_hidden_files = [\"<Control><Alt>h\"]\nparent_folder = [\"<Control>e\"]\n",
             )
             .expect("saved override");
-            let chooser = Chooser::open_with(single_file(), BrowserMode::List, &["a.txt"], false);
+            let chooser = Chooser::open(single_file(), BrowserMode::List, &["a.txt"]);
             chooser.focus_files();
             let browser = chooser.state.view.browser();
             let hidden = browser.preferences().show_hidden;
@@ -1081,11 +1057,10 @@ fn default_map_enter_keeps_single_selection_and_folder_navigation() {
     crate::test_support::gtk_test(
         "ui::chooser::tests::keyboard::default_map_enter_keeps_single_selection_and_folder_navigation",
         || {
-            let chooser = Chooser::open_with(
+            let chooser = Chooser::open(
                 single_file(),
                 BrowserMode::List,
                 &["alpha.txt", "beta.txt"],
-                false,
             );
             chooser.focus_files();
             assert!(chooser.press(Key::Return));
@@ -1093,11 +1068,10 @@ fn default_map_enter_keeps_single_selection_and_folder_navigation() {
             assert_eq!(chooser.responses.get(), 1);
             drop(chooser);
 
-            let chooser = Chooser::open_with(
+            let chooser = Chooser::open(
                 multiple_files(),
                 BrowserMode::Columns,
                 &["alpha.txt", "folder/", "folder/inner.txt"],
-                false,
             );
             chooser.focus_files();
             chooser.press(Key::Down);
@@ -1200,11 +1174,10 @@ fn enter_in_the_filter_field_chooses_the_top_result_in_every_view() {
         "ui::chooser::tests::keyboard::enter_in_the_filter_field_chooses_the_top_result_in_every_view",
         || {
             for mode in [BrowserMode::Columns, BrowserMode::List, BrowserMode::Icons] {
-                let chooser = Chooser::open_with(
+                let chooser = Chooser::open(
                     single_file(),
                     mode,
                     &["notes.txt", "notes-old.txt", "other.txt"],
-                    false,
                 );
                 chooser.focus_files();
                 assert!(
@@ -1245,7 +1218,7 @@ fn context_menu_keys_on_back_list_the_back_history() {
         || {
             for mode in [BrowserMode::Icons, BrowserMode::List] {
                 let chooser =
-                    Chooser::open_with(single_file(), mode, &["alpha/", "notes.txt"], false);
+                    Chooser::open(single_file(), mode, &["alpha/", "notes.txt"]);
                 let browser = chooser.state.view.browser();
                 let alpha = Location::local(chooser.root.path().join("alpha"));
                 browser.navigate(alpha.clone());

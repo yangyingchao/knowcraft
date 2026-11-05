@@ -51,7 +51,7 @@ fn plain_page_keys_replace_and_page(
     );
 }
 
-fn tenxer_shift_page_keys_do_not_select(
+fn shift_page_keys_do_not_select(
     fixture: &KeyboardFixture,
     browser: &crate::app::Browser,
     mode: BrowserMode,
@@ -66,7 +66,7 @@ fn tenxer_shift_page_keys_do_not_select(
     }
 }
 
-fn tenxer_page_keys_walk_the_visual_range(
+fn page_keys_walk_the_visual_range(
     fixture: &KeyboardFixture,
     browser: &crate::app::Browser,
     mode: BrowserMode,
@@ -93,9 +93,9 @@ fn tenxer_page_keys_walk_the_visual_range(
 }
 
 #[test]
-fn page_keys_extend_shift_selection_or_a_tenxer_range() {
+fn page_keys_extend_shift_selection_or_walk_the_range() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::jump_keys::page_keys_extend_shift_selection_or_a_tenxer_range",
+        "ui::window::tests::keyboard_dispatch::jump_keys::page_keys_extend_shift_selection_or_walk_the_range",
         || {
             let fixture = KeyboardFixture::new();
             PreferenceManager::shared().set_group_by_type(false);
@@ -118,14 +118,13 @@ fn page_keys_extend_shift_selection_or_a_tenxer_range() {
                 plain_page_keys_replace_and_page(&fixture, &browser, mode);
             }
 
-            PreferenceManager::shared().set_tenxer_mode(true);
             for mode in modes {
                 fixture.view.set_view_mode(mode);
                 browser.select(0, 0);
                 focus_files(&fixture);
                 pump(200);
-                tenxer_shift_page_keys_do_not_select(&fixture, &browser, mode);
-                tenxer_page_keys_walk_the_visual_range(&fixture, &browser, mode);
+                shift_page_keys_do_not_select(&fixture, &browser, mode);
+                page_keys_walk_the_visual_range(&fixture, &browser, mode);
             }
         },
     );
@@ -144,13 +143,12 @@ fn open_folders(fixture: &KeyboardFixture, folder: &std::path::Path, folders: &[
 }
 
 #[test]
-fn tenxer_columns_mirror_the_first_move_after_a_load() {
+fn columns_mirror_the_first_move_after_a_load() {
     crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::jump_keys::tenxer_columns_mirror_the_first_move_after_a_load",
+        "ui::window::tests::keyboard_dispatch::jump_keys::columns_mirror_the_first_move_after_a_load",
         || {
             let fixture = KeyboardFixture::new();
             let preferences = PreferenceManager::shared();
-            preferences.set_tenxer_mode(true);
             preferences.set_columns_mirror_selection(true);
             let browser = fixture.view.browser();
             let folder = fixture._directory.path().join("folders");
@@ -241,7 +239,6 @@ fn columns_mirror_home_and_end_in_the_default_key_map() {
         || {
             let fixture = KeyboardFixture::new();
             let preferences = PreferenceManager::shared();
-            preferences.set_tenxer_mode(false);
             preferences.set_columns_mirror_selection(true);
             preferences.set_single_click_previews(false);
             fixture.view.set_columns_mirror_selection(true);

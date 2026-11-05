@@ -16,9 +16,8 @@ type Stage = fn(&ChooserShortcuts, &KeyContext<'_>) -> Option<glib::Propagation>
 
 /// Stages that read the key as pressed, before type-to-search untypes it.
 const PRESSED_STAGES: &[Stage] = &[
-    ChooserShortcuts::tenxer_text_keeps_key,
     ChooserShortcuts::reset_pdf_zoom,
-    ChooserShortcuts::tenxer_key,
+    ChooserShortcuts::dispatcher_key,
     ChooserShortcuts::text_size,
     ChooserShortcuts::resize_thumbnails,
     ChooserShortcuts::reference_keeps_key,
@@ -53,11 +52,7 @@ const NAVIGATION_STAGES: &[Stage] = &[
     ChooserShortcuts::control_keeps_key,
     ChooserShortcuts::column_popover_focus,
     ChooserShortcuts::default_tab,
-    ChooserShortcuts::tenxer_name_tab,
-    ChooserShortcuts::tenxer_options_tab,
     ChooserShortcuts::focused_widget_key,
-    ChooserShortcuts::tenxer_tab_to_header,
-    ChooserShortcuts::tenxer_tab,
     ChooserShortcuts::header_actions,
     ChooserShortcuts::sidebar_arrows,
     ChooserShortcuts::dismiss_empty_filter,
@@ -77,12 +72,11 @@ pub(super) struct ShortcutParts<'a> {
     pub(super) sidebar: &'a SidebarView,
     pub(super) sidebar_toggle: &'a gtk::ToggleButton,
     pub(super) header: &'a gtk::Box,
-    pub(super) options: &'a gtk::FlowBox,
     pub(super) preview: &'a PreviewDrawer,
     pub(super) footer: &'a ShortcutFooter,
 }
 
-fn tenxer_keys(state: &Rc<ChooserState>, parts: &ShortcutParts<'_>) -> ChooserKeys {
+fn chooser_keys(state: &Rc<ChooserState>, parts: &ShortcutParts<'_>) -> ChooserKeys {
     let confirming = Rc::downgrade(state);
     let cancelling = Rc::downgrade(state);
     let saving = Rc::downgrade(state);
@@ -132,11 +126,10 @@ fn tenxer_keys(state: &Rc<ChooserState>, parts: &ShortcutParts<'_>) -> ChooserKe
 }
 
 pub(super) fn install_shortcuts(state: &Rc<ChooserState>, parts: ShortcutParts<'_>) {
-    let tenxer = tenxer_keys(state, &parts);
     let keys = gtk::EventControllerKey::new();
     keys.set_propagation_phase(gtk::PropagationPhase::Capture);
     let weak = Rc::downgrade(state);
-    let shortcuts = ChooserShortcuts::new(&parts, tenxer);
+    let shortcuts = ChooserShortcuts::new(&parts, chooser_keys(state, &parts));
     keys::on_press(&keys, move |_, press| {
         let Some(state) = weak.upgrade() else {
             return glib::Propagation::Proceed;
@@ -160,12 +153,9 @@ struct ChooserShortcuts {
     sidebar_state: Rc<SidebarState>,
     sidebar_widget: gtk::Widget,
     sidebar_toggle: gtk::ToggleButton,
-    header: gtk::Widget,
-    /// The request's filter, choices and read-only option, in Tab order.
-    options: gtk::Widget,
     preview: PreviewDrawer,
     focus_before_sidebar: RefCell<Option<gtk::Widget>>,
-    tenxer: ChooserKeys,
+    keys: ChooserKeys,
 }
 
 /// One key press, with the focus and browser it was read against.
@@ -181,16 +171,14 @@ struct KeyContext<'a> {
 }
 
 impl ChooserShortcuts {
-    fn new(parts: &ShortcutParts<'_>, tenxer: ChooserKeys) -> Self {
+    fn new(parts: &ShortcutParts<'_>, keys: ChooserKeys) -> Self {
         Self {
             sidebar_state: parts.sidebar.state.clone(),
             sidebar_widget: parts.sidebar.widget.clone(),
             sidebar_toggle: parts.sidebar_toggle.clone(),
-            header: parts.header.clone().upcast(),
-            options: parts.options.clone().upcast(),
             preview: parts.preview.clone(),
             focus_before_sidebar: RefCell::new(None),
-            tenxer,
+            keys,
         }
     }
 
@@ -203,7 +191,7 @@ impl ChooserShortcuts {
             return result;
         }
         // Unlike the window, the chooser types h j k l whenever type-to-search
-        // is on, 10xer mode included.
+        // is on.
         if context.preferences.type_to_search() {
             context.press = context.press.untyped();
         }
@@ -253,10 +241,6 @@ impl<'a> KeyContext<'a> {
 
     fn view(&self) -> &BrowserView {
         &self.state.view
-    }
-
-    fn tenxer(&self) -> bool {
-        self.preferences.tenxer_mode()
     }
 
     fn alt(&self) -> bool {
@@ -310,10 +294,6 @@ impl<'a> KeyContext<'a> {
             .and_downcast::<gtk::Popover>()
     }
 
-    fn name_has_focus(&self) -> bool {
-        self.state.name_has_focus(self.focused.as_ref())
-    }
-
     /// A new entry or rename is being typed in the item view.
     fn item_view_editing(&self) -> bool {
         self.view().new_entry_is_active() || self.view().rename_is_active()
@@ -324,6 +304,6 @@ impl<'a> KeyContext<'a> {
     }
 
     fn arrow_scoped(&self) -> bool {
-        self.preferences.arrow_navigation_scoped_active()
+        self.preferences.arrow_navigation_scoped()
     }
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! 10xer footer find: moves the cursor between name matches in the displayed
+//! Footer find: moves the cursor between name matches in the displayed
 //! listing and keeps the matched substrings highlighted without hiding rows.
 
 use std::{
@@ -20,7 +20,7 @@ use crate::{
 };
 
 /// The last committed find of a window. `n` repeats it after its highlights are
-/// dismissed; leaving 10xer mode forgets it.
+/// dismissed.
 #[derive(Default)]
 pub(super) struct FindState {
     query: String,
