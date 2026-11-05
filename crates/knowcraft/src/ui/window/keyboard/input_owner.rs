@@ -91,7 +91,7 @@ impl Dispatcher {
     }
 
     pub(super) fn footer_key(&self, press: &KeyPress) -> KeyResult {
-        Some(self.shortcuts.handle_key(press)?)
+        self.shortcuts.handle_key(press)
     }
 
     pub(super) fn native_menu_owns_input(&self) -> bool {

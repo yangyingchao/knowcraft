@@ -272,7 +272,10 @@ fn a_folder_only_leftovers_keep_goes_once_they_do_within_the_mount_s_wait()
         ]
     };
     let rows: [(Waiting, &[Meanwhile]); 6] = [
-        (("nfs3", Quirks::nfs3, fuse_and_nfs), &renamed(KnowcraftRead)),
+        (
+            ("nfs3", Quirks::nfs3, fuse_and_nfs),
+            &renamed(KnowcraftRead),
+        ),
         (("nfs42", Quirks::nfs42, fuse_and_nfs), &renamed(Program)),
         (("cifs", Quirks::cifs, smb), &renamed(KnowcraftOperation)),
         (

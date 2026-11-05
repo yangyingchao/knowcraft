@@ -133,4 +133,3 @@ fn default_map_custom_action_slots_run_their_listed_action() {
         },
     );
 }
-

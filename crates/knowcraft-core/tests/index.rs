@@ -32,7 +32,13 @@ fn test_dir(suffix: &str) -> std::path::PathBuf {
 fn index_and_search_english() {
     let dir = test_dir("idx");
     let index = Index::open(&dir).unwrap();
-    let doc = make_doc(1, &dir, "note.md", "md", "knowledge management full text search test");
+    let doc = make_doc(
+        1,
+        &dir,
+        "note.md",
+        "md",
+        "knowledge management full text search test",
+    );
     index.index_document(&doc).unwrap();
     let hits = index.search("knowledge", 10).unwrap();
     assert!(hits.iter().any(|h| h.document_id == 1));
@@ -44,7 +50,13 @@ fn index_skips_hidden_paths() {
     let index = Index::open(&dir).unwrap();
     let hidden_dir = dir.join(".secret");
     std::fs::create_dir_all(&hidden_dir).unwrap();
-    let doc = make_doc(1, &hidden_dir, "hidden.md", "md", "hidden content should not be indexed");
+    let doc = make_doc(
+        1,
+        &hidden_dir,
+        "hidden.md",
+        "md",
+        "hidden content should not be indexed",
+    );
     index.index_document(&doc).unwrap();
     assert!(index.search("hidden", 10).unwrap().is_empty());
 }
@@ -76,7 +88,10 @@ fn search_finds_chinese_words_through_jieba() {
     );
     index.index_document(&doc).unwrap();
     let hits = index.search("管理", 10).unwrap();
-    assert!(hits.iter().any(|hit| hit.document_id == 1), "命中: {hits:?}");
+    assert!(
+        hits.iter().any(|hit| hit.document_id == 1),
+        "命中: {hits:?}"
+    );
 }
 
 #[test]
@@ -106,7 +121,11 @@ fn search_returns_a_plain_text_snippet() {
     let hits = index.search("摘要", 10).unwrap();
     let hit = hits.first().expect("命中");
     assert!(hit.snippet.contains("摘要"), "摘要: {}", hit.snippet);
-    assert!(!hit.snippet.contains('<'), "摘要不应含标记: {}", hit.snippet);
+    assert!(
+        !hit.snippet.contains('<'),
+        "摘要不应含标记: {}",
+        hit.snippet
+    );
 }
 
 #[test]
@@ -117,13 +136,11 @@ fn batch_index_replaces_previous_entries_for_the_same_document() {
     index.index_document(&old).unwrap();
     let new = make_doc(1, &dir, "note.md", "md", "beta content");
     index.index_documents(std::slice::from_ref(&new)).unwrap();
-    assert!(
-        index
-            .search("beta", 10)
-            .unwrap()
-            .iter()
-            .any(|hit| hit.document_id == 1)
-    );
+    assert!(index
+        .search("beta", 10)
+        .unwrap()
+        .iter()
+        .any(|hit| hit.document_id == 1));
 }
 
 #[test]
@@ -132,13 +149,11 @@ fn search_finds_a_word_inside_a_longer_chinese_compound() {
     let index = Index::open(&dir).unwrap();
     let doc = make_doc(1, &dir, "note.md", "md", "知识管理工作台支持全文检索。");
     index.index_document(&doc).unwrap();
-    assert!(
-        index
-            .search("检索", 10)
-            .unwrap()
-            .iter()
-            .any(|hit| hit.document_id == 1)
-    );
+    assert!(index
+        .search("检索", 10)
+        .unwrap()
+        .iter()
+        .any(|hit| hit.document_id == 1));
 }
 
 #[test]
@@ -146,9 +161,27 @@ fn similar_to_text_ranks_the_matching_topic() {
     let dir = test_dir("similar");
     let index = Index::open(&dir).unwrap();
     let docs = vec![
-        make_doc(1, &dir, "ml-a.md", "md", "神经网络 深度学习 模型 训练 反向传播 梯度"),
-        make_doc(2, &dir, "ml-b.md", "md", "机器学习 分类器 特征 训练 神经网络 模型"),
-        make_doc(3, &dir, "cook-a.md", "md", "红烧肉 食谱 五花肉 酱油 冰糖 烹饪"),
+        make_doc(
+            1,
+            &dir,
+            "ml-a.md",
+            "md",
+            "神经网络 深度学习 模型 训练 反向传播 梯度",
+        ),
+        make_doc(
+            2,
+            &dir,
+            "ml-b.md",
+            "md",
+            "机器学习 分类器 特征 训练 神经网络 模型",
+        ),
+        make_doc(
+            3,
+            &dir,
+            "cook-a.md",
+            "md",
+            "红烧肉 食谱 五花肉 酱油 冰糖 烹饪",
+        ),
         make_doc(4, &dir, "cook-b.md", "md", "面包 烘焙 面粉 酵母 烤箱 食谱"),
     ];
     index.index_documents(&docs).unwrap();

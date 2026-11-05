@@ -184,7 +184,11 @@ fn a_named_pipe_whose_copy_fails_is_not_left_behind() -> Result<(), Box<dyn Erro
             Quirks {
                 fail: vec![(
                     Op::SetTimes,
-                    if selected { ".knowcraft-copy-*" } else { "pipe" },
+                    if selected {
+                        ".knowcraft-copy-*"
+                    } else {
+                        "pipe"
+                    },
                     0,
                     Errno::IO,
                 )],

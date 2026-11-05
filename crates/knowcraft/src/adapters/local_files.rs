@@ -402,7 +402,9 @@ impl FileSource for LocalFileSource {
     /// The shell is locked to the knowledge base: navigation never leaves it.
     fn allows_navigation(&self, location: &Location) -> bool {
         crate::knowledge::data_dir_path().is_none_or(|root| {
-            location.native_path().is_some_and(|path| path.starts_with(root))
+            location
+                .native_path()
+                .is_some_and(|path| path.starts_with(root))
         })
     }
 

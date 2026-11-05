@@ -154,7 +154,8 @@ impl ManagedInstall {
 
     fn update_instruction_with(&self, available: impl Fn(&str) -> bool + Copy) -> String {
         if let Some(command) = self.update_command.as_deref() {
-            return rust_i18n::t!("Update Knowcraft with: %{command}", command = command).into_owned();
+            return rust_i18n::t!("Update Knowcraft with: %{command}", command = command)
+                .into_owned();
         }
         if let Some((helper, package)) = self.aur_update_target_with(available) {
             return rust_i18n::t!(

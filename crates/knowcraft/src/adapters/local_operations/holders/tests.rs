@@ -36,8 +36,8 @@ enum Aside {
 }
 
 #[test]
-fn a_file_this_process_keeps_open_below_a_folder_is_named_as_knowcraft() -> Result<(), Box<dyn Error>>
-{
+fn a_file_this_process_keeps_open_below_a_folder_is_named_as_knowcraft()
+-> Result<(), Box<dyn Error>> {
     use Aside::*;
     for aside in [
         RenamedToALeftover,
@@ -88,7 +88,9 @@ fn a_file_this_process_keeps_open_below_a_folder_is_named_as_knowcraft() -> Resu
         let found = scan(opened.as_fd(), &listed, &[std::process::id()]);
 
         let expected = match aside {
-            RenamedToALeftover | UnlinkedBesideALeftover | UnlinkedUnlisted => Some(Holder::Knowcraft),
+            RenamedToALeftover | UnlinkedBesideALeftover | UnlinkedUnlisted => {
+                Some(Holder::Knowcraft)
+            }
             OpenInASiblingFolder | OtherFileOpenBesideALeftover => None,
         };
         assert_eq!(found, expected, "{aside:?}");
@@ -179,8 +181,8 @@ fn holding_sleep(
 }
 
 #[test]
-fn a_helper_knowcraft_started_is_knowcraft_and_any_other_process_is_named() -> Result<(), Box<dyn Error>>
-{
+fn a_helper_knowcraft_started_is_knowcraft_and_any_other_process_is_named()
+-> Result<(), Box<dyn Error>> {
     use Started::*;
     for started in [
         AsAHelper,

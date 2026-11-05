@@ -144,10 +144,7 @@ fn a_run_fills_every_row_and_marks_checks_that_never_reported() {
                 crate::i18n::tr("This check couldn't run.")
             );
             let pending = crate::i18n::tr("Checking…");
-            for id in [
-                CheckId::Terminal,
-                CheckId::CustomActions,
-            ] {
+            for id in [CheckId::Terminal, CheckId::CustomActions] {
                 assert_ne!(row_text(&page, id).0, pending, "{id:?}");
             }
             assert!(

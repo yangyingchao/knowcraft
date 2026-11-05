@@ -46,7 +46,10 @@ impl Prompt {
     }
 
     pub(in crate::ui) fn picks_folder(self) -> bool {
-        matches!(self, Self::Go | Self::MoveTo | Self::CopyTo | Self::ExtractTo)
+        matches!(
+            self,
+            Self::Go | Self::MoveTo | Self::CopyTo | Self::ExtractTo
+        )
     }
 
     pub(in crate::ui) fn holds_targets(self) -> bool {

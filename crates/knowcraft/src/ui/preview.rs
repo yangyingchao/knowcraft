@@ -221,9 +221,7 @@ struct PreviewState {
 }
 
 use keyboard::MediaSeek;
-pub(in crate::ui) use keyboard::{
-    ArchiveMove, DocumentScroll, MediaCommand, PreviewSurface, media_key_command,
-};
+pub(in crate::ui) use keyboard::{ArchiveMove, MediaCommand, PreviewSurface};
 
 #[cfg(test)]
 mod tests;

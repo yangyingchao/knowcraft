@@ -300,7 +300,8 @@ fn an_already_cancelled_recursive_delete_preserves_the_root() -> Result<(), Box<
     let unique = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)?
         .as_nanos();
-    let root = std::env::temp_dir().join(format!("knowcraft-recursive-delete-cancel-test-{unique}"));
+    let root =
+        std::env::temp_dir().join(format!("knowcraft-recursive-delete-cancel-test-{unique}"));
     let nested = root.join("nested");
     fs::create_dir_all(&nested)?;
     for index in 0..64 {

@@ -22,7 +22,11 @@ fn add_then_search_roundtrip() {
         .arg(&src)
         .output()
         .unwrap();
-    assert!(out.status.success(), "add failed: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "add failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 
     let out = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
         .env("KNOWCRAFT_DATA_DIR", &dir)
@@ -30,7 +34,11 @@ fn add_then_search_roundtrip() {
         .arg("world")
         .output()
         .unwrap();
-    assert!(out.status.success(), "search failed: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "search failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let text = String::from_utf8_lossy(&out.stdout);
     assert!(text.contains("note.md"), "hit must name the file: {text}");
 }
@@ -64,7 +72,10 @@ fn add_then_dispatch_then_status() {
         .unwrap();
     assert!(dispatch.status.success());
     let dispatch_text = String::from_utf8_lossy(&dispatch.stdout);
-    assert!(dispatch_text.contains("/library/papers/"), "{dispatch_text}");
+    assert!(
+        dispatch_text.contains("/library/papers/"),
+        "{dispatch_text}"
+    );
 
     let status = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
         .env("KNOWCRAFT_DATA_DIR", &dir)
@@ -86,7 +97,10 @@ fn search_without_index_returns_clean_error() {
         .arg("x")
         .output()
         .unwrap();
-    assert!(!out.status.success(), "search on an empty library must fail cleanly");
+    assert!(
+        !out.status.success(),
+        "search on an empty library must fail cleanly"
+    );
 }
 
 #[test]

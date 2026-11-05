@@ -176,7 +176,12 @@ fn jump_queries_take_fzf_terms_across_the_whole_path() {
     let source = PathBuf::from("/home/me/dev/knowcraft/src");
     let knowcraftgem = PathBuf::from("/home/me/knowcraftgem");
     let notes = PathBuf::from("/home/me/notes/knowcraft-notes");
-    for (path, visits) in [(&knowcraft, 1), (&source, 30), (&knowcraftgem, 30), (&notes, 30)] {
+    for (path, visits) in [
+        (&knowcraft, 1),
+        (&source, 30),
+        (&knowcraftgem, 30),
+        (&notes, 30),
+    ] {
         for _ in 0..visits {
             history.record_at(path, now - 10);
         }
@@ -189,7 +194,11 @@ fn jump_queries_take_fzf_terms_across_the_whole_path() {
             .map(|item| item.path)
             .collect::<Vec<_>>()
     };
-    assert_eq!(jump("knowcraft")[0], knowcraft, "an exact name beats frecency");
+    assert_eq!(
+        jump("knowcraft")[0],
+        knowcraft,
+        "an exact name beats frecency"
+    );
     assert_eq!(jump("knowcraft dev"), [knowcraft.clone(), source.clone()]);
     assert_eq!(jump("dev src"), [source]);
     let excluded = jump("knowcraft !notes");

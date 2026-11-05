@@ -227,11 +227,7 @@ impl EnterTarget {
         let Some((has_rows, has_selection)) = self.rows_state() else {
             return;
         };
-        let follows = self
-            .0
-            .tracker
-            .borrow()
-            .follows_top(has_rows, has_selection);
+        let follows = self.0.tracker.borrow().follows_top(has_rows, has_selection);
         if follows
             && self.entry_has_focus()
             && let Some(view) = self.0.view.upgrade()

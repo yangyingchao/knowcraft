@@ -79,11 +79,7 @@ struct HtmlState {
 }
 
 impl HtmlState {
-    fn new(
-        markup_limit: usize,
-        images_enabled: bool,
-        suppress_noise_warnings: bool,
-    ) -> Self {
+    fn new(markup_limit: usize, images_enabled: bool, suppress_noise_warnings: bool) -> Self {
         Self {
             blocks: Vec::new(),
             active: None,

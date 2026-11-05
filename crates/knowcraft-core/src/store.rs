@@ -228,10 +228,7 @@ impl Store {
             "DELETE FROM document_tags WHERE document_id = ?1",
             params![id],
         )?;
-        conn.execute(
-            "DELETE FROM notes WHERE document_id = ?1",
-            params![id],
-        )?;
+        conn.execute("DELETE FROM notes WHERE document_id = ?1", params![id])?;
         conn.execute(
             "DELETE FROM annotations WHERE document_id = ?1",
             params![id],
@@ -316,7 +313,14 @@ impl Store {
         conn.execute(
             "INSERT INTO notes (document_id, annotation_id, title, content, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![n.document_id, n.annotation_id, n.title, n.content, n.created_at, n.updated_at],
+            params![
+                n.document_id,
+                n.annotation_id,
+                n.title,
+                n.content,
+                n.created_at,
+                n.updated_at
+            ],
         )?;
         Ok(conn.last_insert_rowid())
     }

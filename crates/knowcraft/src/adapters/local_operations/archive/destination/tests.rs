@@ -138,7 +138,11 @@ fn publishing_reports_failures_without_discarding_staged_files() -> Result<(), B
     );
     let destination = ExtractionDestination::open(root.path())?;
     let (staging, _) = stage(&destination, &["first.txt"])?;
-    assert!(staging.to_string_lossy().starts_with(".knowcraft-extraction-"));
+    assert!(
+        staging
+            .to_string_lossy()
+            .starts_with(".knowcraft-extraction-")
+    );
 
     let error = destination
         .publish_staging_as_folder(&staging, "bundle.zip")

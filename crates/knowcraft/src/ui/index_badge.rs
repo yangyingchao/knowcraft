@@ -9,7 +9,12 @@ use gtk::prelude::*;
 
 use crate::model::Location;
 
-const CLASSES: [&str; 4] = ["index-pending", "index-indexed", "index-error", "index-active"];
+const CLASSES: [&str; 4] = [
+    "index-pending",
+    "index-indexed",
+    "index-error",
+    "index-active",
+];
 
 /// Removes any index-status mark from `widget`.
 pub(super) fn clear(widget: &gtk::Widget) {

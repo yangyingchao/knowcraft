@@ -146,7 +146,10 @@ fn a_merge_from_a_location_without_paths_does_not_claim_provenance_for_undo()
     let overwritten = target.join("knowcraft-logo-white.svg");
     write_files(
         &target,
-        &[("knowcraft-logo-white.svg", "old"), ("stays.txt", "keep me")],
+        &[
+            ("knowcraft-logo-white.svg", "old"),
+            ("stays.txt", "keep me"),
+        ],
     )?;
     let (stage, _) = rename_stage(root.path().join("staging"));
     let (plans, on_merged) = recorded_plans();

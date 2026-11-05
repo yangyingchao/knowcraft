@@ -28,8 +28,7 @@ fn org_image_src_rejects_non_images() {
 
 fn render(source: &str) -> String {
     let cancellation = Cancellation::default();
-    render_org_html(source, &cancellation, Duration::from_millis(500))
-        .expect("render org html")
+    render_org_html(source, &cancellation, Duration::from_millis(500)).expect("render org html")
 }
 
 #[test]

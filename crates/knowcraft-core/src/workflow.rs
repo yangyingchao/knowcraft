@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::os::fd::AsFd;
 use std::path::{Path, PathBuf};
 
-use rustix::fs::{Mode, copy_file_range, fchmod, fstat, ioctl_ficlone};
+use rustix::fs::{copy_file_range, fchmod, fstat, ioctl_ficlone, Mode};
 use rustix::io::Errno;
 
 use crate::error::{Error, Result};

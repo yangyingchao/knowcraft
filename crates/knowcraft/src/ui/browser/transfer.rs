@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::adapters::{TransferTargetCollision, gio_file_for_location, transfer_targets};
-use crate::model::{FileEntry, Location};
+use crate::model::Location;
 use crate::services::{PasteItem, ShownName, TransferConflict};
 use crate::ui::blur::BlurBin;
 use crate::ui::browser::ViewState;

@@ -13,10 +13,10 @@ use std::path::Path;
 
 use tantivy::collector::TopDocs;
 use tantivy::query::{MoreLikeThisQuery, QueryParser};
-use tantivy::snippet::SnippetGenerator;
 use tantivy::schema::{
     IndexRecordOption, OwnedValue, Schema, TextFieldIndexing, TextOptions, Value, INDEXED, STORED,
 };
+use tantivy::snippet::SnippetGenerator;
 use tantivy::{doc, Index as TIndex, IndexWriter, TantivyDocument, Term};
 
 use crate::error::{Error, Result};

@@ -88,8 +88,7 @@ fn in_place_retirement_signals_and_waits_for_an_owned_process() {
     );
 }
 
-const PACKAGED_ENTRY: &str =
-    "[Desktop Entry]\nType=Application\nName=Knowcraft\nExec=knowcraft %U\nIcon=io.github.knowcraft.Knowcraft\n";
+const PACKAGED_ENTRY: &str = "[Desktop Entry]\nType=Application\nName=Knowcraft\nExec=knowcraft %U\nIcon=io.github.knowcraft.Knowcraft\n";
 
 fn scratch_dir(label: &str, line: u32) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
@@ -293,7 +292,8 @@ fn stage_binary_path_is_unique_per_call() {
 
 #[test]
 fn desktop_entry_exec_points_at_the_install_path_and_keeps_field_codes() {
-    let entry = desktop_entry_with_exec(PACKAGED_ENTRY, Path::new("/home/user/.local/bin/knowcraft"));
+    let entry =
+        desktop_entry_with_exec(PACKAGED_ENTRY, Path::new("/home/user/.local/bin/knowcraft"));
 
     assert!(entry.contains("Exec=/home/user/.local/bin/knowcraft %U\n"));
     assert!(entry.starts_with("[Desktop Entry]\n"));

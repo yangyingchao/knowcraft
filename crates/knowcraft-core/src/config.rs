@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 use crate::error::{Error, Result};
 
@@ -13,7 +13,11 @@ pub struct AiConfig {
 
 impl Default for AiConfig {
     fn default() -> Self {
-        Self { api_base: "http://localhost:11434/v1".into(), api_key: String::new(), model: "llama3".into() }
+        Self {
+            api_base: "http://localhost:11434/v1".into(),
+            api_key: String::new(),
+            model: "llama3".into(),
+        }
     }
 }
 
@@ -29,8 +33,16 @@ impl Default for Config {
     fn default() -> Self {
         let data_dir = std::env::var("KNOWCRAFT_DATA_DIR")
             .map(PathBuf::from)
-            .unwrap_or_else(|_| dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")).join("Knowledge"));
-        Self { data_dir, http_token: String::new(), ai: AiConfig::default() }
+            .unwrap_or_else(|_| {
+                dirs::home_dir()
+                    .unwrap_or_else(|| PathBuf::from("."))
+                    .join("Knowledge")
+            });
+        Self {
+            data_dir,
+            http_token: String::new(),
+            ai: AiConfig::default(),
+        }
     }
 }
 
@@ -96,6 +108,6 @@ fn load_or_create_token(token_path: &std::path::Path) -> Result<String> {
 fn generate_token() -> Result<String> {
     let mut bytes = [0u8; 16];
     getrandom::getrandom(&mut bytes)
-        .map_err(|e| Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+        .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
     Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }

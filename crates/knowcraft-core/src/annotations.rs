@@ -34,12 +34,10 @@ impl Annotations {
 
     pub fn list(&self, document_id: i64) -> Result<Vec<Annotation>> {
         let conn = self.store.lock();
-        let mut stmt = conn.prepare(
-            concat!(
-                "SELECT id, document_id, page, bbox, color, note_text, created_at, selection ",
-                "FROM annotations WHERE document_id = ?1 ORDER BY page, id",
-            ),
-        )?;
+        let mut stmt = conn.prepare(concat!(
+            "SELECT id, document_id, page, bbox, color, note_text, created_at, selection ",
+            "FROM annotations WHERE document_id = ?1 ORDER BY page, id",
+        ))?;
         let rows = stmt.query_map(params![document_id], |r| {
             Ok(Annotation {
                 id: r.get(0)?,
@@ -57,10 +55,7 @@ impl Annotations {
 
     pub fn delete(&self, id: i64) -> Result<()> {
         let conn = self.store.lock();
-        conn.execute(
-            "DELETE FROM annotations WHERE id = ?1",
-            params![id],
-        )?;
+        conn.execute("DELETE FROM annotations WHERE id = ?1", params![id])?;
         Ok(())
     }
 }

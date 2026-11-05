@@ -17,7 +17,7 @@ mod search;
 mod settings;
 mod tabs;
 
-pub(super) use tabs::{TabWindow, is_tab_shortcut, tab_index};
+pub(super) use tabs::{TabWindow, is_tab_shortcut};
 
 pub(super) struct WindowContent {
     pub(super) browser: BrowserView,

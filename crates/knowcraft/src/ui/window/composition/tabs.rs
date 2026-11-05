@@ -337,7 +337,8 @@ impl TabWindow {
             *previous.focus.borrow_mut() = gtk::prelude::RootExt::focus(&window)
                 .filter(|widget| panes.iter().any(|pane| widget.is_ancestor(pane)))
                 .map(|widget| widget.downgrade());
-            previous.content.browser.cancel_location_edit();        }
+            previous.content.browser.cancel_location_edit();
+        }
         self.active.set(id);
         self.share_presence();
         self.stack.set_visible_child(&tab.content.overlay);

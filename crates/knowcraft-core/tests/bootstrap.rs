@@ -44,7 +44,10 @@ fn temp_dir(label: &str) -> PathBuf {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    std::env::temp_dir().join(format!("knowcraft-test-{label}-{}-{nanos}", std::process::id()))
+    std::env::temp_dir().join(format!(
+        "knowcraft-test-{label}-{}-{nanos}",
+        std::process::id()
+    ))
 }
 
 #[test]
@@ -97,7 +100,10 @@ fn load_persists_token_across_calls() {
     assert_eq!(first.http_token, second.http_token);
     let token_file = data_dir.join(".token");
     assert!(token_file.exists());
-    assert_eq!(first.http_token, std::fs::read_to_string(&token_file).unwrap());
+    assert_eq!(
+        first.http_token,
+        std::fs::read_to_string(&token_file).unwrap()
+    );
     let _ = std::fs::remove_dir_all(&cfg_dir);
     let _ = std::fs::remove_dir_all(&data_dir);
 }

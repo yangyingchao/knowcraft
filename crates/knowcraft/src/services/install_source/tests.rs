@@ -263,7 +263,8 @@ fn a_packaged_install_refuses_to_replace_its_own_binary() {
     assert_eq!(
         ensure_self_managed(&source),
         Err(
-            "Installed by pacman as knowcraft-bin. Update Knowcraft with: yay -Syu knowcraft-bin".to_owned()
+            "Installed by pacman as knowcraft-bin. Update Knowcraft with: yay -Syu knowcraft-bin"
+                .to_owned()
         )
     );
 }

@@ -286,18 +286,18 @@ impl ChooserState {
     /// `load_cursor` allows it.
     pub(super) fn chosen_entries(&self, load_cursor: bool) -> Vec<FileEntry> {
         let browser = self.view.browser();
-        let entries = match self.view.selected_search_results() {
+
+        match self.view.selected_search_results() {
             Some(results) => results,
             None if browser.selection_is_load_cursor() => {
-                return if load_cursor {
+                if load_cursor {
                     browser.selected_entries()
                 } else {
                     Vec::new()
-                };
+                }
             }
             None => browser.selected_entries(),
-        };
-        entries
+        }
     }
 
     pub(super) fn has_fill(&self) -> bool {

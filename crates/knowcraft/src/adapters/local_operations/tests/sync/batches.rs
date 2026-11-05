@@ -575,7 +575,12 @@ fn foreign_file_at_the_original(destination: PathBuf, foreign: PathBuf) -> Racer
         let originals = fs::read_dir(&destination)
             .expect("list the destination")
             .filter_map(Result::ok)
-            .find(|entry| entry.file_name().to_string_lossy().starts_with(".knowcraft-"))
+            .find(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".knowcraft-")
+            })
             .expect("the original is aside");
         fs::write(&foreign, b"foreign").expect("write the foreign file");
         fs::rename(&foreign, originals.path().join("notes.txt"))

@@ -9,9 +9,9 @@ use std::{
 use gtk::{gdk, glib, prelude::*};
 
 pub(in crate::ui) use candidates::CandidateKeys;
-pub(in crate::ui) use prompt::Prompt;
 use catalog::{ReferenceView, WeakReferenceView, rebuild_reference};
 use indicators::{CurrentHit, update_visual_mode};
+pub(in crate::ui) use prompt::Prompt;
 use prompt::{PromptBar, WeakPromptBar};
 use reference::{ReferenceArea, ReferenceSession};
 #[cfg(test)]

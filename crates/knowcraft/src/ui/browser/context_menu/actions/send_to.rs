@@ -159,7 +159,10 @@ impl SendToActions<'_> {
                 gio::MenuItem::new_submenu(Some(&destination.name.replace('_', "__")), &device);
             item.set_icon(&gio::ThemedIcon::new(icons::HARD_DRIVE));
             item.set_attribute_value("x-knowcraft-send-to-device", Some(&true.to_variant()));
-            item.set_attribute_value("x-knowcraft-description", Some(&destination.name.to_variant()));
+            item.set_attribute_value(
+                "x-knowcraft-description",
+                Some(&destination.name.to_variant()),
+            );
             devices.append_item(&item);
         }
     }

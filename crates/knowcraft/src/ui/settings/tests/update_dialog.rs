@@ -421,8 +421,10 @@ fn update_dialog_notes_hide_html_comments() {
     );
 }
 
-const NO_TERMINAL: [(&str, &str); 2] =
-    [("PATH", "/nonexistent/knowcraft-test-path"), ("TERMINAL", "")];
+const NO_TERMINAL: [(&str, &str); 2] = [
+    ("PATH", "/nonexistent/knowcraft-test-path"),
+    ("TERMINAL", ""),
+];
 
 #[test]
 fn omarchy_update_without_a_terminal_reports_and_reenables_the_action() {

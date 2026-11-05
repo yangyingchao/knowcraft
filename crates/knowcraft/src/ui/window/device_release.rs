@@ -22,9 +22,7 @@ mod run;
 
 #[cfg(test)]
 use disconnect::leave_share_and_unmount;
-pub(super) use keys::{
-    key_for_drive, key_for_mount, key_for_volume,
-};
+pub(super) use keys::{key_for_drive, key_for_mount, key_for_volume};
 use overlay::ReleaseOverlay;
 pub(super) use overlay::mount_operation;
 #[cfg(test)]

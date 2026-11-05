@@ -40,14 +40,18 @@ fn cleanup_removes_entries_whose_files_are_missing() {
     let index = Index::open(&dir).unwrap();
 
     // 两个文件存在，一个文件缺失。
-    let live = store.insert_document(&make_doc(1, &dir, "live.md", "md", "live content")).unwrap();
+    let live = store
+        .insert_document(&make_doc(1, &dir, "live.md", "md", "live content"))
+        .unwrap();
     let missing_path = dir.join("gone.md");
     let mut missing = make_doc(2, &dir, "gone.md", "md", "gone content");
     missing.path = missing_path.to_string_lossy().into_owned();
     std::fs::remove_file(&missing_path).unwrap();
     store.insert_document(&missing).unwrap();
     // 预先把缺失文件索引，清理后不应再有命中。
-    index.index_document(&store.get_document(2).unwrap().unwrap()).unwrap();
+    index
+        .index_document(&store.get_document(2).unwrap().unwrap())
+        .unwrap();
 
     let report: CleanupReport = cleanup_documents(&store, &index, |_| {}).unwrap();
     assert_eq!(report.removed, 1);
@@ -154,8 +158,12 @@ fn cleanup_with_all_live_files_removes_nothing() {
     let store = Store::open(&dir).unwrap();
     let index = Index::open(&dir).unwrap();
 
-    store.insert_document(&make_doc(1, &dir, "a.md", "md", "alpha")).unwrap();
-    store.insert_document(&make_doc(2, &dir, "b.md", "md", "beta")).unwrap();
+    store
+        .insert_document(&make_doc(1, &dir, "a.md", "md", "alpha"))
+        .unwrap();
+    store
+        .insert_document(&make_doc(2, &dir, "b.md", "md", "beta"))
+        .unwrap();
 
     let report = cleanup_documents(&store, &index, |_| {}).unwrap();
     assert_eq!(report.removed, 0);

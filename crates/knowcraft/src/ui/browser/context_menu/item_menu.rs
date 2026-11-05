@@ -609,15 +609,11 @@ impl ItemMenuOptions {
         // 文件不显示该入口。
         let knowledge = crate::knowledge::init();
         let native_path = entry.location.native_path();
-        let pending = knowledge.is_some_and(|knowledge| {
-            native_path.is_some_and(|path| knowledge.is_pending(path))
-        });
-        self.single
-            .dispatch
-            .set_visible(pending && !self.in_trash);
-        let in_knowledge = knowledge.is_some_and(|knowledge| {
-            native_path.is_some_and(|path| knowledge.contains(path))
-        });
+        let pending = knowledge
+            .is_some_and(|knowledge| native_path.is_some_and(|path| knowledge.is_pending(path)));
+        self.single.dispatch.set_visible(pending && !self.in_trash);
+        let in_knowledge = knowledge
+            .is_some_and(|knowledge| native_path.is_some_and(|path| knowledge.contains(path)));
         self.single
             .reindex
             .set_visible(in_knowledge && !self.in_trash);

@@ -31,15 +31,23 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Self { Error::Io(e) }
+    fn from(e: std::io::Error) -> Self {
+        Error::Io(e)
+    }
 }
 impl From<rusqlite::Error> for Error {
-    fn from(e: rusqlite::Error) -> Self { Error::Store(e.to_string()) }
+    fn from(e: rusqlite::Error) -> Self {
+        Error::Store(e.to_string())
+    }
 }
 impl From<tantivy::TantivyError> for Error {
-    fn from(e: tantivy::TantivyError) -> Self { Error::Index(e.to_string()) }
+    fn from(e: tantivy::TantivyError) -> Self {
+        Error::Index(e.to_string())
+    }
 }
 impl From<notify::Error> for Error {
-    fn from(e: notify::Error) -> Self { Error::Watcher(e.to_string()) }
+    fn from(e: notify::Error) -> Self {
+        Error::Watcher(e.to_string())
+    }
 }
 pub type Result<T> = std::result::Result<T, Error>;

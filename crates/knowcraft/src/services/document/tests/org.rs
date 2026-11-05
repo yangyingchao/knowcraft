@@ -123,11 +123,9 @@ fn org_plain_example_block_has_no_language_warning() {
         "#+BEGIN_EXAMPLE\nliteral text <not html>\n#+END_EXAMPLE",
         "example block should render as code",
     );
-    assert!(
-        parsed.document.blocks.iter().any(|block| matches!(
-            block,
-            DocumentBlock::Code { markup, .. } if markup.contains("literal text &lt;not html&gt;")
-        ))
-    );
+    assert!(parsed.document.blocks.iter().any(|block| matches!(
+        block,
+        DocumentBlock::Code { markup, .. } if markup.contains("literal text &lt;not html&gt;")
+    )));
     assert!(parsed.warnings.is_empty());
 }

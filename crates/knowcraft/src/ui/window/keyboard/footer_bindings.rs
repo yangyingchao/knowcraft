@@ -33,8 +33,7 @@ pub(super) fn bind_footer_filter(dispatcher: &Dispatcher) {
     });
     let shortcuts = dispatcher.shortcuts.clone();
     dispatcher.view.set_footer_filter_focus(Rc::new(move || {
-        shortcuts
-            .prompt_has_focus()
+        shortcuts.prompt_has_focus()
             && matches!(
                 shortcuts.open_prompt_kind(),
                 Some(Prompt::Filter | Prompt::Search)

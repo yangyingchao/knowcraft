@@ -32,8 +32,8 @@ pub(crate) use mounts::FAT32_MAX_FILE_SIZE;
 pub(crate) use mounts::set_mountinfo_for_isolated_test;
 pub(crate) use mounts::{
     CoarseTimes, Family, FuseFormat, LONGEST_NAME_NTFS_3G_RENAMES_OVER, MountKey as TrashMountKey,
-    MountSite, MountTable, MountType, SillyNames, family, holds_symlinks,
-    is_local_fuse_overlay, max_file_size,
+    MountSite, MountTable, MountType, SillyNames, family, holds_symlinks, is_local_fuse_overlay,
+    max_file_size,
 };
 pub(crate) use names::{
     MountNames, NameEncoding, NameLimit, NameProfile, NameRules, PrivateUse, Reserved, StrictRule,

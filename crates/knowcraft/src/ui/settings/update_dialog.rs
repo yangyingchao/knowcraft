@@ -268,7 +268,10 @@ fn dialog_layout(
     let installed = crate::build_info::installed_version();
     let (title, subtitle) = match offer {
         UpdateOffer::Available => (
-            rust_i18n::t!("Knowcraft v%{value1} is available", value1 = release.version),
+            rust_i18n::t!(
+                "Knowcraft v%{value1} is available",
+                value1 = release.version
+            ),
             rust_i18n::t!(
                 "Installed v%{value1}  →  Available v%{value2}",
                 value1 = installed,

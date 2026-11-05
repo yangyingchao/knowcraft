@@ -21,9 +21,7 @@ use crate::{
     adapters::{
         bookmarks::DeletedPins,
         gio_file_for_location,
-        trash_support::{
-            self, SystemTrash, TrashEnvironment, TrashError, TrashFailure,
-        },
+        trash_support::{self, SystemTrash, TrashEnvironment, TrashError, TrashFailure},
     },
     model::{FileEntry, Location},
     services::{ItemIdentity, OperationEvent, OperationRequestId},
@@ -191,9 +189,7 @@ fn affected_locations(targets: &[DeletionTarget], permanent: bool) -> HashSet<Lo
             affected_locations.insert(target.location.clone());
         }
     }
-    if !permanent
-        && let Some(files) = crate::knowledge::trash_files_dir()
-    {
+    if !permanent && let Some(files) = crate::knowledge::trash_files_dir() {
         affected_locations.insert(Location::local(&files));
     }
     affected_locations

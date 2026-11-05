@@ -83,7 +83,10 @@ pub fn cleanup_documents(
             }
         }
     }
-    Ok(CleanupReport { scanned: total, removed })
+    Ok(CleanupReport {
+        scanned: total,
+        removed,
+    })
 }
 
 /// 判断文件是否仍存在。目录整体缺失时直接判定失效，不 stat 文件本身。

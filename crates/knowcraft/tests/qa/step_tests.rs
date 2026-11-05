@@ -743,7 +743,10 @@ pub(crate) fn baseline_mismatches_fail_and_only_an_update_writes_the_baseline() 
 
 pub(crate) fn fixture_roots_and_baseline_steps_check_their_shape_before_the_run() {
     let names = [
-        ("/tmp/knowcraft-e2e-baseline", Some("knowcraft-e2e-baseline")),
+        (
+            "/tmp/knowcraft-e2e-baseline",
+            Some("knowcraft-e2e-baseline"),
+        ),
         ("/tmp/a/b", None),
         ("/tmp/", None),
         ("/tmp/..", None),

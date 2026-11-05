@@ -40,7 +40,12 @@ pub(crate) fn dispatch_path(
         parent,
         categories,
         Rc::new(move |category| {
-            run_dispatch(chosen_path.clone(), category, refresh.clone(), feedback.clone());
+            run_dispatch(
+                chosen_path.clone(),
+                category,
+                refresh.clone(),
+                feedback.clone(),
+            );
         }),
     );
     let (sender, receiver) = std::sync::mpsc::channel::<Vec<CategorySuggestion>>();
@@ -102,7 +107,12 @@ pub(crate) fn present_import_folder_dialog(
         if let Ok(file) = result
             && let Some(path) = file.path()
         {
-            run_import(path, refresh.clone(), feedback.clone(), import_overlay.clone());
+            run_import(
+                path,
+                refresh.clone(),
+                feedback.clone(),
+                import_overlay.clone(),
+            );
         }
     });
 }
@@ -181,59 +191,60 @@ fn poll_import(
 ) {
     let done = std::rc::Rc::new(std::cell::Cell::new(0usize));
     let total = std::rc::Rc::new(std::cell::Cell::new(0usize));
-    glib::timeout_add_local(Duration::from_millis(50), move || loop {
-        match receiver.try_recv() {
-            Ok(ImportEvent::Progress(progress)) => match progress {
-                IndexProgress::Begin { total: count } => total.set(count),
-                IndexProgress::Started { path } => {
-                    let name = path
-                        .file_name()
-                        .map(|name| name.to_string_lossy().into_owned())
-                        .unwrap_or_default();
-                    let text = rust_i18n::t!(
-                        "Indexing %{done}/%{total}: %{name}",
-                        done = done.get() + 1,
-                        total = total.get().max(1),
-                        name = name
-                    )
-                    .into_owned();
-                    crate::ui::notice::show_status(&overlay, &text, Duration::from_secs(10));
-                }
-                IndexProgress::Finished { .. } => done.set(done.get() + 1),
-                IndexProgress::Done { ok, failed } => {
-                    let text = if failed == 0 {
-                        rust_i18n::t!("Indexed %{count} files", count = ok).into_owned()
-                    } else {
-                        rust_i18n::t!(
-                            "Indexed %{ok} files, %{failed} failed",
-                            ok = ok,
-                            failed = failed
+    glib::timeout_add_local(Duration::from_millis(50), move || {
+        loop {
+            match receiver.try_recv() {
+                Ok(ImportEvent::Progress(progress)) => match progress {
+                    IndexProgress::Begin { total: count } => total.set(count),
+                    IndexProgress::Started { path } => {
+                        let name = path
+                            .file_name()
+                            .map(|name| name.to_string_lossy().into_owned())
+                            .unwrap_or_default();
+                        let text = rust_i18n::t!(
+                            "Indexing %{done}/%{total}: %{name}",
+                            done = done.get() + 1,
+                            total = total.get().max(1),
+                            name = name
                         )
-                        .into_owned()
-                    };
-                    crate::ui::notice::show_status(&overlay, &text, Duration::from_secs(3));
+                        .into_owned();
+                        crate::ui::notice::show_status(&overlay, &text, Duration::from_secs(10));
+                    }
+                    IndexProgress::Finished { .. } => done.set(done.get() + 1),
+                    IndexProgress::Done { ok, failed } => {
+                        let text = if failed == 0 {
+                            rust_i18n::t!("Indexed %{count} files", count = ok).into_owned()
+                        } else {
+                            rust_i18n::t!(
+                                "Indexed %{ok} files, %{failed} failed",
+                                ok = ok,
+                                failed = failed
+                            )
+                            .into_owned()
+                        };
+                        crate::ui::notice::show_status(&overlay, &text, Duration::from_secs(3));
+                    }
+                },
+                Ok(ImportEvent::Finished(result)) => {
+                    match result {
+                        Ok(message) => feedback(&message),
+                        Err(error) => feedback(&error),
+                    }
+                    refresh();
+                    return glib::ControlFlow::Break;
                 }
-            },
-            Ok(ImportEvent::Finished(result)) => {
-                match result {
-                    Ok(message) => feedback(&message),
-                    Err(error) => feedback(&error),
+                Err(std::sync::mpsc::TryRecvError::Empty) => return glib::ControlFlow::Continue,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    return glib::ControlFlow::Break;
                 }
-                refresh();
-                return glib::ControlFlow::Break;
             }
-            Err(std::sync::mpsc::TryRecvError::Empty) => return glib::ControlFlow::Continue,
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => return glib::ControlFlow::Break,
         }
     });
 }
 
 /// 导入报告文案：全零时提示无可导入文件，否则汇报导入数与跳过数。
 fn import_message(report: knowcraft_core::workflow::ImportReport) -> String {
-    if report.imported == 0
-        && report.skipped_existing == 0
-        && report.skipped_duplicate == 0
-    {
+    if report.imported == 0 && report.skipped_existing == 0 && report.skipped_duplicate == 0 {
         return tr("No importable files in the selected folder");
     }
     let mut message =
@@ -357,7 +368,7 @@ pub(super) fn present(
     crate::ui::modal::close_on_escape(&window, move || escape_window.close());
     window.present();
 
-    let fill = {
+    ({
         let list = list.clone();
         let displayed = displayed.clone();
         let categories = categories.clone();
@@ -384,8 +395,7 @@ pub(super) fn present(
                 first.grab_focus();
             }
         })
-    };
-    fill
+    }) as _
 }
 
 fn append_category_row(list: &gtk::ListBox, category: &str, sample: Option<&str>) {

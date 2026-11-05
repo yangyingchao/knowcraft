@@ -55,11 +55,7 @@ impl Capture {
         let cap_dir = self.data_dir.join("captures");
         std::fs::create_dir_all(&cap_dir)?;
         let md_path = cap_dir.join(format!("{}.md", sanitize(&title)));
-        let tmp_path = cap_dir.join(format!(
-            ".{}.{}.tmp",
-            sanitize(&title),
-            std::process::id()
-        ));
+        let tmp_path = cap_dir.join(format!(".{}.{}.tmp", sanitize(&title), std::process::id()));
         std::fs::write(&tmp_path, markdown.as_bytes())?;
         std::fs::rename(&tmp_path, &md_path)?;
 
@@ -122,17 +118,12 @@ fn is_ambiguous_numeric_host(h: &str) -> bool {
     // h 已在调用方小写化，只需匹配 0x 前缀。
     if labels.iter().any(|l| {
         l.strip_prefix("0x")
-            .map(|rest| {
-                !rest.is_empty() && rest.chars().all(|c| c.is_ascii_hexdigit())
-            })
+            .map(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_hexdigit()))
             .unwrap_or(false)
     }) {
         return true;
     }
-    if !labels
-        .iter()
-        .all(|l| l.chars().all(|c| c.is_ascii_digit()))
-    {
+    if !labels.iter().all(|l| l.chars().all(|c| c.is_ascii_digit())) {
         return false;
     }
     // 单标签整数形式：2130706433。
@@ -184,10 +175,10 @@ fn is_blocked_ip(ip: IpAddr) -> bool {
 pub fn extract_article(html: &str, _base: &Url) -> Result<(String, String)> {
     let doc = Html::parse_document(html);
 
-    let container_sel = Selector::parse("article, main, body")
-        .map_err(|e| Error::Capture(e.to_string()))?;
-    let heading_sel = Selector::parse("h1, h2, h3, h4")
-        .map_err(|e| Error::Capture(e.to_string()))?;
+    let container_sel =
+        Selector::parse("article, main, body").map_err(|e| Error::Capture(e.to_string()))?;
+    let heading_sel =
+        Selector::parse("h1, h2, h3, h4").map_err(|e| Error::Capture(e.to_string()))?;
     let body_sel = Selector::parse("h1, h2, h3, h4, p, blockquote, pre, li")
         .map_err(|e| Error::Capture(e.to_string()))?;
     let title_sel = Selector::parse("title").map_err(|e| Error::Capture(e.to_string()))?;
@@ -250,9 +241,7 @@ fn sanitize(title: &str) -> String {
     let cleaned: String = title
         .chars()
         .map(|c| {
-            if matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|')
-                || c.is_control()
-            {
+            if matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control() {
                 '_'
             } else {
                 c

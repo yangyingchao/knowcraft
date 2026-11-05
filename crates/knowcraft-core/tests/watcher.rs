@@ -73,7 +73,10 @@ fn handle_delete_event_removes_index_entry() {
         "index entry removed"
     );
     assert!(
-        store.find_by_path(&path.to_string_lossy()).unwrap().is_none(),
+        store
+            .find_by_path(&path.to_string_lossy())
+            .unwrap()
+            .is_none(),
         "document row cleaned"
     );
     assert!(
@@ -121,11 +124,26 @@ fn merge_state_transitions_reflect_final_state() {
     let m = || FileEvent::Modified(p.clone());
     let r = || FileEvent::Removed(p.clone());
 
-    assert!(matches!(Watcher::merge_event(c(), r()), FileEvent::Removed(_)));
-    assert!(matches!(Watcher::merge_event(r(), c()), FileEvent::Created(_)));
-    assert!(matches!(Watcher::merge_event(m(), c()), FileEvent::Created(_)));
-    assert!(matches!(Watcher::merge_event(m(), r()), FileEvent::Removed(_)));
-    assert!(matches!(Watcher::merge_event(r(), m()), FileEvent::Created(_)));
+    assert!(matches!(
+        Watcher::merge_event(c(), r()),
+        FileEvent::Removed(_)
+    ));
+    assert!(matches!(
+        Watcher::merge_event(r(), c()),
+        FileEvent::Created(_)
+    ));
+    assert!(matches!(
+        Watcher::merge_event(m(), c()),
+        FileEvent::Created(_)
+    ));
+    assert!(matches!(
+        Watcher::merge_event(m(), r()),
+        FileEvent::Removed(_)
+    ));
+    assert!(matches!(
+        Watcher::merge_event(r(), m()),
+        FileEvent::Created(_)
+    ));
 }
 
 #[test]
@@ -134,8 +152,14 @@ fn merge_chained_renames_links_source_to_final_target() {
     let b = PathBuf::from("/tmp/b.md");
     let c = PathBuf::from("/tmp/c.md");
     let merged = Watcher::merge_event(
-        FileEvent::Moved { from: a.clone(), to: b.clone() },
-        FileEvent::Moved { from: b, to: c.clone() },
+        FileEvent::Moved {
+            from: a.clone(),
+            to: b.clone(),
+        },
+        FileEvent::Moved {
+            from: b,
+            to: c.clone(),
+        },
     );
     assert_eq!(
         merged,
@@ -159,8 +183,14 @@ fn chained_rename_in_same_window_leaves_no_orphan() {
     std::fs::rename(&b, &c).unwrap();
 
     let merged = Watcher::merge_event(
-        FileEvent::Moved { from: a.clone(), to: b.clone() },
-        FileEvent::Moved { from: b, to: c.clone() },
+        FileEvent::Moved {
+            from: a.clone(),
+            to: b.clone(),
+        },
+        FileEvent::Moved {
+            from: b,
+            to: c.clone(),
+        },
     );
     watcher.handle(merged).unwrap();
 

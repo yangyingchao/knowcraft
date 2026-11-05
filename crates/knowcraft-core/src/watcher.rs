@@ -162,10 +162,11 @@ impl Watcher {
         match (existing, incoming) {
             // 链式 rename：existing 的目标恰为 incoming 的源，链接为 P->C，
             // 否则源端文档不经中间路径就无法定位，会残留为孤儿。
-            (
-                FileEvent::Moved { from: f1, to: t1 },
-                FileEvent::Moved { from: f2, to: t2 },
-            ) if t1 == f2 => FileEvent::Moved { from: f1, to: t2 },
+            (FileEvent::Moved { from: f1, to: t1 }, FileEvent::Moved { from: f2, to: t2 })
+                if t1 == f2 =>
+            {
+                FileEvent::Moved { from: f1, to: t2 }
+            }
             (_, incoming @ FileEvent::Moved { .. }) => incoming,
             (FileEvent::Moved { from, .. }, FileEvent::Removed(_)) => FileEvent::Removed(from),
             (moved @ FileEvent::Moved { .. }, FileEvent::Created(_) | FileEvent::Modified(_)) => {
@@ -245,8 +246,7 @@ impl Watcher {
             // rename 只捕获到目标端：按目标路径的新建处理。
             return self.handle_created(to);
         };
-        self.store
-            .update_path(doc.id, &path_string(&to))?;
+        self.store.update_path(doc.id, &path_string(&to))?;
         if self.location(&to) == Location::Other {
             // 移出受管目录：索引与行数据一并清理。
             self.index.remove(doc.id)?;
@@ -298,18 +298,12 @@ fn classify(ev: &NEvent) -> Option<FileEvent> {
         EventKind::Remove(_) => Some(FileEvent::Removed(first_path(ev))),
         EventKind::Modify(ModifyKind::Name(mode)) => match mode {
             RenameMode::Both => Some(FileEvent::Moved {
-                from: ev
-                    .paths
-                    .first()
-                    .cloned()
-                    .unwrap_or_default(),
+                from: ev.paths.first().cloned().unwrap_or_default(),
                 to: ev.paths.get(1).cloned().unwrap_or_default(),
             }),
             RenameMode::From => Some(FileEvent::Removed(first_path(ev))),
             RenameMode::To => Some(FileEvent::Created(first_path(ev))),
-            RenameMode::Any | RenameMode::Other => {
-                Some(FileEvent::Modified(first_path(ev)))
-            }
+            RenameMode::Any | RenameMode::Other => Some(FileEvent::Modified(first_path(ev))),
         },
         EventKind::Modify(_) => Some(FileEvent::Modified(first_path(ev))),
         EventKind::Any | EventKind::Access(_) | EventKind::Other => None,

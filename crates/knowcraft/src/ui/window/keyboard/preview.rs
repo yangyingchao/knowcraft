@@ -10,7 +10,10 @@ use super::{Dispatcher, KeyResult};
 use crate::{
     app::Browser,
     ui::{
-        keys::{KeyPress, bindings::{ESCAPE, FOCUS_PREVIOUS}},
+        keys::{
+            KeyPress,
+            bindings::{ESCAPE, FOCUS_PREVIOUS},
+        },
         preview::{PreviewSurface, preview_target},
     },
 };

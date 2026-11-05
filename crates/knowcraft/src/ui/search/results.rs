@@ -11,8 +11,8 @@ use std::{
 
 use gtk::{gdk, glib, prelude::*};
 
-use super::{SearchState, provider, record_interaction, reveal_result, show_coverage};
-use crate::services::{SearchCoverage, SearchItem};
+use super::{SearchState, provider, record_interaction, reveal_result};
+use crate::services::SearchItem;
 
 type RowsByKey = HashMap<String, (Entry, gtk::ListBoxRow)>;
 type ThumbnailChange = (
@@ -142,7 +142,7 @@ pub(super) fn render_sections(state: &Rc<SearchState>, mut sections: Vec<provide
     if entries_changed {
         reconcile_entries(state, &before.entries, entries);
     }
-    let query_empty = before.query.is_empty();
+    let _query_empty = before.query.is_empty();
     state
         .rendered_query
         .replace(std::mem::take(&mut before.query));
@@ -282,7 +282,6 @@ fn restore_selection(state: &SearchState, before: &RenderedEntries) {
         .iter()
         .enumerate()
         .filter(|(position, _)| *position >= restored)
-        .map(|(position, entry)| (position, entry))
         .find(|(_, entry)| matches!(entry, Entry::Hit(_)))
         .map(|(position, _)| position)
         .or_else(|| {

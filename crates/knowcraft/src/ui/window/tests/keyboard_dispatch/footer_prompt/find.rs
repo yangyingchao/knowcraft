@@ -75,4 +75,3 @@ fn tenxer_routes_listing_shortcuts_from_non_text_controls() {
         },
     );
 }
-

@@ -38,7 +38,9 @@ static STATUS_CACHE: Mutex<Option<HashMap<PathBuf, String>>> = Mutex::new(None);
 static ACTIVE_INDEX: Mutex<Option<HashMap<PathBuf, ()>>> = Mutex::new(None);
 
 fn with_active_index<T>(update: impl FnOnce(&mut HashMap<PathBuf, ()>) -> T) -> T {
-    let mut active = ACTIVE_INDEX.lock().unwrap_or_else(|error| error.into_inner());
+    let mut active = ACTIVE_INDEX
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
     update(active.get_or_insert_with(HashMap::new))
 }
 
@@ -47,7 +49,9 @@ fn index_guard() -> MutexGuard<'static, ()> {
 }
 
 fn with_status_cache<T>(update: impl FnOnce(&mut HashMap<PathBuf, String>) -> T) -> T {
-    let mut cache = STATUS_CACHE.lock().unwrap_or_else(|error| error.into_inner());
+    let mut cache = STATUS_CACHE
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
     update(cache.get_or_insert_with(HashMap::new))
 }
 
@@ -297,9 +301,7 @@ impl Knowledge {
     ) {
         let _guard = index_guard();
         let (mut ok, mut failed) = (0, 0);
-        report(IndexProgress::Begin {
-            total: docs.len(),
-        });
+        report(IndexProgress::Begin { total: docs.len() });
         for doc in docs {
             let path = PathBuf::from(&doc.path);
             with_active_index(|active| {
@@ -477,10 +479,9 @@ pub(crate) fn warm_index(knowledge: &Knowledge) -> WarmReport {
                 // 存量文档；标题进入全文索引，变化时标记重索引。
                 if let Some(title) = knowcraft_core::extract::extract_title(&path)
                     && title != doc.title
+                    && knowledge.store.update_title(doc.id, &title).is_ok()
                 {
-                    if knowledge.store.update_title(doc.id, &title).is_ok() {
-                        let _ = knowledge.store.set_index_status(doc.id, "pending");
-                    }
+                    let _ = knowledge.store.set_index_status(doc.id, "pending");
                 }
             }
             if doc.index_status != "indexed" {

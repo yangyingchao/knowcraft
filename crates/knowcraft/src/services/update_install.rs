@@ -934,7 +934,10 @@ fn retire_old_instances(proc_root: &Path, install_path: &Path, old_executable: &
         if let Err(error) = rustix::process::pidfd_send_signal(&fd, rustix::process::Signal::KILL) {
             tracing::warn!(%error, pid = pid.as_raw_pid(), "could not terminate old Knowcraft instance");
         } else if !pidfd_exited(&fd, Instant::now() + Duration::from_secs(2)) {
-            tracing::warn!(pid = pid.as_raw_pid(), "old Knowcraft instance has not exited");
+            tracing::warn!(
+                pid = pid.as_raw_pid(),
+                "old Knowcraft instance has not exited"
+            );
         }
     }
 }

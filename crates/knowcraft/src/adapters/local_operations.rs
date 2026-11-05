@@ -167,9 +167,8 @@ mod work_queue;
 pub(crate) use archive::ArchiveListing;
 pub(crate) use archive::{
     ARCHIVE_PREVIEW_FAILED_MESSAGE, ARCHIVE_TOO_LARGE_MESSAGE, ARCHIVE_UNSUPPORTED_MESSAGE,
-    ArchiveListingStatus, INVALID_ARCHIVE, MAX_ARCHIVE_PASSWORD_BYTES, PASSWORD_REQUIRED,
-    archive_payload_valid, decode_archive_listing, encode_archive_result,
-    list_archive_entries_direct,
+    ArchiveListingStatus, INVALID_ARCHIVE, MAX_ARCHIVE_PASSWORD_BYTES, archive_payload_valid,
+    decode_archive_listing, encode_archive_result, list_archive_entries_direct,
 };
 
 #[cfg(test)]

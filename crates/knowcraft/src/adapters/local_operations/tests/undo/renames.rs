@@ -401,7 +401,10 @@ fn a_case_only_rename_and_its_undo_keep_the_item_or_say_where_it_was_left()
     let [originals] = left.as_slice() else {
         panic!("expected one entry, got {left:?}");
     };
-    assert!(originals.starts_with(".knowcraft-originals-"), "{originals}");
+    assert!(
+        originals.starts_with(".knowcraft-originals-"),
+        "{originals}"
+    );
     assert_eq!(
         inode(&root.path().join(originals).join("report.txt")),
         original

@@ -30,17 +30,7 @@ fn is_image_extension(path: &str) -> bool {
         .to_ascii_lowercase();
     matches!(
         extension.as_str(),
-        "png"
-            | "jpg"
-            | "jpeg"
-            | "gif"
-            | "svg"
-            | "webp"
-            | "bmp"
-            | "tif"
-            | "tiff"
-            | "ico"
-            | "avif"
+        "png" | "jpg" | "jpeg" | "gif" | "svg" | "webp" | "bmp" | "tif" | "tiff" | "ico" | "avif"
     )
 }
 
@@ -122,7 +112,11 @@ impl OrgHtmlHandler {
         Ok(())
     }
 
-    fn start_title<W: Write>(&mut self, writer: &mut W, title: &orgize::elements::Title) -> Result<(), OrgHtmlError> {
+    fn start_title<W: Write>(
+        &mut self,
+        writer: &mut W,
+        title: &orgize::elements::Title,
+    ) -> Result<(), OrgHtmlError> {
         let level = title.level.min(6);
         write!(writer, "<h{level}>")?;
         if let Some(keyword) = &title.keyword {
@@ -134,7 +128,11 @@ impl OrgHtmlHandler {
         Ok(())
     }
 
-    fn end_title<W: Write>(&mut self, writer: &mut W, title: &orgize::elements::Title) -> Result<(), OrgHtmlError> {
+    fn end_title<W: Write>(
+        &mut self,
+        writer: &mut W,
+        title: &orgize::elements::Title,
+    ) -> Result<(), OrgHtmlError> {
         let level = title.level.min(6);
         if !title.tags.is_empty() {
             let tags = title
