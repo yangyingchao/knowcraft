@@ -225,39 +225,3 @@ fn shift_enter_on_a_focused_file_opens_with_the_default_app() {
         },
     );
 }
-
-#[test]
-fn ctrl_and_shift_enter_open_a_directory_in_a_new_tab_or_window() {
-    crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::open_in_new::ctrl_and_shift_enter_open_a_directory_in_a_new_tab_or_window",
-        || {
-            let fixture = KeyboardFixture::new();
-            let browser = fixture.view.browser();
-            let recorded = record_open_actions(&fixture.window);
-            let root = open_fixture(&fixture);
-            let folder = root.path().join("folder");
-            let preferences = PreferenceManager::shared();
-            fixture.shortcuts.bind_preferences(&preferences);
-            pump(50);
-            move_to_named(&fixture, &browser, "folder");
-
-            assert!(fixture.press(Key::Return, ModifierType::CONTROL_MASK));
-            pump(50);
-            {
-                let opened = recorded.borrow();
-                assert_eq!(opened.len(), 1, "{opened:?}");
-                assert_eq!(opened[0].0, "open-tab-at");
-                assert_eq!(opened[0].1, expected_uri(&folder));
-            }
-
-            recorded.borrow_mut().clear();
-            assert!(fixture.press(Key::Return, ModifierType::SHIFT_MASK));
-            pump(50);
-            {
-                let opened = recorded.borrow();
-                assert_eq!(opened.len(), 1, "{opened:?}");
-                assert_eq!(opened[0].0, "open-window-at");
-            }
-        },
-    );
-}

@@ -1,10 +1,10 @@
-{"scenario":"escape-cancels-file-drag","modes":["columns","icons","list"],"variants":[{"id":"ordinary","prefs":{"tenxer_mode":false}},{"id":"tenxer","prefs":{"tenxer_mode":true}},{"id":"preview","modes":["columns"]},{"id":"before-target","modes":["columns"]}],"cost":{"columns-ordinary":1.2,"icons-ordinary":1.1,"list-ordinary":1.1,"columns-tenxer":1.1,"icons-tenxer":1.1,"list-tenxer":1.1,"columns-preview":1.2,"columns-before-target":1.2}}
+{"scenario":"escape-cancels-file-drag","modes":["columns","icons","list"],"variants":[{"id":"ordinary","prefs":{}},{"id":"preview","modes":["columns"]},{"id":"before-target","modes":["columns"]}],"cost":{"columns-ordinary":1.2,"icons-ordinary":1.1,"list-ordinary":1.1,"columns-preview":1.2,"columns-before-target":1.2}}
 {"select":{"entry":"todo.txt","dir":"$root"}}
 {"wait":{"selected":["todo.txt"],"dir":"$root"},"message":"the drag source to be selected"}
 {"fs":{"path":".","remember":"before"}}
 {"key":"space","variants":["preview"]}
 {"wait":{"preview":"todo"},"variants":["preview"],"message":"the preview header is available as a drag source"}
-{"drag":{"from":{"entry":"todo.txt","dir":"$root"},"to":{"entry":"archive","dir":"$root"}},"release":false,"variants":["ordinary","tenxer"]}
+{"drag":{"from":{"entry":"todo.txt","dir":"$root"},"to":{"entry":"archive","dir":"$root"}},"release":false,"variants":["ordinary"]}
 {"drag":{"from":{"role":"label","name":"todo.txt","within":{"preview":true}},"to":{"entry":"archive","dir":"$root"}},"release":false,"variants":["preview"]}
 {"drag":{"from":{"entry":"todo.txt","dir":"$root"},"to":{"window":true},"to_at":["end+60","end+40"]},"release":false,"variants":["before-target"]}
 {"key":"Escape"}

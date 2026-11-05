@@ -35,7 +35,6 @@ impl ListMotion {
         default_recorder_app("text/plain", &glib::user_data_dir().join("launched"));
         let fixture = KeyboardFixture::new();
         let preferences = PreferenceManager::shared();
-        preferences.set_tenxer_mode(true);
         preferences.set_columns_mirror_selection(true);
         preferences.set_group_by_type(false);
         preferences.set_single_click_previews(true);

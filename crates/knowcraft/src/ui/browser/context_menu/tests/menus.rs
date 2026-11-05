@@ -105,6 +105,7 @@ fn repeated_navigation_releases_context_menu_bindings() {
     crate::test_support::gtk_test(
         "ui::browser::context_menu::tests::menus::repeated_navigation_releases_context_menu_bindings",
         || {
+            let manager = crate::ui::preferences::PreferenceManager::shared();
             for mode in [BrowserMode::Columns, BrowserMode::List, BrowserMode::Icons] {
                 let first = tempfile::tempdir().expect("first menu fixture");
                 let second = tempfile::tempdir().expect("second menu fixture");

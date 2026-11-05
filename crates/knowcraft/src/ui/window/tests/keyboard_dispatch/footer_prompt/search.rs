@@ -256,7 +256,6 @@ fn rebuild_keeps_search(first: &KeyboardFixture, mode: BrowserMode) {
     wait_results(first, &ALL_REPORTS);
     assert!(first.view.listing_search_active(), "{mode:?}");
     wait_until(|| first.shortcuts.filter_mark().as_deref() == Some("search: report"));
-    assert_eq!(revealed_filter_funnels(&first.view.widget()), 0, "{mode:?}");
 
     let browser = first.view.browser();
     browser.reload_active();

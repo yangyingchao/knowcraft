@@ -50,7 +50,7 @@ Knowcraft combines spatial Miller-column navigation with familiar Icons and List
 ## Features
 
 - **Three browser modes:** navigable Columns, an Icons grid, and a sortable List table.
-- **Keyboard-first control:** directional-key movement, navigation history, location entry, pane filtering, fuzzy search, file operations, and quick previews. An optional footer and F1 shortcut reference help you learn each mode; the footer also shows clipboard status. See [keyboard navigation and paste destinations](docs/keyboard-navigation.md). Optional [10xer mode](docs/10xer-mode.md) hides window and pane chrome and uses Yazi-style keys. Change, add, or remove shortcuts, separately for each mode, in **Settings → Keyboard**; see [Keymap](docs/keymap.md).
+- **Keyboard-first control:** directional-key movement, navigation history, location entry, pane filtering, fuzzy search, file operations, and quick previews. An optional footer and F1 shortcut reference help you learn each mode; the footer also shows clipboard status. See [keyboard navigation and paste destinations](docs/keyboard-navigation.md). Change, add, or remove shortcuts in **Settings → Keyboard**; see [Keymap](docs/keymap.md).
 - **Fast recursive search:** press <kbd>Ctrl</kbd>+<kbd>K</kbd> to find files and directories by name or path while the tree is still being indexed. Global search covers Home and all mounted local drives, regardless of the current folder. Hover the search field to see the included locations. The dialog warns when results are incomplete; raise or remove the indexing time and entry limits under **Settings → General → Search & filtering** for slow or network mounts. Folder-scoped filtering/search remains separate. URI-native remote shares are not yet included.
 - **Rich previews and thumbnails:** native rendered Markdown and static HTML, plus bounded previews for text, source code, images, camera RAW, PDF, audio, and video, with native parser-backed formats isolated from the application. Audio opens in a now-playing view with artwork and a live spectrum; video gets technical badges, a keyframe storyboard while scrubbing, ambient light around the frame, silent autoplay that eases its sound in, and <kbd>Enter</kbd> hands the position to your default player. File Properties shows available media resolution, duration, bitrate, codecs, HDR, subtitle and chapter counts, and audio/video rates. RAW previews and Properties also show dimensions, camera, lens, focal length, shutter speed, ISO, and GPS coordinates, with `N/A` for unavailable values.
 - **Shared storage properties:** volumes and mounted storage entries in Devices use the same Properties dialog for name, device, filesystem, mount status, and available capacity/usage. **Set label…** saves a display label only in Knowcraft; it never changes the filesystem label, mounts/unmounts a drive, or alters system configuration. Labels update the sidebar and Properties live and can be cleared to restore the normal device name. Formatting remains restricted to eligible removable drives; release actions follow the device's reported capabilities.
@@ -384,8 +384,6 @@ knowcraft --version            # print the installed version
 ```
 
 In the default map, useful shortcuts include <kbd>Ctrl</kbd>+<kbd>K</kbd> for recursive search, <kbd>Ctrl</kbd>+<kbd>L</kbd> for a path or URI, <kbd>Ctrl</kbd>+<kbd>F</kbd> to filter the current pane, <kbd>Ctrl</kbd>+<kbd>Z</kbd> to undo or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> to redo the latest reversible file operation, <kbd>Space</kbd> for preview, <kbd>F2</kbd> to rename, and <kbd>Alt</kbd>+arrow keys for history and parent navigation.
-
-Toggle [10xer mode](docs/10xer-mode.md) with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> for Yazi-style navigation and footer prompts; press it again to return to the default map. In 10xer mode, <kbd>l</kbd>/<kbd>→</kbd> enters preview, <kbd>h</kbd> returns to the listing without closing it, and <kbd>i</kbd> toggles it.
 
 In narrow or highly scaled windows, the file view takes priority: the preview shrinks, then hides when there is not enough room for both. Widening the window restores the preview and its session width automatically. Hidden previews pause playback and defer loading new selections; unchanged previews return without reloading the file.
 
@@ -884,7 +882,6 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Dee
 - [Keyboard navigation](docs/keyboard-navigation.md)
 - [Keymap](docs/keymap.md)
 - [Preview panel and column layout](docs/preview-panel-layout.md)
-- [10xer mode](docs/10xer-mode.md)
 - [Architecture principles](docs/architecture.md)
 - [Filesystem compatibility](docs/filesystem-compatibility.md)
 - [Administrator access](docs/administrator-access.md)

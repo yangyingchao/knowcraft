@@ -32,15 +32,6 @@ pub(in crate::ui) enum PreviewSurface {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(in crate::ui) enum DocumentScroll {
-    Line(i32),
-    HalfPage(i32),
-    Page(i32),
-    Start,
-    End,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(in crate::ui) enum ArchiveMove {
     Previous,
     Next,
@@ -197,10 +188,6 @@ impl PreviewDrawer {
         self.state.take_keyboard()
     }
 
-    pub(in crate::ui) fn scroll_document(&self, motion: DocumentScroll) -> bool {
-        self.state.scroll_document(motion)
-    }
-
     /// Moves the keys from the placeholder content box to a message's action button.
     pub(in crate::ui) fn focus_feedback_action(&self) -> bool {
         self.state.focus_feedback_action()
@@ -240,12 +227,6 @@ impl PreviewDrawer {
             })
     }
 
-    #[cfg(test)]
-    pub(in crate::ui) fn document_scroll_value(&self) -> Option<f64> {
-        self.state
-            .primary_scroll()
-            .map(|scroll| scroll.vadjustment().value())
-    }
 }
 
 impl PreviewState {
@@ -488,59 +469,5 @@ impl PreviewState {
         } else {
             PreviewSurface::Document
         }
-    }
-
-    /// The tallest scrollable view in the content, which is the document body
-    /// rather than a breadcrumb strip or metadata scroller.
-    fn primary_scroll(&self) -> Option<gtk::ScrolledWindow> {
-        fn visit(widget: &gtk::Widget, best: &mut Option<gtk::ScrolledWindow>) {
-            if !widget.is_visible() {
-                return;
-            }
-            if let Some(scroll) = widget.downcast_ref::<gtk::ScrolledWindow>()
-                && scroll.vscrollbar_policy() != gtk::PolicyType::Never
-                && best
-                    .as_ref()
-                    .is_none_or(|best| scroll.height() > best.height())
-            {
-                best.replace(scroll.clone());
-            }
-            let mut child = widget.first_child();
-            while let Some(widget) = child {
-                visit(&widget, best);
-                child = widget.next_sibling();
-            }
-        }
-        let mut best = None;
-        visit(self.content.upcast_ref(), &mut best);
-        best
-    }
-
-    fn scroll_document(&self, motion: DocumentScroll) -> bool {
-        let Some(scroll) = self.primary_scroll() else {
-            return false;
-        };
-        let adjustment = scroll.vadjustment();
-        let page = adjustment.page_size().max(1.0);
-        let lower = adjustment.lower();
-        let limit = (adjustment.upper() - adjustment.page_size()).max(lower);
-        let target = match motion {
-            DocumentScroll::Line(direction) => {
-                let step = if adjustment.step_increment() >= 1.0 {
-                    adjustment.step_increment()
-                } else {
-                    page / 10.0
-                };
-                adjustment.value() + f64::from(direction) * step
-            }
-            DocumentScroll::HalfPage(direction) => {
-                adjustment.value() + f64::from(direction) * page / 2.0
-            }
-            DocumentScroll::Page(direction) => adjustment.value() + f64::from(direction) * page,
-            DocumentScroll::Start => lower,
-            DocumentScroll::End => limit,
-        };
-        adjustment.set_value(target.clamp(lower, limit));
-        true
     }
 }

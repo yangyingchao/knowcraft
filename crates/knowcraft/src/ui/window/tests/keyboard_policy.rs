@@ -201,7 +201,7 @@ fn control_digits_select_each_browser_presentation() {
 const WINDOW_SHORTCUTS: [(Key, ModifierType, &str); 5] = [
     (Key::k, CONTROL, "search"),
     (Key::K, CONTROL.union(SHIFT), "jump-folder"),
-    (Key::t, CONTROL.union(ALT), "open-terminal"),
+    (Key::F4, NONE, "open-terminal"),
     (Key::F5, NONE, "refresh"),
     (Key::backslash, CONTROL, "toggle-arrow-scope"),
 ];
@@ -211,7 +211,6 @@ fn window_actions_run_once_the_dispatcher_yields_and_claim_no_other_key() {
     gtk_test(
         "ui::window::tests::keyboard_policy::window_actions_run_once_the_dispatcher_yields_and_claim_no_other_key",
         || {
-            PreferenceManager::shared().set_tenxer_mode(false);
             let (window, content) = policy_window();
             let runs = record_window_actions(&window);
             focus_location(&content);
@@ -245,7 +244,6 @@ fn the_open_reference_yields_input_method_keys_and_runs_no_window_action() {
     gtk_test(
         "ui::window::tests::keyboard_policy::the_open_reference_yields_input_method_keys_and_runs_no_window_action",
         || {
-            PreferenceManager::shared().set_tenxer_mode(false);
             let (window, _content) = policy_window();
             let runs = record_window_actions(&window);
             assert!(dispatch(&window, Key::F1, NONE));
@@ -276,33 +274,6 @@ fn reference_search_has_focus(window: &gtk::ApplicationWindow) -> bool {
             .ancestor(gtk::Entry::static_type())
             .is_some_and(|search| search.has_css_class("shortcut-reference-search"))
     })
-}
-
-#[test]
-fn tenxer_window_actions_follow_the_saved_mode_across_windows() {
-    gtk_test(
-        "ui::window::tests::keyboard_policy::tenxer_window_actions_follow_the_saved_mode_across_windows",
-        || {
-            let preferences = PreferenceManager::shared();
-            preferences.set_tenxer_mode(false);
-            let (first, first_content) = policy_window();
-            let first_runs = record_window_actions(&first);
-            focus_location(&first_content);
-            assert_window_actions(&first, &first_runs, false);
-            preferences.set_tenxer_mode(true);
-            assert_window_actions(&first, &first_runs, true);
-            let (second, second_content) = policy_window();
-            let second_runs = record_window_actions(&second);
-            focus_location(&second_content);
-            assert_window_actions(&second, &second_runs, true);
-            first.destroy();
-            settle_policy();
-            assert_window_actions(&second, &second_runs, true);
-            preferences.set_tenxer_mode(false);
-            assert_window_actions(&second, &second_runs, false);
-            second.destroy();
-        },
-    );
 }
 
 fn policy_window() -> (
@@ -363,23 +334,6 @@ fn dispatch(window: &gtk::ApplicationWindow, key: Key, modifiers: ModifierType) 
         .find(|keys| keys.propagation_phase() == gtk::PropagationPhase::Capture)
         .expect("key dispatcher")
         .emit_by_name::<bool>("key-pressed", &[&key, &0u32, &modifiers])
-}
-
-fn assert_window_actions(
-    window: &gtk::ApplicationWindow,
-    runs: &RefCell<Vec<&'static str>>,
-    tenxer: bool,
-) {
-    for (key, modifiers, action) in WINDOW_SHORTCUTS {
-        let bound = !tenxer || matches!(action, "search" | "refresh");
-        assert_eq!(
-            dispatch(window, key, modifiers),
-            bound,
-            "{action}, 10xer={tenxer}"
-        );
-        let expected: &[&str] = if bound { &[action] } else { &[] };
-        assert_eq!(runs.take(), expected, "{action}, 10xer={tenxer}");
-    }
 }
 
 fn settle_policy() {

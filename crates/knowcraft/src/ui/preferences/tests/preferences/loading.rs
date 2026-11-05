@@ -72,7 +72,6 @@ fn older_preferences_keep_backward_compatible_behavior_defaults() {
     saved.remove("open_folder_after_drop");
     saved.remove("date_format");
     saved.remove("send_to_recent_destinations");
-    saved.remove("tenxer_mode");
     saved.remove("omarchy_variants");
     saved.remove("file_icon_colors");
     saved.remove("folder_peeking");
