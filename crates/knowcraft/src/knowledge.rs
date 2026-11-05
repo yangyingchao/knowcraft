@@ -14,6 +14,7 @@ use std::{
 };
 
 use knowcraft_core::{
+    archive::Archive,
     config::Config,
     index::{Index, IndexHit},
     model::Document,
@@ -75,6 +76,7 @@ pub(crate) struct Knowledge {
     index: Index,
     tags: Tags,
     trash: Trash,
+    archive: Archive,
 }
 
 /// What one index warm-up pass did, for tests and logging.
@@ -115,6 +117,7 @@ impl Knowledge {
         let index = Index::open(&data_dir).map_err(|error| error.to_string())?;
         let tags = Tags::new(store.clone());
         let trash = Trash::new(data_dir.clone());
+        let archive = Archive::new(data_dir.clone()).map_err(|error| error.to_string())?;
         Ok(Self {
             data_dir,
             store,
@@ -122,6 +125,7 @@ impl Knowledge {
             index,
             tags,
             trash,
+            archive,
         })
     }
 
@@ -239,33 +243,61 @@ impl Knowledge {
         names
     }
 
-    /// Moves an inbox document into `library/<category>/` and refreshes its index entry.
+    /// 归档 inbox 文档到 `library/<category>/` 并刷新索引状态。
+    pub(crate) fn archive_to_library(&self, path: &Path, category: &str) -> Result<Document, String> {
+        let doc = self.resolve_doc(path)?;
+        if doc.lifecycle != "pending" {
+            return Err("该文档已归档".to_owned());
+        }
+        let _guard = index_guard();
+        let archived = self
+            .archive
+            .archive_to_library(&self.store, &self.index, doc.id, category)
+            .map_err(|error| error.to_string())?;
+        self.mark_indexed(&archived);
+        Ok(archived)
+    }
+
+    /// 归档任意知识库文档为记录（`archived/<ext>/<uuid>.<ext>`）。
+    pub(crate) fn archive_record(&self, path: &Path) -> Result<Document, String> {
+        let doc = self.resolve_doc(path)?;
+        let _guard = index_guard();
+        let archived = self
+            .archive
+            .archive_record(&self.store, &self.index, doc.id)
+            .map_err(|error| error.to_string())?;
+        self.mark_indexed(&archived);
+        Ok(archived)
+    }
+
+    /// Moves an inbox document into `library/<category>/`; thin wrapper over
+    /// `archive_to_library` so callers share one move path.
     pub(crate) fn dispatch(&self, path: &Path, category: &str) -> Result<Document, String> {
+        self.archive_to_library(path, category)
+    }
+
+    /// 按路径查找文档；不在库内时按目录登记（inbox 走 pending，其余走 linked 归档）。
+    fn resolve_doc(&self, path: &Path) -> Result<Document, String> {
         let path_text = path.to_string_lossy();
-        let doc = match self
+        if let Some(doc) = self
             .store
             .find_by_path(&path_text)
             .map_err(|error| error.to_string())?
         {
-            Some(doc) => doc,
-            None => self
-                .workflow
-                .register_inbox_file(path)
-                .map_err(|error| error.to_string())?,
-        };
-        if doc.lifecycle != "pending" {
-            return Err("该文档已归档".to_owned());
+            return Ok(doc);
         }
-        let dispatched = self
-            .workflow
-            .dispatch(doc.id, category)
-            .map_err(|error| error.to_string())?;
-        if self.index.reindex_document(&dispatched).is_err() {
-            let _ = self.store.set_index_status(dispatched.id, "error");
+        let registered = if self.is_pending(path) {
+            self.workflow.register_inbox_file(path)
         } else {
-            let _ = self.store.set_index_status(dispatched.id, "indexed");
-        }
-        Ok(dispatched)
+            self.workflow.register_library_file(path)
+        };
+        registered.map_err(|error| error.to_string())
+    }
+
+    /// 归档成功后按现有 dispatch 的做法更新 index_status（indexed/error）。
+    /// archive 内部已重建索引并返回 Ok；这里只记录状态。
+    fn mark_indexed(&self, doc: &Document) {
+        let _ = self.store.set_index_status(doc.id, "indexed");
     }
 
     /// Whether `path` sits in one of the knowledge folders.

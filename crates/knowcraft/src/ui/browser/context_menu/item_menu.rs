@@ -244,7 +244,7 @@ impl ItemMenu {
             if let Some(path) = entry.location.native_path().map(PathBuf::from)
                 && let Some(handler) = state.dispatch_handler.borrow().as_ref()
             {
-                handler(path);
+                handler(vec![path]);
             }
         });
         self.on_entry(&single.reindex, |state, _, entry| {
@@ -605,15 +605,14 @@ impl ItemMenuOptions {
             .pin
             .set_visible(entry.is_directory() && !is_trash_location(&entry.location));
         self.single.pin.set_sensitive(target.pin_available());
-        // 归档仅对 inbox 内的未归档文件开放，已归档（不在 inbox）的
-        // 文件不显示该入口。
+        // 归档对知识库内任意文件开放（排除回收站），已归档的文件也可重新归档。
         let knowledge = crate::knowledge::init();
         let native_path = entry.location.native_path();
-        let pending = knowledge
-            .is_some_and(|knowledge| native_path.is_some_and(|path| knowledge.is_pending(path)));
-        self.single.dispatch.set_visible(pending && !self.in_trash);
         let in_knowledge = knowledge
             .is_some_and(|knowledge| native_path.is_some_and(|path| knowledge.contains(path)));
+        self.single
+            .dispatch
+            .set_visible(in_knowledge && !entry.is_directory() && !self.in_trash);
         self.single
             .reindex
             .set_visible(in_knowledge && !self.in_trash);

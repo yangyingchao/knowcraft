@@ -263,12 +263,12 @@ fn bind_knowledge_handlers(
     let reindex_browser = browser.clone();
     let reindex_shortcuts = shortcuts.clone();
     browser.set_knowledge_handlers(
-        Rc::new(move |path| {
+        Rc::new(move |paths| {
             let view = dispatch_browser.clone();
             let feedback = dispatch_shortcuts.clone();
             super::super::knowledge_dispatch::dispatch_path(
                 dispatch_window.upcast_ref(),
-                path,
+                paths,
                 Rc::new(move || view.refresh()),
                 Rc::new(move |text| feedback.show_feedback(text)),
             );

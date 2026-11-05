@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-use std::{path::Path, rc::Rc};
+use std::{
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 
 use gtk::{
     glib::{self, Propagation},
@@ -276,21 +279,23 @@ impl Dispatcher {
     }
 
     fn open_dispatch(&self) {
-        let Some(entry) = self.view.focused_target() else {
+        let paths: Vec<PathBuf> = self
+            .view
+            .command_targets()
+            .into_iter()
+            .filter(|entry| !entry.is_directory())
+            .filter_map(|entry| entry.location.native_path().map(Path::to_path_buf))
+            .collect();
+        if paths.is_empty() {
             self.shortcuts
                 .show_feedback(&crate::i18n::tr("Nothing to archive"));
             return;
-        };
-        let Some(path) = entry.location.native_path().map(Path::to_path_buf) else {
-            self.shortcuts
-                .show_feedback(&crate::i18n::tr("Nothing to archive"));
-            return;
-        };
+        }
         let view = self.view.clone();
         let feedback = self.shortcuts.clone();
         super::super::knowledge_dispatch::dispatch_path(
             &self.window,
-            path,
+            paths,
             Rc::new(move || view.refresh()),
             Rc::new(move |text| feedback.show_feedback(text)),
         );

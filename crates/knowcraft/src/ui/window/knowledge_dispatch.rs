@@ -11,6 +11,21 @@ use gtk::{glib, prelude::*};
 use crate::i18n::tr;
 use crate::knowledge::{CategorySuggestion, IndexProgress};
 
+/// 归档对话框的两种模式。
+#[derive(Clone, Copy)]
+pub(crate) enum ArchiveMode {
+    /// 展示分类列表与输入框，归档到 library 分类。
+    Categories,
+    /// 只提供「归档为记录」，隐藏分类列表与输入框。
+    RecordOnly,
+}
+
+/// 用户在归档对话框中的选择。
+pub(crate) enum ArchiveChoice {
+    Category(String),
+    Record,
+}
+
 /// 输入框内容优先；否则取列表选中项。空输入且无有效选中时返回 `None`。
 pub(super) fn chosen_category(
     typed: &str,
@@ -26,63 +41,105 @@ pub(super) fn chosen_category(
 
 /// 弹出归档选择器；选择分类后在后台执行归档，结果经 `feedback` 展示，
 /// 成功后调用 `refresh` 刷新文件视图。
+///
+/// 全部路径位于 inbox（未归档）时使用分类模式，单文件附带 top-3 推荐；
+/// 否则进入仅归档为记录的模式。
 pub(crate) fn dispatch_path(
     parent: &gtk::Window,
-    path: PathBuf,
+    paths: Vec<PathBuf>,
     refresh: Rc<dyn Fn()>,
     feedback: Rc<dyn Fn(&str)>,
 ) {
-    let categories = crate::knowledge::init()
+    if paths.is_empty() {
+        feedback(&tr("Nothing to archive"));
+        return;
+    }
+    let knowledge = crate::knowledge::init();
+    let all_inbox = knowledge.is_some_and(|knowledge| {
+        paths.iter().all(|path| knowledge.is_pending(path))
+    });
+    let mode = if all_inbox {
+        ArchiveMode::Categories
+    } else {
+        ArchiveMode::RecordOnly
+    };
+    let categories = knowledge
         .map(|knowledge| knowledge.categories())
         .unwrap_or_default();
-    let chosen_path = path.clone();
-    let fill = present(
-        parent,
-        categories,
-        Rc::new(move |category| {
-            run_dispatch(
-                chosen_path.clone(),
-                category,
-                refresh.clone(),
-                feedback.clone(),
-            );
-        }),
-    );
-    let (sender, receiver) = std::sync::mpsc::channel::<Vec<CategorySuggestion>>();
-    let index_path = path.clone();
-    std::thread::spawn(move || {
-        let suggestions = crate::knowledge::init()
-            .map(|knowledge| knowledge.suggest_categories(&index_path, 3))
-            .unwrap_or_default();
-        let _ = sender.send(suggestions);
+    let chosen_paths = paths.clone();
+    let chosen = Rc::new(move |choice| {
+        run_archive(chosen_paths.clone(), choice, refresh.clone(), feedback.clone());
     });
-    glib::timeout_add_local(Duration::from_millis(50), move || {
-        match receiver.try_recv() {
-            Ok(suggestions) => {
-                fill(suggestions);
-                glib::ControlFlow::Break
+    let fill = present(parent, mode, categories, chosen);
+
+    // 仅单文件分类模式计算 top-3 推荐。
+    if all_inbox && paths.len() == 1 {
+        let index_path = paths[0].clone();
+        let (sender, receiver) = std::sync::mpsc::channel::<Vec<CategorySuggestion>>();
+        std::thread::spawn(move || {
+            let suggestions = crate::knowledge::init()
+                .map(|knowledge| knowledge.suggest_categories(&index_path, 3))
+                .unwrap_or_default();
+            let _ = sender.send(suggestions);
+        });
+        glib::timeout_add_local(Duration::from_millis(50), move || {
+            match receiver.try_recv() {
+                Ok(suggestions) => {
+                    fill(suggestions);
+                    glib::ControlFlow::Break
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => glib::ControlFlow::Break,
             }
-            Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => glib::ControlFlow::Break,
-        }
-    });
+        });
+    }
 }
 
-fn run_dispatch(
-    path: PathBuf,
-    category: String,
+fn run_archive(
+    paths: Vec<PathBuf>,
+    choice: ArchiveChoice,
     refresh: Rc<dyn Fn()>,
     feedback: Rc<dyn Fn(&str)>,
 ) {
     let (sender, receiver) = std::sync::mpsc::channel::<Result<String, String>>();
     std::thread::spawn(move || {
-        let result = crate::knowledge::init()
-            .ok_or_else(|| "知识库不可用".to_owned())
-            .and_then(|knowledge| knowledge.dispatch(&path, &category))
-            .map(|document| format!("已归档到 {}", document.path));
+        let result = (|| {
+            let knowledge =
+                crate::knowledge::init().ok_or_else(|| "知识库不可用".to_owned())?;
+            let (mut ok, mut failed) = (0usize, 0usize);
+            for path in &paths {
+                let outcome = match &choice {
+                    ArchiveChoice::Category(category) => {
+                        knowledge.archive_to_library(path, category)
+                    }
+                    ArchiveChoice::Record => knowledge.archive_record(path),
+                };
+                match outcome {
+                    Ok(_) => ok += 1,
+                    Err(error) => {
+                        tracing::warn!(%error, "archive failed for {}", path.display());
+                        failed += 1;
+                    }
+                }
+            }
+            Ok(archive_message(ok, failed))
+        })();
         let _ = sender.send(result);
     });
     poll_result(receiver, refresh, feedback);
+}
+
+fn archive_message(ok: usize, failed: usize) -> String {
+    if failed == 0 {
+        rust_i18n::t!("Archived %{count} files", count = ok).into_owned()
+    } else {
+        rust_i18n::t!(
+            "Archived %{ok} files, %{failed} failed",
+            ok = ok,
+            failed = failed
+        )
+        .into_owned()
+    }
 }
 
 /// 弹出目录选择对话框；选定后在后台把所选目录递归导入
@@ -293,13 +350,18 @@ fn collect_result(
 
 pub(super) fn present(
     parent: &gtk::Window,
+    mode: ArchiveMode,
     categories: Vec<String>,
-    chosen: Rc<dyn Fn(String)>,
+    chosen: Rc<dyn Fn(ArchiveChoice)>,
 ) -> Rc<dyn Fn(Vec<CategorySuggestion>)> {
+    let title = match mode {
+        ArchiveMode::Categories => tr("Archive to category"),
+        ArchiveMode::RecordOnly => tr("Archive"),
+    };
     let window = gtk::Window::builder()
         .modal(true)
         .transient_for(parent)
-        .title(tr("Archive to category"))
+        .title(title)
         .default_width(480)
         .build();
     let outer = gtk::Box::new(gtk::Orientation::Vertical, 8);
@@ -316,24 +378,36 @@ pub(super) fn present(
         append_category_row(&list, category, None);
         displayed.borrow_mut().push(category.clone());
     }
-    outer.append(&list);
 
     let entry = gtk::Entry::builder()
         .placeholder_text(tr("New category…"))
         .build();
-    outer.append(&entry);
 
     let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     buttons.set_halign(gtk::Align::End);
     let cancel = gtk::Button::with_label(&tr("Cancel"));
+    let record = gtk::Button::with_label(&tr("Archive as record"));
     let archive = gtk::Button::with_label(&tr("Archive"));
     archive.add_css_class("suggested-action");
     buttons.append(&cancel);
+    buttons.append(&record);
     buttons.append(&archive);
+
+    match mode {
+        ArchiveMode::Categories => {
+            outer.append(&list);
+            outer.append(&entry);
+        }
+        ArchiveMode::RecordOnly => {
+            archive.set_visible(false);
+            list.set_visible(false);
+            entry.set_visible(false);
+        }
+    }
     outer.append(&buttons);
     window.set_child(Some(&outer));
 
-    let submit = {
+    let submit_category = {
         let window = window.clone();
         let list = list.clone();
         let entry = entry.clone();
@@ -345,22 +419,36 @@ pub(super) fn present(
                 .and_then(|row| usize::try_from(row.index()).ok());
             let displayed = displayed.borrow();
             if let Some(name) = chosen_category(&entry.text(), selected, displayed.as_slice()) {
-                (chosen)(name);
+                (chosen)(ArchiveChoice::Category(name));
                 window.close();
             }
         })
     };
+    let submit_record = {
+        let window = window.clone();
+        let chosen = chosen.clone();
+        Rc::new(move || {
+            (chosen)(ArchiveChoice::Record);
+            window.close();
+        })
+    };
     {
-        let submit = submit.clone();
-        archive.connect_clicked(move |_| submit());
+        let submit = submit_record.clone();
+        record.connect_clicked(move |_| submit());
     }
-    {
-        let submit = submit.clone();
-        entry.connect_activate(move |_| submit());
-    }
-    {
-        let submit = submit.clone();
-        list.connect_row_activated(move |_, _| submit());
+    if matches!(mode, ArchiveMode::Categories) {
+        {
+            let submit = submit_category.clone();
+            archive.connect_clicked(move |_| submit());
+        }
+        {
+            let submit = submit_category.clone();
+            entry.connect_activate(move |_| submit());
+        }
+        {
+            let submit = submit_category.clone();
+            list.connect_row_activated(move |_, _| submit());
+        }
     }
     let window_for_cancel = window.clone();
     cancel.connect_clicked(move |_| window_for_cancel.close());
