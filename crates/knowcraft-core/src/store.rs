@@ -157,6 +157,15 @@ impl Store {
         Ok(())
     }
 
+    pub fn update_storage(&self, id: i64, storage: &str) -> Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "UPDATE documents SET storage = ?1 WHERE id = ?2",
+            params![storage, id],
+        )?;
+        Ok(())
+    }
+
     pub fn update_checksum(&self, id: i64, checksum: &str) -> Result<()> {
         let conn = self.lock();
         conn.execute(

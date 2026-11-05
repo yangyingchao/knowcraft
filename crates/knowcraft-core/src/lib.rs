@@ -1,4 +1,5 @@
 pub mod annotations;
+pub mod archive;
 pub mod capture;
 pub mod cleanup;
 pub mod config;
