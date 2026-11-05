@@ -93,16 +93,6 @@ impl BrowserView {
         self.leave_result_visual() || self.state.browser.leave_visual()
     }
 
-    pub(in crate::ui) fn end_tenxer_session(&self) {
-        self.leave_result_visual();
-        self.state.browser.leave_visual();
-        self.state.browser.close_peek();
-        self.clear_find();
-        self.forget_listing_search();
-        self.clear_hidden_filters();
-        self.release_forced_recursion();
-    }
-
     /// Source positions of one pane in the order it displays them, including
     /// type groups and a Columns filter. `None` falls back to source order.
     pub(super) fn displayed_order(&self, depth: usize) -> Option<Vec<usize>> {
@@ -180,16 +170,9 @@ impl BrowserView {
         Some(self.step_filter_results(delta.signum(), delta.unsigned_abs() as usize, key.is_some()))
     }
 
-    /// 10xer places the cursor without selecting; otherwise the step selects the entry.
+    /// Steps the listing's cursor to the entry without changing the selection.
     fn place_stepped_cursor(&self, depth: usize, position: usize) {
-        if crate::ui::preferences::PreferenceManager::shared().tenxer_mode() {
-            let order = self.displayed_order(depth);
-            self.state
-                .browser
-                .place_cursor(depth, position, order.as_deref());
-        } else {
-            self.state.browser.select(depth, position);
-        }
+        self.state.browser.select(depth, position);
     }
 
     /// `key` supplies the keyboard scroll direction; `None` preserves pointer navigation.

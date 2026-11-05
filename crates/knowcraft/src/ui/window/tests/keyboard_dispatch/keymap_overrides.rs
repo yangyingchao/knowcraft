@@ -183,7 +183,7 @@ fn added_letter_leaves_a_text_preview_like_a_shipped_one() {
                 assert!(fixture.press(key, ModifierType::empty()), "{key:?}");
                 wait_until(|| {
                     fixture.shortcuts.open_prompt_kind()
-                        == Some(crate::ui::tenxer_mode::Prompt::Rename)
+                        == Some(crate::ui::shortcut_footer::Prompt::Rename)
                 });
                 fixture.shortcuts.dismiss_prompt();
             }

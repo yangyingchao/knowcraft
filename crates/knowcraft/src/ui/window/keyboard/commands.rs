@@ -126,20 +126,7 @@ impl Dispatcher {
 
     pub(super) fn sidebar_commands(&self, browser: &Browser, event: &KeyEvent) -> KeyResult {
         let toggle = self.top_bar.sidebar_toggle();
-        let tenxer = self.type_to_search.preferences.tenxer_mode();
         if event.press.is(SIDEBAR_FOCUS) {
-            if tenxer {
-                if !toggle.is_active() {
-                    return Some(Propagation::Stop);
-                }
-                if self.sidebar.contains(&event.focused) {
-                    self.sidebar.restore(browser, true);
-                } else {
-                    self.sidebar.previous.replace(event.focused.clone());
-                    self.sidebar.state.focus_active_place();
-                }
-                return Some(Propagation::Stop);
-            }
             self.view.keyboard_navigation();
             if self.sidebar.contains(&event.focused) {
                 self.sidebar.restore(browser, false);
@@ -230,8 +217,6 @@ impl Dispatcher {
             }
         } else if press.is(COPY) {
             BrowserView::copy_selection
-        } else if press.is(DUPLICATE.in_map(Map::Default)) {
-            BrowserView::duplicate_selection
         } else if press.is(CUT) {
             BrowserView::cut_selection
         } else if press.is(SELECT_ALL) {

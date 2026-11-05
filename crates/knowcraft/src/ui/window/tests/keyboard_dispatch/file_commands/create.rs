@@ -113,8 +113,6 @@ fn discarded_prompts_create_nothing(fixture: &KeyboardFixture, directory: &Path)
     wait_until(|| fixture.shortcuts.open_prompt_kind().is_none());
     assert!(fixture.shortcuts.prompt().text().is_empty());
     type_pending_create(fixture, "replaced.txt");
-    fixture.shortcuts.open_prompt(Prompt::Find);
-    assert!(fixture.shortcuts.prompt().text().is_empty());
     plain(fixture, Key::Escape);
     type_pending_create(fixture, "mode-exit.txt");
     PreferenceManager::shared().set_tenxer_mode(false);

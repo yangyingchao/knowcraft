@@ -336,8 +336,9 @@ impl PreviewDrawer {
         );
     }
 
-    /// 10xer opens find with `/` so Ctrl+F keeps paging the document.
-    pub(in crate::ui) fn handle_find_key(&self, press: &KeyPress, tenxer: bool) -> bool {
+    /// **Ctrl+F** opens find while the preview owns the keys; the rest move
+    /// between matches or close it.
+    pub(in crate::ui) fn handle_find_key(&self, press: &KeyPress) -> bool {
         let focused = self.state.pane.root().and_then(|root| root.focus());
         if !self.owns_focus(focused.as_ref()) {
             return false;
@@ -345,12 +346,7 @@ impl PreviewDrawer {
         let in_find = focused
             .as_ref()
             .is_some_and(|focus| focus.is_ancestor(&self.state.find.widget));
-        let opens = if tenxer {
-            !in_find && press.is(FIND_IN_PREVIEW)
-        } else {
-            press.is(FIND_IN_PREVIEW)
-        };
-        if opens {
+        if press.is(FIND_IN_PREVIEW) {
             return self.state.open_find();
         }
         if !self.state.find.widget.is_visible() {

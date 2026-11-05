@@ -107,17 +107,6 @@ impl Dispatcher {
         true
     }
 
-    fn tenxer_open_focused_in_new(&self, browser: &Rc<Browser>, press: &KeyPress) -> bool {
-        let target = if press.is(OPEN_IN_NEW_TAB) {
-            OpenInNewTarget::Tab
-        } else if press.is(OPEN_IN_NEW_WINDOW) {
-            OpenInNewTarget::Window
-        } else {
-            return false;
-        };
-        self.open_focused_in_new(browser, target)
-    }
-
     pub(super) fn dismissal(&self, browser: &Browser, event: &KeyEvent) -> KeyResult {
         let press = &event.press;
         if press.is(BACKSPACE.ignoring(SHIFT.union(SUPER)))

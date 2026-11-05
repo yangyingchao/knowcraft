@@ -408,7 +408,6 @@ fn tables_list_only_what_the_map_can_run() {
             .any(|(_, commands)| commands.contains(&command))
     };
     assert!(listed.iter().all(|(title, _)| *title != "10xer mode"));
-    assert!(has(DUPLICATE), "the direct stage runs it");
 }
 
 #[test]

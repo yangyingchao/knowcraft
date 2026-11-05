@@ -4,15 +4,11 @@ use crate::adapters::directory_summary::{DirectorySummary, summarize_directory};
 use crate::adapters::gio_file_for_location;
 use crate::assets::icons;
 use crate::model::{EntryKind, FileEntry, MetadataValue};
-use crate::services::{PathMatcher, PathQuery, filter_name_matches, fold_for_search};
+use crate::services::{filter_name_matches, fold_for_search};
 use gtk::glib;
 use gtk::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-
-thread_local! {
-    static FILTER_TERMS: RefCell<Option<(String, PathMatcher)>> = const { RefCell::new(None) };
-}
 
 pub(in crate::ui) fn format_file_size(bytes: u64) -> String {
     crate::i18n::file_size(bytes)
@@ -111,22 +107,8 @@ pub(super) fn entry_matches(value: &str, show_hidden: bool, query: &str) -> bool
     (show_hidden || !model_is_hidden(value))
         && (query.trim().is_empty() || {
             let name = fold_for_search(model_display_name(value));
-            if crate::ui::tenxer_mode::chrome_suppressed() {
-                with_filter_terms(query, |terms| terms.score(&name, 0).is_some())
-            } else {
-                filter_name_matches(&name, query)
-            }
+            filter_name_matches(&name, query)
         })
-}
-
-pub(super) fn with_filter_terms<R>(query: &str, apply: impl FnOnce(&mut PathMatcher) -> R) -> R {
-    FILTER_TERMS.with_borrow_mut(|cached| {
-        if cached.as_ref().is_none_or(|(cached, _)| cached != query) {
-            *cached = Some((query.to_owned(), PathMatcher::new(&PathQuery::parse(query))));
-        }
-        let (_, matcher) = cached.as_mut().expect("filter terms cached above");
-        apply(matcher)
-    })
 }
 
 static FILENAME_ICONS: &[(&str, &str)] = &[

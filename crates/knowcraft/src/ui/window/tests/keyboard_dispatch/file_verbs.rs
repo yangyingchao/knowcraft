@@ -9,7 +9,7 @@ use std::{
 use super::*;
 use crate::{
     model::{SortDirection, SortKey},
-    ui::tenxer_mode::{Chord, Prompt},
+    ui::shortcut_footer::Prompt,
 };
 
 mod actions;

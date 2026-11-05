@@ -8,7 +8,69 @@ use super::{
     CandidateKeys, PromptResetListeners, ShortcutFooter, candidates::Candidates,
     reference::ReferenceSession,
 };
-use crate::ui::tenxer_mode::Prompt;
+
+/// The footer prompt's kind; `label` shows what the entry edits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::ui) enum Prompt {
+    Filter,
+    Search,
+    Go,
+    Jump,
+    Recent,
+    Create,
+    Rename,
+    MoveTo,
+    CopyTo,
+    ExtractTo,
+}
+
+impl Prompt {
+    pub(in crate::ui) fn label(self) -> String {
+        let label = match self {
+            Self::Filter => "filter:",
+            Self::Search => "search:",
+            Self::Go => "go \u{203a}",
+            Self::Jump => "jump \u{203a}",
+            Self::Recent => "recent \u{203a}",
+            Self::Create => "create \u{203a}",
+            Self::Rename => "rename \u{203a}",
+            Self::MoveTo => "move to \u{203a}",
+            Self::CopyTo => "copy to \u{203a}",
+            Self::ExtractTo => "extract to \u{203a}",
+        };
+        crate::i18n::tr(label)
+    }
+
+    pub(in crate::ui) fn picks_history(self) -> bool {
+        matches!(self, Self::Jump | Self::Recent)
+    }
+
+    pub(in crate::ui) fn picks_folder(self) -> bool {
+        matches!(self, Self::Go | Self::MoveTo | Self::CopyTo | Self::ExtractTo)
+    }
+
+    pub(in crate::ui) fn holds_targets(self) -> bool {
+        matches!(
+            self,
+            Self::Rename | Self::MoveTo | Self::CopyTo | Self::ExtractTo
+        )
+    }
+
+    pub(in crate::ui) fn name(self) -> &'static str {
+        match self {
+            Self::Filter => "Filter this listing",
+            Self::Search => "Search this folder and its subfolders",
+            Self::Go => "Go to a path or URI",
+            Self::Jump => "Jump to a visited folder",
+            Self::Recent => "Jump to a recently visited folder",
+            Self::Create => "Create a file, or a folder ending in /",
+            Self::Rename => "Rename the focused item",
+            Self::MoveTo => "Move the selection to a folder",
+            Self::CopyTo => "Copy the selection to a folder",
+            Self::ExtractTo => "Extract the archive to a folder",
+        }
+    }
+}
 
 /// The open footer prompt. Its bar covers the whole footer so typing never
 /// shares the row with status marks.
@@ -214,13 +276,7 @@ impl ShortcutFooter {
     }
 
     pub(in crate::ui) fn open_prompt_with(&self, kind: Prompt, text: &str) -> bool {
-        // An armed chord must stay visible, and the prompt covers its mark.
-        self.chords.clear();
         self.prompt.open(&self.root, kind, text)
-    }
-
-    pub(in crate::ui) fn select_prompt_region(&self, start: i32, end: i32) {
-        self.prompt.entry.select_region(start, end);
     }
 
     /// Runs `listener` as the open prompt's text is edited, not when a prompt
@@ -343,10 +399,6 @@ impl ShortcutFooter {
     #[cfg(test)]
     pub(in crate::ui) fn click_candidate(&self, index: usize) {
         self.prompt.candidates.activate(index);
-    }
-
-    pub(in crate::ui) fn prompt_is_visible(&self) -> bool {
-        self.prompt.bar.is_visible()
     }
 
     pub(in crate::ui) fn prompt_has_focus(&self) -> bool {

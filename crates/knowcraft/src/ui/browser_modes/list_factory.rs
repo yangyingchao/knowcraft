@@ -162,7 +162,6 @@ impl ListFactory {
                 .as_ref()
                 .and_then(|state| state.find_highlight())
                 .as_deref(),
-            &self.filter_query.borrow(),
         );
         if let Some(edit) = &edit {
             edit.display.set_visible(!edit.is_editing());

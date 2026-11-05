@@ -25,7 +25,6 @@ use super::{SidebarState, SidebarView, TypeToSearch};
 mod chooser;
 mod commands;
 mod direct;
-mod escape;
 mod files;
 mod focus;
 mod footer_bindings;
@@ -37,8 +36,7 @@ mod sidebar;
 mod wheel_zoom;
 
 use footer_bindings::{
-    bind_candidate_prompts, bind_footer_filter, bind_prompt_hints, clear_find_on_mode_exit,
-    release_preview_keys_on_mode_exit, submit_prompt_on_activate,
+    bind_candidate_prompts, bind_footer_filter, bind_prompt_hints, submit_prompt_on_activate,
 };
 #[cfg(test)]
 pub(super) use wheel_zoom::WheelZoom;
@@ -47,8 +45,7 @@ pub(super) use wheel_zoom::WheelZoom;
 type KeyResult = Option<Propagation>;
 
 /// Window actions that run once every other stage yields the key, wherever
-/// the active table binds them. 10xer runs its terminal key only from the file
-/// list and sidebar, so it is left out here in that map.
+/// the active table binds them.
 const WINDOW_ACTIONS: [(Command, &str); 5] = [
     (SEARCH, "search"),
     (JUMP_TO_FOLDER, "jump-folder"),
@@ -268,7 +265,6 @@ impl Dispatcher {
         parts: DispatcherParts,
         chooser: Option<ChooserPolicy>,
     ) -> Self {
-        let weak_browser = Rc::downgrade(&parts.view.browser());
         let dispatcher = Self {
             window: window.clone(),
             view: parts.view,
@@ -290,10 +286,8 @@ impl Dispatcher {
             chooser,
         };
         dispatcher.preview.bind_keyboard_view(&dispatcher.view);
-        let cancel_on_destroy = dispatcher.shortcuts.clone();
         let destinations_on_destroy = dispatcher.destinations.clone();
         dispatcher.view.widget().connect_unrealize(move |_| {
-            cancel_on_destroy.cancel_chord();
             destinations_on_destroy.cancel();
         });
         let rename_target = dispatcher.rename_target.clone();
@@ -308,12 +302,6 @@ impl Dispatcher {
         });
         bind_prompt_hints(&dispatcher);
         bind_candidate_prompts(&dispatcher);
-        release_preview_keys_on_mode_exit(
-            &dispatcher.view.widget(),
-            &dispatcher.preview,
-            &weak_browser,
-        );
-        clear_find_on_mode_exit(&dispatcher.view.widget(), &dispatcher, &weak_browser);
         bind_footer_filter(&dispatcher);
         dispatcher
     }
@@ -379,10 +367,9 @@ impl Dispatcher {
     }
 
     /// Text-size shortcuts and a focused document's zoom reset run before the
-    /// chord consumer. Drop the mark first, matching Ctrl+, opening Settings.
+    /// footer claims a key, matching Ctrl+, opening Settings.
     fn zoom_shortcut(&self, press: &KeyPress) -> Option<Propagation> {
         if self.preview.reset_pdf_zoom(press) {
-            self.shortcuts.cancel_chord();
             return Some(Propagation::Stop);
         }
         if let Some(size) = self
@@ -391,14 +378,12 @@ impl Dispatcher {
             .text_size()
             .for_shortcut(press)
         {
-            self.shortcuts.cancel_chord();
             self.view.set_text_size(size);
             return Some(Propagation::Stop);
         }
         if let Some(change) = ThumbnailResize::for_shortcut(press)
             && self.view.resize_icons_thumbnails(change)
         {
-            self.shortcuts.cancel_chord();
             return Some(Propagation::Stop);
         }
         None
@@ -458,15 +443,12 @@ impl Dispatcher {
     /// Like a GTK accelerator, an enabled action consumes its key even when the
     /// action's guard then declines to run.
     fn window_action(&self, press: &KeyPress) -> Propagation {
-        let Some((command, name)) = WINDOW_ACTIONS
+        let Some((_, name)) = WINDOW_ACTIONS
             .iter()
             .find(|(command, _)| press.is(*command))
         else {
             return Propagation::Proceed;
         };
-        if *command == TERMINAL && self.type_to_search.preferences.tenxer_mode() {
-            return Propagation::Proceed;
-        }
         match self.window.downcast_ref::<gtk::ApplicationWindow>() {
             Some(window) if window.is_sensitive() && window.is_action_enabled(name) => {
                 gtk::gio::prelude::ActionGroupExt::activate_action(window, name, None);

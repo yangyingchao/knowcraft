@@ -337,9 +337,7 @@ impl TabWindow {
             *previous.focus.borrow_mut() = gtk::prelude::RootExt::focus(&window)
                 .filter(|widget| panes.iter().any(|pane| widget.is_ancestor(pane)))
                 .map(|widget| widget.downgrade());
-            previous.content.footer.shortcuts.cancel_chord();
-            previous.content.browser.cancel_location_edit();
-        }
+            previous.content.browser.cancel_location_edit();        }
         self.active.set(id);
         self.share_presence();
         self.stack.set_visible_child(&tab.content.overlay);
@@ -759,7 +757,6 @@ impl TabWindow {
         if self.blocked() || !is_tab_shortcut(press) {
             return glib::Propagation::Proceed;
         }
-        self.active_tab().content.footer.shortcuts.cancel_chord();
         if press.is(TAB_NEW) {
             self.new_tab();
         } else if press.is(TAB_CLOSE) {

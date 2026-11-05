@@ -93,7 +93,8 @@ fn listing_filters_use_and_highlight_fuzzy_terms_only_in_tenxer_mode() {
                 |query: &str| entry_matches("fv\tgamma-report.md", false, &fold_for_search(query));
             let highlighted = |query: &str| {
                 let label = gtk::Label::new(Some("gamma-report.md"));
-                super::highlight_listing_name(label.upcast_ref(), None, &fold_for_search(query));
+                let folded = fold_for_search(query);
+                super::highlight_listing_name(label.upcast_ref(), Some(folded.as_str()));
                 label.attributes().is_some()
             };
             let preferences = PreferenceManager::shared();

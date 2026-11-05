@@ -214,8 +214,6 @@ fn discarded_renames_rename_nothing(fixture: &KeyboardFixture, directory: &Path)
     assert_eq!(focused_name(&browser), "b.txt", "the click keeps its row");
 
     type_pending_rename(fixture);
-    fixture.shortcuts.open_prompt(Prompt::Find);
-    assert!(fixture.shortcuts.prompt_text().is_empty());
     fixture.shortcuts.prompt().set_text("c");
     plain(fixture, Key::Return);
     assert_eq!(focused_name(&browser), "c.txt");

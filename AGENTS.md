@@ -37,3 +37,4 @@
 - i18n 文案变更需同步 `data/locales/` 下全部语言（当前仅 zh-CN 与 en，`<lang>.json` 与 `messages/<lang>.json`；zh-CN 键序需与 en 一致）。
 - core 对外仅 `Result<_, Error>`，不 panic；GUI 为薄壳，不复制业务逻辑。
 - 修改行为类代码后先跑 `cargo build` 再跑相关 `cargo test`。
+- 不主动跑全量测试，除非用户明确要求。

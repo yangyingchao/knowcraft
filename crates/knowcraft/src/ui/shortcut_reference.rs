@@ -15,8 +15,6 @@ use super::{
 #[cfg(test)]
 pub(super) mod tests;
 
-pub(crate) const EXPERIMENTAL_LABEL: &str = "(experimental feature, under active development)";
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ReferenceScope {
     pub mode: BrowserMode,
@@ -78,10 +76,6 @@ pub(crate) enum Mention {
 }
 
 impl Mention {
-    pub(crate) fn label(self) -> String {
-        self.label_in(&rust_i18n::locale())
-    }
-
     fn label_in(self, locale: &str) -> String {
         match self {
             Self::Keys(keys) => keys::label_in(locale, &keys),
@@ -96,7 +90,7 @@ impl Shortcut {
         let Some(context) = self.context else {
             return keys;
         };
-        use super::tenxer_mode::Prompt;
+        use super::shortcut_footer::Prompt;
         rust_i18n::t!(
             context,
             keys = keys,
@@ -275,8 +269,6 @@ pub(crate) fn legend_markup(hints: &[(Keys, &str)]) -> String {
         .join("   ")
 }
 
-const IN_ANY_PREVIEW: &str = "%{keys} in any preview";
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ContextHint {
     None,
@@ -288,7 +280,6 @@ pub(crate) enum ContextHint {
     Rename,
     Cut,
     Copy,
-    Duplicate,
     Paste,
     Pin,
     MoveTo,
@@ -323,11 +314,7 @@ pub(crate) fn context_hint_for(
     hint: ContextHint,
     preferences: &super::preferences::PreferenceManager,
 ) -> Option<Keys> {
-    if preferences.tenxer_mode() {
-        tenxer_hint(hint)
-    } else {
-        default_hint(hint, preferences.type_to_search_active())
-    }
+    default_hint(hint, preferences.type_to_search_active())
 }
 
 /// The binding a menu row's `accel` carries; only the first alternative fits.
@@ -536,7 +523,7 @@ const DEFAULT_FILES: &[Shortcut] = &[
     row(One(PREVIEW.shown()), "Preview a file, or open a folder"),
     row(Any(shown![COPY, CUT]), "Copy / cut selected items"),
     row(One(PASTE.shown()), "Paste into the indicated directory"),
-    row(One(DUPLICATE.shown()), "Duplicate selected items"),
+    row(One(DISPATCH.shown()), "Archive selected file"),
     row(
         One(MOVE_TO_TRASH.shown()),
         "Move selected items to Trash, when supported",
@@ -585,47 +572,7 @@ const DEFAULT_FILES: &[Shortcut] = &[
 
 /// 10xer renames in the footer; the context menu still renames inline, and
 /// only there does Tab move the editor.
-const TAB_IN_INLINE_RENAME: Shortcut = within(
-    "%{keys} in an inline rename",
-    Any(shown![FOCUS_NEXT, FOCUS_PREVIOUS]),
-    "Rename the next / previous item",
-);
-
-/// 10xer rows that a default row already describes with other keys or context.
-const SHARED_WITH_DEFAULT: [(Keys, Option<&str>); 4] = [
-    (One(FIRST_ITEM.shown()), None),
-    (One(CHOOSE_FOLDER.shown()), None),
-    (One(FOCUS_PREVIOUS.shown()), Some(IN_ANY_PREVIEW)),
-    (TAB_IN_INLINE_RENAME.keys, TAB_IN_INLINE_RENAME.context),
-];
-
-// 10xer 模式段落：任务 3 移除键图定义层时随之删除。
-#[expect(dead_code, reason = "其唯一调用方 tenxer_sections 已随任务 2 删除")]
-fn tenxer_mode_rows(
-    mode: BrowserMode,
-    _chooser: bool,
-    sections: &[ReferenceSection],
-) -> Vec<Shortcut> {
-    let mut shortcuts = Vec::new();
-    shortcuts.push(row(One(REFERENCE.shown()), "Show or hide this reference"));
-    let default = default_sections(mode);
-    for &shortcut in sections.iter().flat_map(|section| &section.rows) {
-        let keys = (shortcut.keys, shortcut.context);
-        // Keep grouped aliases together with their default-map twins.
-        let shared = default
-            .iter()
-            .flat_map(|section| &section.rows)
-            .any(|default| (default.keys, default.context) == keys)
-            || SHARED_WITH_DEFAULT.contains(&keys);
-        if !shared && !shortcuts.contains(&shortcut) {
-            shortcuts.push(shortcut);
-        }
-    }
-    shortcuts
-}
-
 const DEFAULT_TOOLS: &[Shortcut] = &[
-    row(One(FILTER.shown()), "Filter the current pane"),
     row(One(SEARCH.shown()), "Open global search"),
     row(One(JUMP_TO_FOLDER.shown()), "Jump to a recent folder"),
     row(
@@ -742,7 +689,6 @@ fn default_hint(hint: ContextHint, type_to_search: bool) -> Option<Keys> {
         ContextHint::Rename => RENAME.shown(),
         ContextHint::Cut => CUT.shown(),
         ContextHint::Copy => COPY.shown(),
-        ContextHint::Duplicate => DUPLICATE.shown(),
         ContextHint::Paste => PASTE.shown(),
         ContextHint::Terminal => TERMINAL.shown(),
         ContextHint::Trash => MOVE_TO_TRASH.shown(),
@@ -756,23 +702,6 @@ fn default_hint(hint: ContextHint, type_to_search: bool) -> Option<Keys> {
         ContextHint::SelectAll => SELECT_ALL.shown(),
         ContextHint::Refresh => REFRESH.shown(),
         ContextHint::HiddenFiles => HIDDEN_FILES.alternate(0).shown(),
-    }))
-}
-
-fn tenxer_hint(hint: ContextHint) -> Option<Keys> {
-    Some(One(match hint {
-        ContextHint::Preview => PREVIEW.shown(),
-        ContextHint::Trash => MOVE_TO_TRASH.alternate(0).shown(),
-        ContextHint::PermanentDelete => DELETE_PERMANENTLY.alternate(0).shown(),
-        ContextHint::Rename => RENAME.alternate(0).shown(),
-        ContextHint::None
-        | ContextHint::ChooserPreview
-        | ContextHint::CopyPath
-        | ContextHint::CopyPaths
-        | ContextHint::Duplicate
-        | ContextHint::Pin
-        | ContextHint::Terminal => return None,
-        other => return default_hint(other, false),
     }))
 }
 

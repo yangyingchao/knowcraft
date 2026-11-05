@@ -214,7 +214,6 @@ pub(super) struct SingleEditOptions {
     pub(super) container: gtk::Box,
     pub(super) cut: gtk::Button,
     pub(super) copy: gtk::Button,
-    pub(super) duplicate: gtk::Button,
     pub(super) rename: gtk::Button,
     pub(super) move_to: gtk::Button,
     pub(super) copy_to: gtk::Button,
@@ -235,10 +234,6 @@ fn cut_option() -> gtk::Button {
 
 fn copy_option() -> gtk::Button {
     item_context_option(icons::COPY, "Copy", ContextHint::Copy)
-}
-
-fn duplicate_option() -> gtk::Button {
-    item_context_option(icons::COPY_PLUS, "Duplicate", ContextHint::Duplicate)
 }
 
 fn move_to_option() -> gtk::Button {
@@ -271,7 +266,6 @@ impl SingleEditOptions {
             container: gtk::Box::new(gtk::Orientation::Vertical, 0),
             cut: cut_option(),
             copy: copy_option(),
-            duplicate: duplicate_option(),
             rename: item_context_option(icons::PENCIL, "Rename", ContextHint::Rename),
             move_to: move_to_option(),
             copy_to: copy_to_option(),
@@ -290,7 +284,6 @@ impl SingleEditOptions {
             &[
                 options.cut.upcast_ref(),
                 options.copy.upcast_ref(),
-                options.duplicate.upcast_ref(),
                 options.rename.upcast_ref(),
                 separator().upcast_ref(),
                 options.move_to.upcast_ref(),
@@ -358,7 +351,6 @@ pub(super) struct MultipleEditOptions {
     pub(super) container: gtk::Box,
     pub(super) cut: gtk::Button,
     pub(super) copy: gtk::Button,
-    pub(super) duplicate: gtk::Button,
     pub(super) move_to: gtk::Button,
     pub(super) copy_to: gtk::Button,
     pub(super) compress: gtk::Button,
@@ -374,7 +366,6 @@ impl MultipleEditOptions {
             container: gtk::Box::new(gtk::Orientation::Vertical, 0),
             cut: cut_option(),
             copy: copy_option(),
-            duplicate: duplicate_option(),
             move_to: move_to_option(),
             copy_to: copy_to_option(),
             compress: compress_option(),
@@ -388,7 +379,6 @@ impl MultipleEditOptions {
             &[
                 options.cut.upcast_ref(),
                 options.copy.upcast_ref(),
-                options.duplicate.upcast_ref(),
                 separator().upcast_ref(),
                 options.move_to.upcast_ref(),
                 options.copy_to.upcast_ref(),

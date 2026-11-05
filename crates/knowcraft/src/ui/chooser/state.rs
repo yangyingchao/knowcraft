@@ -297,9 +297,6 @@ impl ChooserState {
             }
             None => browser.selected_entries(),
         };
-        if entries.is_empty() && PreferenceManager::shared().tenxer_mode() {
-            return self.view.focused_target().into_iter().collect();
-        }
         entries
     }
 
@@ -312,9 +309,6 @@ impl ChooserState {
     }
 
     pub(super) fn selected_folder(&self) -> Option<PathBuf> {
-        if PreferenceManager::shared().tenxer_mode() {
-            return None;
-        }
         let entries = self.chosen_entries(false);
         if entries.len() == 1 && entries[0].is_directory() {
             entries[0].location.native_path().map(Path::to_path_buf)
@@ -364,9 +358,6 @@ impl ChooserState {
             let Some(state) = weak.upgrade() else {
                 return;
             };
-            if PreferenceManager::shared().tenxer_mode() {
-                return;
-            }
             let Some(surface) = gesture.widget() else {
                 return;
             };
@@ -410,9 +401,6 @@ impl ChooserState {
             return;
         };
 
-        if PreferenceManager::shared().tenxer_mode() {
-            return;
-        }
         let entries = self.name_selection_entries();
         let selected = entries
             .iter()

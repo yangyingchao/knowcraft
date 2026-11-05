@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 
 use super::super::*;
-use super::page_text;
 use crate::test_support::gtk_test;
 
 fn named_widget(root: &gtk::Widget, name: &str) -> Option<gtk::Widget> {
@@ -107,33 +106,6 @@ fn restart_honors_window_close_guards() {
             assert_eq!(application.windows().len(), 2);
             busy.set(false);
             assert!(close_windows_for_restart(&application));
-        },
-    );
-}
-
-#[test]
-fn tenxer_experimental_label_follows_the_mode_across_windows() {
-    gtk_test(
-        "ui::settings::tests::general::tenxer_experimental_label_follows_the_mode_across_windows",
-        || {
-            let manager = PreferenceManager::shared();
-            manager.set_tenxer_mode(false);
-            let (first, _, _) = general_page(manager.clone());
-            let (second, _, _) = general_page(manager.clone());
-            let phrase = crate::ui::shortcut_reference::EXPERIMENTAL_LABEL;
-            for page in [&first, &second] {
-                assert!(!page_text(page).contains(phrase));
-            }
-
-            manager.set_tenxer_mode(true);
-            for page in [&first, &second] {
-                assert!(page_text(page).contains(phrase));
-            }
-
-            manager.set_tenxer_mode(false);
-            for page in [&first, &second] {
-                assert!(!page_text(page).contains(phrase));
-            }
         },
     );
 }

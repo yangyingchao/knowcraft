@@ -105,65 +105,6 @@ fn tenxer_yank_cut_and_unyank_mark_the_fill_or_cursor() {
     );
 }
 
-#[test]
-fn tenxer_c_chord_copies_paths_and_names() {
-    crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::file_commands::clipboard::tenxer_c_chord_copies_paths_and_names",
-        || {
-            let fixture = KeyboardFixture::new();
-            enable_tenxer(&fixture);
-            let directory = fixture._directory.path().to_path_buf();
-            let browser = fixture.view.browser();
-            move_to_named(&fixture, &browser, "a.txt");
-            plain(&fixture, Key::c);
-            assert_eq!(fixture.shortcuts.chord().text(), "c-");
-            wait_until(|| fixture.shortcuts.chord_options().is_some());
-            assert_eq!(
-                fixture.shortcuts.chord_options(),
-                Some(vec![
-                    ("c".to_owned(), "Copy path".to_owned()),
-                    ("n".to_owned(), "Copy name".to_owned()),
-                ])
-            );
-            plain(&fixture, Key::c);
-            assert_eq!(fixture.shortcuts.armed_chord(), None);
-            assert_eq!(
-                clipboard_text(),
-                Some(directory.join("a.txt").to_string_lossy().into_owned())
-            );
-            plain(&fixture, Key::c);
-            plain(&fixture, Key::n);
-            assert_eq!(clipboard_text().as_deref(), Some("a.txt"));
-
-            fill_b_and_c(&fixture);
-            plain(&fixture, Key::c);
-            plain(&fixture, Key::n);
-            assert_eq!(clipboard_text().as_deref(), Some("b.txt\nc.txt"));
-            plain(&fixture, Key::c);
-            plain(&fixture, Key::z);
-            assert_eq!(feedback(&fixture), "Unknown chord");
-            assert_eq!(
-                fixture.shortcuts.open_prompt_kind(),
-                None,
-                "z stays in the chord"
-            );
-            shifted(&fixture, Key::Y);
-            assert_eq!(
-                clipboard_text().as_deref(),
-                Some("b.txt\nc.txt"),
-                "Y no longer copies a path"
-            );
-
-            open_empty_folder(&fixture);
-            plain(&fixture, Key::c);
-            plain(&fixture, Key::c);
-            assert_eq!(feedback(&fixture), "Nothing to copy");
-        },
-    );
-}
-
-/// Each paste key opens the conflict dialog with its preferred choice focused;
-/// closing it leaves the destination alone, Keep Both duplicates.
 fn paste_keys_focus_their_choice(fixture: &KeyboardFixture, directory: &Path, destination: &Path) {
     for (key, modifiers, label) in [
         (Key::p, ModifierType::empty(), "Keep Both"),

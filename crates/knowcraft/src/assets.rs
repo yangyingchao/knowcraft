@@ -32,7 +32,6 @@ pub mod icons {
     pub const CLIPBOARD_PASTE: &str = "knowcraft-clipboard-paste";
     pub const CLOUD: &str = "knowcraft-cloud";
     pub const COPY: &str = "knowcraft-copy";
-    pub const COPY_PLUS: &str = "knowcraft-copy-plus";
     pub const COG: &str = "knowcraft-cog";
     pub const CORNER_DOWN_LEFT: &str = "knowcraft-corner-down-left";
     pub const DISC: &str = "knowcraft-disc";

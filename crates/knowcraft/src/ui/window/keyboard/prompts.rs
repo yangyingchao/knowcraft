@@ -23,8 +23,7 @@ use crate::{
         browser::{BrowserView, CreateRefusal},
         folder_picker::{self, FolderPicker, Refused, Request},
         keys::{KeyPress, bindings::*},
-        shortcut_footer::{CandidateKeys, ShortcutFooter},
-        tenxer_mode::Prompt,
+        shortcut_footer::{CandidateKeys, Prompt, ShortcutFooter},
     },
 };
 
@@ -136,9 +135,6 @@ impl Dispatcher {
                 return;
             }
             _ if text.is_empty() => true,
-            Some(kind @ (Prompt::Find | Prompt::FindBackward)) => {
-                self.view.find(&text, kind == Prompt::FindBackward, false)
-            }
             None => true,
         };
         // The cursor already moved under the prompt; one focus move follows it.

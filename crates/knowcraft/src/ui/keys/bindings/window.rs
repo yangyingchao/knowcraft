@@ -66,11 +66,10 @@ catalog! {
             true,
         );
 
-        DUPLICATE: Command "duplicate" = Binding::ctrl(Key::d);
         COPY_PATH: Command "copy_path" = Binding::plain(Key::y);
         PIN: Command "pin" = Binding::plain(Key::p);
         JUMP_TO_FOLDER: Command "jump_to_folder" = Binding::ctrl_shift(Key::k);
-        TERMINAL: Command "terminal" = Binding::ctrl_alt(Key::t);
+        TERMINAL: Command "terminal" = Binding::plain(Key::F4);
         ARROW_SCOPE: Command "arrow_scope" = Binding::ctrl(Key::backslash);
         // Ship no key; slot N runs the Nth action Settings → Actions lists.
         CUSTOM_ACTION_1: Command "custom_action.1" => [];

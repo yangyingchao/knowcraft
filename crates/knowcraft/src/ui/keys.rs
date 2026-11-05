@@ -53,8 +53,7 @@ pub(crate) const TEXT_EDITING: [(Command, &str); 6] = [
 /// Commands the window's direct stage runs from a key a user binds to them
 /// outside the default map's own stages: chord steps and paging. The table
 /// does not bind them by default.
-pub(crate) const DIRECT_IN_DEFAULT: [Command; 4] = [
-    bindings::DUPLICATE,
+pub(crate) const DIRECT_IN_DEFAULT: [Command; 3] = [
     bindings::PIN,
     bindings::JUMP_TO_FOLDER,
     bindings::ARROW_SCOPE,

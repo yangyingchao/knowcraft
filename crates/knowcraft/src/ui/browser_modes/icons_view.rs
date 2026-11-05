@@ -287,7 +287,7 @@ impl IconsCardFactory {
                     state: binding.state.as_deref(),
                 },
             );
-            parts.highlight(binding.state.as_deref(), &self.filter_query.borrow());
+            parts.highlight(binding.state.as_deref());
         }
         if let Some(edit) = &edit {
             edit.display.set_visible(!edit.is_editing());

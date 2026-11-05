@@ -23,39 +23,6 @@ fn selected_entry(path: &str) -> FileEntry {
     }
 }
 
-#[test]
-fn duplicate_transfer_uses_the_selected_entries_parent() {
-    let first = selected_entry("/fixture/selected/first.txt");
-    let second = selected_entry("/fixture/selected/second.txt");
-
-    assert_eq!(
-        duplicate_transfer(&[first.clone(), second.clone()]),
-        Some((
-            Location::local("/fixture/selected"),
-            vec![first.location, second.location]
-        ))
-    );
-    assert_eq!(
-        duplicate_transfer(&[
-            selected_entry("/fixture/one.txt"),
-            selected_entry("/other/two.txt")
-        ]),
-        None
-    );
-    assert_eq!(duplicate_transfer(&[]), None);
-    for uri in ["trash:///file.txt", "trash:///folder/file.txt"] {
-        let trashed = FileEntry {
-            location: Location::uri(uri),
-            image_dimensions: crate::model::MetadataValue::Unknown,
-            child_count: crate::model::MetadataValue::Unknown,
-            duration_seconds: crate::model::MetadataValue::Unknown,
-            listable: crate::model::MetadataValue::Unknown,
-            ..selected_entry("file.txt")
-        };
-        assert_eq!(duplicate_transfer(&[trashed]), None);
-    }
-}
-
 struct NoopTree {
     root: Location,
     source: Location,

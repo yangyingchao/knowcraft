@@ -76,11 +76,10 @@ impl IconsCard {
         }
     }
 
-    pub(super) fn highlight(&self, state: Option<&ViewState>, filter_query: &str) {
+    pub(super) fn highlight(&self, state: Option<&ViewState>) {
         browser::find::highlight_listing_name(
             self.label.upcast_ref(),
             state.and_then(|state| state.find_highlight()).as_deref(),
-            filter_query,
         );
     }
 

@@ -26,7 +26,6 @@ use std::{
 pub(in crate::ui) enum SearchScope {
     Folder,
     Subfolders,
-    FolderTerms,
     Paths,
     Folders,
 }
@@ -37,7 +36,7 @@ impl SearchScope {
     }
 
     pub(in crate::ui) fn fuzzy(self) -> bool {
-        matches!(self, Self::FolderTerms | Self::Paths | Self::Folders)
+        matches!(self, Self::Paths | Self::Folders)
     }
 }
 

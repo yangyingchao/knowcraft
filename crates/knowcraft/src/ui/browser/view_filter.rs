@@ -14,9 +14,6 @@ impl BrowserView {
     }
 
     pub(super) fn show_filter_with_optional_query(&self, query: Option<&str>) -> bool {
-        if crate::ui::tenxer_mode::chrome_suppressed() {
-            return false;
-        }
         if self.view_mode() != BrowserMode::Columns {
             return self.state.mode_views.borrow().show_filter_with_query(query);
         }

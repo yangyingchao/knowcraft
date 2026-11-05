@@ -150,18 +150,6 @@ fn transfer_is_noop(source: &Location, destination: &Location, move_sources: boo
         || (move_sources && moves_into_own_parent())
 }
 
-pub(super) fn duplicate_transfer(entries: &[FileEntry]) -> Option<(Location, Vec<Location>)> {
-    let destination = entries.first()?.location.parent()?;
-    let shares_parent = entries
-        .iter()
-        .all(|entry| entry.location.parent().as_ref() == Some(&destination));
-    if is_trash_location(&destination) || !shares_parent {
-        return None;
-    }
-    let sources = entries.iter().map(|entry| entry.location.clone()).collect();
-    Some((destination, sources))
-}
-
 /// What preparing a transfer found at the destination.
 struct PreparedTransfer {
     destination: Location,

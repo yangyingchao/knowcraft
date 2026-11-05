@@ -63,9 +63,6 @@ pub(crate) fn filter_controls(
     let shown_filter = revealer.clone();
     let focused_filter = entry.clone();
     button.connect_toggled(move |button| {
-        if crate::ui::tenxer_mode::chrome_suppressed() {
-            return;
-        }
         shown_filter.set_reveal_child(button.is_active());
         if button.is_active() {
             focused_filter.grab_focus();
@@ -73,7 +70,6 @@ pub(crate) fn filter_controls(
             focused_filter.set_text("");
         }
     });
-    crate::ui::tenxer_mode::hide_filter_while_enabled(&button, &revealer);
     (entry, revealer, button)
 }
 

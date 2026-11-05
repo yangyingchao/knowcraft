@@ -142,7 +142,6 @@ impl ListActions {
             crate::assets::icons::COLUMNS,
         )));
         crate::ui::controls::pane_header_action(&columns_menu);
-        crate::ui::tenxer_mode::hide_while_enabled(&columns_menu);
         self.widget.append(&columns_menu);
     }
 }

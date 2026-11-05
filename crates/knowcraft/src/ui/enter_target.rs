@@ -5,8 +5,7 @@
 //! Until the user picks a result after the query last changed, Enter opens the top one.
 //! While the field has focus, that row carries [`CSS_CLASS`], and the list keeps it
 //! scrolled into view until the user scrolls it. The mark is not a selection: Space,
-//! preview, and file actions still need one. The 10xer prompts keep their own two-step
-//! Enter, so none of this applies there.
+//! preview, and file actions still need one.
 
 use std::{
     cell::{Cell, RefCell},
@@ -28,7 +27,7 @@ struct Tracker {
 impl Tracker {
     /// Records the query whose results are shown. A changed text, including one edited
     /// and typed back, drops the pick; returns whether it did.
-    fn show_query(&mut self, query: &str, tenxer: bool) -> bool {
+    fn show_query(&mut self, query: &str) -> bool {
         let edited = std::mem::take(&mut self.edited);
         let query = query.trim();
         if query.is_empty() {
@@ -37,7 +36,7 @@ impl Tracker {
         }
         let changed = edited || self.query.as_deref() != Some(query);
         self.query = Some(query.to_owned());
-        if !changed || tenxer {
+        if !changed {
             return false;
         }
         self.picked = false;
@@ -49,12 +48,12 @@ impl Tracker {
         *self = Self::default();
     }
 
-    fn offers_top(&self, has_rows: bool, has_selection: bool, tenxer: bool) -> bool {
-        !tenxer && self.query.is_some() && has_rows && !(self.picked && has_selection)
+    fn offers_top(&self, has_rows: bool, has_selection: bool) -> bool {
+        self.query.is_some() && has_rows && !(self.picked && has_selection)
     }
 
-    fn follows_top(&self, has_rows: bool, has_selection: bool, tenxer: bool) -> bool {
-        !self.scrolled && self.offers_top(has_rows, has_selection, tenxer)
+    fn follows_top(&self, has_rows: bool, has_selection: bool) -> bool {
+        !self.scrolled && self.offers_top(has_rows, has_selection)
     }
 }
 
@@ -154,11 +153,7 @@ impl EnterTarget {
     /// Records the query whose results the list now shows; true when the text changed,
     /// so the caller drops the results' previous selection.
     pub(in crate::ui) fn show_query(&self, query: &str) -> bool {
-        let changed = self
-            .0
-            .tracker
-            .borrow_mut()
-            .show_query(query, super::tenxer_mode::chrome_suppressed());
+        let changed = self.0.tracker.borrow_mut().show_query(query);
         queue_settle(&Rc::downgrade(&self.0), true);
         changed
     }
@@ -183,11 +178,7 @@ impl EnterTarget {
         let Some((has_rows, has_selection)) = self.rows_state() else {
             return false;
         };
-        self.0.tracker.borrow().offers_top(
-            has_rows,
-            has_selection,
-            super::tenxer_mode::chrome_suppressed(),
-        )
+        self.0.tracker.borrow().offers_top(has_rows, has_selection)
     }
 
     /// Marks the bound row when it is the one Enter opens; call from every bind.
@@ -236,11 +227,11 @@ impl EnterTarget {
         let Some((has_rows, has_selection)) = self.rows_state() else {
             return;
         };
-        let follows = self.0.tracker.borrow().follows_top(
-            has_rows,
-            has_selection,
-            super::tenxer_mode::chrome_suppressed(),
-        );
+        let follows = self
+            .0
+            .tracker
+            .borrow()
+            .follows_top(has_rows, has_selection);
         if follows
             && self.entry_has_focus()
             && let Some(view) = self.0.view.upgrade()

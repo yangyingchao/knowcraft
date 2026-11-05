@@ -9,7 +9,7 @@ use crate::{
         DirectoryChange, DirectoryEvent, DirectoryRequest, FileSource, LocationValidationError,
         MetadataRequest,
     },
-    ui::tenxer_mode::Prompt,
+    ui::shortcut_footer::Prompt,
 };
 
 /// Local browsing, except that URI validation is recorded and refused so no
@@ -375,11 +375,6 @@ fn tenxer_go_clears_typed_text_on_every_dismissal() {
 
             open_go(&fixture);
             type_text(&fixture, secret);
-            fixture.shortcuts.open_prompt(Prompt::Find);
-            assert!(
-                fixture.shortcuts.prompt().text().is_empty(),
-                "a replacing prompt starts empty"
-            );
             assert!(fixture.press(Key::Escape, ModifierType::empty()));
 
             open_go(&fixture);

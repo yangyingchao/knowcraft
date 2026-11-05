@@ -99,12 +99,6 @@ pub(super) const TARGETS: &[Target] = &[
         aliases: "browsing columns keyboard selection next pane folders",
     },
     Target {
-        id: "tenxer",
-        page: "general",
-        title: "10xer mode",
-        aliases: "browsing keyboard modal prompts footer commands experimental",
-    },
-    Target {
         id: "hints",
         page: "general",
         title: "Show %{reference_keys} Shortcuts button",

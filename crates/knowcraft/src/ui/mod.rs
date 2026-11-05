@@ -50,7 +50,6 @@ mod shortcut_reference;
 mod sidebar_toggle;
 mod table_view;
 mod tabs_session;
-mod tenxer_mode;
 mod terminal;
 mod theme;
 mod thumbnail;

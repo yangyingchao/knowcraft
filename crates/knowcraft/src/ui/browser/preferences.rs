@@ -80,17 +80,6 @@ impl BrowserView {
             PreferenceManager::single_click_previews,
             Self::set_single_click_previews,
         );
-        let primed = Cell::new(false);
-        self.bind_view_preference(
-            manager,
-            PreferenceManager::tenxer_mode,
-            move |view, enabled| {
-                view.browser().set_preserve_fill_on_removal(enabled);
-                if primed.replace(true) && !enabled {
-                    view.end_tenxer_session();
-                }
-            },
-        );
         let interactive = self.state.interactive;
         self.bind_view_preference(
             manager,

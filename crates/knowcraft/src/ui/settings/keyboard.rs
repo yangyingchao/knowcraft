@@ -1048,7 +1048,6 @@ const NAMES: &[(Command, &str)] = &[
     (CONTEXT_MENU, "Open the context menu"),
     (MOVE_TO_TRASH, "Move to Trash"),
     (DELETE_PERMANENTLY, "Permanently delete selected items"),
-    (DUPLICATE, "Duplicate selected items"),
     (COPY_PATH, "Copy path"),
     (PIN, "Pin a folder"),
     (SEARCH, "Open global search"),

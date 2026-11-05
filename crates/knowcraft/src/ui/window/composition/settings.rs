@@ -53,7 +53,6 @@ pub(super) fn install(
         preferences: preferences.clone(),
         notice: notice.clone(),
         guard,
-        shortcuts: content.footer.shortcuts.clone(),
     });
     let clicked_settings = Rc::downgrade(&launcher);
     content.header.settings.connect_clicked(move |_| {
@@ -91,7 +90,6 @@ struct SettingsLauncher {
     preferences: Rc<PreferenceManager>,
     notice: UpdateNoticeHandler,
     guard: InstallGuard,
-    shortcuts: crate::ui::shortcut_footer::ShortcutFooter,
 }
 
 impl SettingsLauncher {
@@ -131,7 +129,6 @@ impl SettingsLauncher {
         {
             return;
         }
-        self.shortcuts.cancel_chord();
         // Closing Settings returns focus to the file list, not to the gear or other chrome
         // that opened it; only a focused filter session gets its field or results back.
         let filter_had_focus = self

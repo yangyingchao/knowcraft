@@ -253,7 +253,7 @@ impl ModeViews {
     pub(in crate::ui) fn refresh_name_highlights(&self, find: Option<&str>) {
         for pane in self.all_panes() {
             for section in pane.item_sections() {
-                highlight_section_names(&section, find, &pane.filter_query.borrow());
+                highlight_section_names(&section, find);
             }
             pane.search.refresh_result_highlights(find);
         }
@@ -283,14 +283,14 @@ fn queue_detached_rename(
     }
 }
 
-fn highlight_section_names(section: &PaneSection, find: Option<&str>, filter_query: &str) {
+fn highlight_section_names(section: &PaneSection, find: Option<&str>) {
     for label in section
         .bound_items
         .borrow()
         .iter()
         .filter_map(|bound| bound.rename_label.upgrade())
     {
-        browser::find::highlight_listing_name(&label, find, filter_query);
+        browser::find::highlight_listing_name(&label, find);
     }
 }
 

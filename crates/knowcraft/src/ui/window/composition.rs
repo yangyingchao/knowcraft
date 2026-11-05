@@ -164,11 +164,6 @@ impl WindowContent {
     }
 
     #[cfg(test)]
-    pub(super) fn footer(&self) -> &crate::ui::shortcut_footer::ShortcutFooter {
-        &self.footer.shortcuts
-    }
-
-    #[cfg(test)]
     pub(super) fn overlay(&self) -> &gtk::Overlay {
         &self.overlay
     }
@@ -195,7 +190,6 @@ impl WindowContent {
                 widget.remove_controller(&controller);
             }
         }
-        self.footer.shortcuts.cancel_chord();
         self.footer.shortcuts.dismiss_prompt();
         self.footer.disconnect_clipboard();
         self.preview.clear_target();

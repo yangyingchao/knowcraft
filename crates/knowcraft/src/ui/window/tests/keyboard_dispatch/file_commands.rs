@@ -4,10 +4,9 @@ use std::path::{Path, PathBuf};
 
 use super::*;
 use crate::test_support::operations::HeldOperations;
-use crate::ui::tenxer_mode::Prompt;
+use crate::ui::shortcut_footer::Prompt;
 
 mod after_back;
-mod archives;
 mod clipboard;
 mod create;
 mod delete;

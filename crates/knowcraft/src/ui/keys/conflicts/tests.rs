@@ -8,7 +8,7 @@ use super::{
     super::{
         Binding, Command, Keymap, Map,
         bindings::{
-            CHOOSE_FOLDER, COPY, COPY_PATH, DELETE_PERMANENTLY, DOWN, DUPLICATE, ENTER, ESCAPE,
+            CHOOSE_FOLDER, COPY, COPY_PATH, DELETE_PERMANENTLY, DOWN, ENTER, ESCAPE,
             FILTER, FILTER_SLASH, FIND_IN_PREVIEW, HISTORY_BACK, LEFT, MEDIA_SEEK_BACK_PAGE,
             MEDIA_SEEK_START, MOVE_TO_TRASH, OPEN_CONTAINING_FOLDER, OPEN_IN_NEW_WINDOW,
             PDF_ZOOM_RESET, PIN, PREVIEW, PREVIOUS_MATCH, REFERENCE_SEARCH, REFRESH, RENAME, RIGHT,
@@ -445,16 +445,6 @@ const ROWS: &[Row] = &[
         table: &[],
         policy: OFF,
         kind: Kind::NeverMatches,
-        found: false,
-    },
-    Row {
-        case: "a direct verb",
-        map: Map::Default,
-        command: DUPLICATE,
-        candidate: Binding::plain(Key::w),
-        table: &[],
-        policy: OFF,
-        kind: Kind::NoPath,
         found: false,
     },
     Row {

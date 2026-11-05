@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use super::*;
-use crate::ui::tenxer_mode::Prompt;
+use crate::ui::shortcut_footer::Prompt;
 
 const DAY: u64 = 24 * 60 * 60;
 
@@ -197,11 +197,6 @@ fn tenxer_history_prompts_end_without_opening_the_chosen_folder() {
             assert_eq!(focused_name(&browser), "b.txt");
 
             open(&fixture, Key::Z);
-            fixture.shortcuts.open_prompt(Prompt::Find);
-            assert!(
-                fixture.shortcuts.candidates().is_empty(),
-                "a replacing prompt drops the candidates"
-            );
             press(&fixture, Key::Escape);
 
             open(&fixture, Key::z);

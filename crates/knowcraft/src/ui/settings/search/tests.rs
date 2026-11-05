@@ -26,8 +26,6 @@ fn localized_setting_titles_keep_stable_search_targets() {
             }
             rust_i18n::set_locale("de");
             for (query, id) in [
-                ("10xer", "tenxer"),
-                ("Modus", "tenxer"),
                 ("Doppelklick", "opening"),
                 ("Miniaturansichten", "show-thumbnails"),
                 ("double click", "opening"),

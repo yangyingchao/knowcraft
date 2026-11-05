@@ -350,11 +350,6 @@ impl ItemMenu {
                 state.copy_entries(&entries);
             });
         }
-        for button in [&single.duplicate, &multiple.duplicate] {
-            self.on_selection(button, |state, entries| {
-                state.duplicate_entries(&entries);
-            });
-        }
     }
 }
 

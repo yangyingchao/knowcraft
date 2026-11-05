@@ -724,13 +724,6 @@ fn focus_initial_widget(
     window: &gtk::Window,
     sidebar_toggle: &crate::ui::sidebar_toggle::SidebarToggle,
 ) {
-    if PreferenceManager::shared().tenxer_mode() {
-        window.set_focus_visible(true);
-        if let Some(filename) = state.filename.as_ref() {
-            filename.select_region(0, 0);
-        }
-        return;
-    }
     if let Some(filename) = state.filename.as_ref() {
         filename.grab_focus_without_selecting();
         select_name_stem(filename);

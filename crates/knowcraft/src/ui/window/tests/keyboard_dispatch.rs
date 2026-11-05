@@ -16,7 +16,6 @@ mod audio_tracks;
 mod context_menus;
 mod direct_commands;
 mod entry_keys;
-mod escape_precedence;
 mod file_commands;
 mod file_verbs;
 mod filter_focus;

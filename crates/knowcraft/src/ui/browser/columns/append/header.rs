@@ -72,14 +72,10 @@ fn close_pane_button(state: &ViewState, depth: usize) -> gtk::Button {
     crate::ui::controls::pane_header_action(&close);
     let weak_browser = Rc::downgrade(&state.browser);
     close.connect_clicked(move |_| {
-        if crate::ui::tenxer_mode::chrome_suppressed() {
-            return;
-        }
         if let Some(browser) = weak_browser.upgrade() {
             browser.close_column(depth);
         }
     });
-    crate::ui::tenxer_mode::hide_while_enabled(&close);
     close
 }
 

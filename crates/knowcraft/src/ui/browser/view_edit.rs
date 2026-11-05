@@ -163,19 +163,6 @@ impl BrowserView {
         true
     }
 
-    pub fn duplicate_selection(&self) -> bool {
-        self.state.sync_mode_selection();
-        self.duplicate_entries(&self.state.browser.transfer_entries())
-    }
-
-    pub(in crate::ui) fn duplicate_entries(&self, entries: &[FileEntry]) -> bool {
-        let Some((destination, sources)) = duplicate_transfer(entries) else {
-            return false;
-        };
-        self.state.start_transfer(destination, sources, false);
-        true
-    }
-
     pub fn cut_selection(&self) -> bool {
         let entries = self.clipboard_entries();
         if entries.is_empty() {

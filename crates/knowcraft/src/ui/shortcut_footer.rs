@@ -9,8 +9,9 @@ use std::{
 use gtk::{gdk, glib, prelude::*};
 
 pub(in crate::ui) use candidates::CandidateKeys;
+pub(in crate::ui) use prompt::Prompt;
 use catalog::{ReferenceView, WeakReferenceView, rebuild_reference};
-use indicators::{ChordIndicator, CurrentHit, apply_experimental_label, update_visual_mode};
+use indicators::{CurrentHit, update_visual_mode};
 use prompt::{PromptBar, WeakPromptBar};
 use reference::{ReferenceArea, ReferenceSession};
 #[cfg(test)]
@@ -23,10 +24,8 @@ use super::{
     browser::FilterStatus,
     browser_modes::BrowserMode,
     shortcut_reference::{ChooserScope, ReferenceScope},
-    tenxer_mode::Chord,
 };
 
-type ChordListener = Box<dyn Fn(Option<Chord>)>;
 type PromptResetListeners = Rc<RefCell<Vec<Box<dyn Fn()>>>>;
 /// `None` while the view is busy rebuilding; the footer then retries on idle.
 type FilterSource = Rc<RefCell<Option<Rc<dyn Fn() -> Option<Option<FilterStatus>>>>>>;
@@ -51,11 +50,9 @@ pub(super) struct ShortcutFooter {
     active_area: Rc<Cell<ReferenceArea>>,
     scroll: gtk::ScrolledWindow,
     status_widgets: Rc<RefCell<Vec<gtk::Widget>>>,
-    tag: gtk::Label,
     feedback: gtk::Label,
     feedback_epoch: Rc<Cell<u64>>,
     prompt: PromptBar,
-    chords: ChordIndicator,
     visual: gtk::Label,
     filter: gtk::Label,
     current: CurrentHit,
@@ -65,34 +62,20 @@ pub(super) struct ShortcutFooter {
     reference_scope: Rc<Cell<ReferenceScope>>,
 }
 
-/// The chrome 10xer mode marks, cleared when the mode turns off.
+/// The chrome the tenxer preference binding clears when the mode turns off.
 struct TenxerChrome {
-    tag: glib::WeakRef<gtk::Label>,
-    panel: glib::WeakRef<gtk::Box>,
     feedback: glib::WeakRef<gtk::Label>,
     prompt: WeakPromptBar,
-    chords: ChordIndicator,
     view: WeakReferenceView,
     primed: Cell<bool>,
 }
 
 impl TenxerChrome {
     fn apply(&self, enabled: bool) {
-        let Some(tag) = self.tag.upgrade() else {
-            return;
-        };
         if !self.view.reference_alive() {
             return;
         }
         let starting = !self.primed.replace(true);
-        apply_experimental_label(&tag, enabled);
-        if let Some(panel) = self.panel.upgrade() {
-            if enabled {
-                panel.add_css_class("tenxer-active");
-            } else {
-                panel.remove_css_class("tenxer-active");
-            }
-        }
         if !starting && !enabled {
             self.clear_session_marks();
         }
@@ -110,7 +93,6 @@ impl TenxerChrome {
         if let Some(prompt) = self.prompt.upgrade() {
             prompt.close();
         }
-        self.chords.clear();
     }
 }
 
@@ -139,11 +121,8 @@ impl ShortcutFooter {
 
     pub fn bind_preferences(&self, manager: &super::preferences::PreferenceManager) {
         let chrome = TenxerChrome {
-            tag: self.tag.downgrade(),
-            panel: self.panel.downgrade(),
             feedback: self.feedback.downgrade(),
             prompt: self.prompt.downgrade(),
-            chords: self.chords.clone(),
             view: self.reference_view().downgrade(),
             primed: Cell::new(false),
         };
@@ -219,8 +198,8 @@ impl ShortcutFooter {
 
     /// Reports `source`'s filter in place of the directory count while its
     /// results are displayed, in every key map; the query mark and hit path
-    /// show in 10xer mode and for a subfolder search in either map. Call
-    /// [`Self::refresh_filter`] when it changes.
+    /// show for a subfolder search. Call [`Self::refresh_filter`] when it
+    /// changes.
     pub(in crate::ui) fn observe_filter(
         &self,
         source: impl Fn() -> Option<Option<FilterStatus>> + 'static,
@@ -245,9 +224,7 @@ impl ShortcutFooter {
         };
         // The default map keeps the pane's filter field on screen, but a
         // search started by a direct key has no field there.
-        let named = status
-            .as_ref()
-            .filter(|status| status.search || crate::ui::tenxer_mode::chrome_suppressed());
+        let named = status.as_ref().filter(|status| status.search);
         self.show_filter_mark(named);
         self.current
             .set(named.and_then(|status| status.current.as_deref()));
@@ -284,11 +261,6 @@ impl ShortcutFooter {
             _ => browser.visual_kind(),
         };
         update_visual_mode(&self.visual, visual);
-    }
-
-    #[cfg(test)]
-    pub(in crate::ui) fn tag_visible(&self) -> bool {
-        self.tag.is_visible()
     }
 
     pub fn set_mode(&self, mode: BrowserMode) {
@@ -367,7 +339,6 @@ impl ShortcutFooter {
 mod build;
 mod candidates;
 mod catalog;
-mod chord_panel;
 mod indicators;
 mod prompt;
 mod reference;

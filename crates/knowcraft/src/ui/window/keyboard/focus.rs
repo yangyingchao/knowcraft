@@ -7,10 +7,8 @@ use crate::{
     app::Browser,
     ui::{
         browser_modes::BrowserMode,
-        focus_navigation::{
-            FOCUS_MODIFIERS, arrow_direction, plain_tab_direction, vim_focus_direction,
-        },
-        keys::{Binding, KeyPress, SHORTCUT_MODIFIERS, bindings::*},
+        focus_navigation::{FOCUS_MODIFIERS, plain_tab_direction, vim_focus_direction},
+        keys::{KeyPress, bindings::*},
         window::sidebar_focus_direction,
     },
 };
@@ -29,12 +27,6 @@ impl Dispatcher {
     }
 
     pub(super) fn focus_navigation(&self, browser: &Browser, event: &mut KeyEvent) -> KeyResult {
-        if self.type_to_search.preferences.tenxer_mode() {
-            if let Some(result) = self.tenxer_pane_focus(browser, event) {
-                return Some(result);
-            }
-            return self.popover_navigation(event);
-        }
         self.popover_navigation(event)
             .or_else(|| self.top_bar_navigation(browser, event))
             .or_else(|| self.header_navigation(event))
@@ -52,72 +44,13 @@ impl Dispatcher {
 
     /// Runs before inline editing so Tab from a rename field in Columns also leaves the strip.
     pub(super) fn default_tab_navigation(&self, event: &KeyEvent) -> KeyResult {
-        if self.type_to_search.preferences.tenxer_mode() || self.focus_in_popover() {
+        if self.focus_in_popover() {
             return None;
         }
         let direction = plain_tab_direction(&event.press)?;
         self.view
             .default_tab(direction)
             .then_some(Propagation::Stop)
-    }
-
-    fn tenxer_pane_focus(&self, browser: &Browser, event: &mut KeyEvent) -> KeyResult {
-        if event.text_has_focus() || self.focus_in_popover() {
-            return None;
-        }
-        let tab = plain_tab_direction(&event.press);
-        if self.view.item_view_has_focus() && tab == Some(gtk::DirectionType::TabForward) {
-            if self.top_bar.focus_first() {
-                self.window.set_focus_visible(true);
-            }
-            return Some(Propagation::Stop);
-        }
-        let arrow = arrow_direction(&event.press, SHORTCUT_MODIFIERS);
-        let vim = vim_focus_direction(&event.press);
-        if tab.is_none() && arrow.is_none() && vim.is_none() {
-            return None;
-        }
-        let panes = self.view.widget();
-        let inside = crate::ui::focus_navigation::contains_widget(&panes, event.focused.as_ref());
-        if !inside {
-            browser.focus_active();
-            return Some(Propagation::Stop);
-        }
-        if tab.is_some() {
-            return Some(Propagation::Stop);
-        }
-        if self.view.header_actions_have_focus() {
-            return self.confined_header_navigation(event);
-        }
-        if self.view.item_view_has_focus() {
-            return None;
-        }
-        if let Some(direction) = arrow.or(vim) {
-            self.view.widget().child_focus(direction);
-        }
-        Some(Propagation::Stop)
-    }
-
-    fn confined_header_navigation(&self, event: &KeyEvent) -> KeyResult {
-        if !event.without(Modifiers::CONTROL_MASK | Modifiers::ALT_MASK) {
-            return None;
-        }
-        let press = &event.press;
-        if press.is_any(&[
-            LEFT.alternates(),
-            DOWN.ignoring(FOCUS_MODIFIERS).or_alternates(),
-        ]) {
-            self.view.focus_items_from_header();
-        } else if press.is(LEFT.ignoring(FOCUS_MODIFIERS)) {
-            self.view.move_header_focus(gtk::DirectionType::Left);
-        } else if press.is(RIGHT.ignoring(FOCUS_MODIFIERS).or_alternates()) {
-            self.view.move_header_focus(gtk::DirectionType::Right);
-        } else if press.is(ENTER.ignoring(FOCUS_MODIFIERS))
-            || press.is(Binding::plain(gtk::gdk::Key::space).ignoring(FOCUS_MODIFIERS))
-        {
-            return None;
-        }
-        Some(Propagation::Stop)
     }
 
     fn popover_navigation(&self, event: &KeyEvent) -> KeyResult {

@@ -221,7 +221,6 @@ impl Window {
         if fixture.shortcuts.reference_is_open() {
             fixture.press(Key::F1, ModifierType::empty());
         }
-        fixture.shortcuts.cancel_chord();
         fixture.shortcuts.dismiss_prompt();
         fixture.view.cancel_rename();
         if fixture.view.location_has_focus() {

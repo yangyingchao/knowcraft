@@ -10,7 +10,7 @@ use gtk::{gdk, glib, prelude::*};
 use super::{
     ShortcutFooter,
     catalog::{ReferenceQuery, hint_note_attributes, reference_note, render_reference},
-    indicators::{ChordIndicator, CurrentHit},
+    indicators::CurrentHit,
     prompt::PromptBar,
     reference::{ReferenceArea, ReferenceLayout, ReferenceSession},
     status::watch_status_widget,
@@ -27,9 +27,6 @@ struct StatusRow {
     status: gtk::Box,
     count: gtk::Label,
     paste: gtk::Label,
-    tag: gtk::Label,
-    chord: gtk::Label,
-    chords: ChordIndicator,
     visual: gtk::Label,
     filter: gtk::Label,
     current: CurrentHit,
@@ -76,16 +73,6 @@ fn paste_label() -> gtk::Label {
     paste
 }
 
-fn tenxer_tag() -> gtk::Label {
-    let tag = gtk::Label::new(Some(crate::ui::tenxer_mode::TAG_TEXT));
-    tag.add_css_class("tenxer-tag");
-    let tag_name = crate::i18n::tr(crate::ui::tenxer_mode::TAG_NAME);
-    crate::ui::accessibility::set_description(&tag, Some(&tag_name));
-    crate::ui::accessibility::set_label(&tag, &tag_name);
-    tag.set_visible(false);
-    tag
-}
-
 impl StatusRow {
     fn build() -> Self {
         let root = gtk::Stack::builder()
@@ -96,9 +83,6 @@ impl StatusRow {
         let status = gtk::Box::new(gtk::Orientation::Horizontal, 12);
         let count = status_label("shortcut-footer-count");
         let paste = paste_label();
-        let tag = tenxer_tag();
-        let chord = status_label("shortcut-footer-chord-pill");
-        let chords = ChordIndicator::attach(&chord);
         let visual = status_label("shortcut-footer-chord");
         let filter = gtk::Label::new(None);
         filter.add_css_class("shortcut-footer-chord");
@@ -108,7 +92,7 @@ impl StatusRow {
         let current = CurrentHit::new();
         let prompt = PromptBar::new();
         let feedback = status_label("shortcut-footer-feedback");
-        for widget in [&paste, &filter, &visual, &feedback, &count, &chord, &tag] {
+        for widget in [&paste, &filter, &visual, &feedback, &count] {
             status.append(widget);
         }
         root.add_child(&status);
@@ -118,9 +102,6 @@ impl StatusRow {
             status,
             count,
             paste,
-            tag,
-            chord,
-            chords,
             visual,
             filter,
             current,
@@ -145,8 +126,6 @@ impl StatusRow {
             self.paste.clone().upcast::<gtk::Widget>(),
             self.count.clone().upcast(),
             more.clone().upcast(),
-            self.tag.clone().upcast(),
-            self.chord.clone().upcast(),
             self.visual.clone().upcast(),
             self.filter.clone().upcast(),
             self.current.root.clone().upcast(),
@@ -372,11 +351,9 @@ impl ShortcutFooter {
             active_area: panel.active_area,
             scroll: panel.scroll,
             status_widgets,
-            tag: row.tag,
             feedback: row.feedback,
             feedback_epoch: Rc::new(Cell::new(0)),
             prompt: row.prompt,
-            chords: row.chords,
             visual: row.visual,
             filter: row.filter,
             current: row.current,

@@ -176,7 +176,6 @@ pub(super) fn pane_base(chrome: PaneChrome) -> PaneBase {
 fn pane_header(chrome: &PaneChrome) -> (gtk::Box, gtk::Spinner, gtk::Image) {
     let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     header.add_css_class("mode-pane-header");
-    crate::ui::tenxer_mode::hide_while_enabled(&header);
     let heading_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);
     heading_box.set_hexpand(true);
     heading_box.set_valign(gtk::Align::Center);

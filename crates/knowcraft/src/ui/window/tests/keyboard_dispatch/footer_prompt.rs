@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 use super::*;
-use crate::ui::tenxer_mode::Prompt;
+use crate::ui::shortcut_footer::Prompt;
 
 mod filter;
 mod find;

@@ -169,11 +169,7 @@ impl RowBinding<'_> {
         let label = self.widgets.label.upcast_ref();
         let find = self.state.as_ref().and_then(|state| state.find_highlight());
         if !self.searching {
-            crate::ui::browser::find::highlight_listing_name(
-                label,
-                find.as_deref(),
-                &self.context.rows.map.query(),
-            );
+            crate::ui::browser::find::highlight_listing_name(label, find.as_deref());
             return;
         }
         let hits = self.context.hits.borrow();

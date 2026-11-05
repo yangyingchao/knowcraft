@@ -196,7 +196,7 @@ fn commands_match_through_the_active_map() {
         "ui::keys::command::tests::commands_match_through_the_active_map",
         || {
             use super::super::bindings::{
-                DISPATCH, DUPLICATE, MOVE_TO_TRASH, OPEN_IN_NEW_TAB, RENAME, SIDEBAR,
+                DISPATCH, MOVE_TO_TRASH, OPEN_IN_NEW_TAB, RENAME, SIDEBAR,
             };
             let press = |key, modifiers| KeyPress::from_signal(key, 0, modifiers);
             let ctrl = Modifiers::CONTROL_MASK;
@@ -204,8 +204,6 @@ fn commands_match_through_the_active_map() {
             let ctrl_b = press(Key::b, ctrl);
             assert!(ctrl_b.is(SIDEBAR));
             assert!(ctrl_b.is(SIDEBAR.in_map(Map::Default)));
-            assert!(press(Key::d, ctrl).is(DUPLICATE));
-            assert!(press(Key::d, ctrl).is(DUPLICATE.in_map(Map::Default)));
             assert!(press(Key::F2, Modifiers::empty()).is(RENAME));
             assert!(press(Key::r, ctrl).is(RENAME));
             assert!(press(Key::r, ctrl).is(RENAME.in_map(Map::Default)));
@@ -295,7 +293,7 @@ fn saved_entries_replace_whole_entries_and_skip_what_cannot_apply() {
     crate::test_support::gtk_test(
         "ui::keys::command::tests::saved_entries_replace_whole_entries_and_skip_what_cannot_apply",
         || {
-            use super::super::bindings::{COPY, DUPLICATE, ESCAPE, RENAME};
+            use super::super::bindings::{COPY, ESCAPE, RENAME};
             use super::{Keymap, Rejected};
             let list = |accelerators: &[&str]| {
                 toml::Value::Array(
@@ -327,7 +325,6 @@ fn saved_entries_replace_whole_entries_and_skip_what_cannot_apply() {
                 keymap.bindings(Map::Default, RENAME),
                 [Binding::ctrl(Key::e), Binding::plain(Key::F2)]
             );
-            assert!(keymap.bindings(Map::Default, DUPLICATE).is_empty());
             assert!(keymap.bindings(Map::Default, ESCAPE).is_empty());
             assert_eq!(
                 keymap.bindings(Map::Default, COPY),
@@ -349,7 +346,6 @@ fn saved_entries_replace_whole_entries_and_skip_what_cannot_apply() {
             let press = |key, modifiers| KeyPress::from_signal(key, 0, modifiers);
             assert!(press(Key::e, Modifiers::CONTROL_MASK).is(RENAME));
             assert!(!press(Key::r, Modifiers::CONTROL_MASK).is(RENAME));
-            assert!(!press(Key::d, Modifiers::CONTROL_MASK).is(DUPLICATE));
             assert!(
                 press(Key::Escape, Modifiers::empty()).is(ESCAPE),
                 "physical Escape outlives an empty escape entry"

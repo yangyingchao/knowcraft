@@ -169,23 +169,8 @@ pub(in crate::ui) fn search_hit_ranges(query: &str, root: &Path, hits: &[SearchI
         .collect()
 }
 
-pub(in crate::ui) fn highlight_listing_name(
-    widget: &gtk::Widget,
-    find: Option<&str>,
-    filter: &str,
-) {
-    if find.is_some() {
-        highlight_name(widget, find);
-    } else {
-        set_name_highlight(widget, |text| filter_term_ranges(text, filter));
-    }
-}
-
-fn filter_term_ranges(name: &str, query: &str) -> Vec<Range<usize>> {
-    if query.trim().is_empty() || !crate::ui::tenxer_mode::chrome_suppressed() {
-        return Vec::new();
-    }
-    super::entry::with_filter_terms(query, |terms| terms.highlight(name, 0))
+pub(in crate::ui) fn highlight_listing_name(widget: &gtk::Widget, find: Option<&str>) {
+    highlight_name(widget, find);
 }
 
 pub(in crate::ui) fn highlight_hit_name(

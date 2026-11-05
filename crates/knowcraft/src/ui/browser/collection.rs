@@ -328,20 +328,6 @@ pub(crate) fn bind_listing_filter(
         notify_filter_query(&settled_filter, &settled_query, text);
         settled_refresh();
     });
-    let filter = filter.downgrade();
-    let primed = Cell::new(false);
-    PreferenceManager::shared().bind_preference(
-        entry,
-        PreferenceManager::tenxer_mode,
-        move |_, _| {
-            if primed.replace(true)
-                && let Some(filter) = filter.upgrade()
-            {
-                filter.changed(gtk::FilterChange::Different);
-                refresh();
-            }
-        },
-    );
 }
 
 type FilterQueryCallback = dyn Fn(String, SearchScope, bool);
@@ -354,11 +340,10 @@ pub(in crate::ui) struct FilterQueryBinding {
     scope: FilterScope,
 }
 
-// 10xer overrides scope without overwriting the saved subfolder preference.
+// An intent change requeries without overwriting the saved subfolder preference.
 #[derive(Clone, Default)]
 struct FilterScope {
     include_subfolders: Rc<Cell<bool>>,
-    tenxer: Rc<Cell<bool>>,
     forced: Rc<Cell<bool>>,
 }
 
@@ -366,8 +351,6 @@ impl FilterScope {
     fn current(&self) -> SearchScope {
         if self.forced.get() {
             SearchScope::Paths
-        } else if self.tenxer.get() {
-            SearchScope::FolderTerms
         } else if self.include_subfolders.get() {
             SearchScope::Subfolders
         } else {
@@ -453,7 +436,6 @@ pub(in crate::ui) fn bind_filter_query(
     let callback: Rc<FilterQueryCallback> = Rc::new(on_query);
     let scope = FilterScope {
         include_subfolders: Rc::new(Cell::new(true)),
-        tenxer: Rc::new(Cell::new(PreferenceManager::shared().tenxer_mode())),
         forced: Rc::default(),
     };
     let requery_on_change = |setting: fn(&FilterScope) -> &Rc<Cell<bool>>| {
@@ -476,17 +458,6 @@ pub(in crate::ui) fn bind_filter_query(
         entry,
         PreferenceManager::filter_include_subfolders,
         requery_on_change(|scope| &scope.include_subfolders),
-    );
-    let on_tenxer = requery_on_change(|scope| &scope.tenxer);
-    let tenxer = scope.tenxer.clone();
-    manager.bind_preference(
-        entry,
-        PreferenceManager::tenxer_mode,
-        move |entry, enabled| {
-            if tenxer.get() != enabled {
-                on_tenxer(entry, enabled);
-            }
-        },
     );
     let pending_for_drop = pending.clone();
     let callback_for_flush = Rc::downgrade(&callback);
@@ -676,10 +647,6 @@ impl ViewMap {
 
     pub(crate) fn has_query(&self) -> bool {
         !self.query.borrow().trim().is_empty()
-    }
-
-    pub(crate) fn query(&self) -> std::cell::Ref<'_, String> {
-        self.query.borrow()
     }
 
     pub(crate) fn source_position(&self, visible_position: u32) -> Option<usize> {

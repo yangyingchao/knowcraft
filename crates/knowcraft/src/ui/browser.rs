@@ -20,7 +20,6 @@ use crate::ui::browser::peek::{PeekAnchor, PeekView};
 use crate::ui::browser::progress::{BackgroundProgress, FileProgressState};
 use crate::ui::browser::transfer::FinishedSendToCompletion;
 use crate::ui::browser::transfer::PendingSendToCompletion;
-use crate::ui::browser::transfer::duplicate_transfer;
 use crate::ui::browser::trash::TrashLoadingView;
 use crate::ui::browser_modes::{BrowserDensity, BrowserMode, ClickActivation, ModeViews};
 use crate::ui::keys;

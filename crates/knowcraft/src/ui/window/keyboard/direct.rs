@@ -50,12 +50,6 @@ impl Dispatcher {
             .iter()
             .copied()
             .find(|command| press.is(*command))?;
-        if command == DUPLICATE {
-            return self
-                .view
-                .duplicate_entries(&self.view.command_targets())
-                .then_some(Propagation::Stop);
-        }
         if command == JUMP_TO_FOLDER || command == ARROW_SCOPE {
             return Some(self.window_action(press));
         }

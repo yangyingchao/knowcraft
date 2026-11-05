@@ -11,7 +11,6 @@ fn default_chrome_stays_operable_without_a_saved_tenxer_mode() {
             assert!(!manager.tenxer_mode());
             let open = OpenWindow::open();
             let _directory = load_folder(&open);
-            assert!(!open.content.footer().tag_visible());
             assert_controls(&open, true);
             for mode in [BrowserMode::Columns, BrowserMode::Icons, BrowserMode::List] {
                 open.content.browser.set_view_mode(mode);
@@ -29,7 +28,6 @@ fn default_chrome_stays_operable_without_a_saved_tenxer_mode() {
             );
             assert!(window_listed(&open.window));
             assert!(!manager.tenxer_mode());
-            assert!(!open.content.footer().tag_visible());
         },
     );
 }
@@ -46,8 +44,6 @@ fn saved_tenxer_mode_applies_before_settings_and_to_lazy_views() {
             let second = OpenWindow::open();
             assert!(settings_closed(&first));
             assert!(settings_closed(&second));
-            assert!(first.content.footer().tag_visible());
-            assert!(second.content.footer().tag_visible());
             let directory = load_folder(&first);
             second
                 .content
@@ -99,54 +95,7 @@ fn saved_tenxer_mode_applies_before_settings_and_to_lazy_views() {
             manager.set_tenxer_mode(false);
             settle();
             assert_controls(&first, true);
-            assert!(!first.content.footer().tag_visible());
             drop(directory);
-        },
-    );
-}
-
-#[test]
-fn browsing_control_and_shortcut_update_both_windows() {
-    gtk_test(
-        "ui::window::tests::preferences::tenxer_prefs::browsing_control_and_shortcut_update_both_windows",
-        || {
-            let manager = PreferenceManager::shared();
-            let first = OpenWindow::open();
-            let second = OpenWindow::open();
-            let directory = load_folder(&first);
-            second
-                .content
-                .browser
-                .navigate_location(crate::model::Location::local(directory.path()));
-            wait_until(|| !column_loading(&second, 0));
-            press(
-                &first.window,
-                gtk::gdk::Key::m,
-                gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK,
-            );
-            settle();
-            assert!(manager.tenxer_mode());
-            assert_controls(&first, false);
-            assert_controls(&second, false);
-            assert!(first.content.footer().tag_visible());
-            assert!(second.content.footer().tag_visible());
-            first.content.settings_button().emit_clicked();
-            second.content.settings_button().emit_clicked();
-            settle();
-            let first_switch = switch_named(first.content.overlay(), "10xer mode");
-            let second_switch = switch_named(second.content.overlay(), "10xer mode");
-            assert!(first_switch.is_active());
-            assert!(second_switch.is_active());
-            second_switch.set_active(false);
-            settle();
-            assert!(!manager.tenxer_mode());
-            assert!(!first_switch.is_active());
-            assert_controls(&first, true);
-            assert_controls(&second, true);
-            assert!(!second.content.footer().tag_visible());
-            crate::storage::writer::settle();
-            let saved = std::fs::read_to_string(settings_file()).expect("saved settings");
-            assert!(saved.contains("tenxer_mode = false"));
         },
     );
 }
@@ -318,8 +267,6 @@ fn toggle_leaves_tenxer_everywhere_and_shift_q_closes_only_the_current_window() 
             assert!(!manager.tenxer_mode());
             assert!(window_listed(&first.window));
             assert!(window_listed(&second.window));
-            assert!(!first.content.footer().tag_visible());
-            assert!(!second.content.footer().tag_visible());
             manager.set_tenxer_mode(true);
             settle();
             press(
@@ -331,7 +278,6 @@ fn toggle_leaves_tenxer_everywhere_and_shift_q_closes_only_the_current_window() 
             assert!(!window_listed(&first.window));
             assert!(window_listed(&second.window));
             assert!(manager.tenxer_mode());
-            assert!(second.content.footer().tag_visible());
         },
     );
 }
@@ -385,98 +331,7 @@ fn mode_cycles_and_closed_windows_leave_no_duplicate_commands_or_listeners() {
                 press(window, gtk::gdk::Key::M, toggle);
                 settle();
                 assert_eq!(manager.tenxer_mode(), expected, "one toggle per press");
-                assert_eq!(first.content.footer().tag_visible(), expected);
-                assert_eq!(third.content.footer().tag_visible(), expected);
             }
-        },
-    );
-}
-
-#[test]
-fn entering_tenxer_hides_an_open_filter_and_leaving_restores_it() {
-    gtk_test(
-        "ui::window::tests::preferences::tenxer_prefs::entering_tenxer_hides_an_open_filter_and_leaving_restores_it",
-        || {
-            let manager = PreferenceManager::shared();
-            let open = OpenWindow::open();
-            let directory = load_folder(&open);
-            let filter =
-                controls_in_shown_pane(&open.content.browser.widget(), "Filter this pane (Ctrl+F)")
-                    .into_iter()
-                    .next()
-                    .expect("filter button");
-            filter
-                .downcast_ref::<gtk::ToggleButton>()
-                .expect("filter toggle")
-                .emit_clicked();
-            settle();
-            let revealer = revealer_for_filter(&filter);
-            assert!(revealer.reveals_child());
-            manager.set_tenxer_mode(true);
-            settle();
-            assert!(!revealer.reveals_child());
-            assert_controls(&open, false);
-            assert!(
-                focusable_outside_the_browser(&open).grab_focus(),
-                "focus leaves the column while 10xer hides the filter"
-            );
-            settle();
-            manager.set_tenxer_mode(false);
-            settle();
-            assert!(revealer.reveals_child());
-            assert_controls(&open, true);
-            drop(directory);
-        },
-    );
-}
-
-#[test]
-fn ctrl_f_cannot_activate_hidden_filter_or_displace_existing_column_filter() {
-    gtk_test(
-        "ui::window::tests::preferences::tenxer_prefs::ctrl_f_cannot_activate_hidden_filter_or_displace_existing_column_filter",
-        || {
-            let manager = PreferenceManager::shared();
-            let open = OpenWindow::open();
-            let _directory = load_folder(&open);
-            let first = filter_buttons(&open)
-                .into_iter()
-                .next()
-                .expect("first filter");
-            let first_revealer = revealer_for_filter(first.upcast_ref());
-            manager.set_tenxer_mode(true);
-            press(
-                &open.window,
-                gtk::gdk::Key::f,
-                gtk::gdk::ModifierType::CONTROL_MASK,
-            );
-            settle();
-            assert!(!first.is_active());
-            manager.set_tenxer_mode(false);
-            settle();
-            assert!(!first_revealer.reveals_child());
-
-            open_child_column(&open);
-            first.set_active(true);
-            settle();
-            assert!(first.is_active());
-            manager.set_tenxer_mode(true);
-            press(
-                &open.window,
-                gtk::gdk::Key::f,
-                gtk::gdk::ModifierType::CONTROL_MASK,
-            );
-            settle();
-            assert!(first.is_active(), "existing filter remains active");
-            assert_eq!(
-                filter_buttons(&open)
-                    .iter()
-                    .filter(|button| button.is_active())
-                    .count(),
-                1
-            );
-            manager.set_tenxer_mode(false);
-            settle();
-            assert!(first_revealer.reveals_child());
         },
     );
 }

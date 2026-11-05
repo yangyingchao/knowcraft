@@ -72,7 +72,6 @@ const fn row(
 const ARCHIVE: &str = "bundle.tar";
 
 const ROWS: &[Row] = &[
-    row(DUPLICATE, &[Binding::ctrl(Key::d)], "a.txt", Effect::Copied),
     row(PIN, &[Binding::plain(Key::p)], "d", Effect::Pinned),
     row(
         JUMP_TO_FOLDER,
@@ -156,7 +155,6 @@ impl Direct {
     fn enter(&self, row: &Row) -> Seen {
         let fixture = &self.fixture;
         let browser = fixture.view.browser();
-        fixture.shortcuts.cancel_chord();
         fixture.shortcuts.dismiss_prompt();
         fixture.shortcuts.dismiss_feedback();
         if modal_visible(&fixture.overlay) {

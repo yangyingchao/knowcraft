@@ -75,7 +75,6 @@ impl Header {
         let search_keys = crate::ui::keys::Keys::One(crate::ui::keys::bindings::SEARCH.shown());
         crate::ui::shortcut_reference::follow_tooltip(&search, "Search (%{keys})", search_keys);
         crate::ui::shortcut_reference::follow_label(&search, "Search (%{keys})", search_keys);
-        crate::ui::tenxer_mode::hide_while_enabled(&search);
         let appearance =
             build_appearance_menu(browser, &browser.browser(), preferences.clone(), preview);
         let settings_label = crate::i18n::tr("Settings");

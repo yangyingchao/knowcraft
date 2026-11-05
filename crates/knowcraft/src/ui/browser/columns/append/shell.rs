@@ -41,12 +41,10 @@ fn close_filter_after_blur(
             && focused != shell.clone().upcast::<gtk::Widget>()
             && focused.ancestor(gtk::Popover::static_type()).is_none()
     });
-    // 10xer hides the filter with its state kept for leaving, so a focus
-    // move while it is hidden must not switch the filter off.
-    let keeps_filter = crate::ui::tenxer_mode::chrome_suppressed()
-        || browser
-            .upgrade()
-            .is_none_or(|browser| browser.is_chooser_mode());
+    // A focus move out of the shell must not switch the chooser's filter off.
+    let keeps_filter = browser
+        .upgrade()
+        .is_none_or(|browser| browser.is_chooser_mode());
     if left_column && !keeps_filter {
         filter_button.set_active(false);
     }

@@ -43,10 +43,6 @@ fn browsing_preferences_stay_saved_but_unused_until_exit() {
             ] {
                 let switch = switch_named(open.content.overlay(), title);
                 assert!(switch.is_active() && switch.is_sensitive());
-                assert_ne!(
-                    description_named(open.content.overlay(), title),
-                    UNUSED_SUBTITLE
-                );
             }
             manager.set_tenxer_mode(true);
             settle();
@@ -56,10 +52,6 @@ fn browsing_preferences_stay_saved_but_unused_until_exit() {
                 open.content.browser.columns_mirror_selection_enabled(),
                 "10xer Columns keep saved mirroring"
             );
-            assert_ne!(
-                description_named(open.content.overlay(), "Mirror columns selection"),
-                UNUSED_SUBTITLE
-            );
             for title in [
                 "Type to search",
                 "Keep arrows in file list",
@@ -67,10 +59,6 @@ fn browsing_preferences_stay_saved_but_unused_until_exit() {
             ] {
                 let switch = switch_named(open.content.overlay(), title);
                 assert!(switch.is_active() && switch.is_sensitive());
-                assert_eq!(
-                    description_named(open.content.overlay(), title),
-                    UNUSED_SUBTITLE
-                );
             }
             let type_to_search = switch_named(open.content.overlay(), "Type to search");
             type_to_search.set_active(false);
@@ -100,17 +88,6 @@ fn browsing_preferences_stay_saved_but_unused_until_exit() {
             assert!(open.content.browser.columns_mirror_selection_enabled());
             open.content.settings_button().emit_clicked();
             settle();
-            for title in [
-                "Type to search",
-                "Keep arrows in file list",
-                "Include subfolders",
-                "Mirror columns selection",
-            ] {
-                assert_ne!(
-                    description_named(open.content.overlay(), title),
-                    UNUSED_SUBTITLE
-                );
-            }
             close_settings(&open);
             open.content.browser.set_view_mode(BrowserMode::Columns);
             wait_until(|| !column_loading(&open, 0));

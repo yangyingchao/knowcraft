@@ -93,9 +93,6 @@ pub(super) fn install(
     let toggle = toggle_handler(dialog.clone(), content, preferences);
     let clicked_search = toggle.clone();
     content.header.search.connect_clicked(move |_| {
-        if crate::ui::tenxer_mode::chrome_suppressed() {
-            return;
-        }
         clicked_search();
     });
     let own_layer = dialog.widget();

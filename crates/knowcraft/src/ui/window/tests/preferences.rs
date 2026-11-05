@@ -5,7 +5,6 @@ use gtk::prelude::*;
 use super::*;
 use crate::ui::browser_modes::BrowserMode;
 use crate::ui::preferences::PreferenceManager;
-use crate::ui::tenxer_mode::UNUSED_SUBTITLE;
 
 mod browsing_prefs;
 mod column_prefs;
@@ -351,16 +350,6 @@ fn widgets_in_shown_pane(
     found
 }
 
-fn revealer_for_filter(button: &gtk::Widget) -> gtk::Revealer {
-    nearest_around(Some(button.clone()), |child| {
-        child
-            .has_css_class("tenxer-filter-revealer")
-            .then(|| child.clone().downcast::<gtk::Revealer>().ok())
-            .flatten()
-    })
-    .expect("filter revealer")
-}
-
 fn list_heading(root: &gtk::Widget, name: &str) -> gtk::Button {
     let mut found = None;
     walk(root, &mut |widget| {
@@ -392,21 +381,6 @@ fn switch_named(root: &impl gtk::prelude::IsA<gtk::Widget>, title: &str) -> gtk:
     .unwrap_or_else(|| panic!("switch for {title}"))
 }
 
-fn description_named(root: &impl gtk::prelude::IsA<gtk::Widget>, title: &str) -> String {
-    let label = label_named(root.upcast_ref(), title);
-    nearest_around(label.parent(), |child| {
-        child
-            .has_css_class("settings-option-description")
-            .then(|| {
-                child
-                    .downcast_ref::<gtk::Label>()
-                    .map(|description| description.text().to_string())
-            })
-            .flatten()
-    })
-    .unwrap_or_else(|| panic!("description for {title}"))
-}
-
 fn activate_named(root: &impl gtk::prelude::IsA<gtk::Widget>, tooltip: &str) {
     let button = controls_in_shown_pane(root.upcast_ref(), tooltip)
         .into_iter()
@@ -426,16 +400,6 @@ fn label_named(root: &gtk::Widget, text: &str) -> gtk::Label {
             .cloned()
     })
     .unwrap_or_else(|| panic!("label {text}"))
-}
-
-fn focusable_outside_the_browser(open: &OpenWindow) -> gtk::Widget {
-    let browser = open.content.browser.widget();
-    first_in(open.window.upcast_ref(), |widget| {
-        let focusable = widget.is_focusable() && widget.is_mapped();
-        let outside = *widget != browser && !widget.is_ancestor(&browser);
-        (focusable && outside).then(|| widget.clone())
-    })
-    .expect("a focusable widget outside the browser")
 }
 
 fn walk(widget: &gtk::Widget, visit: &mut impl FnMut(&gtk::Widget)) {

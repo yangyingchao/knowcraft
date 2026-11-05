@@ -10,10 +10,7 @@ use super::{Dispatcher, KeyResult};
 use crate::{
     app::Browser,
     ui::{
-        keys::{
-            KeyPress, Map, SHORTCUT_MODIFIERS,
-            bindings::{ESCAPE, FOCUS_PREVIOUS, REFERENCE},
-        },
+        keys::{KeyPress, bindings::{ESCAPE, FOCUS_PREVIOUS}},
         preview::{PreviewSurface, preview_target},
     },
 };
@@ -30,24 +27,6 @@ impl Dispatcher {
     pub(super) fn preview_document_focused(&self) -> bool {
         self.preview_focus()
             .is_some_and(|focused| self.preview.surface(&focused) != PreviewSurface::Text)
-    }
-
-    /// Text fields inside the drawer keep typed text and editing shortcuts,
-    /// including characters the footer would otherwise claim.
-    pub(super) fn tenxer_preview_text(&self, browser: &Browser, press: &KeyPress) -> KeyResult {
-        if !self.type_to_search.preferences.tenxer_mode()
-            || press.is(REFERENCE.in_map(Map::Default).ignoring(SHORTCUT_MODIFIERS))
-        {
-            return None;
-        }
-        let focused = self.preview_focus()?;
-        if self.preview.surface(&focused) != PreviewSurface::Text {
-            return None;
-        }
-        Some(
-            self.leave_or_close_preview(browser, press)
-                .unwrap_or(Propagation::Proceed),
-        )
     }
 
     /// **Esc** closes the drawer; **Shift+Tab** returns keys to the listing

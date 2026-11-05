@@ -158,7 +158,6 @@ impl ColumnView {
         let searching = self.recursive_search_active.get();
         let results = self.search_results.borrow();
         let hits = self.hits.borrow();
-        let filter = self.map.query();
         for bound in self.bound_rows.borrow().iter() {
             let (Some(label), Some(item)) = (bound.rename_label.upgrade(), bound.item.upgrade())
             else {
@@ -170,7 +169,7 @@ impl ColumnView {
                     .and_then(|hit| hits.ranges.get(&hit.path));
                 highlight_hit_name(label.upcast_ref(), find, hit.map(Vec::as_slice));
             } else {
-                highlight_listing_name(label.upcast_ref(), find, &filter);
+                highlight_listing_name(label.upcast_ref(), find);
             }
         }
     }
