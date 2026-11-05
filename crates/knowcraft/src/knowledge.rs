@@ -171,6 +171,27 @@ impl Knowledge {
             .map_err(|error| error.to_string())
     }
 
+    /// 删除知识库内的文件：已登记文档保留记录并标记 trashed；未登记文件直接
+    /// 移入回收站。供 GUI 的删除链路调用。
+    pub(crate) fn delete_path(&self, path: &Path) -> Result<(), String> {
+        let path_text = path.to_string_lossy();
+        let doc = self
+            .store
+            .find_by_path(&path_text)
+            .map_err(|error| error.to_string())?;
+        match doc {
+            Some(doc) => self
+                .trash
+                .delete_document(&self.store, &self.index, &doc.uuid)
+                .map_err(|error| error.to_string()),
+            None => self
+                .trash
+                .move_path_to_trash(path)
+                .map(|_| ())
+                .map_err(|error| error.to_string()),
+        }
+    }
+
     /// 文档的标签；`None` 表示路径不在知识库中。
     pub(crate) fn tags_of(&self, path: &Path) -> Option<Vec<String>> {
         let path_text = path.to_string_lossy();
@@ -447,48 +468,36 @@ impl Knowledge {
     }
 }
 
+/// 登记新文件的方式，按所在目录区分生命周期与存储模式。
+#[derive(Clone, Copy)]
+enum RegisterKind {
+    Inbox,
+    Library,
+    Archived,
+}
+
 /// Registers files found in the knowledge folders and indexes the ones still pending.
 pub(crate) fn warm_index(knowledge: &Knowledge) -> WarmReport {
     let mut report = WarmReport::default();
     let mut pending = Vec::new();
     for (folder, inbox) in FOLDERS {
         let root = knowledge.data_dir.join(folder);
-        for path in walk_files(&root) {
-            let path_text = path.to_string_lossy();
-            let doc = match knowledge.store.find_by_path(&path_text) {
-                Ok(Some(doc)) => doc,
-                Ok(None) => {
-                    let registered = if inbox {
-                        knowledge.workflow.register_inbox_file(&path)
-                    } else {
-                        knowledge.workflow.register_library_file(&path)
-                    };
-                    match registered {
-                        Ok(doc) => {
-                            report.registered += 1;
-                            doc
-                        }
-                        Err(_) => continue,
-                    }
-                }
-                Err(_) => continue,
-            };
-            if doc.lifecycle == "pending" {
-                // inbox 内文档每次对齐重算内容标题：新登记的文件在
-                // register_inbox_file 已解析，这里覆盖 title 仍是文件名的
-                // 存量文档；标题进入全文索引，变化时标记重索引。
-                if let Some(title) = knowcraft_core::extract::extract_title(&path)
-                    && title != doc.title
-                    && knowledge.store.update_title(doc.id, &title).is_ok()
-                {
-                    let _ = knowledge.store.set_index_status(doc.id, "pending");
-                }
-            }
-            if doc.index_status != "indexed" {
-                pending.push(doc);
-            }
-        }
+        let kind = if inbox {
+            RegisterKind::Inbox
+        } else {
+            RegisterKind::Library
+        };
+        pending.extend(collect_pending(knowledge, &root, kind, &mut report));
     }
+    // archived/ 在 linked 目录之外单独扫描：按 archived 存储模式登记。
+    let archived_root = knowledge.data_dir.join("archived");
+    pending.extend(collect_pending(
+        knowledge,
+        &archived_root,
+        RegisterKind::Archived,
+        &mut report,
+    ));
+
     let _guard = index_guard();
     for chunk in pending.chunks(16) {
         match knowledge.index.index_documents(chunk) {
@@ -520,6 +529,53 @@ pub(crate) fn warm_index(knowledge: &Knowledge) -> WarmReport {
         }
     }
     report
+}
+
+/// 遍历 `root` 下的文件：已在库内则复用记录，否则按 `kind` 登记，
+/// 返回仍需索引的文档。登记失败的路径（checksum 去重等）跳过。
+fn collect_pending(
+    knowledge: &Knowledge,
+    root: &Path,
+    kind: RegisterKind,
+    report: &mut WarmReport,
+) -> Vec<Document> {
+    let mut pending = Vec::new();
+    for path in walk_files(root) {
+        let path_text = path.to_string_lossy();
+        let doc = match knowledge.store.find_by_path(&path_text) {
+            Ok(Some(doc)) => doc,
+            Ok(None) => {
+                let registered = match kind {
+                    RegisterKind::Inbox => knowledge.workflow.register_inbox_file(&path),
+                    RegisterKind::Library => knowledge.workflow.register_library_file(&path),
+                    RegisterKind::Archived => knowledge.workflow.register_archived_file(&path),
+                };
+                match registered {
+                    Ok(doc) => {
+                        report.registered += 1;
+                        doc
+                    }
+                    Err(_) => continue,
+                }
+            }
+            Err(_) => continue,
+        };
+        if doc.lifecycle == "pending" {
+            // inbox 内文档每次对齐重算内容标题：新登记的文件在
+            // register_inbox_file 已解析，这里覆盖 title 仍是文件名的
+            // 存量文档；标题进入全文索引，变化时标记重索引。
+            if let Some(title) = knowcraft_core::extract::extract_title(&path)
+                && title != doc.title
+                && knowledge.store.update_title(doc.id, &title).is_ok()
+            {
+                let _ = knowledge.store.set_index_status(doc.id, "pending");
+            }
+        }
+        if doc.index_status != "indexed" {
+            pending.push(doc);
+        }
+    }
+    pending
 }
 
 fn walk_files(root: &Path) -> Vec<PathBuf> {

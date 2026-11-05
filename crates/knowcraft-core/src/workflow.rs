@@ -150,15 +150,23 @@ impl Workflow {
 
     /// 登记直接出现在 inbox/ 内的新文件：不做拷贝，checksum 去重。
     pub fn register_inbox_file(&self, path: &Path) -> Result<Document> {
-        self.register_created(path, "pending")
+        self.register_created(path, "pending", "linked")
     }
 
     /// 登记直接出现在 library/ 内的新文件：归档态，供检索索引。
     pub fn register_library_file(&self, path: &Path) -> Result<Document> {
-        self.register_created(path, "archived")
+        self.register_created(path, "archived", "linked")
     }
 
-    fn register_created(&self, path: &Path, lifecycle: &str) -> Result<Document> {
+    /// 登记直接出现在 archived/ 内的新文件：`storage = archived`，归档态。
+    ///
+    /// archived 文件名为 UUID，`title` 仍从内容提取；`original_name` 对存量
+    /// 文档不覆盖，仅在确实新建（库内无该路径）时取当前文件名。
+    pub fn register_archived_file(&self, path: &Path) -> Result<Document> {
+        self.register_created(path, "archived", "archived")
+    }
+
+    fn register_created(&self, path: &Path, lifecycle: &str, storage: &str) -> Result<Document> {
         let sum = self.checksum(path)?;
         if self.store.find_by_checksum(&sum)?.is_some() {
             return Err(Error::Workflow("duplicate document".into()));
@@ -170,7 +178,7 @@ impl Workflow {
         let doc = Document {
             id: 0,
             uuid: uuid::Uuid::new_v4().to_string(),
-            storage: "linked".to_string(),
+            storage: storage.to_string(),
             original_name: original_name.clone(),
             path: path.to_string_lossy().into_owned(),
             doc_type: detect_type(fname),

@@ -55,16 +55,16 @@ impl FsEnvironment for System {
 
     fn trash(&self, path: &Path, _cancellable: &gio::Cancellable) -> Result<bool, glib::Error> {
         assert_off_main_thread();
-        let Some(trash) = crate::knowledge::trash() else {
+        let Some(knowledge) = crate::knowledge::init() else {
             return Err(glib::Error::new(
                 gio::IOErrorEnum::Failed,
                 "Knowcraft is unavailable",
             ));
         };
-        trash
-            .move_to_trash(path)
+        knowledge
+            .delete_path(path)
             .map(|()| true)
-            .map_err(|error| glib::Error::new(gio::IOErrorEnum::Failed, &error.to_string()))
+            .map_err(|error| glib::Error::new(gio::IOErrorEnum::Failed, &error))
     }
 
     fn mount_type(&self, fd: BorrowedFd<'_>) -> Option<(MountType, MountSite)> {

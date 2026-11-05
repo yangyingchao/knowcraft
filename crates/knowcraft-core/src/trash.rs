@@ -97,6 +97,13 @@ impl Trash {
         Ok(updated)
     }
 
+    /// 为非知识库登记文件提供路径级入口：生成临时 UUID 后移入回收站。
+    /// 知识库内文档应走 `delete_document`，以便保留记录与按 UUID 恢复。
+    pub fn move_path_to_trash(&self, path: &Path) -> Result<PathBuf> {
+        let uuid = uuid::Uuid::new_v4().to_string();
+        self.move_to_trash(&uuid, path)
+    }
+
     /// 回收站是否非空。
     pub fn has_items(&self) -> Result<bool> {
         let dir = self.files_dir();

@@ -211,3 +211,119 @@ fn spawn_returns_ok_and_watches_existing_dirs() {
     let index = Index::open(&dir).unwrap();
     Watcher::spawn(dir.clone(), store, index).unwrap();
 }
+
+#[test]
+fn move_between_managed_dirs_updates_path_and_original_name() {
+    let (watcher, store, index, dir) = setup("mvlib");
+    let a = dir.join("inbox").join("zeta.md");
+    let b = dir.join("library").join("cat").join("renamed.md");
+    std::fs::create_dir_all(b.parent().unwrap()).unwrap();
+    std::fs::write(&a, "# Zeta\nmove to library content").unwrap();
+
+    watcher.handle(FileEvent::Created(a.clone())).unwrap();
+    let id = store.find_by_path(&path_str(&a)).unwrap().unwrap().id;
+
+    std::fs::rename(&a, &b).unwrap();
+    watcher
+        .handle(FileEvent::Moved {
+            from: a.clone(),
+            to: b.clone(),
+        })
+        .unwrap();
+
+    assert!(
+        store.find_by_path(&path_str(&a)).unwrap().is_none(),
+        "旧路径记录应被更新而非残留"
+    );
+    let moved = store
+        .find_by_path(&path_str(&b))
+        .unwrap()
+        .expect("记录更新到新路径");
+    assert_eq!(moved.id, id, "受管目录间移动只更新路径，不删记录");
+    assert_eq!(moved.original_name, "renamed.md", "linked 移动同步 original_name");
+    let hits = index.search("move to library", 10).unwrap();
+    assert!(
+        hits.iter().any(|h| h.document_id == id),
+        "索引条目在移动后仍存在"
+    );
+}
+
+#[test]
+fn move_into_archived_is_managed_and_preserves_original_name() {
+    let (watcher, store, index, dir) = setup("mvarch");
+    let a = dir.join("inbox").join("report.md");
+    std::fs::write(&a, "# Report\narchived storage content").unwrap();
+
+    watcher.handle(FileEvent::Created(a.clone())).unwrap();
+    let doc = store.find_by_path(&path_str(&a)).unwrap().unwrap();
+    let target = dir
+        .join("archived")
+        .join("md")
+        .join(format!("{}.md", doc.uuid));
+    std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+    std::fs::rename(&a, &target).unwrap();
+
+    watcher
+        .handle(FileEvent::Moved {
+            from: a.clone(),
+            to: target.clone(),
+        })
+        .unwrap();
+
+    let kept = store
+        .find_by_path(&path_str(&target))
+        .unwrap()
+        .expect("archived 是受管位置，移动不删除记录");
+    assert_eq!(kept.id, doc.id);
+    assert_eq!(
+        kept.original_name, "report.md",
+        "archived 文件名是 UUID，original_name 不被覆盖"
+    );
+    let hits = index.search("archived storage", 10).unwrap();
+    assert!(hits.iter().any(|h| h.document_id == doc.id));
+}
+
+#[test]
+fn removed_event_keeps_trashed_record() {
+    let (watcher, store, _index, dir) = setup("rmtrash");
+    let path = dir.join("inbox").join("trashed.md");
+    std::fs::write(&path, "# Trashed\ntrashed lifecycle content").unwrap();
+
+    watcher.handle(FileEvent::Created(path.clone())).unwrap();
+    let doc = store.find_by_path(&path_str(&path)).unwrap().unwrap();
+    store.set_lifecycle(doc.id, "trashed").unwrap();
+
+    watcher.handle(FileEvent::Removed(path.clone())).unwrap();
+
+    assert!(
+        store.find_by_path(&path_str(&path)).unwrap().is_some(),
+        "lifecycle = trashed 的记录不被 Removed 删除"
+    );
+    assert!(store.get_document(doc.id).unwrap().is_some());
+}
+
+#[test]
+fn move_out_of_managed_dir_deletes_record() {
+    let (watcher, store, index, dir) = setup("mvout");
+    let a = dir.join("inbox").join("out.md");
+    let outside = std::env::temp_dir().join(format!("kc-wt-out-{}.md", std::process::id()));
+    std::fs::write(&a, "# Out\nmove out content").unwrap();
+
+    watcher.handle(FileEvent::Created(a.clone())).unwrap();
+    let id = store.find_by_path(&path_str(&a)).unwrap().unwrap().id;
+
+    std::fs::rename(&a, &outside).unwrap();
+    watcher
+        .handle(FileEvent::Moved {
+            from: a.clone(),
+            to: outside.clone(),
+        })
+        .unwrap();
+
+    assert!(
+        store.get_document(id).unwrap().is_none(),
+        "移出受管目录删除记录"
+    );
+    assert!(index.search("move out", 10).unwrap().is_empty(), "索引移除");
+    let _ = std::fs::remove_file(&outside);
+}
