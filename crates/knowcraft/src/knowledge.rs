@@ -322,6 +322,63 @@ impl Knowledge {
             .collect()
     }
 
+    /// 文件或目录移动/改名后同步记录与索引。`from`/`to` 为原生路径。
+    pub(crate) fn relocate_path(&self, from: &Path, to: &Path) -> Result<usize, String> {
+        if from == to {
+            return Ok(0);
+        }
+        let from_text = from.to_string_lossy();
+        if let Some(doc) = self
+            .store
+            .find_by_path(&from_text)
+            .map_err(|error| error.to_string())?
+        {
+            self.relocate_document(&doc, to)
+                .map_err(|error| error.to_string())?;
+            return Ok(1);
+        }
+        // 目录改名/移动：按旧前缀批量改写其下记录。
+        let docs = self.documents_under(from);
+        let mut moved = 0;
+        for doc in docs {
+            let old = Path::new(&doc.path);
+            let Ok(relative) = old.strip_prefix(from) else {
+                continue;
+            };
+            let target = to.join(relative);
+            match self.relocate_document(&doc, &target) {
+                Ok(()) => moved += 1,
+                Err(error) => tracing::warn!(%error, path = %doc.path, "relocate failed"),
+            }
+        }
+        Ok(moved)
+    }
+
+    fn relocate_document(&self, doc: &Document, target: &Path) -> Result<(), String> {
+        let _guard = index_guard();
+        self.store
+            .update_path(doc.id, &target.to_string_lossy())
+            .map_err(|error| error.to_string())?;
+        if let Some(name) = target.file_name() {
+            let _ = self
+                .store
+                .update_original_name(doc.id, &name.to_string_lossy());
+        }
+        let updated = self
+            .store
+            .get_document(doc.id)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "document missing after relocate".to_owned())?;
+        self.index
+            .reindex_document(&updated)
+            .map_err(|error| error.to_string())?;
+        with_status_cache(|cache| {
+            cache.remove(Path::new(&doc.path));
+            cache.insert(target.to_path_buf(), "indexed".to_owned());
+        });
+        Ok(())
+    }
+
     /// The cached `index_status` for a knowledge path, or `None` when untracked.
     pub(crate) fn index_status(&self, path: &Path) -> Option<String> {
         if with_active_index(|active| active.contains_key(path)) {

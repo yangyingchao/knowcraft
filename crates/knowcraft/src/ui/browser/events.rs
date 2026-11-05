@@ -163,6 +163,21 @@ impl ViewState {
                 customization::relocate_item_customizations(from, to, *merged);
                 crate::ui::preferences::PreferenceManager::shared()
                     .relocate_folder_views(from, to, *merged);
+                if !*merged
+                    && let (Some(from_path), Some(to_path)) = (from.native_path(), to.native_path())
+                    && from_path != to_path
+                    && crate::knowledge::init()
+                        .is_some_and(|knowledge| knowledge.contains(from_path) || knowledge.contains(to_path))
+                {
+                    let (from_path, to_path) = (from_path.to_path_buf(), to_path.to_path_buf());
+                    std::thread::spawn(move || {
+                        if let Some(knowledge) = crate::knowledge::init()
+                            && let Err(error) = knowledge.relocate_path(&from_path, &to_path)
+                        {
+                            tracing::warn!(%error, "relocate knowledge document failed");
+                        }
+                    });
+                }
             }
             BrowserEvent::ItemRemoved {
                 location,
