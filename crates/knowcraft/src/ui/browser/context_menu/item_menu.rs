@@ -254,6 +254,19 @@ impl ItemMenu {
                 handler(path);
             }
         });
+        self.on_selection(&options.multiple.dispatch, |state, entries| {
+            let paths: Vec<PathBuf> = entries
+                .iter()
+                .filter(|entry| !entry.is_directory())
+                .filter_map(|entry| entry.location.native_path().map(PathBuf::from))
+                .collect();
+            if paths.is_empty() {
+                return;
+            }
+            if let Some(handler) = state.dispatch_handler.borrow().as_ref() {
+                handler(paths);
+            }
+        });
         self.on_entry(&single.copy_path, |_, _, entry| copy_locations(&[entry]));
         self.on_entry(&single.copy_name, |_, _, entry| copy_names(&[entry]));
         self.on_entry(&single.rename, move |state, position, entry| {
@@ -613,6 +626,16 @@ impl ItemMenuOptions {
         self.single
             .dispatch
             .set_visible(in_knowledge && !entry.is_directory() && !self.in_trash);
+        let all_in_knowledge = target.entries.iter().all(|entry| {
+            entry
+                .location
+                .native_path()
+                .is_some_and(|path| knowledge.is_some_and(|knowledge| knowledge.contains(path)))
+        });
+        let any_directory = target.entries.iter().any(|entry| entry.is_directory());
+        self.multiple
+            .dispatch
+            .set_visible(all_in_knowledge && !any_directory && !self.in_trash);
         self.single
             .reindex
             .set_visible(in_knowledge && !self.in_trash);
