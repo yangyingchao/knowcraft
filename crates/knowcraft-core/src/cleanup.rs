@@ -52,6 +52,7 @@ pub fn cleanup_documents(
     let docs: Vec<_> = docs
         .into_iter()
         .filter(|d| !crate::util::is_hidden_path(Path::new(&d.path)))
+        .filter(|d| d.lifecycle != "trashed")
         .collect();
     let total = docs.len();
     let mut processed = 0usize;
