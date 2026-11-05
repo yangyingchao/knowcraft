@@ -154,3 +154,21 @@ fn cleanup_removes_missing_file_entries() {
     let text = String::from_utf8_lossy(&cleanup.stdout);
     assert!(text.contains("removed=1"), "{text}");
 }
+
+#[test]
+fn upgrade_reports_migration() {
+    let dir = data_dir("upgrade");
+    let out = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+        .env("KNOWCRAFT_DATA_DIR", &dir)
+        .arg("upgrade")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "upgrade failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("from=0"), "{text}");
+    assert!(text.contains("to=1"), "{text}");
+}

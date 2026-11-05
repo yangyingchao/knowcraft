@@ -32,14 +32,25 @@ enum Cmd {
     Status,
     /// 清理数据库中文件已不存在的失效条目
     Cleanup,
+    /// 迁移数据库 schema 并报告回填数量
+    Upgrade,
 }
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let cfg = knowcraft_core::config::Config::load()?;
+    if matches!(&cli.cmd, Cmd::Upgrade) {
+        let (_, report) = knowcraft_core::store::Store::open_with_report(&cfg.data_dir)?;
+        println!(
+            "upgrade: from={} to={} backfilled={}",
+            report.from, report.to, report.backfilled
+        );
+        return Ok(());
+    }
     let store = knowcraft_core::store::Store::open(&cfg.data_dir)?;
     let wf = Workflow::new(store.clone(), cfg.data_dir.clone())?;
     match cli.cmd {
+        Cmd::Upgrade => {} // 上面已提前返回
         Cmd::Search { query } => {
             let index = Index::open(&cfg.data_dir)?;
             let docs = indexed_documents(&store)?;
