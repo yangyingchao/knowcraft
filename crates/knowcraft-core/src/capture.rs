@@ -62,6 +62,9 @@ impl Capture {
         let ts = now();
         let doc = Document {
             id: 0,
+            uuid: String::new(),
+            storage: "linked".to_string(),
+            original_name: String::new(),
             path: md_path.to_string_lossy().into_owned(),
             doc_type: "md".into(),
             title,

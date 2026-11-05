@@ -6,6 +6,9 @@ use knowcraft_core::tags::Tags;
 fn doc(path: &str) -> Document {
     Document {
         id: 0,
+        uuid: String::new(),
+        storage: "linked".to_string(),
+        original_name: String::new(),
         path: path.into(),
         doc_type: "pdf".into(),
         title: "".into(),

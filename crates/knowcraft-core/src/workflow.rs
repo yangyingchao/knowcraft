@@ -63,6 +63,9 @@ impl Workflow {
             .ok_or_else(|| Error::Workflow("no file name".into()))?;
         let doc = Document {
             id: 0,
+            uuid: String::new(),
+            storage: "linked".to_string(),
+            original_name: String::new(),
             path: path.to_string_lossy().into_owned(),
             doc_type: detect_type(fname),
             title: crate::extract::extract_title(path)
@@ -167,6 +170,9 @@ impl Workflow {
             .ok_or_else(|| Error::Workflow("no file name".into()))?;
         let doc = Document {
             id: 0,
+            uuid: String::new(),
+            storage: "linked".to_string(),
+            original_name: String::new(),
             path: path.to_string_lossy().into_owned(),
             doc_type: detect_type(fname),
             title: crate::extract::extract_title(path)

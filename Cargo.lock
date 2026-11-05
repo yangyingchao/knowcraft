@@ -2986,9 +2986,11 @@ dependencies = [
  "scraper",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "tantivy",
  "toml 0.8.23",
  "url",
+ "uuid",
  "zip 0.6.6",
 ]
 

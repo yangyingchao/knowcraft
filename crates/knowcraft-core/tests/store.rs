@@ -9,6 +9,9 @@ fn store_crud_roundtrip() {
     let id = store
         .insert_document(&Document {
             id: 0,
+            uuid: String::new(),
+            storage: "linked".to_string(),
+            original_name: String::new(),
             path: "/tmp/a.pdf".into(),
             doc_type: "pdf".into(),
             title: "A".into(),

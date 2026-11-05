@@ -1,6 +1,9 @@
 #[derive(Debug, Clone)]
 pub struct Document {
     pub id: i64,
+    pub uuid: String,
+    pub storage: String, // linked|archived
+    pub original_name: String,
     pub path: String,
     pub doc_type: String,
     pub title: String,
@@ -10,7 +13,7 @@ pub struct Document {
     pub updated_at: String,
     pub checksum: String,
     pub ai_summary: Option<String>,
-    pub lifecycle: String,    // pending|tagged|archived
+    pub lifecycle: String,    // pending|tagged|archived|trashed
     pub index_status: String, // indexed|pending|error
 }
 

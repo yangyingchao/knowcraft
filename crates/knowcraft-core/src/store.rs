@@ -88,6 +88,9 @@ impl Store {
         let mut rows = stmt.query_map(params![id], |r| {
             Ok(Document {
                 id: r.get(0)?,
+                uuid: String::new(),
+                storage: "linked".to_string(),
+                original_name: String::new(),
                 path: r.get(1)?,
                 doc_type: r.get(2)?,
                 title: r.get(3)?,
@@ -130,6 +133,9 @@ impl Store {
         let mut rows = stmt.query_map(params![checksum], |r| {
             Ok(Document {
                 id: r.get(0)?,
+                uuid: String::new(),
+                storage: "linked".to_string(),
+                original_name: String::new(),
                 path: r.get(1)?,
                 doc_type: r.get(2)?,
                 title: r.get(3)?,
@@ -154,6 +160,9 @@ impl Store {
         let mut rows = stmt.query_map(params![path], |r| {
             Ok(Document {
                 id: r.get(0)?,
+                uuid: String::new(),
+                storage: "linked".to_string(),
+                original_name: String::new(),
                 path: r.get(1)?,
                 doc_type: r.get(2)?,
                 title: r.get(3)?,
@@ -187,6 +196,9 @@ impl Store {
         let rows = stmt.query_map(params![prefix], |r| {
             Ok(Document {
                 id: r.get(0)?,
+                uuid: String::new(),
+                storage: "linked".to_string(),
+                original_name: String::new(),
                 path: r.get(1)?,
                 doc_type: r.get(2)?,
                 title: r.get(3)?,
@@ -355,6 +367,9 @@ pub(crate) fn now() -> String {
 fn read_document(row: &rusqlite::Row<'_>) -> rusqlite::Result<Document> {
     Ok(Document {
         id: row.get(0)?,
+        uuid: String::new(),
+        storage: "linked".to_string(),
+        original_name: String::new(),
         path: row.get(1)?,
         doc_type: row.get(2)?,
         title: row.get(3)?,
