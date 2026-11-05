@@ -34,6 +34,17 @@ enum Cmd {
     Cleanup,
     /// 迁移数据库 schema 并报告回填数量
     Upgrade,
+    /// 归档文件：--category 保留路径，--record 写入 UUID 存储
+    Archive {
+        paths: Vec<PathBuf>,
+        #[arg(long, group = "mode")]
+        category: Option<String>,
+        #[arg(long, group = "mode")]
+        record: bool,
+        /// 只输出 UUID 与内部路径
+        #[arg(long)]
+        uuid: bool,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -119,6 +130,44 @@ fn main() -> anyhow::Result<()> {
                 "cleanup: scanned={} removed={}",
                 report.scanned, report.removed
             );
+        }
+        Cmd::Archive {
+            paths,
+            category,
+            record,
+            uuid,
+        } => {
+            let index = Index::open(&cfg.data_dir)?;
+            let archive = knowcraft_core::archive::Archive::new(cfg.data_dir.clone())?;
+            for path in paths {
+                let path_text = path.to_string_lossy();
+                let doc = match store.find_by_path(&path_text)? {
+                    Some(doc) => doc,
+                    None => {
+                        let inbox = path.starts_with(cfg.data_dir.join("inbox"));
+                        if inbox {
+                            wf.register_inbox_file(&path)?
+                        } else {
+                            wf.register_library_file(&path)?
+                        }
+                    }
+                };
+                let archived = if let Some(category) = category.as_deref() {
+                    archive.archive_to_library(&store, &index, doc.id, category)?
+                } else if record {
+                    archive.archive_record(&store, &index, doc.id)?
+                } else {
+                    anyhow::bail!("archive requires --category or --record");
+                };
+                if uuid {
+                    println!("{} {}", archived.uuid, archived.path);
+                } else {
+                    println!(
+                        "{} {} {}",
+                        archived.uuid, archived.original_name, archived.path
+                    );
+                }
+            }
         }
     }
     Ok(())

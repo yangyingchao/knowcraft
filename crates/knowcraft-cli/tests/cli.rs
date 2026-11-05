@@ -172,3 +172,74 @@ fn upgrade_reports_migration() {
     assert!(text.contains("from=0"), "{text}");
     assert!(text.contains("to=1"), "{text}");
 }
+
+fn run_cli(dir: &std::path::Path, args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+        .env("KNOWCRAFT_DATA_DIR", dir)
+        .args(args)
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn archive_record_moves_file_into_uuid_storage() {
+    let dir = data_dir("archive-record");
+    let src = dir.join("note.md");
+    std::fs::write(&src, "archive me").unwrap();
+    assert!(run_cli(&dir, &["add", src.to_str().unwrap()]).status.success());
+
+    let inbox_file = dir.join("inbox").join("note.md");
+    let out = run_cli(
+        &dir,
+        &["archive", inbox_file.to_str().unwrap(), "--record"],
+    );
+    assert!(
+        out.status.success(),
+        "archive failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(!inbox_file.exists());
+    let archived_dir = dir.join("archived").join("md");
+    let archived = std::fs::read_dir(&archived_dir)
+        .unwrap()
+        .next()
+        .expect("archived file")
+        .unwrap();
+    assert!(archived.path().extension().is_some_and(|e| e == "md"));
+}
+
+#[test]
+fn archive_category_keeps_name_under_library() {
+    let dir = data_dir("archive-category");
+    let src = dir.join("paper.md");
+    std::fs::write(&src, "paper body").unwrap();
+    assert!(run_cli(&dir, &["add", src.to_str().unwrap()]).status.success());
+
+    let inbox_file = dir.join("inbox").join("paper.md");
+    let out = run_cli(
+        &dir,
+        &[
+            "archive",
+            inbox_file.to_str().unwrap(),
+            "--category",
+            "论文",
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "archive failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(dir.join("library").join("论文").join("paper.md").exists());
+}
+
+#[test]
+fn archive_without_mode_fails() {
+    let dir = data_dir("archive-no-mode");
+    let src = dir.join("x.md");
+    std::fs::write(&src, "x").unwrap();
+    assert!(run_cli(&dir, &["add", src.to_str().unwrap()]).status.success());
+    let inbox_file = dir.join("inbox").join("x.md");
+    let out = run_cli(&dir, &["archive", inbox_file.to_str().unwrap()]);
+    assert!(!out.status.success());
+}
