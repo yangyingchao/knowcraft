@@ -20,7 +20,7 @@
 - Modify: `crates/knowcraft-core/Cargo.toml`
 - Modify: `crates/knowcraft-core/src/model.rs:1-15`
 
-- [ ] **Step 1: 添加依赖**
+- [x] **Step 1: 添加依赖**
 
 `crates/knowcraft-core/Cargo.toml` 的 `[dependencies]` 增加：
 
@@ -32,7 +32,7 @@ sha2 = "0.10"
 Run: `cargo check -p knowcraft-core`
 Expected: 通过（Cargo.lock 已有 entries）。
 
-- [ ] **Step 2: 扩展 Document**
+- [x] **Step 2: 扩展 Document**
 
 ```rust
 pub struct Document {
@@ -54,12 +54,12 @@ pub struct Document {
 }
 ```
 
-- [ ] **Step 3: 编译并处理构造点**
+- [x] **Step 3: 编译并处理构造点**
 
 Run: `cargo check -p knowcraft-core`
 Expected: 列出所有缺少新字段的构造点；下一步修复。
 
-- [ ] **Step 4: 临时填值以通过编译**
+- [x] **Step 4: 临时填值以通过编译**
 
 在 `workflow.rs`、`capture.rs`、`tests/` 的 `Document { ... }` 构造处补：
 
@@ -71,7 +71,7 @@ original_name: String::new(),
 
 Task 2 会替换为空 UUID 拒绝逻辑与真实生成。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add crates/knowcraft-core/Cargo.toml crates/knowcraft-core/src/model.rs crates/knowcraft-core/src/workflow.rs crates/knowcraft-core/src/capture.rs crates/knowcraft-core/tests
@@ -84,7 +84,7 @@ git commit -m "feat(core): Document 增加 uuid/storage/original_name"
 - Modify: `crates/knowcraft-core/src/store.rs`
 - Test: `crates/knowcraft-core/tests/store.rs`
 
-- [ ] **Step 1: 写迁移测试**
+- [x] **Step 1: 写迁移测试**
 
 ```rust
 #[test]
@@ -98,7 +98,7 @@ fn migration_backfills_uuid_storage_and_name() {
 Run: `cargo test -p knowcraft-core --test store`
 Expected: FAIL（函数/列不存在）。
 
-- [ ] **Step 2: 实现迁移**
+- [x] **Step 2: 实现迁移**
 
 `store.rs` 增加：
 
@@ -138,7 +138,7 @@ fn migrate(conn: &Connection, data_dir: &Path) -> Result<MigrationReport> {
 
 `Store::open` 在 `execute_batch` 建表后调用 `migrate(&conn, dir)`。
 
-- [ ] **Step 3: 改造读写**
+- [x] **Step 3: 改造读写**
 
 - `CREATE TABLE documents` 新库含三列与 `CHECK (storage IN ('linked','archived'))`。
 - `insert_document` 写 14 列；`uuid` 为空返回 `Error::Store("uuid required")`。
@@ -152,7 +152,7 @@ pub fn update_original_name(&self, id: i64, name: &str) -> Result<()>
 pub fn update_checksum(&self, id: i64, checksum: &str) -> Result<()>
 ```
 
-- [ ] **Step 4: 生成 UUID**
+- [x] **Step 4: 生成 UUID**
 
 `workflow.rs`、`capture.rs` 在构造 `Document` 前：
 
@@ -162,12 +162,12 @@ fn new_uuid() -> String { uuid::Uuid::new_v4().to_string() }
 
 插入前 `original_name` 取文件名，`storage = "linked"`。
 
-- [ ] **Step 5: 运行测试**
+- [x] **Step 5: 运行测试**
 
 Run: `cargo test -p knowcraft-core --test store`
 Expected: PASS。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add crates/knowcraft-core/src/store.rs crates/knowcraft-core/src/workflow.rs crates/knowcraft-core/src/capture.rs crates/knowcraft-core/tests/store.rs
@@ -179,7 +179,7 @@ git commit -m "feat(core): documents 迁移 uuid/storage/original_name"
 **Files:**
 - Modify: `crates/knowcraft-core/src/workflow.rs:38-43`
 
-- [ ] **Step 1: 写测试**
+- [x] **Step 1: 写测试**
 
 ```rust
 #[test]
@@ -192,7 +192,7 @@ fn checksum_is_stable_sha256() {
 }
 ```
 
-- [ ] **Step 2: 实现**
+- [x] **Step 2: 实现**
 
 ```rust
 fn checksum(&self, path: &Path) -> Result<String> {
@@ -202,12 +202,12 @@ fn checksum(&self, path: &Path) -> Result<String> {
 }
 ```
 
-- [ ] **Step 3: 运行**
+- [x] **Step 3: 运行**
 
 Run: `cargo test -p knowcraft-core --test workflow`
 Expected: PASS。
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git commit -am "feat(core): checksum 改为 SHA-256"
@@ -221,11 +221,11 @@ git commit -am "feat(core): checksum 改为 SHA-256"
 - Modify: `crates/knowcraft-core/src/trash.rs`
 - Test: `crates/knowcraft-core/tests/trash.rs`
 
-- [ ] **Step 1: 写测试**
+- [x] **Step 1: 写测试**
 
 覆盖：移动后文件在 `.trash/files/<uuid>.<ext>`；`has_items`；`empty` 清空；`restore` 回到 inbox。
 
-- [ ] **Step 2: 实现**
+- [x] **Step 2: 实现**
 
 ```rust
 pub struct Trash { data_dir: PathBuf }
@@ -241,15 +241,15 @@ impl Trash {
 
 `restore`：查 `find_by_uuid`，把文件移回 `inbox/<original_name>`，更新 `path`、`lifecycle = pending`，重建索引。
 
-- [ ] **Step 3: 删除流程接入**
+- [x] **Step 3: 删除流程接入**
 
 `knowledge` 或 core 提供 `delete_document(uuid)`：移动文件、更新 path 与 lifecycle、移除索引、保留子表。
 
-- [ ] **Step 4: cleanup 豁免**
+- [x] **Step 4: cleanup 豁免**
 
 `cleanup.rs` 跳过 `lifecycle = trashed` 与隐藏路径。
 
-- [ ] **Step 5: 测试与提交**
+- [x] **Step 5: 测试与提交**
 
 Run: `cargo test -p knowcraft-core --test trash`
 Expected: PASS。
@@ -267,11 +267,11 @@ git commit -am "feat(core): 落地 .trash 回收站与按 UUID 恢复"
 - Modify: `crates/knowcraft-core/src/lib.rs`
 - Test: `crates/knowcraft-core/tests/archive.rs`
 
-- [ ] **Step 1: 写测试**
+- [x] **Step 1: 写测试**
 
 覆盖：linked 归档保留相对层级；冲突加后缀；archived 路径 `archived/<ext>/<uuid>.<ext>`；原名固定；`move_record`/`rename_record` 递归目录。
 
-- [ ] **Step 2: 实现**
+- [x] **Step 2: 实现**
 
 ```rust
 pub struct Archive { data_dir: PathBuf }
@@ -285,11 +285,11 @@ impl Archive {
 }
 ```
 
-- [ ] **Step 3: 创建目录与索引重建**
+- [x] **Step 3: 创建目录与索引重建**
 
 `Archive::new` 创建 `archived/`；每次归档后调用 `Index::reindex_document`。
 
-- [ ] **Step 4: 测试与提交**
+- [x] **Step 4: 测试与提交**
 
 Run: `cargo test -p knowcraft-core --test archive`
 Expected: PASS。
@@ -305,21 +305,21 @@ git commit -m "feat(core): link/record 归档与 move/rename 接口"
 - Modify: `crates/knowcraft-core/src/watcher.rs`
 - Modify: `crates/knowcraft/src/knowledge.rs`（`warm_index` 扫描范围）
 
-- [ ] **Step 1: 扩展 Location**
+- [x] **Step 1: 扩展 Location**
 
 `Inbox / Library / Notes / Captures / Archived / Trash / Other`；`location()` 按前缀识别。
 
-- [ ] **Step 2: 事件规则**
+- [x] **Step 2: 事件规则**
 
 - `handle_moved`：受管目录间只更新 path 与 original_name；移出才删。
 - `handle_removed`：`lifecycle = trashed` 不删。
 - 同进程写操作抑制自反馈。
 
-- [ ] **Step 3: 索引范围**
+- [x] **Step 3: 索引范围**
 
 `warm_index` 的 `FOLDERS` 之外遍历 `archived/`。
 
-- [ ] **Step 4: 测试与提交**
+- [x] **Step 4: 测试与提交**
 
 Run: `cargo test -p knowcraft-core --test watcher`
 Expected: PASS。
@@ -336,11 +336,11 @@ git commit -am "feat(core): watcher 受管位置契约与归档索引"
 - Modify: `crates/knowcraft-cli/src/main.rs`
 - Test: `crates/knowcraft-cli/tests/cli.rs`
 
-- [ ] **Step 1: 写测试**
+- [x] **Step 1: 写测试**
 
 旧库运行 `upgrade`，断言输出包含 `from=0 to=1 backfilled=N`。
 
-- [ ] **Step 2: 实现**
+- [x] **Step 2: 实现**
 
 ```rust
 /// 迁移数据库 schema 并报告回填数量
@@ -349,7 +349,7 @@ Upgrade,
 
 `Store::open` 已自动迁移；`upgrade` 打开后打印 `MigrationReport`。为拿到报告，`Store::open_with_report(dir) -> Result<(Store, MigrationReport)>`，`open` 调用它并丢弃报告。
 
-- [ ] **Step 3: 测试与提交**
+- [x] **Step 3: 测试与提交**
 
 Run: `cargo test -p knowcraft-cli --test cli upgrade`
 Expected: PASS。
@@ -364,11 +364,11 @@ git commit -am "feat(cli): upgrade 子命令"
 - Modify: `crates/knowcraft-cli/src/main.rs`
 - Test: `crates/knowcraft-cli/tests/cli.rs`
 
-- [ ] **Step 1: 写测试**
+- [x] **Step 1: 写测试**
 
 `archive <path> --record` 后文件在 `archived/`；`archive <path> --category 论文` 后在 `library/论文/`；无参数报错。
 
-- [ ] **Step 2: 实现**
+- [x] **Step 2: 实现**
 
 ```rust
 Archive {
@@ -384,11 +384,11 @@ Archive {
 
 每个路径先 `find_by_path` 或 `register_*` 得到 doc，再调用 `Archive`。
 
-- [ ] **Step 3: 输出原名与 UUID**
+- [x] **Step 3: 输出原名与 UUID**
 
 `println!("{} {} {}", doc.uuid, doc.original_name, doc.path)`。
 
-- [ ] **Step 4: 测试与提交**
+- [x] **Step 4: 测试与提交**
 
 Run: `cargo test -p knowcraft-cli --test cli archive`
 Expected: PASS。
@@ -406,22 +406,22 @@ git commit -am "feat(cli): archive 子命令"
 - Modify: `crates/knowcraft/src/ui/window/knowledge_dispatch.rs`
 - Modify: `crates/knowcraft/src/ui/browser/context_menu/item_menu.rs`
 
-- [ ] **Step 1: 导入路径**
+- [x] **Step 1: 导入路径**
 
 `import_directory` 与 `register_*` 已由 Task 2 生成 UUID；确认 GUI 无绕过路径。
 
-- [ ] **Step 2: 归档对话框**
+- [x] **Step 2: 归档对话框**
 
 - Inbox：分类列表 + 推荐 + 「归档为记录」按钮。
 - 多选：不显示推荐。
 - 非 Inbox：只显示「归档为记录」。
 - 调用 `Archive` 接口，不复制移动逻辑。
 
-- [ ] **Step 3: 菜单可见性**
+- [x] **Step 3: 菜单可见性**
 
 知识库内文件显示 Archive；非知识库不显示。
 
-- [ ] **Step 4: 编译与提交**
+- [x] **Step 4: 编译与提交**
 
 Run: `cargo build`
 Expected: 通过。
@@ -435,11 +435,11 @@ git commit -am "feat(gui): 归档对话框选择 linked/record"
 **Files:**
 - Modify: GUI 文件操作成功回调（rename、cut/paste、drag-move、Move to、目录重命名）
 
-- [ ] **Step 1: 定位成功回调**
+- [x] **Step 1: 定位成功回调**
 
 逐个操作找到 `std::fs::rename` / 复制-删除完成处。
 
-- [ ] **Step 2: 调用 core**
+- [x] **Step 2: 调用 core**
 
 ```rust
 knowcraft::knowledge::init().map(|k| k.archive().move_record(&store, doc_id, &new_path));
@@ -447,11 +447,11 @@ knowcraft::knowledge::init().map(|k| k.archive().move_record(&store, doc_id, &ne
 
 目录级操作按旧前缀批量更新。
 
-- [ ] **Step 3: 失败补偿**
+- [x] **Step 3: 失败补偿**
 
 DB 更新失败时尝试移回文件并记录日志。
 
-- [ ] **Step 4: 编译与提交**
+- [x] **Step 4: 编译与提交**
 
 Run: `cargo build`
 Expected: 通过。
@@ -519,3 +519,26 @@ git commit -am "docs: 同步 UUID/归档设计"
 - Spec 覆盖：身份、存储、迁移、Trash、Archive、watcher、索引、CLI、GUI、文档均有对应任务。
 - 类型一致：`Document` 三字段、`MigrationReport`、`Archive`/`Trash` 方法在任务间一致。
 - 无占位：每个任务给出接口签名、测试目标与验证命令。
+
+## 执行状态（2026-11-05）
+
+已完成 Task 1-10，每个任务已单独提交：
+
+- Task 1 `7e28846`：Document 增加 uuid/storage/original_name
+- Task 2 `cf7a1e4`：schema v1 迁移与查询改造
+- Task 3 `5525dd2`：checksum 改为 SHA-256
+- Task 4 `4ff9b10`：.trash 回收站与按 UUID 恢复
+- Task 5 `58444ac`：Archive linked/archived 与 move/rename
+- Task 6 `f0b5dbc`：watcher 契约与归档索引
+- Task 7 `f188965`：CLI upgrade
+- Task 8 `3f8b852`：CLI archive
+- Task 9a `7af6e67`：GUI 归档门面与双模式对话框
+- Task 9b `b40ae8e`：GUI 右键多选归档
+- Task 10 `5a28e4a`：GUI move/rename 同步
+
+未开始：
+
+- Task 11：Sidebar「归档」虚拟列表与搜索。
+- Task 12：同步基础设计文档与最终验证。
+
+按用户要求暂停，后续继续。
