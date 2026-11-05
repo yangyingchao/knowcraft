@@ -10,10 +10,10 @@ use crate::ui::{
     browser::BrowserView,
     browser_modes::BrowserMode,
     keys::{
-        KeyPress,
+        Binding, KeyPress,
         bindings::{
             BACKSPACE, DOWN, END_KEY, ENTER, FILTER_SLASH, FOCUS_NEXT, HOME_KEY, LEFT,
-            PAGE_DOWN_KEY, PAGE_UP_KEY, RIGHT, SPACE, UP, VIEW_COLUMNS, VIEW_ICONS, VIEW_LIST,
+            PAGE_DOWN_KEY, PAGE_UP_KEY, RIGHT, UP, VIEW_COLUMNS, VIEW_ICONS, VIEW_LIST,
         },
     },
     preferences::PreferenceManager,
@@ -137,7 +137,7 @@ pub(in crate::ui) fn is_browser_navigation_key(press: &KeyPress) -> bool {
 
 pub(in crate::ui) fn type_to_search_query(press: &KeyPress) -> Option<TypeToSearchQuery> {
     // Space belongs to quick preview; focused text fields handle their own spaces.
-    if press.is(SPACE.ignoring(ModifierType::SHIFT_MASK)) {
+    if press.is(Binding::plain(gtk::gdk::Key::space).ignoring(ModifierType::SHIFT_MASK)) {
         return None;
     }
     // A letter that reads as `/` only through the layout fallback is typed.

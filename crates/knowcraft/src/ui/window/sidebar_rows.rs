@@ -7,37 +7,11 @@ use gtk::prelude::*;
 use crate::model::Location;
 
 use super::{
-    SidebarState, places::place_keycap, sidebar::PlaceNavigation,
-    sidebar_devices::sidebar_device_shell, sidebar_drop_feedback,
+    SidebarState, sidebar::PlaceNavigation, sidebar_devices::sidebar_device_shell,
+    sidebar_drop_feedback,
 };
 
 impl SidebarState {
-    /// Keycaps name the second key of the **g** place chord while it is armed.
-    /// They stand in for the row icon so long place names are not truncated further.
-    pub(super) fn add_keycap(&self, row: &gtk::Button, key: &str) -> Option<gtk::Label> {
-        let content = row.child().and_downcast::<gtk::Box>()?;
-        let keycap = gtk::Label::new(Some(key));
-        keycap.add_css_class("sidebar-keycap");
-        keycap.set_valign(gtk::Align::Center);
-        content.insert_child_after(&keycap, content.first_child().as_ref());
-        self.keycaps.borrow_mut().push(keycap.clone());
-        Some(keycap)
-    }
-
-    pub(super) fn add_place_keycap(&self, row: &gtk::Button, step: crate::ui::keys::Command) {
-        if let Some(keycap) = self.add_keycap(row, "") {
-            crate::ui::shortcut_reference::follow_keys(&keycap, move |keycap| {
-                keycap.set_text(&place_keycap(step));
-            });
-            sync_keycap(&keycap, self.keycaps_shown.get() && !self.rail.get());
-        }
-    }
-
-    pub(in crate::ui) fn show_place_keycaps(&self, shown: bool) {
-        self.keycaps_shown.set(shown);
-        self.sync_keycaps();
-    }
-
     pub(super) fn sync_keycaps(&self) {
         let visible = self.keycaps_shown.get() && !self.rail.get();
         for keycap in self.keycaps.borrow().iter() {

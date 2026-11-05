@@ -24,8 +24,8 @@ impl OpenPage {
         Self { window, page }
     }
 
-    fn row(&self, map: Map, command: Command) -> gtk::Widget {
-        row_in(&self.page, map, command)
+    fn row(&self, command: Command) -> gtk::Widget {
+        row_in(&self.page, command)
     }
 
     /// A button of the newest confirmation dialog, by its `action-dialog-*`
@@ -81,16 +81,10 @@ fn descendants(widget: &gtk::Widget) -> Vec<gtk::Widget> {
     widgets
 }
 
-fn row_in(root: &gtk::Widget, map: Map, command: Command) -> gtk::Widget {
+fn row_in(root: &gtk::Widget, command: Command) -> gtk::Widget {
     let table = descendants(root)
         .into_iter()
-        .find(|widget| {
-            widget.widget_name()
-                == match map {
-                    Map::Default => "keymap-default",
-                    Map::Tenxer => "keymap-tenxer",
-                }
-        })
+        .find(|widget| widget.widget_name() == "keymap-default")
         .expect("keymap table");
     descendants(&table)
         .into_iter()
@@ -135,10 +129,10 @@ fn capturing(row: &gtk::Widget) -> bool {
         .any(|widget| widget.has_css_class("keymap-capture") && widget.is_visible())
 }
 
-fn rename_entry(map: Map) -> Vec<Binding> {
+fn rename_entry() -> Vec<Binding> {
     PreferenceManager::shared()
         .keymap()
-        .bindings(map, RENAME)
+        .bindings(Map::Default, RENAME)
         .to_vec()
 }
 
@@ -148,13 +142,13 @@ fn error_finding_blocks_commit() {
         "ui::settings::keyboard::tests::error_finding_blocks_commit",
         || {
             let open = OpenPage::open();
-            let row = open.row(Map::Default, RENAME);
+            let row = open.row(RENAME);
             button(&row, "Add").emit_clicked();
             assert!(capturing(&row));
             open.press(Key::Shift_L, ModifierType::empty());
             assert!(capturing(&row), "a modifier alone waits for the key");
             open.press(Key::c, ModifierType::CONTROL_MASK);
-            assert_eq!(rename_entry(Map::Default), RENAME.defaults(Map::Default));
+            assert_eq!(rename_entry(), RENAME.defaults(Map::Default));
             assert!(capturing(&row), "the refused key keeps the capture waiting");
             let refused = notes(&row);
             assert!(
@@ -167,7 +161,7 @@ fn error_finding_blocks_commit() {
                 Key::numbersign,
                 ModifierType::CONTROL_MASK | ModifierType::SHIFT_MASK,
             );
-            assert_eq!(rename_entry(Map::Default), RENAME.defaults(Map::Default));
+            assert_eq!(rename_entry(), RENAME.defaults(Map::Default));
             assert!(capturing(&row), "tab numbers keep Ctrl+Shift+3");
             let refused = notes(&row);
             assert!(
@@ -177,7 +171,7 @@ fn error_finding_blocks_commit() {
             open.press(Key::Escape, ModifierType::empty());
             assert!(!capturing(&row));
             assert!(notes(&row).is_empty(), "{:?}", notes(&row));
-            assert_eq!(rename_entry(Map::Default), RENAME.defaults(Map::Default));
+            assert_eq!(rename_entry(), RENAME.defaults(Map::Default));
         },
     );
 }
@@ -190,12 +184,12 @@ fn warning_saves_and_shows_inactive() {
             let preferences = PreferenceManager::shared();
             preferences.set_type_to_search(true);
             let open = OpenPage::open();
-            let row = open.row(Map::Default, RENAME);
+            let row = open.row(RENAME);
             button(&row, "Add").emit_clicked();
             open.press(Key::e, ModifierType::empty());
             assert!(!capturing(&row));
             assert_eq!(
-                rename_entry(Map::Default),
+                rename_entry(),
                 [
                     Binding::plain(Key::F2),
                     Binding::ctrl(Key::r),
@@ -244,20 +238,16 @@ fn reset_row_and_reset_table_restore_defaults() {
         || {
             let preferences = PreferenceManager::shared();
             let open = OpenPage::open();
-            for map in [Map::Default, Map::Tenxer] {
-                preferences.set_bindings(map, RENAME, vec![Binding::ctrl(Key::e)]);
-                preferences.set_bindings(map, REFRESH, Vec::new());
-            }
+            preferences.set_bindings(Map::Default, RENAME, vec![Binding::ctrl(Key::e)]);
+            preferences.set_bindings(Map::Default, REFRESH, Vec::new());
             settle();
-            let reset = |map| button(&open.row(map, RENAME), "Reset");
-            // The 10xer table is hidden, so only the button's own visibility counts.
-            assert!(reset(Map::Default).get_visible() && reset(Map::Tenxer).get_visible());
+            let reset = || button(&open.row(RENAME), "Reset");
+            assert!(reset().get_visible());
 
-            reset(Map::Default).emit_clicked();
+            reset().emit_clicked();
             settle();
-            assert_eq!(rename_entry(Map::Default), RENAME.defaults(Map::Default));
-            assert_eq!(rename_entry(Map::Tenxer), [Binding::ctrl(Key::e)]);
-            assert!(!reset(Map::Default).get_visible());
+            assert_eq!(rename_entry(), RENAME.defaults(Map::Default));
+            assert!(!reset().get_visible());
 
             let reset_all = descendants(&open.page)
                 .into_iter()
@@ -275,26 +265,8 @@ fn reset_row_and_reset_table_restore_defaults() {
             settle();
             let keymap = preferences.keymap();
             assert!(!keymap.overrides(Map::Default, REFRESH));
-            assert!(keymap.overrides(Map::Tenxer, REFRESH));
-            assert!(keymap.overrides(Map::Tenxer, RENAME));
+            assert!(!keymap.overrides(Map::Default, RENAME));
             assert!(!reset_all.is_sensitive());
-
-            let tenxer = descendants(&open.page)
-                .into_iter()
-                .filter_map(|widget| widget.downcast::<gtk::ToggleButton>().ok())
-                .find(|button| button.label().as_deref() == Some("10xer mode"))
-                .expect("10xer table choice");
-            tenxer.set_active(true);
-            settle();
-            assert!(reset_all.is_sensitive());
-            reset_all.emit_clicked();
-            settle();
-            open.dialog_button("action-dialog-confirm").emit_clicked();
-            settle();
-            let keymap = preferences.keymap();
-            for map in [Map::Default, Map::Tenxer] {
-                assert!(!keymap.overrides(map, RENAME) && !keymap.overrides(map, REFRESH));
-            }
         },
     );
 }
@@ -309,11 +281,11 @@ fn page_reflects_external_change() {
             preferences.set_bindings(Map::Default, RENAME, vec![Binding::ctrl(Key::e)]);
             settle();
             for open in [&first, &second] {
-                let row = open.row(Map::Default, RENAME);
+                let row = open.row(RENAME);
                 assert_eq!(chips(&row), [("Ctrl+E".to_owned(), false)]);
                 assert!(button(&row, "Reset").is_visible());
             }
-            let copy = second.row(Map::Default, COPY);
+            let copy = second.row(COPY);
             let remove = descendants(&copy)
                 .into_iter()
                 .find(|widget| widget.has_css_class("keymap-chip-remove"))
@@ -322,7 +294,7 @@ fn page_reflects_external_change() {
             remove.emit_clicked();
             settle();
             assert!(preferences.keymap().bindings(Map::Default, COPY).is_empty());
-            let row = first.row(Map::Default, COPY);
+            let row = first.row(COPY);
             assert!(chips(&row).is_empty());
             let unbound = descendants(&row)
                 .into_iter()
@@ -382,31 +354,14 @@ fn search_finds_rows_by_action_and_key() {
                 entry.set_text(query);
                 settle();
                 assert_eq!(stack.visible_child_name().as_deref(), Some(PAGE), "{query}");
-                assert!(shown(&row_in(&layer, Map::Default, RENAME)), "{query}");
-                assert!(!shown(&row_in(&layer, Map::Default, COPY)), "{query}");
+                assert!(shown(&row_in(&layer, RENAME)), "{query}");
+                assert!(!shown(&row_in(&layer, COPY)), "{query}");
             }
             entry.set_text("hotkeys");
             settle();
             assert_eq!(stack.visible_child_name().as_deref(), Some(PAGE));
-            assert!(shown(&row_in(&layer, Map::Default, RENAME)));
-            assert!(shown(&row_in(&layer, Map::Default, COPY)));
-            let tenxer = descendants(&stack.child_by_name(PAGE).expect("keyboard page"))
-                .into_iter()
-                .filter_map(|widget| widget.downcast::<gtk::ToggleButton>().ok())
-                .find(|button| button.label().as_deref() == Some("10xer mode"))
-                .expect("10xer table choice");
-            assert!(
-                shown(tenxer.upcast_ref()) && !tenxer.is_active(),
-                "the table switch stays"
-            );
-            // Only the 10xer table has chord triggers.
-            entry.set_text("Sort chord");
-            settle();
-            assert!(tenxer.is_active());
-            assert!(shown(&row_in(&layer, Map::Tenxer, SORT_BY)));
-            entry.set_text("");
-            settle();
-            assert!(shown(&row_in(&layer, Map::Tenxer, COPY)));
+            assert!(shown(&row_in(&layer, RENAME)));
+            assert!(shown(&row_in(&layer, COPY)));
         },
     );
 }
@@ -427,67 +382,33 @@ fn filter_shows_rows_whose_action_name_matches() {
                 .filter_map(|widget| widget.downcast::<gtk::Label>().ok())
                 .find(|label| label.text() == "No matching shortcuts")
                 .expect("empty note");
-            let shown = |map: Map, command: Command| open.row(map, command).is_drawable();
+            let shown = |command: Command| open.row(command).is_drawable();
 
             filter.set_text("RENAME");
             settle();
-            assert!(shown(Map::Default, RENAME));
-            assert!(!shown(Map::Default, COPY));
+            assert!(shown(RENAME));
+            assert!(!shown(COPY));
             assert!(!no_match.is_visible());
 
             // Key labels are not names: F2 is Rename's key.
             filter.set_text("F2");
             settle();
-            assert!(!shown(Map::Default, RENAME));
+            assert!(!shown(RENAME));
             assert!(no_match.is_drawable());
-
-            filter.set_text("rename");
-            settle();
-            let tenxer = descendants(&open.page)
-                .into_iter()
-                .filter_map(|widget| widget.downcast::<gtk::ToggleButton>().ok())
-                .find(|button| button.label().as_deref() == Some("10xer mode"))
-                .expect("10xer table choice");
-            tenxer.set_active(true);
-            settle();
-            assert!(
-                shown(Map::Tenxer, RENAME),
-                "the filter follows the shown table"
-            );
-            assert!(!shown(Map::Tenxer, COPY));
-
-            filter.set_text("");
-            settle();
-            assert!(shown(Map::Tenxer, RENAME) && shown(Map::Tenxer, COPY));
         },
     );
 }
 
 #[test]
-fn tables_list_only_what_their_map_can_run() {
-    gtk_test(
-        "ui::settings::keyboard::tests::tables_list_only_what_their_map_can_run",
-        || {
-            let listed = |map: Map| sections(map);
-            let has = |map: Map, command: Command| {
-                listed(map)
-                    .iter()
-                    .any(|(_, commands)| commands.contains(&command))
-            };
-            let default = listed(Map::Default);
-            assert!(default.iter().all(|(title, _)| *title != "10xer mode"));
-            assert!(!has(Map::Default, FIND), "a 10xer verb");
-            assert!(!has(Map::Default, YANK), "a 10xer verb");
-            assert!(!has(Map::Default, GO_HOME), "a chord step");
-            assert!(
-                has(Map::Default, SORT_BY_NAME) && has(Map::Default, SEARCH_SUBFOLDERS),
-                "the direct stage runs them"
-            );
-            assert!(!has(Map::Tenxer, FILTER_SLASH), "a default-map key");
-            assert!(has(Map::Tenxer, FIND) && has(Map::Tenxer, GO_HOME));
-            assert!(has(Map::Tenxer, DUPLICATE), "the direct stage runs it");
-        },
-    );
+fn tables_list_only_what_the_map_can_run() {
+    let listed = sections(Map::Default);
+    let has = |command: Command| {
+        listed
+            .iter()
+            .any(|(_, commands)| commands.contains(&command))
+    };
+    assert!(listed.iter().all(|(title, _)| *title != "10xer mode"));
+    assert!(has(DUPLICATE), "the direct stage runs it");
 }
 
 #[test]
@@ -496,7 +417,7 @@ fn captures_in_two_windows_stay_armed() {
         "ui::settings::keyboard::tests::captures_in_two_windows_stay_armed",
         || {
             let (first, second) = (OpenPage::open(), OpenPage::open());
-            let rows = [&first, &second].map(|open| open.row(Map::Default, RENAME));
+            let rows = [&first, &second].map(|open| open.row(RENAME));
             for row in &rows {
                 button(row, "Add").emit_clicked();
             }
@@ -507,7 +428,7 @@ fn captures_in_two_windows_stay_armed() {
             second.press(Key::F7, ModifierType::empty());
             assert!(!capturing(&rows[1]));
             assert_eq!(
-                rename_entry(Map::Default),
+                rename_entry(),
                 [
                     Binding::plain(Key::F2),
                     Binding::ctrl(Key::r),
@@ -519,105 +440,39 @@ fn captures_in_two_windows_stay_armed() {
     );
 }
 
-#[test]
-fn step_rows_follow_their_trigger() {
-    gtk_test(
-        "ui::settings::keyboard::tests::step_rows_follow_their_trigger",
-        || {
-            let preferences = PreferenceManager::shared();
-            let open = OpenPage::open();
-            descendants(&open.page)
-                .into_iter()
-                .filter_map(|widget| widget.downcast::<gtk::ToggleButton>().ok())
-                .find(|button| button.label().as_deref() == Some("10xer mode"))
-                .expect("10xer table choice")
-                .set_active(true);
-            let row = open.row(Map::Tenxer, GO_HOME);
-            let prefix = || {
-                descendants(&row)
-                    .into_iter()
-                    .find(|widget| widget.has_css_class("keymap-prefix"))
-                    .and_downcast::<gtk::Label>()
-                    .filter(|label| label.get_visible())
-                    .map(|label| label.text().to_string())
-            };
-            assert_eq!(prefix().as_deref(), Some("g"));
-
-            preferences.set_bindings(Map::Tenxer, GO, vec![Binding::ctrl(Key::g)]);
-            settle();
-            assert_eq!(prefix().as_deref(), Some("Ctrl+G"));
-
-            preferences.set_bindings(Map::Tenxer, GO, Vec::new());
-            settle();
-            assert_eq!(prefix(), None);
-            assert_eq!(chips(&row), [("h".to_owned(), true)]);
-            assert!(
-                notes(&row).iter().any(|note| note.contains("“Go chord”")),
-                "{:?}",
-                notes(&row)
-            );
-
-            preferences.reset_binding(Map::Tenxer, GO);
-            preferences.set_bindings(Map::Tenxer, GO_HOME, vec![Binding::plain(Key::_1)]);
-            settle();
-            assert!(!preferences.tenxer_mode());
-            assert!(
-                notes(&row)
-                    .iter()
-                    .any(|note| note.starts_with("g 1\u{2013}9 open pinned folders")),
-                "digits read from the row's table, not the active one: {:?}",
-                notes(&row)
-            );
-
-            preferences.set_bindings(Map::Tenxer, GO, Vec::new());
-            settle();
-            assert!(
-                notes(&row)
-                    .iter()
-                    .any(|note| note.starts_with("1\u{2013}9 open pinned folders")),
-                "{:?}",
-                notes(&row)
-            );
-        },
-    );
-}
-
-/// Everything each row of both tables shows, hidden table included.
+/// Everything each row of the table shows.
 fn rows_text(page: &gtk::Widget) -> Vec<String> {
     let mut rows = Vec::new();
-    for map in [Map::Default, Map::Tenxer] {
-        for command in sections(map).into_iter().flat_map(|(_, listed)| listed) {
-            let row = row_in(page, map, command);
-            let shown = |widget: &gtk::Widget| {
-                let mut current = Some(widget.clone());
-                while let Some(widget) = current.filter(|widget| *widget != row) {
-                    if !widget.get_visible() {
-                        return false;
-                    }
-                    current = widget.parent();
+    for command in sections(Map::Default)
+        .into_iter()
+        .flat_map(|(_, listed)| listed)
+    {
+        let row = row_in(page, command);
+        let shown = |widget: &gtk::Widget| {
+            let mut current = Some(widget.clone());
+            while let Some(widget) = current.filter(|widget| *widget != row) {
+                if !widget.get_visible() {
+                    return false;
                 }
-                true
-            };
-            let texts: Vec<String> = descendants(&row)
-                .into_iter()
-                .filter(shown)
-                .filter_map(|widget| widget.downcast::<gtk::Label>().ok())
-                .map(|label| label.text().to_string())
-                .collect();
-            rows.push(format!(
-                "{map:?} {}: {texts:?} {:?}",
-                command.id(),
-                chips(&row)
-            ));
-        }
+                current = widget.parent();
+            }
+            true
+        };
+        let texts: Vec<String> = descendants(&row)
+            .into_iter()
+            .filter(shown)
+            .filter_map(|widget| widget.downcast::<gtk::Label>().ok())
+            .map(|label| label.text().to_string())
+            .collect();
+        rows.push(format!("{}: {texts:?} {:?}", command.id(), chips(&row)));
     }
     rows
 }
 
 #[test]
-fn rows_read_their_own_table_in_either_mode() {
+fn rows_read_their_own_table() {
     gtk_test(
-        "ui::settings::keyboard::tests::rows_read_their_own_table_in_either_mode",
+        "ui::settings::keyboard::tests::rows_read_their_own_table",
         || {
             let preferences = PreferenceManager::shared();
             preferences.set_type_to_search(true);
@@ -630,26 +485,9 @@ fn rows_read_their_own_table_in_either_mode() {
                     Binding::plain(Key::e),
                 ],
             );
-            preferences.set_bindings(Map::Tenxer, GO_HOME, vec![Binding::plain(Key::_1)]);
-            preferences.set_bindings(Map::Tenxer, ACTIONS_EXTRACT, vec![Binding::plain(Key::_2)]);
-            preferences.set_bindings(Map::Tenxer, RENAME, vec![Binding::ctrl(Key::c)]);
-            let shown_in = |tenxer| {
-                preferences.set_tenxer_mode(tenxer);
-                let open = OpenPage::open();
-                let targets: Vec<(String, String)> = search_targets()
-                    .into_iter()
-                    .map(|target| (target.id, target.aliases))
-                    .collect();
-                (rows_text(&open.page), targets)
-            };
-            let (rows, targets) = shown_in(false);
+            let open = OpenPage::open();
+            let rows = rows_text(&open.page);
             for (row, text) in [
-                ("Tenxer go.home:", "g 1\u{2013}9 open pinned folders"),
-                (
-                    "Tenxer actions.extract:",
-                    "; 1\u{2013}9 / ; 0 run custom actions",
-                ),
-                ("Tenxer rename:", "“Copy” also uses Ctrl+C"),
                 ("Default rename:", "e does nothing while type-to-search"),
                 ("Default rename:", "“New tab” takes Ctrl+T first"),
             ] {
@@ -659,7 +497,6 @@ fn rows_read_their_own_table_in_either_mode() {
                     "{row} {text}"
                 );
             }
-            assert_eq!((rows, targets), shown_in(true));
         },
     );
 }
@@ -669,17 +506,18 @@ fn rows_read_their_own_table_in_either_mode() {
 #[test]
 fn rows_of_one_table_have_distinct_names() {
     let mut shared = Vec::new();
-    for map in [Map::Default, Map::Tenxer] {
-        let mut seen: Vec<Command> = Vec::new();
-        for command in sections(map).into_iter().flat_map(|(_, commands)| commands) {
-            if let Some(other) = seen
-                .iter()
-                .find(|other| title_in(**other, "en") == title_in(command, "en"))
-            {
-                shared.push(format!("{map:?}: {other:?} and {command:?}"));
-            }
-            seen.push(command);
+    let mut seen: Vec<Command> = Vec::new();
+    for command in sections(Map::Default)
+        .into_iter()
+        .flat_map(|(_, commands)| commands)
+    {
+        if let Some(other) = seen
+            .iter()
+            .find(|other| title_in(**other, "en") == title_in(command, "en"))
+        {
+            shared.push(format!("{other:?} and {command:?}"));
         }
+        seen.push(command);
     }
     assert!(shared.is_empty(), "{shared:#?}");
 }
@@ -739,15 +577,7 @@ fn custom_action_slots_name_the_action_they_run() {
                 .flat_map(|(_, commands)| commands)
                 .collect();
             assert_eq!(slots, keys::CUSTOM_ACTIONS);
-            assert!(
-                sections(Map::Tenxer)
-                    .iter()
-                    .flat_map(|(_, commands)| commands)
-                    .all(|command| !keys::CUSTOM_ACTIONS.contains(command)),
-                "10xer runs custom actions from its Action chord"
-            );
-            let slot =
-                |number: usize| labels(&open.row(Map::Default, keys::CUSTOM_ACTIONS[number - 1]));
+            let slot = |number: usize| labels(&open.row(keys::CUSTOM_ACTIONS[number - 1]));
             assert_eq!(slot(1)[..2], ["Custom action 1", "Resize images"]);
             assert_eq!(slot(2)[..2], ["Custom action 2", "No action"]);
             assert_eq!(slot(10)[..2], ["Custom action 10", "No action"]);
@@ -773,10 +603,7 @@ fn custom_action_slots_name_the_action_they_run() {
                 .filter_map(|widget| widget.downcast::<gtk::Entry>().ok())
                 .find(|entry| entry.placeholder_text().as_deref() == Some("Search keybinds"))
                 .expect("keybind filter");
-            let shown = |number: usize| {
-                open.row(Map::Default, keys::CUSTOM_ACTIONS[number - 1])
-                    .is_drawable()
-            };
+            let shown = |number: usize| open.row(keys::CUSTOM_ACTIONS[number - 1]).is_drawable();
             filter.set_text("shrink");
             settle();
             assert!(shown(1) && !shown(2));

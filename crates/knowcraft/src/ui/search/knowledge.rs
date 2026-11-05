@@ -2,13 +2,7 @@
 
 //! 知识库 provider：正文与标签的异步查询。
 
-use std::{
-    cell::RefCell,
-    path::PathBuf,
-    rc::Rc,
-    sync::mpsc,
-    time::Duration,
-};
+use std::{cell::RefCell, path::PathBuf, rc::Rc, sync::mpsc, time::Duration};
 
 use crate::knowledge;
 
@@ -78,4 +72,3 @@ impl KnowledgeSections {
         });
     }
 }
-

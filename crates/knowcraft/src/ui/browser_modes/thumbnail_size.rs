@@ -32,8 +32,7 @@ pub(in crate::ui) enum ThumbnailResize {
 }
 
 impl ThumbnailResize {
-    /// The keys that resize from anywhere; the 10xer map's plain keys resize
-    /// only from the icons, through [`Self::for_tenxer_key`].
+    /// The keys that resize from anywhere.
     pub(in crate::ui) fn for_shortcut(press: &KeyPress) -> Option<Self> {
         if press.is(THUMBNAILS_LARGER.in_map(Map::Default)) {
             Some(Self::Step(1))
@@ -41,16 +40,6 @@ impl ThumbnailResize {
             Some(Self::Step(-1))
         } else if press.is(THUMBNAILS_RESET) {
             Some(Self::Reset)
-        } else {
-            None
-        }
-    }
-
-    pub(in crate::ui) fn for_tenxer_key(press: &KeyPress) -> Option<Self> {
-        if press.is(THUMBNAILS_LARGER) {
-            Some(Self::Step(1))
-        } else if press.is(THUMBNAILS_SMALLER) {
-            Some(Self::Step(-1))
         } else {
             None
         }

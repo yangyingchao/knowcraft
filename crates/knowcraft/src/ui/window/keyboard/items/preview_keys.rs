@@ -138,9 +138,6 @@ impl Dispatcher {
             return None;
         }
         let press = &event.press;
-        if press.is(SPACE) {
-            return self.preview.close_archive().then_some(Propagation::Stop);
-        }
         let motion = [
             (UP, ArchiveMove::Previous),
             (DOWN, ArchiveMove::Next),
@@ -158,7 +155,7 @@ impl Dispatcher {
 }
 
 fn opens_entry(press: &KeyPress) -> bool {
-    press.is(RIGHT) || press.is(ENTER) || press.is(SPACE)
+    press.is(RIGHT) || press.is(ENTER)
 }
 
 fn is_previewable_archive(entry: &FileEntry) -> bool {

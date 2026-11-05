@@ -26,10 +26,7 @@ pub(super) use send_to::{
     FinishedSendToCompletion, PendingSendToCompletion, SendToTransferContext,
 };
 #[cfg(test)]
-use {
-    crate::services::VolumeRelation, collisions::conflict_explanation,
-    drop::drop_description,
-};
+use {crate::services::VolumeRelation, collisions::conflict_explanation, drop::drop_description};
 
 type RemovableRootResolver = Rc<dyn Fn(&str) -> Option<PathBuf>>;
 

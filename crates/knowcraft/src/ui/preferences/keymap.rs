@@ -14,8 +14,8 @@ use crate::ui::keys::{
     conflicts::{self, Policy, Severity},
 };
 
-/// `[keymap.default]` and `[keymap.tenxer]`: command ids and their
-/// accelerators, primary first. An empty list unbinds the command.
+/// `[keymap.default]`: command ids and their accelerators, primary first.
+/// An empty list unbinds the command.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 pub(in crate::ui) struct KeymapOverrides {
     #[serde(
@@ -24,12 +24,6 @@ pub(in crate::ui) struct KeymapOverrides {
         skip_serializing_if = "BTreeMap::is_empty"
     )]
     pub(super) default: BTreeMap<String, toml::Value>,
-    #[serde(
-        default,
-        deserialize_with = "entries_or_empty",
-        skip_serializing_if = "BTreeMap::is_empty"
-    )]
-    pub(super) tenxer: BTreeMap<String, toml::Value>,
 }
 
 /// A map that is not a table is dropped alone, so the other map's entries
@@ -48,14 +42,11 @@ fn entries_or_empty<'de, D: serde::Deserializer<'de>>(
 
 impl KeymapOverrides {
     pub(super) fn is_empty(&self) -> bool {
-        self.default.is_empty() && self.tenxer.is_empty()
+        self.default.is_empty()
     }
 
-    fn entries_mut(&mut self, map: Map) -> &mut BTreeMap<String, toml::Value> {
-        match map {
-            Map::Default => &mut self.default,
-            Map::Tenxer => &mut self.tenxer,
-        }
+    fn entries_mut(&mut self, _map: Map) -> &mut BTreeMap<String, toml::Value> {
+        &mut self.default
     }
 
     /// The shipped tables with every entry that applies. With `file`, the
@@ -88,13 +79,9 @@ impl KeymapOverrides {
             }
         };
         if let Some(file) = file {
-            for (map, entries) in [(Map::Default, &self.default), (Map::Tenxer, &self.tenxer)] {
-                report_capital_letters(file, map, entries);
-            }
+            report_capital_letters(file, Map::Default, &self.default);
         }
-        Keymap::defaults()
-            .overridden(Map::Default, entries(&self.default), report(Map::Default))
-            .overridden(Map::Tenxer, entries(&self.tenxer), report(Map::Tenxer))
+        Keymap::defaults().overridden(Map::Default, entries(&self.default), report(Map::Default))
     }
 }
 
@@ -125,29 +112,27 @@ fn report_capital_letters(file: &Path, map: Map, entries: &BTreeMap<String, toml
 /// entries still apply.
 fn report_findings(keymap: &Keymap, file: &Path, policy: Policy) {
     let file = file.display();
-    for map in [Map::Default, Map::Tenxer] {
-        for (command, finding) in conflicts::audit_added(keymap, map, policy) {
-            let id = command.id();
-            let accelerator = finding.binding.accelerator();
-            let kind = finding.kind;
-            match finding.severity {
-                Severity::Error => tracing::warn!(
-                    %file, ?map, id, %accelerator, ?kind,
-                    "keymap entry has a key that never fires there or stops another key working"
-                ),
-                Severity::Warning => tracing::info!(
-                    %file, ?map, id, %accelerator, ?kind,
-                    "keymap entry has a key that works only in some places"
-                ),
-            }
+    for (command, finding) in conflicts::audit_added(keymap, Map::Default, policy) {
+        let id = command.id();
+        let accelerator = finding.binding.accelerator();
+        let kind = finding.kind;
+        match finding.severity {
+            Severity::Error => tracing::warn!(
+                %file, id, %accelerator, ?kind,
+                "keymap entry has a key that never fires there or stops another key working"
+            ),
+            Severity::Warning => tracing::info!(
+                %file, id, %accelerator, ?kind,
+                "keymap entry has a key that works only in some places"
+            ),
         }
     }
 }
 
 impl PreferenceManager {
-    /// Both maps' tables with the saved overrides applied. Built on first use,
-    /// after GTK can parse accelerators, and logged once for the file's
-    /// entries that cannot apply and the conflicts their keys cause.
+    /// The default map's table with the saved overrides applied. Built on
+    /// first use, after GTK can parse accelerators, and logged once for the
+    /// file's entries that cannot apply and the conflicts their keys cause.
     pub(crate) fn keymap(&self) -> Rc<Keymap> {
         if let Some(keymap) = self.keymap.borrow().as_ref() {
             return keymap.clone();

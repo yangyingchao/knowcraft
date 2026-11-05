@@ -12,9 +12,7 @@ use std::{
 use gtk::{gio, glib, prelude::*};
 
 use crate::{
-    adapters::{
-        LocalFileSource, LocalOperationProvider, location_for_file, mount_lanes, probes,
-    },
+    adapters::{LocalFileSource, LocalOperationProvider, location_for_file, mount_lanes, probes},
     app::Browser,
     model::Location,
     services::LocationValidationError,

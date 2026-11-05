@@ -167,7 +167,9 @@ fn file_drop_action_follows_volume_relation_not_local_vs_external() {
             crate::services::DropOverride::None,
             crate::services::VolumeRelation::Same,
             false,
-            ask, None)),
+            ask,
+            None
+        )),
         gtk::gdk::DragAction::MOVE
     );
     assert_eq!(
@@ -176,7 +178,9 @@ fn file_drop_action_follows_volume_relation_not_local_vs_external() {
             crate::services::DropOverride::None,
             crate::services::VolumeRelation::Different,
             false,
-            ask, None)),
+            ask,
+            None
+        )),
         gtk::gdk::DragAction::COPY
     );
     assert_eq!(
@@ -185,7 +189,9 @@ fn file_drop_action_follows_volume_relation_not_local_vs_external() {
             crate::services::DropOverride::None,
             crate::services::VolumeRelation::Unknown,
             false,
-            ask, None)),
+            ask,
+            None
+        )),
         gtk::gdk::DragAction::COPY
     );
     assert_eq!(
@@ -194,7 +200,9 @@ fn file_drop_action_follows_volume_relation_not_local_vs_external() {
             crate::services::DropOverride::None,
             crate::services::VolumeRelation::Different,
             false,
-            ask, None)),
+            ask,
+            None
+        )),
         gtk::gdk::DragAction::MOVE
     );
     assert_eq!(
@@ -203,7 +211,9 @@ fn file_drop_action_follows_volume_relation_not_local_vs_external() {
             crate::services::DropOverride::ForceCopy,
             crate::services::VolumeRelation::Same,
             false,
-            ask, None)),
+            ask,
+            None
+        )),
         gtk::gdk::DragAction::COPY
     );
     assert_eq!(
@@ -212,7 +222,9 @@ fn file_drop_action_follows_volume_relation_not_local_vs_external() {
             crate::services::DropOverride::ForceMove,
             crate::services::VolumeRelation::Different,
             false,
-            ask, None)),
+            ask,
+            None
+        )),
         gtk::gdk::DragAction::MOVE
     );
     assert_eq!(
@@ -221,7 +233,9 @@ fn file_drop_action_follows_volume_relation_not_local_vs_external() {
             crate::services::DropOverride::None,
             crate::services::VolumeRelation::Same,
             true,
-            ask, None)),
+            ask,
+            None
+        )),
         gtk::gdk::DragAction::empty()
     );
 }
@@ -238,7 +252,9 @@ fn file_drop_action_hover_matches_cross_volume_strategy() {
             none,
             different,
             false,
-            crate::services::CrossVolumeDropStrategy::Move, None)),
+            crate::services::CrossVolumeDropStrategy::Move,
+            None
+        )),
         gtk::gdk::DragAction::MOVE
     );
     assert_eq!(
@@ -247,7 +263,9 @@ fn file_drop_action_hover_matches_cross_volume_strategy() {
             none,
             different,
             false,
-            crate::services::CrossVolumeDropStrategy::Copy, None)),
+            crate::services::CrossVolumeDropStrategy::Copy,
+            None
+        )),
         gtk::gdk::DragAction::COPY
     );
     assert_eq!(
@@ -256,7 +274,9 @@ fn file_drop_action_hover_matches_cross_volume_strategy() {
             none,
             different,
             false,
-            crate::services::CrossVolumeDropStrategy::Ask, None),
+            crate::services::CrossVolumeDropStrategy::Ask,
+            None
+        ),
         crate::services::DropCommit::Ask {
             default: crate::services::TransferKind::Copy,
             volume: different,
@@ -268,7 +288,9 @@ fn file_drop_action_hover_matches_cross_volume_strategy() {
             none,
             crate::services::VolumeRelation::Same,
             false,
-            crate::services::CrossVolumeDropStrategy::Ask, None),
+            crate::services::CrossVolumeDropStrategy::Ask,
+            None
+        ),
         crate::services::DropCommit::Move
     );
 }
@@ -465,7 +487,9 @@ fn move_only_protocol_still_copies_across_volumes() {
             crate::services::DropOverride::None,
             crate::services::VolumeRelation::Different,
             false,
-            crate::services::CrossVolumeDropStrategy::Ask, None)),
+            crate::services::CrossVolumeDropStrategy::Ask,
+            None
+        )),
         gtk::gdk::DragAction::COPY
     );
     assert_eq!(
@@ -474,7 +498,9 @@ fn move_only_protocol_still_copies_across_volumes() {
             crate::services::DropOverride::None,
             crate::services::VolumeRelation::Same,
             false,
-            crate::services::CrossVolumeDropStrategy::Ask, None)),
+            crate::services::CrossVolumeDropStrategy::Ask,
+            None
+        )),
         gtk::gdk::DragAction::MOVE
     );
 }
@@ -489,7 +515,9 @@ fn copy_only_source_does_not_move_on_the_same_volume() {
             crate::services::DropOverride::None,
             crate::services::VolumeRelation::Same,
             false,
-            crate::services::CrossVolumeDropStrategy::Ask, None)),
+            crate::services::CrossVolumeDropStrategy::Ask,
+            None
+        )),
         gtk::gdk::DragAction::COPY
     );
 }

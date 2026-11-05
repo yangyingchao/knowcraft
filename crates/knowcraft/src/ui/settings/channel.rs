@@ -21,7 +21,9 @@ pub(super) fn automatic_updates_option(
         "Check for updates automatically",
         match method {
             UpdateMethod::InPlace => "Look for a new release on GitHub when Knowcraft starts.",
-            UpdateMethod::Aur => "Check the AUR for a newer packaged release when Knowcraft starts.",
+            UpdateMethod::Aur => {
+                "Check the AUR for a newer packaged release when Knowcraft starts."
+            }
             UpdateMethod::Omarchy => {
                 "Check the Omarchy package repository for a newer release when Knowcraft starts."
             }

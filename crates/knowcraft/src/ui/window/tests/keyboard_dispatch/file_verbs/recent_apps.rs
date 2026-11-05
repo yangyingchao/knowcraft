@@ -13,7 +13,12 @@ fn data_file(name: &str) -> PathBuf {
 fn install_editors() -> (PathBuf, PathBuf) {
     let output_alpha = data_file("received-alpha");
     let output_beta = data_file("received-beta");
-    recorder_app("knowcraft-alpha", "Alpha Editor", "text/plain;", &output_alpha);
+    recorder_app(
+        "knowcraft-alpha",
+        "Alpha Editor",
+        "text/plain;",
+        &output_alpha,
+    );
     recorder_app("knowcraft-beta", "Beta Editor", "text/plain;", &output_beta);
     (output_alpha, output_beta)
 }

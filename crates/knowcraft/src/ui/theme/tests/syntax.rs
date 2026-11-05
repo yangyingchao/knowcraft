@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use crate::ui::theme::{
-    ThemeTokens, color_to_hex, resolved_source_palette, validate_tokens,
-};
+use crate::ui::theme::{ThemeTokens, color_to_hex, resolved_source_palette, validate_tokens};
 
 #[test]
 fn legacy_custom_themes_keep_independent_fallbacks_and_preserve_overrides() {

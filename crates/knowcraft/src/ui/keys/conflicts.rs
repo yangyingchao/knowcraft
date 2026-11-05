@@ -8,31 +8,25 @@
 use gtk::gdk::{Key, ModifierType as Modifiers};
 
 use super::{
-    Binding, CUSTOM_ACTIONS, Command, DIRECT_IN_TENXER, Digits, Keymap, Map, SHORTCUT_MODIFIERS,
-    alias,
+    Binding, CUSTOM_ACTIONS, Command, Digits, Keymap, Map, SHORTCUT_MODIFIERS, alias,
     bindings::{
-        ACTIONS_NUMBERS, ARROW_SCOPE, BACKSPACE, CHOOSE_FOLDER, COMPLETE, CONTEXT_MENU, COPY,
-        COPY_PATH, CUT, DELETE_PERMANENTLY, DOWN, END_KEY, ENTER, ESCAPE, EXTEND_DOWN, EXTEND_LEFT,
-        EXTEND_PAGE_DOWN, EXTEND_PAGE_UP, EXTEND_RIGHT, EXTEND_TO_FIRST, EXTEND_TO_LAST, EXTEND_UP,
-        FILTER, FILTER_SLASH, FIND_IN_PREVIEW, FOCUS_NEXT, FOCUS_PREVIOUS, GO_PROMPT, HIDDEN_FILES,
-        HISTORY_BACK, HISTORY_FORWARD, HOME_FOLDER, HOME_KEY, JUMP_TO_FOLDER, LEFT, LOCATION,
-        MEDIA_MUTE, MEDIA_NEXT, MEDIA_PLAY_PAUSE, MEDIA_PREVIOUS, MEDIA_SEEK_BACK,
-        MEDIA_SEEK_BACK_PAGE, MEDIA_SEEK_END, MEDIA_SEEK_FORWARD, MEDIA_SEEK_FORWARD_PAGE,
-        MEDIA_SEEK_START, MEDIA_VOLUME_DOWN, MEDIA_VOLUME_STEP_DOWN, MEDIA_VOLUME_STEP_UP,
-        MEDIA_VOLUME_UP, MOVE_TO_TRASH, NEW_FOLDER, NEW_FOLDER_WITH_SELECTION,
-        OPEN_CONTAINING_FOLDER, OPEN_IN_NEW_TAB, OPEN_IN_NEW_WINDOW, PAGE_DOWN, PAGE_DOWN_KEY,
-        PAGE_UP, PAGE_UP_KEY, PARENT_FOLDER, PASTE, PDF_ZOOM_RESET, PIN_NUMBERS, PREVIEW,
-        PREVIOUS_MATCH, PROPERTIES, REDO, REFERENCE, REFERENCE_CATEGORIES, REFERENCE_LIST,
-        REFERENCE_SEARCH, REFRESH, RENAME, RIGHT, SCROLL_PREVIEW_DOWN, SCROLL_PREVIEW_UP, SEARCH,
-        SELECT_ALL, SELECTION_TOGGLE, SETTINGS, SIDEBAR, SIDEBAR_FOCUS, SPACE, TAB_CHORD_NUMBERS,
-        TAB_CLOSE, TAB_MOVE_LEFT, TAB_MOVE_RIGHT, TAB_NEW, TAB_NEXT, TAB_NUMBERS, TAB_PREVIOUS,
-        TAB_REOPEN, TENXER_DELETE_CONFIRM, TENXER_MEDIA_MUTE, TENXER_MEDIA_NEXT,
-        TENXER_MEDIA_PREVIOUS, TENXER_MODE, TERMINAL, TEXT_LARGER, TEXT_RESET, TEXT_SMALLER,
-        THUMBNAILS_LARGER, THUMBNAILS_RESET, THUMBNAILS_SMALLER, UNDO, UP, VIEW_COLUMNS,
-        VIEW_ICONS, VIEW_LIST,
+        ARROW_SCOPE, BACKSPACE, CHOOSE_FOLDER, COMPLETE, CONTEXT_MENU, DELETE_PERMANENTLY, DOWN,
+        END_KEY, ENTER, ESCAPE, EXTEND_DOWN, EXTEND_LEFT, EXTEND_PAGE_DOWN, EXTEND_PAGE_UP,
+        EXTEND_RIGHT, EXTEND_TO_FIRST, EXTEND_TO_LAST, EXTEND_UP, FILTER, FILTER_SLASH,
+        FIND_IN_PREVIEW, FOCUS_NEXT, FOCUS_PREVIOUS, HIDDEN_FILES, HISTORY_BACK, HISTORY_FORWARD,
+        HOME_FOLDER, HOME_KEY, JUMP_TO_FOLDER, LEFT, LOCATION, MEDIA_SEEK_BACK_PAGE,
+        MEDIA_SEEK_END, MEDIA_SEEK_FORWARD_PAGE, MEDIA_SEEK_START, MEDIA_VOLUME_STEP_DOWN,
+        MEDIA_VOLUME_STEP_UP, MOVE_TO_TRASH, NEW_FOLDER, NEW_FOLDER_WITH_SELECTION,
+        OPEN_CONTAINING_FOLDER, OPEN_IN_NEW_TAB, PAGE_DOWN, PAGE_DOWN_KEY, PAGE_UP, PAGE_UP_KEY,
+        PARENT_FOLDER, PDF_ZOOM_RESET, PREVIEW, PREVIOUS_MATCH, PROPERTIES, REFERENCE,
+        REFERENCE_CATEGORIES, REFERENCE_LIST, REFERENCE_SEARCH, REFRESH, RENAME, RIGHT, SEARCH,
+        SELECT_ALL, SELECTION_TOGGLE, SETTINGS, SIDEBAR, SIDEBAR_FOCUS, TAB_CLOSE, TAB_MOVE_LEFT,
+        TAB_MOVE_RIGHT, TAB_NEW, TAB_NEXT, TAB_NUMBERS, TAB_PREVIOUS, TAB_REOPEN, TERMINAL,
+        TEXT_LARGER, TEXT_RESET, TEXT_SMALLER, THUMBNAILS_LARGER, THUMBNAILS_RESET,
+        THUMBNAILS_SMALLER, UP, VIEW_COLUMNS, VIEW_ICONS, VIEW_LIST,
     },
     command::{Group, Kind as CommandKind, registry},
-    digit_value, direct_commands,
+    digit_value,
 };
 
 /// What the checker cannot read from the table.
@@ -94,8 +88,6 @@ pub(crate) enum Kind {
 /// A role that keeps its keys whatever the keymap says.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Fixed {
-    /// Space selects the item under the 10xer cursor.
-    SelectionToggle,
     /// Space plays and pauses a media preview, and the page keys, Home and
     /// End seek it, before its later keys.
     MediaKeys,
@@ -223,7 +215,7 @@ fn top_level_findings(mine: Side, scope: Scope, policy: Policy, findings: &mut F
     let candidate = mine.binding;
     let shipped = mine.command.defaults(mine.map).contains(&candidate);
     let in_list_views = matches!(scope, Scope::Window | Scope::Chooser);
-    let in_text_fields = acts_in_text_fields(mine.command, mine.map);
+    let in_text_fields = acts_in_text_fields(mine.command);
     if let Some(limit) = text_field_limit(mine, in_text_fields, shipped) {
         findings.add(Kind::TextFieldLimit(limit));
     }
@@ -261,8 +253,7 @@ fn text_field_limit(mine: Side, in_text_fields: bool, shipped: bool) -> Option<F
 
 /// Added plain printable keys yield to type-to-search on every surface.
 fn type_to_search_shadows(mine: Side, scope: Scope, policy: Policy, shipped: bool) -> bool {
-    let searching = mine.map == Map::Default && policy.type_to_search;
-    if !searching || !mine.binding.is_typed() {
+    if !policy.type_to_search || !mine.binding.is_typed() {
         return false;
     }
     let listing_key = mine.command != FILTER_SLASH && mine.binding.key() != Key::space;
@@ -322,10 +313,7 @@ pub(super) fn never_fires(map: Map, command: Command, binding: Binding, typing: 
     };
     no_path(command, map)
         || never_matches(side)
-        || (typing
-            && map == Map::Default
-            && binding.is_typed()
-            && !command.defaults(map).contains(&binding))
+        || (typing && binding.is_typed() && !command.defaults(map).contains(&binding))
 }
 
 /// Which of two commands on one key acts, for a [`Kind::Duplicate`] finding.
@@ -357,16 +345,8 @@ pub(crate) fn duplicate_outcome(
     match (mine.place, theirs.place) {
         (Place::Step(_), Place::Top(_)) if reads_before_steps(other) => Outcome::Loses,
         (Place::Top(_), Place::Step(_)) if reads_before_steps(command) => Outcome::Wins,
-        (Place::Top(_), Place::Top(_))
-            if media_reads_first(theirs, command) || runs_first(other, command, map) =>
-        {
-            Outcome::Loses
-        }
-        (Place::Top(_), Place::Top(_))
-            if media_reads_first(mine, other) || runs_first(command, other, map) =>
-        {
-            Outcome::Wins
-        }
+        (Place::Top(_), Place::Top(_)) if runs_first(other, command, map) => Outcome::Loses,
+        (Place::Top(_), Place::Top(_)) if runs_first(command, other, map) => Outcome::Wins,
         _ => Outcome::Either,
     }
 }
@@ -382,10 +362,10 @@ enum Place {
 }
 
 impl Place {
-    fn of(command: Command, map: Map) -> Self {
+    fn of(command: Command, _map: Map) -> Self {
         match command.kind() {
-            CommandKind::Step(group) if map == Map::Tenxer => Self::Step(group),
-            CommandKind::Trigger(_) if map == Map::Default => Self::Inert,
+            CommandKind::Step(group) => Self::Step(group),
+            CommandKind::Trigger(_) => Self::Inert,
             _ => Self::Top(
                 SCOPES
                     .iter()
@@ -406,14 +386,10 @@ enum Scope {
     Search,
     Chooser,
     Completion,
-    TrashDialog,
 }
 
 /// Commands one surface matches; every other command is the window's.
 const SCOPES: &[(Command, Scope)] = &[
-    (TENXER_MEDIA_MUTE, Scope::Preview),
-    (TENXER_MEDIA_PREVIOUS, Scope::Preview),
-    (TENXER_MEDIA_NEXT, Scope::Preview),
     (MEDIA_SEEK_BACK_PAGE, Scope::Preview),
     (MEDIA_SEEK_FORWARD_PAGE, Scope::Preview),
     (MEDIA_SEEK_START, Scope::Preview),
@@ -429,14 +405,10 @@ const SCOPES: &[(Command, Scope)] = &[
     (OPEN_CONTAINING_FOLDER, Scope::Search),
     (CHOOSE_FOLDER, Scope::Chooser),
     (COMPLETE, Scope::Completion),
-    (TENXER_DELETE_CONFIRM, Scope::TrashDialog),
 ];
 
 /// Preview commands only a media preview runs.
-const MEDIA: [Command; 9] = [
-    TENXER_MEDIA_MUTE,
-    TENXER_MEDIA_PREVIOUS,
-    TENXER_MEDIA_NEXT,
+const MEDIA: [Command; 6] = [
     MEDIA_SEEK_BACK_PAGE,
     MEDIA_SEEK_FORWARD_PAGE,
     MEDIA_SEEK_START,
@@ -444,10 +416,6 @@ const MEDIA: [Command; 9] = [
     MEDIA_VOLUME_STEP_UP,
     MEDIA_VOLUME_STEP_DOWN,
 ];
-
-/// Preview commands the 10xer listing also runs while a media preview is
-/// open, passing the key on otherwise.
-const LISTING_TOO: [Command; 2] = [TENXER_MEDIA_PREVIOUS, TENXER_MEDIA_NEXT];
 
 /// Text size runs before every surface's own keys and before an armed chord,
 /// after only a focused document's zoom reset.
@@ -469,121 +437,48 @@ const TAB_STRIP: [Command; 7] = [
 fn under_tab_strip(place: Place) -> bool {
     !matches!(
         place,
-        Place::Inert | Place::Top(Scope::Chooser | Scope::Search | Scope::TrashDialog)
+        Place::Inert | Place::Top(Scope::Chooser | Scope::Search)
     )
 }
 
-/// What the file chooser's own handler reads before `choose_folder`, each
-/// stopping there.
-const CHOOSER_FIRST: &[(Command, Tables)] = &[
-    (TENXER_MODE, Tables::Both),
-    (CONTEXT_MENU, Tables::Both),
-    (ESCAPE, Tables::Both),
-    (RENAME, Tables::Default),
-    (PROPERTIES, Tables::Both),
-    (FILTER, Tables::Default),
-    (LOCATION, Tables::Both),
-    (SIDEBAR_FOCUS, Tables::Both),
-    (SIDEBAR, Tables::Both),
+/// What the file chooser's own handler reads before `choose_folder`.
+const CHOOSER_FIRST: &[Command] = &[
+    CONTEXT_MENU,
+    ESCAPE,
+    RENAME,
+    PROPERTIES,
+    FILTER,
+    LOCATION,
+    SIDEBAR_FOCUS,
+    SIDEBAR,
 ];
 
 /// What else the chooser's handler reads: before `choose_folder` only in some
 /// states, or after it, so the folder accept takes their key in folder
-/// requests. In 10xer mode the 10xer stage also reads its table first.
-const CHOOSER_SHARED: &[(Command, Tables)] = &[
-    (THUMBNAILS_LARGER, Tables::Default),
-    (THUMBNAILS_SMALLER, Tables::Default),
-    (THUMBNAILS_RESET, Tables::Both),
-    (PREVIEW, Tables::Default),
-    (NEW_FOLDER, Tables::Both),
-    (SELECT_ALL, Tables::Both),
-    (REFRESH, Tables::Both),
-    (HIDDEN_FILES, Tables::Default),
-    (MOVE_TO_TRASH, Tables::Default),
-    (DELETE_PERMANENTLY, Tables::Default),
-    (VIEW_COLUMNS, Tables::Both),
-    (VIEW_ICONS, Tables::Both),
-    (VIEW_LIST, Tables::Both),
-    (HISTORY_BACK, Tables::Default),
-    (HISTORY_FORWARD, Tables::Default),
-    (PARENT_FOLDER, Tables::Both),
-    (HOME_FOLDER, Tables::Both),
-];
-
-/// Listing commands the 10xer stage passes on in a chooser, which has no
-/// tabs or windows to open and runs neither the item commands nor the direct
-/// ones.
-fn chooser_declines(command: Command) -> bool {
-    [OPEN_IN_NEW_TAB, OPEN_IN_NEW_WINDOW, COPY_PATH].contains(&command)
-        || DIRECT_IN_TENXER.contains(&command)
-}
-
-/// Commands the 10xer stage passes on in a window but refuses in a chooser,
-/// taking their keys there.
-const CHOOSER_REFUSES: [Command; 3] = [COPY, CUT, PASTE];
-
-/// What else the 10xer stage leaves to later stages: the window's default-map
-/// stages, or the file chooser's handler. It claims every other key of its
-/// table first.
-const TENXER_PASSES: &[Command] = &[
-    LOCATION,
-    SIDEBAR,
-    SIDEBAR_FOCUS,
-    CONTEXT_MENU,
-    PROPERTIES,
-    COPY,
-    CUT,
-    PASTE,
-    HOME_FOLDER,
-    COPY_PATH,
-    VIEW_COLUMNS,
-    VIEW_ICONS,
-    VIEW_LIST,
+/// requests.
+const CHOOSER_SHARED: &[Command] = &[
     THUMBNAILS_LARGER,
     THUMBNAILS_SMALLER,
     THUMBNAILS_RESET,
+    PREVIEW,
     NEW_FOLDER,
-    NEW_FOLDER_WITH_SELECTION,
+    SELECT_ALL,
     REFRESH,
-    SEARCH,
-    SETTINGS,
-    TERMINAL,
-    UNDO,
-    REDO,
-    FOCUS_NEXT,
-    FOCUS_PREVIOUS,
-    TAB_CLOSE,
-    TAB_REOPEN,
-    TAB_NEXT,
-    TAB_PREVIOUS,
-    TAB_MOVE_LEFT,
-    TAB_MOVE_RIGHT,
-    MEDIA_PLAY_PAUSE,
-    MEDIA_SEEK_BACK,
-    MEDIA_SEEK_FORWARD,
-    MEDIA_VOLUME_UP,
-    MEDIA_VOLUME_DOWN,
-    MEDIA_MUTE,
-    MEDIA_PREVIOUS,
-    MEDIA_NEXT,
+    HIDDEN_FILES,
+    MOVE_TO_TRASH,
+    DELETE_PERMANENTLY,
+    VIEW_COLUMNS,
+    VIEW_ICONS,
+    VIEW_LIST,
+    HISTORY_BACK,
+    HISTORY_FORWARD,
+    PARENT_FOLDER,
+    HOME_FOLDER,
 ];
 
 /// Pairs that share a key by design, each acting where the other does not.
 /// Ctrl with the page keys pages where no tab strip takes them first.
 const KNOWN_OVERLAPS: &[(Command, Command)] = &[(PAGE_UP, TAB_PREVIOUS), (PAGE_DOWN, TAB_NEXT)];
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Tables {
-    Both,
-    /// Stages that read the default table in both modes.
-    Default,
-}
-
-impl Tables {
-    fn include(self, map: Map) -> bool {
-        self == Self::Both || map == Map::Default
-    }
-}
 
 const SHIFT: Modifiers = Modifiers::SHIFT_MASK;
 const SUPER: Modifiers = Modifiers::SUPER_MASK;
@@ -594,23 +489,22 @@ const DELETE_HELD: Modifiers = Modifiers::CONTROL_MASK
 
 /// Modifiers some surface also accepts held with a command's own, from the
 /// `ignoring(..)` matchers that run it. Structural alternates tolerate any.
-const TOLERATED: &[(Command, Modifiers, Tables)] = &[
-    (REFRESH, SHORTCUT_MODIFIERS, Tables::Both),
-    (REFERENCE, SHORTCUT_MODIFIERS, Tables::Default),
-    (PROPERTIES, SUPER, Tables::Both),
-    (CHOOSE_FOLDER, SUPER, Tables::Both),
-    (PREVIEW, SHIFT_SUPER, Tables::Default),
-    (HISTORY_BACK, SHIFT_SUPER, Tables::Default),
-    (HISTORY_FORWARD, SHIFT_SUPER, Tables::Default),
-    (PARENT_FOLDER, SHIFT_SUPER, Tables::Both),
-    (HOME_FOLDER, SHIFT_SUPER, Tables::Both),
-    (OPEN_IN_NEW_TAB, SHIFT, Tables::Both),
-    (PAGE_UP, SUPER, Tables::Default),
-    (PAGE_DOWN, SUPER, Tables::Default),
-    (GO_PROMPT, SHIFT, Tables::Both),
-    (MOVE_TO_TRASH, DELETE_HELD, Tables::Default),
-    (DELETE_PERMANENTLY, DELETE_HELD, Tables::Default),
-    (COMPLETE, SHIFT, Tables::Both),
+const TOLERATED: &[(Command, Modifiers)] = &[
+    (REFRESH, SHORTCUT_MODIFIERS),
+    (REFERENCE, SHORTCUT_MODIFIERS),
+    (PROPERTIES, SUPER),
+    (CHOOSE_FOLDER, SUPER),
+    (PREVIEW, SHIFT_SUPER),
+    (HISTORY_BACK, SHIFT_SUPER),
+    (HISTORY_FORWARD, SHIFT_SUPER),
+    (PARENT_FOLDER, SHIFT_SUPER),
+    (HOME_FOLDER, SHIFT_SUPER),
+    (OPEN_IN_NEW_TAB, SHIFT),
+    (PAGE_UP, SUPER),
+    (PAGE_DOWN, SUPER),
+    (MOVE_TO_TRASH, DELETE_HELD),
+    (DELETE_PERMANENTLY, DELETE_HELD),
+    (COMPLETE, SHIFT),
 ];
 
 /// Commands a stage matches while a text field has focus.
@@ -628,7 +522,6 @@ const IN_TEXT_FIELDS: &[Command] = &[
     TEXT_SMALLER,
     TEXT_RESET,
     THUMBNAILS_RESET,
-    TENXER_MODE,
     SETTINGS,
     TAB_NEW,
     TAB_CLOSE,
@@ -659,7 +552,7 @@ const IN_TEXT_FIELDS: &[Command] = &[
 ];
 
 /// Commands a text field stage matches only from the default table, most in
-/// both modes. 10xer runs its terminal key from the file list and sidebar only.
+/// both modes. The terminal key runs from the file list and sidebar only.
 const IN_DEFAULT_TEXT_FIELDS: &[Command] = &[
     TERMINAL,
     RENAME,
@@ -670,10 +563,6 @@ const IN_DEFAULT_TEXT_FIELDS: &[Command] = &[
     FIND_IN_PREVIEW,
     PREVIEW,
 ];
-
-/// Commands a map ships no key for that a stage of that map still reads,
-/// besides the direct ones.
-const READ_UNBOUND: &[(Command, Map)] = &[(COPY_PATH, Map::Tenxer)];
 
 /// Keys GTK list views act on once the dispatcher yields them.
 const GTK_OWNED: [Binding; 9] = [
@@ -752,8 +641,8 @@ impl Side {
     fn tolerated_by_surfaces(self) -> Modifiers {
         TOLERATED
             .iter()
-            .filter(|(command, _, tables)| *command == self.command && tables.include(self.map))
-            .fold(Modifiers::empty(), |held, (_, modifiers, _)| {
+            .filter(|(command, _)| *command == self.command)
+            .fold(Modifiers::empty(), |held, (_, modifiers)| {
                 held.union(*modifiers)
             })
     }
@@ -839,9 +728,6 @@ impl Clash {
     /// Two top-level commands, on the surfaces `scope` and `theirs_scope`.
     fn top_level(self, scope: Scope, theirs_scope: Scope) -> Option<Kind> {
         let (command, other) = (self.mine.command, self.theirs.command);
-        if self.exact && self.media_reads_first() {
-            return Some(Kind::Duplicate(other));
-        }
         let same_surface = scope == theirs_scope;
         let across_surfaces = self.exact && !same_surface;
         if across_surfaces && self.either_runs_first() {
@@ -859,11 +745,6 @@ impl Clash {
             (CommandKind::Trigger(group), false) => Kind::ShadowsChordGroup(group),
             _ => Kind::Duplicate(other),
         })
-    }
-
-    fn media_reads_first(self) -> bool {
-        media_reads_first(self.mine, self.theirs.command)
-            || media_reads_first(self.theirs, self.mine.command)
     }
 
     fn either_runs_first(self) -> bool {
@@ -895,12 +776,11 @@ fn step_against(exact: bool, group: Group, top: Command, other: Command) -> Opti
 }
 
 /// Keys read before an armed chord's steps: the tab strip, text size, the
-/// reference and 10xer mode in earlier stages, then the chord's own Settings
-/// and Escape.
+/// reference in an earlier stage, then the chord's own Settings and Escape.
 fn reads_before_steps(command: Command) -> bool {
     TAB_STRIP.contains(&command)
         || EVERY_SURFACE.contains(&command)
-        || [REFERENCE, TENXER_MODE, SETTINGS, ESCAPE].contains(&command)
+        || [REFERENCE, SETTINGS, ESCAPE].contains(&command)
 }
 
 /// Whether `first` takes the key before `second`'s surface sees it.
@@ -908,7 +788,7 @@ fn runs_first(first: Command, second: Command, map: Map) -> bool {
     let second_place = Place::of(second, map);
     reads_on_every_surface(first, second, second_place)
         || reference_reads_first(first, second, second_place)
-        || (second == CHOOSE_FOLDER && chooser_reads_first(first, map))
+        || (second == CHOOSE_FOLDER && chooser_reads_first(first))
 }
 
 /// Text size and the tab strip read before the surfaces under them.
@@ -930,30 +810,17 @@ fn reference_reads_first(first: Command, second: Command, second_place: Place) -
 }
 
 /// Whether `first` takes the key before the file chooser's folder accept.
-fn chooser_reads_first(first: Command, map: Map) -> bool {
-    listed(CHOOSER_FIRST, first, map) || (map == Map::Tenxer && tenxer_claims_in_chooser(first))
-}
-
-/// Whether the 10xer stage claims a window command's key in a chooser.
-fn tenxer_claims_in_chooser(command: Command) -> bool {
-    let window_command = Place::of(command, Map::Tenxer) == Place::Top(Scope::Window);
-    let claimed = !TENXER_PASSES.contains(&command) || CHOOSER_REFUSES.contains(&command);
-    window_command && claimed && !chooser_declines(command)
+fn chooser_reads_first(first: Command) -> bool {
+    CHOOSER_FIRST.contains(&first)
 }
 
 /// Whether `command`, outside `scope`, also reads keys there.
 fn also_on(command: Command, scope: Scope, map: Map) -> bool {
     match scope {
-        Scope::Window => map == Map::Tenxer && LISTING_TOO.contains(&command),
+        Scope::Window => false,
         // The window's commands still run while the preview owns the keys.
         Scope::Preview => Place::of(command, map) == Place::Top(Scope::Window),
-        Scope::Chooser => {
-            listed(CHOOSER_FIRST, command, map)
-                || listed(CHOOSER_SHARED, command, map)
-                || (map == Map::Tenxer
-                    && Place::of(command, map) == Place::Top(Scope::Window)
-                    && !chooser_declines(command))
-        }
+        Scope::Chooser => CHOOSER_FIRST.contains(&command) || CHOOSER_SHARED.contains(&command),
         _ => false,
     }
 }
@@ -963,12 +830,6 @@ fn zoom_and_text_size(first: Command, second: Command) -> bool {
     [(first, second), (second, first)]
         .iter()
         .any(|(zoom, text)| *zoom == PDF_ZOOM_RESET && EVERY_SURFACE.contains(text))
-}
-
-fn listed(table: &[(Command, Tables)], command: Command, map: Map) -> bool {
-    table
-        .iter()
-        .any(|(listed, tables)| *listed == command && tables.include(map))
 }
 
 fn is_trigger(command: Command) -> bool {
@@ -981,64 +842,37 @@ fn known_overlap(first: Command, second: Command) -> bool {
         .any(|pair| *pair == (first, second) || *pair == (second, first))
 }
 
-/// Whether `map` ships no key for `command` and none of its stages reads one:
-/// a 10xer verb or chord step in the default map, or a default-map command in
-/// 10xer, that the direct stage does not run either. The direct stage also
-/// runs the default map's custom action slots.
-pub(crate) fn no_path(command: Command, map: Map) -> bool {
-    command.defaults(map).is_empty()
+/// Whether `map` ships no key for `command` and no stage reads one: a chord
+/// step no chord arms, or a command the direct stage does not run. The direct
+/// stage also runs the custom action slots.
+pub(crate) fn no_path(command: Command, _map: Map) -> bool {
+    command.defaults(Map::Default).is_empty()
         && !is_trigger(command)
-        && !direct_commands(map).contains(&command)
-        && !READ_UNBOUND.contains(&(command, map))
-        && !(map == Map::Default && CUSTOM_ACTIONS.contains(&command))
+        && !CUSTOM_ACTIONS.contains(&command)
 }
 
 fn never_matches(side: Side) -> bool {
-    // The focused 10xer listing keeps typed keys from what its stage leaves to
-    // later ones, the folder accept included. Thumbnail size reads first.
-    let typed_past_tenxer_stage = side.map == Map::Tenxer
-        && side.binding.is_typed()
-        && (side.command == CHOOSE_FOLDER
-            || (TENXER_PASSES.contains(&side.command)
-                && ![THUMBNAILS_LARGER, THUMBNAILS_SMALLER, THUMBNAILS_RESET]
-                    .contains(&side.command)));
-    side.place == Place::Inert || shift_is_consumed(side.binding) || typed_past_tenxer_stage
+    side.place == Place::Inert || shift_is_consumed(side.binding)
 }
 
 /// The fixed role holding a key where `side` acts. The tab strip reads its
-/// digits first and an armed chord its steps before its digits; the other
-/// roles share a surface with the command. Only the key as bound counts: a
-/// variant a surface tolerates loses to the fixed role, which keeps working.
+/// digits first; the other roles share a surface with the command. Only the
+/// key as bound counts: a variant a surface tolerates loses to the fixed role,
+/// which keeps working.
 fn fixed_key(side: Side) -> Option<Fixed> {
     if under_tab_strip(side.place) && in_digits(side.binding, TAB_NUMBERS) {
         return Some(Fixed::Digits(TAB_NUMBERS));
     }
     match side.place {
-        Place::Step(group) => step_digits(group)
-            .filter(|digits| in_digits(side.binding, *digits))
-            .map(Fixed::Digits),
-        Place::Top(scope) => fixed_top_level_key(side, scope),
-        Place::Inert => None,
+        Place::Top(_) => fixed_top_level_key(side),
+        Place::Step(_) | Place::Inert => None,
     }
 }
 
-/// The digit range an armed chord reads besides its steps.
-fn step_digits(group: Group) -> Option<Digits> {
-    match group {
-        Group::Go => Some(PIN_NUMBERS),
-        Group::Actions => Some(ACTIONS_NUMBERS),
-        Group::Tabs => Some(TAB_CHORD_NUMBERS),
-        Group::CopyAs | Group::Sort => None,
-    }
-}
-
-fn fixed_top_level_key(side: Side, scope: Scope) -> Option<Fixed> {
+fn fixed_top_level_key(side: Side) -> Option<Fixed> {
     let binding = side.binding;
-    let tenxer_listing = scope == Scope::Window && side.map == Map::Tenxer;
-    if scope != Scope::TrashDialog && overlaps(binding, BACKSPACE_HELD) {
+    if overlaps(binding, BACKSPACE_HELD) {
         Some(Fixed::Backspace)
-    } else if tenxer_listing && overlaps(binding, SPACE) {
-        Some(Fixed::SelectionToggle)
     } else if MEDIA.contains(&side.command) && media_key_first(side) {
         Some(Fixed::MediaKeys)
     } else {
@@ -1050,7 +884,8 @@ fn fixed_top_level_key(side: Side, scope: Scope) -> Option<Fixed> {
 /// binding before the media command reads it.
 fn media_key_first(side: Side) -> bool {
     let seeks_after = |commands: &[Command]| commands.contains(&side.command);
-    overlaps(side.binding, SPACE)
+    let space = Binding::plain(Key::space);
+    overlaps(side.binding, space)
         || ([PAGE_UP_KEY, PAGE_DOWN_KEY].contains(&side.binding)
             && seeks_after(&[
                 MEDIA_SEEK_START,
@@ -1062,39 +897,6 @@ fn media_key_first(side: Side) -> bool {
             && seeks_after(&[MEDIA_SEEK_END, MEDIA_VOLUME_STEP_UP, MEDIA_VOLUME_STEP_DOWN]))
         || (side.binding == END_KEY && seeks_after(&[MEDIA_VOLUME_STEP_UP, MEDIA_VOLUME_STEP_DOWN]))
 }
-
-/// Whether `first` takes the binding before a 10xer media preview's `media`
-/// command: the preview's own exits and scrolling, then volume on the up and
-/// down keys and seeking on left and right, as pressed rather than typed.
-fn media_reads_first(first: Side, media: Command) -> bool {
-    if first.map != Map::Tenxer || !MEDIA.contains(&media) {
-        return false;
-    }
-    let typed = first.binding.is_typed();
-    let seeks = !LISTED_BEFORE_SEEKING.contains(&media);
-    if [UP, DOWN].contains(&first.command) {
-        !typed
-    } else if first.command == LEFT {
-        first.is_alias() || seeks
-    } else if first.command == RIGHT {
-        !typed && seeks
-    } else {
-        [
-            ESCAPE,
-            FOCUS_NEXT,
-            FOCUS_PREVIOUS,
-            PREVIEW,
-            SCROLL_PREVIEW_DOWN,
-            SCROLL_PREVIEW_UP,
-            TENXER_MODE,
-        ]
-        .contains(&first.command)
-    }
-}
-
-/// Media commands a media preview reads before it seeks on left and right.
-const LISTED_BEFORE_SEEKING: [Command; 3] =
-    [TENXER_MEDIA_MUTE, TENXER_MEDIA_PREVIOUS, TENXER_MEDIA_NEXT];
 
 /// Backspace's roles also accept Shift and Super held.
 const BACKSPACE_HELD: Binding = BACKSPACE.ignoring(SHIFT_SUPER);
@@ -1131,9 +933,8 @@ fn sort_step(binding: Binding) -> Option<Kind> {
     }
 }
 
-fn acts_in_text_fields(command: Command, map: Map) -> bool {
-    IN_TEXT_FIELDS.contains(&command)
-        || (map == Map::Default && IN_DEFAULT_TEXT_FIELDS.contains(&command))
+fn acts_in_text_fields(command: Command) -> bool {
+    IN_TEXT_FIELDS.contains(&command) || IN_DEFAULT_TEXT_FIELDS.contains(&command)
 }
 
 /// Zhuyin, Array30 and Boshiamy start syllables on these without Shift.

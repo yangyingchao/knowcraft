@@ -182,8 +182,6 @@ pub(super) fn clear_find_on_mode_exit(
     browser: &std::rc::Weak<Browser>,
 ) {
     let shortcuts = dispatcher.shortcuts.clone();
-    let open_with = dispatcher.open_with.clone();
-    let armed_actions = dispatcher.armed_actions.clone();
     let browser = browser.clone();
     let primed = Cell::new(false);
     crate::ui::preferences::PreferenceManager::shared().bind_preference(
@@ -195,8 +193,6 @@ pub(super) fn clear_find_on_mode_exit(
                 shortcuts.refresh_filter();
                 return;
             }
-            open_with.invalidate();
-            armed_actions.take();
             shortcuts.refresh_filter();
             let focus = window.root().and_then(|root| root.focus());
             let prompt_focused = shortcuts.prompt_has_focus();

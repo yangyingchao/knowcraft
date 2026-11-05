@@ -366,8 +366,9 @@ impl KeymapFile {
 
 /// The compositor maps the file, so it holds the keymap and its terminating NUL.
 fn keymap_file(text: &str) -> Result<KeymapFile, String> {
-    let descriptor = rustix::fs::memfd_create("knowcraft-qa-keymap", rustix::fs::MemfdFlags::CLOEXEC)
-        .map_err(|error| format!("cannot create the keymap file: {error}"))?;
+    let descriptor =
+        rustix::fs::memfd_create("knowcraft-qa-keymap", rustix::fs::MemfdFlags::CLOEXEC)
+            .map_err(|error| format!("cannot create the keymap file: {error}"))?;
     let mut file = std::fs::File::from(descriptor);
     file.write_all(text.as_bytes())
         .and_then(|()| file.write_all(&[0]))

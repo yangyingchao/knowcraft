@@ -101,11 +101,7 @@ fn render_page(
             image::ExtendedColorType::Rgba8,
         )
         .map_err(|error| error.to_string())?;
-    Ok(Raster {
-        png,
-        width,
-        height,
-    })
+    Ok(Raster { png, width, height })
 }
 
 pub(super) fn render_pdf_thumbnail(path: &Path, size: i32) -> Result<Vec<u8>, String> {
@@ -126,8 +122,7 @@ pub(super) fn render_pdf_thumbnail(path: &Path, size: i32) -> Result<Vec<u8>, St
         f64::from(size * size),
     );
     let mut renderer = renderer(&document);
-    render_page(&mut renderer, 0, scale as f32, f64::from(size * size))
-        .map(|raster| raster.png)
+    render_page(&mut renderer, 0, scale as f32, f64::from(size * size)).map(|raster| raster.png)
 }
 
 /// The text layer, with one box per character of `text`.
@@ -165,10 +160,7 @@ fn pdf_text_layer(
         .filter(|bytes| bytes.len() as u64 <= crate::sandbox::MAX_TEXT_LAYER_BYTES)
 }
 
-fn collect_glyphs(
-    page_text: &pdfcraft_render::PageText,
-    scale: f32,
-) -> (String, Vec<[f32; 4]>) {
+fn collect_glyphs(page_text: &pdfcraft_render::PageText, scale: f32) -> (String, Vec<[f32; 4]>) {
     let mut text = String::new();
     let mut boxes = Vec::new();
     let mut previous_line: Option<u32> = None;

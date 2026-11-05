@@ -85,10 +85,7 @@ fn has_desktop_theme_override() -> bool {
 /// GTK reads its renderer and theme override during startup. Re-exec before
 /// initializing GTK rather than mutating the environment after libraries may
 /// have started threads. Returns only when the restart fails.
-fn restart_for_gtk_environment(
-    arguments: &[OsString],
-    select_cairo: bool,
-) -> gtk::glib::ExitCode {
+fn restart_for_gtk_environment(arguments: &[OsString], select_cairo: bool) -> gtk::glib::ExitCode {
     let Ok(executable) = std::env::current_exe() else {
         eprintln!("Unable to locate Knowcraft to restart it");
         return gtk::glib::ExitCode::FAILURE;

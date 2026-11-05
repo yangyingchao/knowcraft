@@ -7,7 +7,7 @@ use crate::ui::shortcut_reference::{ReferenceScope, reference_sections};
 /// fixture saves its own preferences afterwards, but the manager it uses was
 /// already loaded from these.
 fn fixture_with_saved(default: &[(&str, &[&str])]) -> (Rc<PreferenceManager>, KeyboardFixture) {
-    PreferenceManager::seed_saved_keymap_for_test(default, &[]);
+    PreferenceManager::seed_saved_keymap_for_test(default);
     let preferences = PreferenceManager::shared();
     let fixture = KeyboardFixture::new();
     (preferences, fixture)
@@ -57,30 +57,6 @@ fn empty_list_unbinds() {
     );
 }
 
-#[test]
-fn unbound_chord_step_leaves_the_chord_panel() {
-    crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::keymap_overrides::unbound_chord_step_leaves_the_chord_panel",
-        || {
-            PreferenceManager::seed_saved_keymap_for_test(&[], &[("go.home", &[])]);
-            let preferences = PreferenceManager::shared();
-            let fixture = KeyboardFixture::new();
-            preferences.set_tenxer_mode(true);
-            fixture.shortcuts.bind_preferences(&preferences);
-            focus_files(&fixture);
-            fixture.press(Key::g, ModifierType::empty());
-            let shown = |action: &str| {
-                fixture
-                    .shortcuts
-                    .chord_options()
-                    .is_some_and(|options| options.iter().any(|(_, shown)| shown == action))
-            };
-            wait_until(|| shown("Downloads"));
-            assert!(!shown("Home"), "{:?}", fixture.shortcuts.chord_options());
-        },
-    );
-}
-
 /// A plain letter a user binds acts in the file list, but a focused text
 /// field and type-to-search keep typing it.
 #[test]
@@ -114,89 +90,6 @@ fn plain_printable_override_yields_to_typing() {
     );
 }
 
-/// Shift reverses a sort step on the key it is bound to, not its shipped one,
-/// unless that shifted key is another step's own.
-#[test]
-fn rebound_sort_step_reverses_with_shift() {
-    crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::keymap_overrides::rebound_sort_step_reverses_with_shift",
-        || {
-            PreferenceManager::seed_saved_keymap_for_test(
-                &[],
-                &[
-                    ("sort.name", &["b"]),
-                    ("sort.size", &["a"]),
-                    ("sort.type", &["<Shift>a"]),
-                ],
-            );
-            let preferences = PreferenceManager::shared();
-            let fixture = KeyboardFixture::new();
-            preferences.set_tenxer_mode(true);
-            fixture.shortcuts.bind_preferences(&preferences);
-            let browser = fixture.view.browser();
-            let sorting = || browser.column_preferences(0).expect("column").sort();
-            let (shift, none) = (ModifierType::SHIFT_MASK, ModifierType::empty());
-            let (name, size, modified) = (SortKey::Name, SortKey::Size, SortKey::Modified);
-            let (up, down) = (SortDirection::Ascending, SortDirection::Descending);
-            for (key, modifiers, expected) in [
-                (Key::B, shift, (name, down)),
-                (Key::b, none, (name, up)),
-                (Key::A, shift, (SortKey::Type, up)),
-                (Key::a, none, (size, up)),
-                (Key::M, shift, (modified, down)),
-            ] {
-                focus_files(&fixture);
-                assert!(fixture.press(Key::comma, ModifierType::empty()));
-                assert!(fixture.press(key, modifiers));
-                wait_until(|| sorting() == expected);
-            }
-        },
-    );
-}
-
-/// A key a user moves `last_item` to jumps over Icons search hits as in List,
-/// whatever modifier it holds.
-#[test]
-fn rebound_last_item_jumps_over_icon_search_hits() {
-    crate::test_support::gtk_test(
-        "ui::window::tests::keyboard_dispatch::keymap_overrides::rebound_last_item_jumps_over_icon_search_hits",
-        || {
-            use super::footer_prompt::{
-                ALL_REPORTS, commit_search, enable_tenxer, hit_cursor, seed_filter_tree,
-                wait_results,
-            };
-            PreferenceManager::seed_saved_keymap_for_test(&[], &[("last_item", &["<Control>e"])]);
-            let _preferences = PreferenceManager::shared();
-            let fixture = KeyboardFixture::new();
-            seed_filter_tree(&fixture);
-            enable_tenxer(&fixture).set_filter_include_subfolders(false);
-            let browser = fixture.view.browser();
-            for mode in [BrowserMode::List, BrowserMode::Icons] {
-                fixture.view.set_view_mode(mode);
-                wait_until(|| {
-                    browser
-                        .column_snapshot(0)
-                        .is_some_and(|column| column.count > 0)
-                });
-                commit_search(&fixture, "report");
-                wait_results(&fixture, &ALL_REPORTS);
-                let order = fixture.view.filter_result_names();
-                wait_until(|| hit_cursor(&fixture).as_ref() == order.first());
-                assert!(
-                    fixture.press(Key::e, ModifierType::CONTROL_MASK),
-                    "{mode:?}"
-                );
-                wait_until(|| hit_cursor(&fixture).as_ref() == order.last());
-                for _ in 0..2 {
-                    fixture.press(Key::Escape, ModifierType::empty());
-                    pump(50);
-                }
-                wait_until(|| !fixture.view.listing_search_active());
-            }
-        },
-    );
-}
-
 /// A typed key bound to the reference opens it in the default map where it
 /// would not type, as 10xer's ~ does.
 #[test]
@@ -222,13 +115,10 @@ fn document_zoom_reset_follows_its_own_keys() {
     crate::test_support::gtk_test(
         "ui::window::tests::keyboard_dispatch::keymap_overrides::document_zoom_reset_follows_its_own_keys",
         || {
-            PreferenceManager::seed_saved_keymap_for_test(
-                &[
-                    ("text_reset", &["<Control>9"]),
-                    ("pdf_zoom_reset", &["<Control>0", "<Control>e"]),
-                ],
-                &[],
-            );
+            PreferenceManager::seed_saved_keymap_for_test(&[
+                ("text_reset", &["<Control>9"]),
+                ("pdf_zoom_reset", &["<Control>0", "<Control>e"]),
+            ]);
             let preferences = PreferenceManager::shared();
             let fixture = super::preview_ownership::ownership_fixture();
             preferences.set_tenxer_mode(false);
@@ -268,7 +158,7 @@ fn document_zoom_reset_follows_its_own_keys() {
 }
 
 /// A focused text preview is a document, so a plain letter a user adds to a
-/// 10xer command reaches the listing from it as the shipped letter does.
+/// command reaches the listing from it as a shipped letter does.
 #[test]
 fn added_letter_leaves_a_text_preview_like_a_shipped_one() {
     crate::test_support::gtk_test(
@@ -278,7 +168,7 @@ fn added_letter_leaves_a_text_preview_like_a_shipped_one() {
             let fixture = super::preview_ownership::ownership_fixture();
             let browser = fixture.view.browser();
             let _keymap = use_keymap(Keymap::defaults().with(
-                Map::Tenxer,
+                Map::Default,
                 RENAME,
                 vec![Binding::plain(Key::r), Binding::plain(Key::e)],
             ));

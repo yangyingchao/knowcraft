@@ -110,35 +110,6 @@ fn upgraded_place_position(order: &[&'static str], index: usize) -> usize {
         .unwrap_or(0)
 }
 
-/// Only the 10xer Go chord shows these keycaps, so they always show that map.
-pub(super) fn place_keycap(step: crate::ui::keys::Command) -> String {
-    crate::ui::keys::label_in_map(
-        &rust_i18n::locale(),
-        &crate::ui::keys::Keys::One(step.shown()),
-        crate::ui::keys::Map::Tenxer,
-    )
-}
-
-pub(super) fn pin_keycap(ordinal: usize) -> Option<String> {
-    use crate::ui::keys::bindings::PIN_NUMBERS;
-    let pin = u8::try_from(ordinal + 1)
-        .ok()
-        .filter(|pin| PIN_NUMBERS.contains(*pin))?;
-    Some(crate::ui::keys::digit_label(PIN_NUMBERS.step(), pin))
-}
-
-pub(super) fn standard_place_chord_key(id: &str) -> Option<crate::ui::keys::Command> {
-    use crate::ui::keys::bindings::{GO_DOCUMENTS, GO_DOWNLOADS, GO_MUSIC, GO_PICTURES, GO_VIDEOS};
-    match id {
-        "documents" => Some(GO_DOCUMENTS),
-        "downloads" => Some(GO_DOWNLOADS),
-        "music" => Some(GO_MUSIC),
-        "pictures" => Some(GO_PICTURES),
-        "videos" => Some(GO_VIDEOS),
-        _ => None,
-    }
-}
-
 pub(super) fn standard_place(
     id: &str,
 ) -> Option<(&'static str, &'static str, glib::UserDirectory)> {

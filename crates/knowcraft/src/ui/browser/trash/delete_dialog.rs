@@ -13,7 +13,7 @@ use crate::ui::controls::{
 };
 use crate::ui::keys::{
     self, KeyPress,
-    bindings::{ENTER_ANY, ESCAPE_ANY, LEFT, RIGHT, TENXER_DELETE_CONFIRM},
+    bindings::{ENTER_ANY, ESCAPE_ANY, LEFT, RIGHT},
 };
 use crate::ui::modal::{ModalHost, remember_modal_focus_for_listing};
 use gtk::gdk::ModifierType as Modifiers;
@@ -269,7 +269,7 @@ impl ViewState {
             button.connect_clicked(move |_| modal.dismiss());
         }
         self.connect_delete_confirm(&layout.confirm, &modal, &request);
-        install_delete_dialog_keys(&modal, &layout, request.trash());
+        install_delete_dialog_keys(&modal, &layout);
         if kind == DeleteDialog::TrashUnavailable {
             focus_button(&layout.cancel);
         } else {
@@ -381,7 +381,7 @@ fn delete_confirmed_permanently(
     browser.focus_active();
 }
 
-fn install_delete_dialog_keys(modal: &TrashModal, layout: &ModalLayout, trash: bool) {
+fn install_delete_dialog_keys(modal: &TrashModal, layout: &ModalLayout) {
     let keys = gtk::EventControllerKey::new();
     keys.set_propagation_phase(gtk::PropagationPhase::Capture);
     let escaped = modal.clone();
@@ -398,9 +398,6 @@ fn install_delete_dialog_keys(modal: &TrashModal, layout: &ModalLayout, trash: b
             glib::Propagation::Stop
         } else if press.is(ENTER_ANY) {
             activate_focused_button(&enter_buttons)
-        } else if trash && is_tenxer_delete_confirm(press) {
-            focused_confirm.emit_clicked();
-            glib::Propagation::Stop
         } else if let Some(target) = delete_confirmation_focus_target(press) {
             move_delete_focus(target, &focused_cancel, &focused_confirm);
             glib::Propagation::Stop
@@ -409,11 +406,6 @@ fn install_delete_dialog_keys(modal: &TrashModal, layout: &ModalLayout, trash: b
         }
     });
     modal.layer.add_controller(keys);
-}
-
-fn is_tenxer_delete_confirm(press: &KeyPress) -> bool {
-    press.is(TENXER_DELETE_CONFIRM)
-        && crate::ui::preferences::PreferenceManager::shared().tenxer_mode()
 }
 
 fn activate_focused_button(buttons: &[gtk::Button]) -> glib::Propagation {

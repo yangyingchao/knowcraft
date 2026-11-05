@@ -535,15 +535,14 @@ fn translated(message: &str) -> String {
 fn translated_in(locale: &str, message: &str) -> String {
     use super::keys::{
         Keys::One,
-        bindings::{REFERENCE, SIDEBAR_FOCUS, TENXER_MODE},
+        bindings::{REFERENCE, SIDEBAR_FOCUS},
         label_in,
     };
     rust_i18n::t!(
         message,
         locale = locale,
         reference_keys = label_in(locale, &One(REFERENCE.alternate(0).shown())),
-        sidebar_focus_keys = label_in(locale, &One(SIDEBAR_FOCUS.shown())),
-        tenxer_mode_keys = label_in(locale, &One(TENXER_MODE.shown()))
+        sidebar_focus_keys = label_in(locale, &One(SIDEBAR_FOCUS.shown()))
     )
     .into_owned()
 }

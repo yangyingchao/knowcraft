@@ -290,7 +290,8 @@ pub fn prepare() -> Result<(), Box<dyn std::error::Error>> {
 
 pub fn register_icon_theme() {
     if let Some(display) = gdk::Display::default() {
-        gtk::IconTheme::for_display(&display).add_resource_path("/io/github/knowcraft/Knowcraft/icons");
+        gtk::IconTheme::for_display(&display)
+            .add_resource_path("/io/github/knowcraft/Knowcraft/icons");
     }
     // Desktop shells resolve the window icon by matching the application ID to a
     // desktop entry, but GTK also needs the name to expose the bundled icon on its

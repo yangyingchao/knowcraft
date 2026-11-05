@@ -461,22 +461,17 @@ fn dialogs_dismiss_on_escape_alternate() {
         || {
             use crate::ui::keys::{Binding, Keymap, Map, bindings::ESCAPE, use_keymap};
             let alternate = vec![Binding::ctrl(Key::bracketleft)];
-            let _keymap = use_keymap(
-                Keymap::defaults()
-                    .with(Map::Default, ESCAPE, alternate.clone())
-                    .with(Map::Tenxer, ESCAPE, alternate),
-            );
-            for tenxer in [false, true] {
-                for (key, modifiers) in [
-                    (Key::bracketleft, ModifierType::CONTROL_MASK),
-                    (Key::Escape, ModifierType::empty()),
-                ] {
-                    let chooser =
-                        Chooser::open_with(single_file(), BrowserMode::List, &["a.txt"], tenxer);
-                    chooser.focus_files();
-                    assert!(chooser.press_with(key, modifiers));
-                    assert!(chooser.cancelled(), "{key:?} tenxer={tenxer}");
-                }
+            let _keymap =
+                use_keymap(Keymap::defaults().with(Map::Default, ESCAPE, alternate.clone()));
+            for (key, modifiers) in [
+                (Key::bracketleft, ModifierType::CONTROL_MASK),
+                (Key::Escape, ModifierType::empty()),
+            ] {
+                let chooser =
+                    Chooser::open_with(single_file(), BrowserMode::List, &["a.txt"], false);
+                chooser.focus_files();
+                assert!(chooser.press_with(key, modifiers));
+                assert!(chooser.cancelled(), "{key:?}");
             }
         },
     );
@@ -489,28 +484,17 @@ fn modified_arrow_alternate_moves_the_cursor() {
         "ui::chooser::tests::keyboard::modified_arrow_alternate_moves_the_cursor",
         || {
             use crate::ui::keys::{Binding, Keymap, Map, bindings::DOWN, use_keymap};
-            let keymap =
-                [Map::Default, Map::Tenxer]
-                    .into_iter()
-                    .fold(Keymap::defaults(), |keymap, map| {
-                        let mut bindings = DOWN.defaults(map).to_vec();
-                        bindings.push(Binding::ctrl(Key::j));
-                        keymap.with(map, DOWN, bindings)
-                    });
+            let mut bindings = DOWN.defaults(Map::Default).to_vec();
+            bindings.push(Binding::ctrl(Key::j));
+            let keymap = Keymap::defaults().with(Map::Default, DOWN, bindings);
             let _keymap = use_keymap(keymap);
-            for tenxer in [false, true] {
-                let chooser = Chooser::open_with(
-                    single_file(),
-                    BrowserMode::List,
-                    &["a.txt", "b.txt"],
-                    tenxer,
-                );
-                chooser.focus_files();
-                chooser.press(Key::Home);
-                wait_until(|| chooser.cursor_name().as_deref() == Some("a.txt"));
-                assert!(chooser.press_with(Key::j, ModifierType::CONTROL_MASK));
-                wait_until(|| chooser.cursor_name().as_deref() == Some("b.txt"));
-            }
+            let chooser =
+                Chooser::open_with(single_file(), BrowserMode::List, &["a.txt", "b.txt"], false);
+            chooser.focus_files();
+            chooser.press(Key::Home);
+            wait_until(|| chooser.cursor_name().as_deref() == Some("a.txt"));
+            assert!(chooser.press_with(Key::j, ModifierType::CONTROL_MASK));
+            wait_until(|| chooser.cursor_name().as_deref() == Some("b.txt"));
         },
     );
 }
@@ -544,25 +528,6 @@ fn escape_dismisses_one_interaction_before_cancelling_and_the_toggle_keeps_the_r
             assert!(chooser.open_request(), "Esc in the preview cancelled");
             assert!(chooser.press(Key::Escape));
             assert!(chooser.cancelled());
-            drop(chooser);
-
-            let chooser = Chooser::open(single_file(), BrowserMode::List, &["a.txt"]);
-            chooser.focus_files();
-            assert!(chooser.press(Key::q));
-            assert!(PreferenceManager::shared().tenxer_mode(), "q left the mode");
-            assert!(chooser.press_with(
-                Key::m,
-                ModifierType::CONTROL_MASK | ModifierType::SHIFT_MASK
-            ));
-            assert!(!PreferenceManager::shared().tenxer_mode());
-            assert!(
-                chooser.open_request(),
-                "leaving the mode cancelled the request"
-            );
-            wait_until(|| !chooser.footer_visible());
-            chooser.press(Key::Escape);
-            assert!(chooser.cancelled());
-            assert_eq!(chooser.responses.get(), 1);
         },
     );
 }
@@ -606,38 +571,6 @@ fn chooser_shortcuts_stay_off_while_the_reference_stays_open_outside_tenxer() {
             assert!(chooser.press_reference(Key::Escape));
             assert!(!chooser.reference_visible());
             assert!(chooser.open_request(), "Esc cancelled the request");
-        },
-    );
-}
-
-#[test]
-fn live_mode_changes_switch_the_chooser_between_maps() {
-    crate::test_support::gtk_test(
-        "ui::chooser::tests::keyboard::live_mode_changes_switch_the_chooser_between_maps",
-        || {
-            let chooser = Chooser::open_with(single_file(), BrowserMode::List, &["a.txt"], false);
-            chooser.focus_files();
-            assert!(!chooser.footer_visible());
-            chooser.press(Key::slash);
-            assert!(
-                !chooser.prompt().is_mapped(),
-                "the default map opened a prompt"
-            );
-
-            assert!(chooser.press_with(
-                Key::M,
-                ModifierType::CONTROL_MASK | ModifierType::SHIFT_MASK
-            ));
-            assert!(PreferenceManager::shared().tenxer_mode());
-            wait_until(|| chooser.footer_visible());
-            chooser.focus_files();
-            assert!(chooser.press(Key::slash));
-            wait_until(|| chooser.prompt_focused());
-
-            PreferenceManager::shared().set_tenxer_mode(false);
-            wait_until(|| !chooser.footer_visible());
-            assert!(chooser.prompt().text().is_empty());
-            assert!(chooser.open_request());
         },
     );
 }
@@ -1180,9 +1113,9 @@ fn default_map_enter_keeps_single_selection_and_folder_navigation() {
     );
 }
 
-/// The 10xer stage and the chooser's own first keys read before the folder
-/// accept, so `conflicts::check` must refuse an accept key either takes. Rows
-/// are driven like the window's in `keyboard_dispatch::keymap_conflicts`.
+/// The chooser's own first keys read before the folder accept, so
+/// `conflicts::check` must refuse an accept key it takes. Rows are driven like
+/// the window's in `keyboard_dispatch::keymap_conflicts`.
 #[test]
 fn folder_accept_order_matches_the_conflict_check() {
     crate::test_support::gtk_test(
@@ -1218,25 +1151,21 @@ fn folder_accept_order_matches_the_conflict_check() {
                 }
                 (chooser.responses.get() > 0, owned())
             };
-            let shipped = CHOOSE_FOLDER.defaults(Map::Tenxer)[0];
+            let shipped = CHOOSE_FOLDER.defaults(Map::Default)[0];
             assert_eq!(press(&open(), shipped, None), (true, false));
             let edits_location: fn(&Chooser) -> bool =
                 |chooser| chooser.state.view.location_has_focus();
             for (key, owner) in [
                 // The chooser's handler reads location first.
                 ("<Control>l", Some(edits_location)),
-                // The 10xer stage pages first.
-                ("<Control>u", None),
-                // The focused 10xer listing keeps typed keys.
-                ("e", None),
             ] {
                 let binding = Binding::parse(key).expect("accelerator");
-                let mut entry = CHOOSE_FOLDER.defaults(Map::Tenxer).to_vec();
+                let mut entry = CHOOSE_FOLDER.defaults(Map::Default).to_vec();
                 entry.push(binding);
-                let keymap = Keymap::defaults().with(Map::Tenxer, CHOOSE_FOLDER, entry);
+                let keymap = Keymap::defaults().with(Map::Default, CHOOSE_FOLDER, entry);
                 let findings = check(
                     &keymap,
-                    Map::Tenxer,
+                    Map::Default,
                     CHOOSE_FOLDER,
                     binding,
                     Policy::default(),

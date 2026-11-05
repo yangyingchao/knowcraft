@@ -11,9 +11,7 @@ use std::{
 
 use gtk::{gdk, glib, prelude::*};
 
-use super::{
-    SearchState, provider, record_interaction, reveal_result, show_coverage,
-};
+use super::{SearchState, provider, record_interaction, reveal_result, show_coverage};
 use crate::services::{SearchCoverage, SearchItem};
 
 type RowsByKey = HashMap<String, (Entry, gtk::ListBoxRow)>;
@@ -152,7 +150,9 @@ pub(super) fn render_sections(state: &Rc<SearchState>, mut sections: Vec<provide
         .results
         .set_visible_child_name(if empty { "status" } else { "results" });
     if empty {
-        state.status.set_text(&crate::i18n::tr("No matching files or folders"));
+        state
+            .status
+            .set_text(&crate::i18n::tr("No matching files or folders"));
     } else if entries_changed || before.query_changed {
         restore_selection(state, &before);
     }
@@ -165,11 +165,7 @@ pub(super) fn render_sections(state: &Rc<SearchState>, mut sections: Vec<provide
 }
 
 /// Keeps rows whose entry is unchanged and rebuilds or removes the rest.
-fn reconcile_entries(
-    state: &Rc<SearchState>,
-    old_entries: &[Entry],
-    entries: Vec<Entry>,
-) {
+fn reconcile_entries(state: &Rc<SearchState>, old_entries: &[Entry], entries: Vec<Entry>) {
     state.reconciling_results.set(true);
     let mut rows = old_entries
         .iter()

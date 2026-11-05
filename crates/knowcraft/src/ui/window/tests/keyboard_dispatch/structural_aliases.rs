@@ -9,15 +9,11 @@ use crate::ui::keys::{
     install_native_aliases, use_keymap,
 };
 
-/// `command` in both maps, with `extra` after its shipped keys.
+/// `command`, with `extra` after its shipped keys.
 fn with_extra(keymap: Keymap, command: Command, extra: Binding) -> Keymap {
-    [Map::Default, Map::Tenxer]
-        .into_iter()
-        .fold(keymap, |keymap, map| {
-            let mut bindings = command.defaults(map).to_vec();
-            bindings.push(extra);
-            keymap.with(map, command, bindings)
-        })
+    let mut bindings = command.defaults(Map::Default).to_vec();
+    bindings.push(extra);
+    keymap.with(Map::Default, command, bindings)
 }
 
 #[test]
@@ -26,15 +22,11 @@ fn aliased_arrow_reaches_gtk_list() {
         "ui::window::tests::keyboard_dispatch::structural_aliases::aliased_arrow_reaches_gtk_list",
         || {
             let _keymap = use_keymap(with_extra(Keymap::defaults(), DOWN, Binding::ctrl(Key::j)));
-            for tenxer in [false, true] {
-                let fixture = KeyboardFixture::new();
-                PreferenceManager::shared().set_tenxer_mode(tenxer);
-                wait_until(|| focused_widget_shows(&fixture.window, "a.txt"));
-                assert!(fixture.press(Key::j, ModifierType::CONTROL_MASK));
-                wait_until(|| focused_widget_shows(&fixture.window, "b.txt"));
-                assert!(fixture.view.item_view_has_focus(), "tenxer={tenxer}");
-                PreferenceManager::shared().set_tenxer_mode(false);
-            }
+            let fixture = KeyboardFixture::new();
+            wait_until(|| focused_widget_shows(&fixture.window, "a.txt"));
+            assert!(fixture.press(Key::j, ModifierType::CONTROL_MASK));
+            wait_until(|| focused_widget_shows(&fixture.window, "b.txt"));
+            assert!(fixture.view.item_view_has_focus());
         },
     );
 }

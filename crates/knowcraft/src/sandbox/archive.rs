@@ -134,7 +134,10 @@ fn rar_extraction_command(
 ) -> Result<Command, String> {
     let sandbox_input = sandbox_input_path(archive_path);
     let mut command = runtime_command(bwrap, false);
-    command.arg("--ro-bind").arg(executable).arg("/app/knowcraft");
+    command
+        .arg("--ro-bind")
+        .arg(executable)
+        .arg("/app/knowcraft");
     command
         .arg("--ro-bind")
         .arg(archive_path)

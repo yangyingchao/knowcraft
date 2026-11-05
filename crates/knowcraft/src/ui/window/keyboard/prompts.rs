@@ -14,7 +14,7 @@ use gtk::{
     glib::{self, Propagation},
 };
 
-use super::{Dispatcher, KeyResult};
+use super::Dispatcher;
 use crate::{
     app::Browser,
     model::{FileEntry, Location},
@@ -31,58 +31,6 @@ use crate::{
 const SHIFT: Modifiers = Modifiers::SHIFT_MASK;
 
 impl Dispatcher {
-    pub(super) fn tenxer_prompt_keys(&self, press: &KeyPress) -> KeyResult {
-        if !self.view.item_view_has_focus() {
-            return None;
-        }
-        if press.is(FIND) {
-            self.shortcuts.open_prompt(Prompt::Find);
-        } else if press.is(FIND_BACKWARD) {
-            self.shortcuts.open_prompt(Prompt::FindBackward);
-        } else if press.is(JUMP_VISITED) {
-            self.open_history_prompt(Prompt::Jump);
-        } else if press.is(JUMP_RECENT) {
-            self.open_history_prompt(Prompt::Recent);
-        } else if press.is_any(&[REPEAT_FIND, REPEAT_FIND_REVERSED]) {
-            self.repeat_find(press.is(REPEAT_FIND_REVERSED));
-        } else if press.is(FILTER) {
-            let query = self.view.listing_filter().unwrap_or_default();
-            self.shortcuts.open_prompt_with(Prompt::Filter, &query);
-        } else if press.is(SEARCH_SUBFOLDERS) {
-            self.open_search_prompt();
-        } else {
-            return None;
-        }
-        Some(Propagation::Stop)
-    }
-
-    pub(super) fn open_history_prompt(&self, kind: Prompt) {
-        self.shortcuts.open_prompt(kind);
-        let browser = self.view.browser();
-        show_history_candidates(&self.shortcuts, &self.history, &browser, kind);
-    }
-
-    pub(super) fn open_search_prompt(&self) {
-        match self.view.begin_listing_search() {
-            Some(query) => {
-                self.shortcuts.open_prompt_with(Prompt::Search, &query);
-            }
-            None => self
-                .shortcuts
-                .show_feedback(&crate::i18n::tr("Nothing to search")),
-        }
-    }
-
-    fn repeat_find(&self, reverse: bool) {
-        match self.view.repeat_find(reverse, true) {
-            None => self
-                .shortcuts
-                .show_feedback(&crate::i18n::tr("No previous find")),
-            Some(false) => self.report_miss(),
-            Some(true) => {}
-        }
-    }
-
     fn report_miss(&self) {
         let query = self.view.find_query().unwrap_or_default();
         self.shortcuts
@@ -90,11 +38,6 @@ impl Dispatcher {
     }
 
     pub(super) fn prompt_key(&self, browser: &Browser, press: &KeyPress) -> Propagation {
-        let preferences = &self.type_to_search.preferences;
-        if press.is(TENXER_MODE) {
-            preferences.set_tenxer_mode(!preferences.tenxer_mode());
-            return Propagation::Stop;
-        }
         let kind = self.shortcuts.open_prompt_kind();
         let step = if press.is(UP.ignoring(SHIFT)) {
             Some(-1)

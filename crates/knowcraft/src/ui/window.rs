@@ -70,13 +70,13 @@ pub(super) use key_routing::{
     is_browser_navigation_key, type_to_search_query,
 };
 pub(in crate::ui) use keyboard::{ChooserKeys, ChooserPolicy, edit_focused_text};
+pub(crate) use launch::home_directory;
+pub use launch::present;
 pub(super) use launch::present_target;
 use launch::{
     bind_update_notice_preferences, browser_for_window, open_checked, open_default_folder,
     schedule_after_first_paint,
 };
-pub(crate) use launch::home_directory;
-pub use launch::present;
 use modal_layers::topmost_modal_layer;
 pub(super) use modal_layers::{
     foreign_modal_visible, install_modal_focus_trap, visible_modal_layer,

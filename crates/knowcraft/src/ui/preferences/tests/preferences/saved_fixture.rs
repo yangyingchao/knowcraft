@@ -306,17 +306,6 @@ fn assert_saved_keymap(manager: &PreferenceManager) {
             Binding::ctrl_alt(gtk::gdk::Key::F12)
         ]
     );
-    assert_eq!(
-        keymap.bindings(Map::Tenxer, bindings::SIDEBAR_FOCUS),
-        [
-            Binding::ctrl_shift(gtk::gdk::Key::b),
-            Binding::ctrl_alt(gtk::gdk::Key::F11)
-        ]
-    );
-    assert_eq!(
-        keymap.bindings(Map::Tenxer, bindings::SETTINGS),
-        bindings::SETTINGS.defaults(Map::Tenxer)
-    );
 }
 
 #[test]

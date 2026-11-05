@@ -14,7 +14,10 @@ fn has_label(root: &gtk::Widget, text: &str) -> bool {
 fn launches_report_a_missing_terminal_after_the_ui_thread_returns() {
     crate::test_support::gtk_test_with_env(
         "ui::browser::desktop::tests::launches_report_a_missing_terminal_after_the_ui_thread_returns",
-        [("PATH", "/nonexistent/knowcraft-test-path"), ("TERMINAL", "")],
+        [
+            ("PATH", "/nonexistent/knowcraft-test-path"),
+            ("TERMINAL", ""),
+        ],
         || {
             let open_terminal: fn(&gtk::Box) =
                 |parent| launch_terminal(&Location::local("/tmp"), parent);

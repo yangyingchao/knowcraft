@@ -5,7 +5,7 @@
 //! the preferences. See `docs/keyboard-shortcuts.md`.
 
 use std::{
-    cell::{Cell, RefCell},
+    cell::RefCell,
     collections::HashMap,
     rc::{Rc, Weak},
 };
@@ -20,7 +20,6 @@ use crate::{
         accessibility,
         controls::{
             ModalTone, keep_words_whole, message_dialog_description, message_dialog_layout,
-            segmented_control,
         },
         keys::{
             self, Binding, Command, CommandKind, Group, Keys, Map,
@@ -48,20 +47,9 @@ pub(super) fn keyboard_page(preferences: Rc<PreferenceManager>) -> gtk::Widget {
     search::tag(&controls, "Keyboard shortcuts");
     let (filter_field, filter, clear_filter) = super::search_field("Search keybinds");
 
-    let shown = if preferences.tenxer_mode() {
-        Map::Tenxer
-    } else {
-        Map::Default
-    };
     let toolbar = super::wrap::WrapRow::new(8);
     toolbar.set_hexpand(true);
     toolbar.set_end_align(true);
-    let (maps, map_buttons) = segmented_control(
-        &["Default", "10xer mode"],
-        usize::from(shown == Map::Tenxer),
-    );
-    maps.set_hexpand(false);
-    maps.set_valign(gtk::Align::Center);
     let reset_all = gtk::Button::with_label(&crate::i18n::tr("Reset all"));
     reset_all.add_css_class("settings-action-button");
     reset_all.add_css_class("settings-actions-create-button");
@@ -69,12 +57,11 @@ pub(super) fn keyboard_page(preferences: Rc<PreferenceManager>) -> gtk::Widget {
     accessibility::set_description(
         &reset_all,
         Some(&crate::i18n::tr(
-            "Restore the shipped keys of every action in the shown mode.",
+            "Restore the shipped keys of every action.",
         )),
     );
     let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     spacer.set_hexpand(true);
-    toolbar.append(&maps);
     toolbar.append(&spacer);
     toolbar.append(&reset_all);
     controls.append(&toolbar);
@@ -89,22 +76,17 @@ pub(super) fn keyboard_page(preferences: Rc<PreferenceManager>) -> gtk::Widget {
     let page = Rc::new_cyclic(|weak: &Weak<Page>| {
         let mut rows = Vec::new();
         let mut sections = Vec::new();
-        let tables = [Map::Default, Map::Tenxer].map(|map| {
-            let table = table(map, weak, &mut rows, &mut sections);
-            table.set_visible(map == shown);
-            content.append(&table);
-            (map, table)
-        });
+        let table = table(Map::Default, weak, &mut rows, &mut sections);
+        content.append(&table);
         Page {
             preferences: preferences.clone(),
             actions: crate::ui::actions::shared(),
             rows,
-            tables,
+            table,
             sections,
             no_match,
             query: RefCell::new(String::new()),
             reset_all: reset_all.clone(),
-            shown: Cell::new(shown),
             capture: RefCell::new(None),
         }
     });
@@ -118,42 +100,6 @@ pub(super) fn keyboard_page(preferences: Rc<PreferenceManager>) -> gtk::Widget {
         }
     });
 
-    for (button, map) in map_buttons.iter().zip([Map::Default, Map::Tenxer]) {
-        let page = Rc::downgrade(&page);
-        button.connect_toggled(move |button| {
-            if button.is_active()
-                && let Some(page) = page.upgrade()
-            {
-                page.show(map);
-            }
-        });
-    }
-    let pending = Rc::new(Cell::new(false));
-    for (_, table) in &page.tables {
-        for group in groups(table) {
-            let (page, pending, buttons) = (
-                Rc::downgrade(&page),
-                pending.clone(),
-                map_buttons
-                    .iter()
-                    .map(ObjectExt::downgrade)
-                    .collect::<Vec<_>>(),
-            );
-            // Search hides groups one table at a time, so look once both are done.
-            group.connect_visible_notify(move |_| {
-                if pending.replace(true) {
-                    return;
-                }
-                let (page, pending, buttons) = (page.clone(), pending.clone(), buttons.clone());
-                glib::idle_add_local_once(move || {
-                    pending.set(false);
-                    if let Some(page) = page.upgrade() {
-                        page.follow_search(&buttons);
-                    }
-                });
-            });
-        }
-    }
     let weak = Rc::downgrade(&page);
     reset_all.connect_clicked(move |button| {
         if let Some(page) = weak.upgrade() {
@@ -203,11 +149,9 @@ pub(super) fn search_targets() -> Vec<SearchTarget> {
     keys::registry()
         .map(|command| {
             let mut aliases = Vec::new();
-            for map in [Map::Default, Map::Tenxer] {
-                for binding in command.bindings_in(map) {
-                    for locale in [&*locale, "en"] {
-                        aliases.push(keys::label_in(locale, &Keys::One(binding.shown())));
-                    }
+            for binding in command.bindings_in(Map::Default) {
+                for locale in [&*locale, "en"] {
+                    aliases.push(keys::label_in(locale, &Keys::One(binding.shown())));
                 }
             }
             SearchTarget {
@@ -234,12 +178,11 @@ struct Page {
     preferences: Rc<PreferenceManager>,
     actions: Rc<ActionRegistry>,
     rows: Vec<Rc<Row>>,
-    tables: [(Map, gtk::Box); 2],
+    table: gtk::Box,
     sections: Vec<Section>,
     no_match: gtk::Label,
     query: RefCell<String>,
     reset_all: gtk::Button,
-    shown: Cell<Map>,
     capture: RefCell<Option<Capturing>>,
 }
 
@@ -269,16 +212,12 @@ impl Page {
     fn render(&self) {
         let keymap = self.preferences.keymap();
         let policy = self.policy();
-        let mut findings: HashMap<(Map, Command), Vec<Finding>> = HashMap::new();
-        for map in [Map::Default, Map::Tenxer] {
-            for (command, finding) in conflicts::audit(&keymap, map, policy) {
-                findings.entry((map, command)).or_default().push(finding);
-            }
+        let mut findings: HashMap<Command, Vec<Finding>> = HashMap::new();
+        for (command, finding) in conflicts::audit(&keymap, Map::Default, policy) {
+            findings.entry(command).or_default().push(finding);
         }
         for row in &self.rows {
-            let found = findings
-                .get(&(row.map, row.command))
-                .map_or(&[][..], Vec::as_slice);
+            let found = findings.get(&row.command).map_or(&[][..], Vec::as_slice);
             row.render(self, &keymap, found);
         }
         self.update_reset_all();
@@ -298,21 +237,17 @@ impl Page {
         let Some(host) = ModalHost::blurred_for(anchor) else {
             return;
         };
-        let map = self.shown.get();
         let layout = message_dialog_layout(
             icons::UNDO_2,
             &crate::i18n::tr("Reset all keybinds?"),
-            &crate::i18n::tr(match map {
-                Map::Default => "Default",
-                Map::Tenxer => "10xer mode",
-            }),
+            &crate::i18n::tr("Default"),
             &crate::i18n::tr("Reset"),
             ModalTone::Danger,
         );
         layout
             .body
             .append(&message_dialog_description(&crate::i18n::tr(
-                "Restore the shipped keys of every action in the shown mode.",
+                "Restore the shipped keys of every action.",
             )));
         let layer = modal_layer(
             &layout.content,
@@ -337,7 +272,7 @@ impl Page {
         let preferences = Rc::downgrade(&self.preferences);
         layout.confirm.connect_clicked(move |_| {
             if let Some(preferences) = preferences.upgrade() {
-                preferences.reset_map(map);
+                preferences.reset_map(Map::Default);
             }
             dismiss();
         });
@@ -347,22 +282,11 @@ impl Page {
 
     fn update_reset_all(&self) {
         let keymap = self.preferences.keymap();
-        let map = self.shown.get();
         self.reset_all.set_sensitive(
             self.rows
                 .iter()
-                .any(|row| row.map == map && keymap.overrides(map, row.command)),
+                .any(|row| keymap.overrides(Map::Default, row.command)),
         );
-    }
-
-    fn show(&self, map: Map) {
-        self.end_capture(false);
-        self.shown.set(map);
-        for (table_map, table) in &self.tables {
-            table.set_visible(*table_map == map);
-        }
-        self.update_reset_all();
-        self.filter();
     }
 
     fn filter(&self) {
@@ -378,31 +302,9 @@ impl Page {
                 any |= matches;
             }
             section.widget.set_visible(any);
-            shown_any |= any && section.map == self.shown.get();
+            shown_any |= any;
         }
         self.no_match.set_visible(!shown_any);
-    }
-
-    /// Shows the other table when a search leaves no row in the shown one
-    /// but matches some there.
-    fn follow_search(&self, buttons: &[glib::WeakRef<gtk::ToggleButton>]) {
-        let has_rows = |map: Map| {
-            self.tables
-                .iter()
-                .filter(|(table_map, _)| *table_map == map)
-                .any(|(_, table)| groups(table).any(|group| group.get_visible()))
-        };
-        let shown = self.shown.get();
-        let other = match shown {
-            Map::Default => Map::Tenxer,
-            Map::Tenxer => Map::Default,
-        };
-        if !has_rows(shown)
-            && has_rows(other)
-            && let Some(button) = buttons[usize::from(other == Map::Tenxer)].upgrade()
-        {
-            button.set_active(true);
-        }
     }
 
     fn start_capture(self: &Rc<Self>, row: &Rc<Row>) {
@@ -539,7 +441,6 @@ struct Row {
     command: Command,
     /// The action a custom action slot runs.
     action: gtk::Label,
-    prefix: gtk::Label,
     chips: super::wrap::WrapRow,
     unbound: gtk::Label,
     findings: gtk::Box,
@@ -592,10 +493,6 @@ impl Row {
         let controls = super::wrap::WrapRow::new(6);
         controls.set_end_align(true);
         controls.set_valign(gtk::Align::Center);
-        let prefix = gtk::Label::new(None);
-        prefix.add_css_class("keymap-prefix");
-        prefix.add_css_class("settings-nowrap");
-        prefix.set_valign(gtk::Align::Center);
         let chips = super::wrap::WrapRow::new(6);
         chips.set_end_align(true);
         chips.set_valign(gtk::Align::Center);
@@ -631,8 +528,7 @@ impl Row {
             ),
         );
         for child in [
-            prefix.upcast_ref::<gtk::Widget>(),
-            chips.upcast_ref(),
+            chips.upcast_ref::<gtk::Widget>(),
             unbound.upcast_ref(),
             capture.upcast_ref(),
             cancel.upcast_ref(),
@@ -647,7 +543,6 @@ impl Row {
             map,
             command,
             action: runs,
-            prefix,
             chips,
             unbound,
             findings,
@@ -695,32 +590,12 @@ impl Row {
     fn render(&self, page: &Page, keymap: &keys::Keymap, findings: &[Finding]) {
         let entry = keymap.bindings(self.map, self.command);
         let action = title(self.command);
-        let trigger = match (self.map, self.command.kind()) {
-            (Map::Tenxer, CommandKind::Step(group)) => trigger(group),
-            _ => None,
-        };
-        let prefix =
-            trigger.and_then(|trigger| keymap.bindings(Map::Tenxer, trigger).first().copied());
-        self.prefix
-            .set_text(&prefix.map(key_label).unwrap_or_default());
-        self.prefix.set_visible(prefix.is_some());
 
         while let Some(chip) = self.chips.first_child() {
             chip.unparent();
         }
         clear(&self.findings);
         let mut notes: Vec<(String, Severity)> = Vec::new();
-        let unreachable = trigger.filter(|_| prefix.is_none());
-        if let Some(trigger) = unreachable.filter(|_| !entry.is_empty()) {
-            notes.push((
-                rust_i18n::t!(
-                    "“%{group}” has no key, so this action cannot run.",
-                    group = title(trigger)
-                )
-                .into_owned(),
-                Severity::Warning,
-            ));
-        }
         let mut turn_off_typing = false;
         for binding in entry {
             let mut found: Vec<Finding> = findings
@@ -735,7 +610,7 @@ impl Row {
             {
                 found.retain(|finding| finding.kind == Kind::NeverMatches);
             }
-            let inactive = unreachable.is_some() || found.iter().any(|finding| finding.inactive());
+            let inactive = found.iter().any(|finding| finding.inactive());
             let messages: Vec<String> = found
                 .iter()
                 .map(|finding| message(self.map, self.command, *finding))
@@ -858,10 +733,9 @@ impl Row {
     }
 }
 
-/// A section of one table: its heading and group, and each row's slot with
+/// A section of the table: its heading and group, and each row's slot with
 /// the command whose names the page filter matches.
 struct Section {
-    map: Map,
     widget: gtk::Box,
     rows: Vec<(gtk::Box, Command)>,
 }
@@ -875,10 +749,7 @@ fn table(
     let table = gtk::Box::new(gtk::Orientation::Vertical, 0);
     table.add_css_class("settings-preferences");
     table.add_css_class("keymap-table");
-    table.set_widget_name(match map {
-        Map::Default => "keymap-default",
-        Map::Tenxer => "keymap-tenxer",
-    });
+    table.set_widget_name("keymap-default");
     for (title, commands) in sections(map) {
         let widget = gtk::Box::new(gtk::Orientation::Vertical, 0);
         // Settings search hides the heading when nothing under it matches.
@@ -897,7 +768,6 @@ fn table(
         }
         table.append(&widget);
         filtered.push(Section {
-            map,
             widget,
             rows: slots,
         });
@@ -905,32 +775,24 @@ fn table(
     table
 }
 
-/// Each command sits in the first section naming it in `map`'s reference,
-/// then in the other map's. Commands `map` cannot run stay out, and the default
-/// map files the 10xer section's runnable commands under "Search and tools".
+/// Each command sits in the first section naming it in the reference.
+/// Commands with no stage running them stay out.
 fn sections(map: Map) -> Vec<(&'static str, Vec<Command>)> {
-    let tenxer = shortcut_reference::command_sections(Map::Tenxer);
-    let default = shortcut_reference::command_sections(Map::Default);
+    let reference = shortcut_reference::command_sections();
     let mut order: Vec<&'static str> = Vec::new();
-    for (title, _) in tenxer.iter().chain(&default) {
+    for (title, _) in &reference {
         if !order.contains(title) {
             order.push(title);
         }
     }
-    let (own, others) = match map {
-        Map::Default => (&default, &tenxer),
-        Map::Tenxer => (&tenxer, &default),
-    };
     let commands: Vec<Command> = keys::registry()
         .filter(|command| {
-            (map == Map::Tenxer || !matches!(command.kind(), CommandKind::Trigger(_)))
-                && !conflicts::no_path(*command, map)
+            !matches!(command.kind(), CommandKind::Trigger(_)) && !conflicts::no_path(*command, map)
         })
         .collect();
     let section_of = |command: Command| {
-        let title = [own, others]
-            .into_iter()
-            .flatten()
+        reference
+            .iter()
             .find(|(_, listed)| listed.contains(&command))
             .map(|(title, _)| *title)
             .or_else(|| {
@@ -939,20 +801,14 @@ fn sections(map: Map) -> Vec<(&'static str, Vec<Command>)> {
                     .find(|(listed, _)| *listed == command)
                     .map(|(_, title)| *title)
             })
-            .unwrap_or(SEARCH_AND_TOOLS);
-        if map == Map::Default && title == TENXER_SECTION {
-            SEARCH_AND_TOOLS
-        } else {
-            title
-        }
+            .unwrap_or(SEARCH_AND_TOOLS)
     };
     order
         .into_iter()
         .map(|title| {
             let mut listed: Vec<Command> = Vec::new();
-            let candidates = [own, others]
-                .into_iter()
-                .flatten()
+            let candidates = reference
+                .iter()
                 .filter(|(section, _)| *section == title)
                 .flat_map(|(_, listed)| listed.iter().copied())
                 .chain(commands.iter().copied());
@@ -971,7 +827,6 @@ fn sections(map: Map) -> Vec<(&'static str, Vec<Command>)> {
 }
 
 const SEARCH_AND_TOOLS: &str = "Search and tools";
-const TENXER_SECTION: &str = "10xer mode";
 
 /// Commands no reference row names.
 const FALLBACK_SECTIONS: &[(Command, &str)] = &[
@@ -1093,9 +948,6 @@ fn message(map: Map, command: Command, finding: Finding) -> String {
         Kind::ChooserMnemonic => {
             plain("The file chooser may use %{keys} for its accept button instead.")
         }
-        Kind::FixedKey(Fixed::SelectionToggle) => {
-            plain("%{keys} selects the item under the cursor, so it never runs this action.")
-        }
         Kind::FixedKey(Fixed::MediaKeys) => plain(
             "Media previews use %{keys} for playback first, so it never runs this action there.",
         ),
@@ -1105,10 +957,6 @@ fn message(map: Map, command: Command, finding: Finding) -> String {
         Kind::FixedKey(Fixed::Digits(digits)) => {
             let message = if digits == TAB_NUMBERS {
                 "%{digits} select tabs before anything else reads them, so %{keys} never runs this action."
-            } else if digits == PIN_NUMBERS {
-                "%{digits} open pinned folders, and this key takes %{keys} from them."
-            } else if digits == ACTIONS_NUMBERS {
-                "%{digits} run custom actions, and this key takes %{keys} from them."
             } else {
                 "%{digits} select tabs, and this key takes %{keys} from them."
             };
@@ -1121,10 +969,7 @@ fn message(map: Map, command: Command, finding: Finding) -> String {
             rust_i18n::t!(message, keys = keys, digits = range).into_owned()
         }
         Kind::NeverMatches => plain("%{keys} never reaches this action, so it does nothing."),
-        Kind::NoPath => crate::i18n::tr(match map {
-            Map::Default => "Only 10xer mode runs this action, so its keys do nothing here.",
-            Map::Tenxer => "10xer mode does not run this action, so its keys do nothing here.",
-        }),
+        Kind::NoPath => plain("No stage runs this action, so its keys do nothing here."),
     }
 }
 
@@ -1175,8 +1020,6 @@ const NAMES: &[(Command, &str)] = &[
     (LAST_ITEM_DOWN, "Jump to the last item"),
     (PAGE_UP, "Page up"),
     (PAGE_DOWN, "Page down"),
-    (HALF_PAGE_UP, "Half a page up"),
-    (HALF_PAGE_DOWN, "Half a page down"),
     (ENTER, "Open or activate the focused item"),
     (ESCAPE, "Close preview or cancel the current interaction"),
     (FOCUS_NEXT, "Next interface control"),
@@ -1189,8 +1032,6 @@ const NAMES: &[(Command, &str)] = &[
     (OPEN_IN_NEW_WINDOW, "Open in a new window"),
     (PREVIEW, "Preview a file, or open a folder"),
     (COMPLETE, "Write the chosen folder into the prompt"),
-    (OPEN, "Open the focused item"),
-    (CLOSE_WINDOW, "Close the current window"),
     (COPY, "Copy"),
     (CUT, "Cut"),
     (PASTE, "Paste"),
@@ -1207,23 +1048,9 @@ const NAMES: &[(Command, &str)] = &[
     (CONTEXT_MENU, "Open the context menu"),
     (MOVE_TO_TRASH, "Move to Trash"),
     (DELETE_PERMANENTLY, "Permanently delete selected items"),
-    (TENXER_DELETE_CONFIRM, "Confirm Move to Trash"),
     (DUPLICATE, "Duplicate selected items"),
     (COPY_PATH, "Copy path"),
     (PIN, "Pin a folder"),
-    (YANK, "Yank to copy"),
-    (YANK_CUT, "Yank to cut"),
-    (UNYANK, "Clear copy and cut marks"),
-    (PASTE_KEEP_BOTH, "Paste; Keep Both is focused on conflicts"),
-    (PASTE_REPLACE, "Paste; Replace is focused on conflicts"),
-    (CREATE, "Create a file; end with / for a folder"),
-    (OPEN_WITH, "Open With…"),
-    (MOVE_TO, "Move to…"),
-    (COPY_TO, "Copy to…"),
-    (RESTORE, "Restore from Trash"),
-    (VISUAL_SELECT, "Visual select"),
-    (VISUAL_UNSET, "Visual unset"),
-    (INVERT_SELECTION, "Invert the selection"),
     (SEARCH, "Open global search"),
     (LOCATION, "Edit the location"),
     (REFRESH, "Refresh"),
@@ -1243,7 +1070,6 @@ const NAMES: &[(Command, &str)] = &[
     (SIDEBAR_FOCUS, "Switch focus between sidebar and browser"),
     (SETTINGS, "Open Settings"),
     (REFERENCE, "Show or hide the shortcut reference"),
-    (TENXER_MODE, "Toggle 10xer mode"),
     (TAB_NEW, "New tab"),
     (TAB_CLOSE, "Close tab"),
     (TAB_REOPEN, "Reopen the last closed tab"),
@@ -1252,59 +1078,16 @@ const NAMES: &[(Command, &str)] = &[
     (TAB_MOVE_LEFT, "Move tab left"),
     (TAB_MOVE_RIGHT, "Move tab right"),
     (JUMP_TO_FOLDER, "Jump to a folder"),
-    (JUMP_VISITED, "Jump to a visited folder"),
-    (JUMP_RECENT, "Jump to a recent folder"),
     (TERMINAL, "Open a terminal"),
     (ARROW_SCOPE, "Keep arrows in the file list on or off"),
     (
         OPEN_CONTAINING_FOLDER,
         "Open containing folder (global search)",
     ),
-    (FIND, "Find a name in this listing"),
-    (FIND_BACKWARD, "Find a name backward"),
-    (REPEAT_FIND, "Repeat the last find"),
-    (REPEAT_FIND_REVERSED, "Repeat the last find in reverse"),
-    (SEARCH_SUBFOLDERS, "Search this folder and its subfolders"),
     (CHOOSE_FOLDER, "Choose a folder, as Accept does"),
     (REFERENCE_CATEGORIES, "Focus the reference categories"),
     (REFERENCE_SEARCH, "Search the shortcut reference"),
     (REFERENCE_LIST, "Focus the reference list"),
-    (GO, "Go chord"),
-    (GO_FIRST, "Go to the first item"),
-    (GO_FOLLOW, "Follow search result"),
-    (GO_PROMPT, "Go to a folder, typed path, or URI"),
-    (GO_HOME, "Home"),
-    (GO_CONFIG, "Configuration folder"),
-    (GO_DOWNLOADS, "Downloads"),
-    (GO_DOCUMENTS, "Documents"),
-    (GO_MUSIC, "Music"),
-    (GO_PICTURES, "Pictures"),
-    (GO_VIDEOS, "Videos"),
-    (GO_TRASH, "Trash"),
-    (GO_NETWORK, "Network"),
-    (GO_RECENT, "Recent"),
-    (GO_PIN, "Pin a folder (go chord)"),
-    (GO_UNPIN, "Unpin a folder"),
-    (SORT_BY, "Sort chord"),
-    (SORT_BY_NAME, "Sort by name"),
-    (SORT_BY_MODIFIED, "Sort by modified date"),
-    (SORT_BY_SIZE, "Sort by size"),
-    (SORT_BY_TYPE, "Sort by type"),
-    (COPY_AS, "Copy chord"),
-    (COPY_AS_PATH, "Copy path (copy chord)"),
-    (COPY_AS_NAME, "Copy name"),
-    (ACTIONS, "Action chord"),
-    (ACTIONS_TERMINAL, "Open a terminal in the focused folder"),
-    (
-        ACTIONS_COMPRESS,
-        "Compress the selection, or the focused item",
-    ),
-    (ACTIONS_EXTRACT, "Extract here"),
-    (ACTIONS_EXTRACT_TO, "Extract to a typed folder"),
-    (TAB_CHORD, "Tab chord"),
-    (TAB_CHORD_NEW, "New tab (tab chord)"),
-    (TAB_CHORD_CLOSE, "Close tab (tab chord)"),
-    (TAB_CHORD_PREVIOUS, "Previous tab (tab chord)"),
     (MEDIA_PLAY_PAUSE, "Play / pause"),
     (MEDIA_SEEK_BACK, "Seek back 5 seconds"),
     (MEDIA_SEEK_FORWARD, "Seek forward 5 seconds"),
@@ -1313,20 +1096,12 @@ const NAMES: &[(Command, &str)] = &[
     (MEDIA_MUTE, "Mute / unmute"),
     (MEDIA_PREVIOUS, "Previous file of the same type"),
     (MEDIA_NEXT, "Next file of the same type"),
-    (TENXER_MEDIA_MUTE, "Mute or unmute the open preview"),
-    (
-        TENXER_MEDIA_PREVIOUS,
-        "Previous media file in the open preview",
-    ),
-    (TENXER_MEDIA_NEXT, "Next media file in the open preview"),
     (MEDIA_SEEK_BACK_PAGE, "Seek back 30 seconds"),
     (MEDIA_SEEK_FORWARD_PAGE, "Seek forward 30 seconds"),
     (MEDIA_SEEK_START, "Seek to the start"),
     (MEDIA_SEEK_END, "Seek to the end"),
     (MEDIA_VOLUME_STEP_UP, "Volume up in the preview"),
     (MEDIA_VOLUME_STEP_DOWN, "Volume down in the preview"),
-    (SCROLL_PREVIEW_DOWN, "Scroll the preview down"),
-    (SCROLL_PREVIEW_UP, "Scroll the preview up"),
     (FIND_IN_PREVIEW, "Find in preview"),
     (PDF_ZOOM_RESET, "Reset zoom"),
     (PREVIOUS_MATCH, "Previous match"),

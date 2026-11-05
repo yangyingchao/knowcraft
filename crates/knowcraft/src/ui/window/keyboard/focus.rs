@@ -10,7 +10,7 @@ use crate::{
         focus_navigation::{
             FOCUS_MODIFIERS, arrow_direction, plain_tab_direction, vim_focus_direction,
         },
-        keys::{KeyPress, SHORTCUT_MODIFIERS, bindings::*},
+        keys::{Binding, KeyPress, SHORTCUT_MODIFIERS, bindings::*},
         window::sidebar_focus_direction,
     },
 };
@@ -113,7 +113,7 @@ impl Dispatcher {
         } else if press.is(RIGHT.ignoring(FOCUS_MODIFIERS).or_alternates()) {
             self.view.move_header_focus(gtk::DirectionType::Right);
         } else if press.is(ENTER.ignoring(FOCUS_MODIFIERS))
-            || press.is(SPACE.ignoring(FOCUS_MODIFIERS))
+            || press.is(Binding::plain(gtk::gdk::Key::space).ignoring(FOCUS_MODIFIERS))
         {
             return None;
         }

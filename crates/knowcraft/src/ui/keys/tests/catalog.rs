@@ -18,10 +18,7 @@ fn catalog_bindings_use_the_canonical_key() {
             Entry::Binding(binding) => (format!("{binding:?}"), vec![binding]),
             Entry::Command(command) => (
                 command.id().to_owned(),
-                [Map::Default, Map::Tenxer]
-                    .into_iter()
-                    .flat_map(|map| command.defaults(map).iter().copied())
-                    .collect(),
+                command.defaults(Map::Default).iter().copied().collect(),
             ),
             Entry::Digits(_) => continue,
         };
@@ -126,11 +123,9 @@ fn keymap_with_custom_actions_bound() -> Keymap {
 }
 
 fn assert_each_listed_constant_has_a_row(listed: &[Listed], map: Map) {
-    let tenxer = map == Map::Tenxer;
-    let rows = crate::ui::shortcut_reference::tests::reference_rows(tenxer);
+    let rows = crate::ui::shortcut_reference::tests::reference_rows();
     let wanted: Vec<(&Listed, Wanted)> = listed
         .iter()
-        .filter(|constant| constant.maps.include(tenxer))
         .map(|constant| (constant, wanted(constant, map)))
         .collect();
     for (constant, keys) in &wanted {
@@ -157,14 +152,11 @@ fn assert_each_listed_constant_has_a_row(listed: &[Listed], map: Map) {
 }
 
 /// Constants with equal keys each need a row of their own, since a row shows
-/// bindings rather than constants. A command needs its row in each map its
-/// catalog block lists it in.
+/// bindings rather than constants.
 #[test]
 fn every_listed_binding_has_its_own_row_in_its_maps() {
     let _keymap = use_keymap(keymap_with_custom_actions_bound());
     let listed: Vec<Listed> = bindings::listed().collect();
     assert!(!listed.is_empty());
-    for map in [Map::Default, Map::Tenxer] {
-        assert_each_listed_constant_has_a_row(&listed, map);
-    }
+    assert_each_listed_constant_has_a_row(&listed, Map::Default);
 }

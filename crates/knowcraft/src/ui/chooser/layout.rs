@@ -773,13 +773,12 @@ pub(super) fn save_hints(
 ) -> Option<gtk::Box> {
     use crate::ui::keys::{
         self, Keys, Shown,
-        bindings::{ENTER, OPEN, RENAME},
+        bindings::{ENTER, RENAME},
     };
     let hints: &[(Shown, &str)] = match kind {
         ChooserKind::SaveFile { .. } => &[
             (ENTER.shown(), "Save here"),
             (RENAME.alternate(0).shown(), "Edit name"),
-            (OPEN.shown(), "Replace file"),
         ],
         ChooserKind::SaveFiles { .. } => &[(ENTER.shown(), "Save here")],
         ChooserKind::Open { .. } => return None,
@@ -788,14 +787,13 @@ pub(super) fn save_hints(
     row.add_css_class("chooser-save-hints");
     row.set_valign(gtk::Align::Center);
     for (index, (binding, action)) in hints.iter().enumerate() {
-        // Shown only in 10xer mode, so it shows that map.
         let keycap = gtk::Label::new(None);
         let shown = *binding;
         crate::ui::shortcut_reference::follow_keys(&keycap, move |keycap| {
             keycap.set_text(&keys::label_in_map(
                 &rust_i18n::locale(),
                 &Keys::One(shown),
-                Map::Tenxer,
+                Map::Default,
             ));
         });
         keycap.add_css_class("sidebar-keycap");

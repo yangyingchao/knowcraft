@@ -79,11 +79,6 @@ pub(crate) enum Keys {
 }
 
 impl Keys {
-    /// Whether the keys resolve to the same bindings in both maps.
-    pub(crate) fn same_in_both_maps(&self) -> bool {
-        self.resolved(Map::Default) == self.resolved(Map::Tenxer)
-    }
-
     /// Whether the active map binds what the label needs: any alternative, and
     /// every step of a chord. An unbound row is left out rather than shown blank.
     pub(crate) fn is_bound(&self) -> bool {

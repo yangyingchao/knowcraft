@@ -79,9 +79,9 @@ impl ViewState {
         );
         layout
             .body
-            .append(&message_dialog_description(&crate::i18n::tr(drop_description(
-                volume,
-            ))));
+            .append(&message_dialog_description(&crate::i18n::tr(
+                drop_description(volume),
+            )));
         let move_button = gtk::Button::with_label(&crate::i18n::tr("Move"));
         move_button.add_css_class("action-dialog-cancel");
         layout

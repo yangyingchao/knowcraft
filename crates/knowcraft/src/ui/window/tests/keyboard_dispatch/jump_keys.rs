@@ -203,7 +203,10 @@ fn end_key_jumps_to_the_file_and_drops_the_mirror(
     assert_eq!(focused_name(browser), "b-dir", "{end_key:?}");
     wait_mirrored(browser, "b-dir");
 
-    assert!(fixture.press(end_key, NONE), "Knowcraft handles {end_key:?}");
+    assert!(
+        fixture.press(end_key, NONE),
+        "Knowcraft handles {end_key:?}"
+    );
     assert_cursor_fill(browser, "e.bin", &["e.bin"], format!("{end_key:?}"));
     wait_until(|| browser.location_at(1).is_none());
     assert_eq!(
@@ -223,7 +226,10 @@ fn home_key_jumps_to_the_first_folder_and_mirrors_it(
     assert_eq!(focused_name(browser), "c-dir", "{end_key:?}");
     wait_mirrored(browser, "c-dir");
 
-    assert!(fixture.press(home_key, NONE), "Knowcraft handles {home_key:?}");
+    assert!(
+        fixture.press(home_key, NONE),
+        "Knowcraft handles {home_key:?}"
+    );
     assert_eq!(focused_name(browser), "a-dir", "{home_key:?}");
     wait_mirrored(browser, "a-dir");
 }
@@ -279,7 +285,10 @@ fn home_and_end_jump_to_the_first_and_last_item_in_the_default_key_map() {
                 focus_files(&fixture);
                 assert_cursor_fill(&browser, "b.txt", &["a.txt", "b.txt"], format!("{mode:?}"));
 
-                assert!(fixture.press(Key::End, NONE), "{mode:?} Knowcraft handles End");
+                assert!(
+                    fixture.press(Key::End, NONE),
+                    "{mode:?} Knowcraft handles End"
+                );
                 assert_cursor_fill(&browser, "c.txt", &["c.txt"], format!("{mode:?}"));
                 assert!(fixture.view.item_view_has_focus(), "{mode:?}");
                 if mode == BrowserMode::Columns {
@@ -377,7 +386,10 @@ fn home_and_end_set_the_anchor(
     let mode = case.mode;
     press_then_native_binding(fixture, case.next, NONE);
     assert_eq!(fill_names(browser), ["b.txt"], "{mode:?} next item");
-    assert!(fixture.press(Key::End, NONE), "{mode:?} Knowcraft handles End");
+    assert!(
+        fixture.press(Key::End, NONE),
+        "{mode:?} Knowcraft handles End"
+    );
     assert_eq!(fill_names(browser), ["c.txt"], "{mode:?} End");
     wait_until(|| focused_widget_shows(&fixture.window, "c.txt"));
     assert_eq!(

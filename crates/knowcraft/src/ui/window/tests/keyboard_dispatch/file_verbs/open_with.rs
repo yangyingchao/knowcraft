@@ -157,7 +157,12 @@ fn default_activation_records_application_history_for_files_and_folders() {
         || {
             let output_alpha = gtk::glib::user_data_dir().join("received-alpha");
             let output_dirs = gtk::glib::user_data_dir().join("received-dirs");
-            recorder_app("knowcraft-alpha", "Alpha Editor", "text/plain;", &output_alpha);
+            recorder_app(
+                "knowcraft-alpha",
+                "Alpha Editor",
+                "text/plain;",
+                &output_alpha,
+            );
             recorder_app(
                 "knowcraft-dirs",
                 "Dir Handler",

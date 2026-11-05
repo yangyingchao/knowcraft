@@ -16,12 +16,20 @@ fn providers_render_in_priority_order_with_section_headers() {
                 provider::Section::new(
                     "文档内容",
                     30,
-                    vec![provider::Hit::content("笔记", "摘要", PathBuf::from("/k/note.md"))],
+                    vec![provider::Hit::content(
+                        "笔记",
+                        "摘要",
+                        PathBuf::from("/k/note.md"),
+                    )],
                 ),
                 provider::Section::new(
                     "文件名",
                     10,
-                    vec![provider::Hit::content("note.md", "/k/note.md", PathBuf::from("/k/note.md"))],
+                    vec![provider::Hit::content(
+                        "note.md",
+                        "/k/note.md",
+                        PathBuf::from("/k/note.md"),
+                    )],
                 ),
             ];
             render_sections(&dialog.state, sections);
@@ -177,7 +185,8 @@ fn enter_and_field_activation_open_the_selected_result() {
             for route in routes {
                 let opened = Rc::new(RefCell::new(PathBuf::new()));
                 let record = opened.clone();
-                let (dialog, window) = mapped_dialog(Rc::new(move |path| *record.borrow_mut() = path));
+                let (dialog, window) =
+                    mapped_dialog(Rc::new(move |path| *record.borrow_mut() = path));
                 dialog.state.field.set_text("navigation");
                 render_results(&dialog.state, search_items("navigation", 3));
                 assert!(emit_key(
@@ -186,7 +195,10 @@ fn enter_and_field_activation_open_the_selected_result() {
                     gtk::gdk::ModifierType::empty()
                 ));
                 route(&dialog);
-                assert_eq!(opened.borrow().clone(), PathBuf::from("/search/navigation-001.txt"));
+                assert_eq!(
+                    opened.borrow().clone(),
+                    PathBuf::from("/search/navigation-001.txt")
+                );
                 window.destroy();
             }
         },
@@ -212,7 +224,10 @@ fn partial_updates_preserve_selected_path_entry_focus_and_navigation_progress() 
             ));
             let selected_path = items[1].path.clone();
 
-            items.insert(0, SearchItem::for_test(PathBuf::from("/search/inserted.txt"), false));
+            items.insert(
+                0,
+                SearchItem::for_test(PathBuf::from("/search/inserted.txt"), false),
+            );
             items.swap(2, 4);
             render_results(&dialog.state, items.clone());
             let selected = selected_hit(&dialog).expect("restored selection");
@@ -225,12 +240,7 @@ fn partial_updates_preserve_selected_path_entry_focus_and_navigation_progress() 
 }
 
 fn mapped_dialog(open_path: Rc<dyn Fn(PathBuf)>) -> (SearchDialog, gtk::Window) {
-    let dialog = SearchDialog::new(
-        Rc::new(|_| {}),
-        open_path,
-        Rc::new(|_| {}),
-        Rc::new(|| {}),
-    );
+    let dialog = SearchDialog::new(Rc::new(|_| {}), open_path, Rc::new(|_| {}), Rc::new(|| {}));
     let window = gtk::Window::builder()
         .default_width(900)
         .default_height(600)
@@ -379,8 +389,12 @@ fn global_search_reads_saved_exclusions_before_settings_and_on_each_window_invoc
             std::fs::write(root.join("needle-visible.txt"), "visible").expect("visible file");
             let dialogs: Vec<_> = (0..2)
                 .map(|_| {
-                    let dialog =
-                        SearchDialog::new(Rc::new(|_| {}), Rc::new(|_| {}), Rc::new(|_| {}), Rc::new(|| {}));
+                    let dialog = SearchDialog::new(
+                        Rc::new(|_| {}),
+                        Rc::new(|_| {}),
+                        Rc::new(|_| {}),
+                        Rc::new(|| {}),
+                    );
                     let window = gtk::Window::builder().child(&dialog.widget()).build();
                     window.present();
                     (dialog, window)

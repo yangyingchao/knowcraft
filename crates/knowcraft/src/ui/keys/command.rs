@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-//! Every rebindable command, with its stable id and its default keys in each
-//! map. The catalog declares each command beside its area's other keys; a
-//! press matches a command through the active map's table.
+//! Every rebindable command, with its stable id and its default keys. The
+//! catalog declares each command beside its area's other keys; a press
+//! matches a command through the active keymap's table.
 
 #[cfg(test)]
 use std::cell::RefCell;
@@ -19,16 +19,13 @@ use super::{Binding, KeyPress, Match, Shown, bindings};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Map {
     Default,
-    Tenxer,
 }
 
 impl Map {
-    /// The map the preferences select now, read at each press as handlers
-    /// read 10xer mode. Without a live preference manager it is the default.
+    /// The map the preferences select now, read at each press. The tenxer
+    /// keymap is gone, so this is always the default map.
     pub(crate) fn active() -> Self {
-        let tenxer = crate::ui::preferences::PreferenceManager::existing()
-            .is_some_and(|preferences| preferences.tenxer_mode());
-        if tenxer { Self::Tenxer } else { Self::Default }
+        Self::Default
     }
 }
 
@@ -73,7 +70,6 @@ pub(crate) struct Spec {
     pub(crate) kind: Kind,
     /// Ordered bindings; the first is the one menus show.
     pub(crate) default: &'static [Binding],
-    pub(crate) tenxer: &'static [Binding],
 }
 
 /// A rebindable action. Two commands are the same when their ids are.
@@ -114,12 +110,11 @@ impl Command {
         registry().find(|command| command.id() == id)
     }
 
-    /// The shipped bindings in `map`, primary first; empty where the map
-    /// leaves the command unbound.
+    /// The shipped bindings, primary first; empty where the keymap leaves
+    /// the command unbound.
     pub(crate) fn defaults(self, map: Map) -> &'static [Binding] {
         match map {
             Map::Default => self.0.default,
-            Map::Tenxer => self.0.tenxer,
         }
     }
 
@@ -350,7 +345,6 @@ pub(crate) fn registry() -> impl Iterator<Item = Command> {
 #[derive(Debug)]
 pub(crate) struct Keymap {
     default: HashMap<Command, Vec<Binding>>,
-    tenxer: HashMap<Command, Vec<Binding>>,
 }
 
 impl Keymap {
@@ -362,16 +356,14 @@ impl Keymap {
         };
         Self {
             default: table(Map::Default),
-            tenxer: table(Map::Tenxer),
         }
     }
 
-    /// The same tables with `map`'s entry for `command` replaced, as a saved
+    /// The same table with `map`'s entry for `command` replaced, as a saved
     /// override replaces it.
     pub(crate) fn with(mut self, map: Map, command: Command, bindings: Vec<Binding>) -> Self {
         let table = match map {
             Map::Default => &mut self.default,
-            Map::Tenxer => &mut self.tenxer,
         };
         table.insert(command, bindings);
         self
@@ -429,7 +421,6 @@ impl Keymap {
     pub(crate) fn bindings(&self, map: Map, command: Command) -> &[Binding] {
         let table = match map {
             Map::Default => &self.default,
-            Map::Tenxer => &self.tenxer,
         };
         table.get(&command).map_or(&[], Vec::as_slice)
     }

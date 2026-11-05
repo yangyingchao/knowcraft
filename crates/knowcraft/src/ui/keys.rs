@@ -50,46 +50,18 @@ pub(crate) const TEXT_EDITING: [(Command, &str); 6] = [
     (bindings::REDO, "text.redo"),
 ];
 
-/// Commands the window's direct stage runs from a key a user binds to them in
-/// a map whose own stages leave them out: 10xer verbs, chord steps and paging
-/// in the default map, and default-map verbs in 10xer. Neither table binds
-/// them by default.
-pub(crate) const DIRECT_IN_DEFAULT: [Command; 20] = [
-    bindings::OPEN_WITH,
-    bindings::MOVE_TO,
-    bindings::COPY_TO,
-    bindings::RESTORE,
-    bindings::ACTIONS_COMPRESS,
-    bindings::ACTIONS_EXTRACT,
-    bindings::ACTIONS_EXTRACT_TO,
-    bindings::ACTIONS_TERMINAL,
-    bindings::SORT_BY_NAME,
-    bindings::SORT_BY_MODIFIED,
-    bindings::SORT_BY_SIZE,
-    bindings::SORT_BY_TYPE,
-    bindings::COPY_AS_PATH,
-    bindings::COPY_AS_NAME,
-    bindings::INVERT_SELECTION,
-    bindings::SEARCH_SUBFOLDERS,
-    bindings::JUMP_VISITED,
-    bindings::JUMP_RECENT,
-    bindings::HALF_PAGE_UP,
-    bindings::HALF_PAGE_DOWN,
-];
-
-/// See [`DIRECT_IN_DEFAULT`].
-pub(crate) const DIRECT_IN_TENXER: [Command; 4] = [
+/// Commands the window's direct stage runs from a key a user binds to them
+/// outside the default map's own stages: chord steps and paging. The table
+/// does not bind them by default.
+pub(crate) const DIRECT_IN_DEFAULT: [Command; 4] = [
     bindings::DUPLICATE,
     bindings::PIN,
     bindings::JUMP_TO_FOLDER,
     bindings::ARROW_SCOPE,
 ];
 
-pub(crate) fn direct_commands(map: Map) -> &'static [Command] {
-    match map {
-        Map::Default => &DIRECT_IN_DEFAULT,
-        Map::Tenxer => &DIRECT_IN_TENXER,
-    }
+pub(crate) fn direct_commands(_map: Map) -> &'static [Command] {
+    &DIRECT_IN_DEFAULT
 }
 
 /// The default map's custom action slots: slot N runs the Nth action in the

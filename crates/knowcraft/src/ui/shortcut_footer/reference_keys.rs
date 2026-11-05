@@ -4,11 +4,11 @@ use gtk::{gdk, glib, prelude::*};
 
 use super::{ShortcutFooter, catalog::category_buttons, reference::ReferenceArea};
 use crate::ui::keys::{
-    KeyPress,
+    Binding, KeyPress,
     bindings::{
         DOWN, END_KEY, ENTER_ANY_SHIFT, ESCAPE_ANY, FOCUS_NEXT, FOCUS_PREVIOUS, HOME_KEY, LEFT,
         PAGE_DOWN_KEY, PAGE_UP_KEY, REFERENCE, REFERENCE_CATEGORIES, REFERENCE_LIST,
-        REFERENCE_SEARCH, RIGHT, SPACE, UP,
+        REFERENCE_SEARCH, RIGHT, UP,
     },
 };
 
@@ -213,7 +213,7 @@ impl ShortcutFooter {
             self.move_category(direction);
             return Some(glib::Propagation::Stop);
         }
-        (press.is(ENTER_ANY_SHIFT) || press.is(SPACE.ignoring(SHIFT)))
+        (press.is(ENTER_ANY_SHIFT) || press.is(Binding::plain(gdk::Key::space).ignoring(SHIFT)))
             .then_some(glib::Propagation::Proceed)
     }
 

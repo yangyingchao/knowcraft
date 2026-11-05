@@ -2,7 +2,7 @@
 
 use gtk::{gdk::ModifierType as Modifiers, prelude::*};
 
-use crate::ui::keys::{KeyPress, Map, bindings::*};
+use crate::ui::keys::{Binding, KeyPress, Map, bindings::*};
 
 pub(in crate::ui) enum SidebarChord {
     Move(i32),
@@ -24,7 +24,10 @@ pub(in crate::ui) fn sidebar_chord(press: &KeyPress) -> Option<SidebarChord> {
         SidebarChord::Move(1)
     } else if press.is(UP.or_alternates()) {
         SidebarChord::Move(-1)
-    } else if press.is(RIGHT.alternates()) || press.is(ENTER) || press.is(SPACE) {
+    } else if press.is(RIGHT.alternates())
+        || press.is(ENTER)
+        || press.is(Binding::plain(gtk::gdk::Key::space))
+    {
         SidebarChord::Activate
     } else if press.is(LEFT.or_alternates()) || press.is(BACKSPACE) {
         SidebarChord::Leave

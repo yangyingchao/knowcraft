@@ -270,7 +270,6 @@ impl SidebarState {
             .unwrap_or_else(|| Location::uri("trash:///"));
         let row = sidebar_button(crate::assets::icons::TRASH, &crate::i18n::tr("Trash"));
         crate::ui::accessibility::set_description(&row, Some(&location.display_path()));
-        self.add_place_keycap(&row, crate::ui::keys::bindings::GO_TRASH);
         self.bind_place_row(&row, location.clone(), PlaceNavigation::Direct);
 
         let (menu, items) = self.build_trash_menu();

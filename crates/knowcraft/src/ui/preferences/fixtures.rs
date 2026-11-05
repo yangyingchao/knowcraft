@@ -144,16 +144,6 @@ pub(in crate::ui) fn non_default_preferences() -> Preferences {
                 .into_iter()
                 .map(keymap_entry)
                 .collect(),
-            tenxer: [
-                (
-                    "focus_sidebar",
-                    &["<Control><Shift>b", "<Control><Alt>F11"][..],
-                ),
-                ("future.command", &["x"][..]),
-            ]
-            .into_iter()
-            .map(keymap_entry)
-            .collect(),
         },
     }
 }
@@ -199,17 +189,13 @@ impl PreferenceManager {
         seed_saved_preferences_for_test();
     }
 
-    /// Saves the exhaustive fixture outside 10xer mode, with only these keymap
-    /// overrides: command ids and their accelerators.
-    pub(in crate::ui) fn seed_saved_keymap_for_test(
-        default: &[(&str, &[&str])],
-        tenxer: &[(&str, &[&str])],
-    ) {
+    /// Saves the exhaustive fixture, with only these keymap overrides:
+    /// command ids and their accelerators.
+    pub(in crate::ui) fn seed_saved_keymap_for_test(default: &[(&str, &[&str])]) {
         let preferences = Preferences {
             tenxer_mode: false,
             keymap: KeymapOverrides {
                 default: default.iter().copied().map(keymap_entry).collect(),
-                tenxer: tenxer.iter().copied().map(keymap_entry).collect(),
             },
             ..non_default_preferences()
         };

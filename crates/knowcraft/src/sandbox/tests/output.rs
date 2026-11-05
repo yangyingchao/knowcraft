@@ -163,8 +163,10 @@ fn private_output_skips_leftover_directories_that_reuse_its_name() {
     let next = NEXT_DIRECTORY.load(std::sync::atomic::Ordering::Relaxed);
     let leftovers: Vec<PathBuf> = (next..next + 4)
         .map(|sequence| {
-            tmp.path()
-                .join(format!("knowcraft-preview-{}-{sequence}", std::process::id()))
+            tmp.path().join(format!(
+                "knowcraft-preview-{}-{sequence}",
+                std::process::id()
+            ))
         })
         .collect();
     for leftover in &leftovers {

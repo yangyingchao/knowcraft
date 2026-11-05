@@ -292,7 +292,9 @@ pub(super) fn location_or_ancestor_is_affected(
 
 pub(super) fn deletion_parent_location(location: &Location) -> Option<Location> {
     if let Some(root) = crate::knowledge::trash_files_dir()
-        && location.native_path().is_some_and(|path| path.starts_with(&root))
+        && location
+            .native_path()
+            .is_some_and(|path| path.starts_with(&root))
     {
         Some(Location::local(&root))
     } else {

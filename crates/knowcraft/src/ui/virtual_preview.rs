@@ -49,9 +49,9 @@ pub(super) use table_cell::set_table_cell;
 use table_cell::{bounded_text_prefix, styled_markup};
 #[cfg(test)]
 use tags::document_tag_table;
-pub(super) use text_view::schedule_document_view_size;
 #[cfg(test)]
 use text_view::plain_text_view;
+pub(super) use text_view::schedule_document_view_size;
 use text_view::{rendered_width, size_document_row};
 
 #[derive(Clone, Copy)]

@@ -8,11 +8,7 @@ use gtk::prelude::*;
 
 use crate::{app::BrowserEvent, model::Location};
 
-use super::{
-    SidebarState,
-    sidebar_sections::SidebarSection,
-    sidebar_rows::set_sidebar_row_active,
-};
+use super::{SidebarState, sidebar_rows::set_sidebar_row_active, sidebar_sections::SidebarSection};
 
 impl SidebarState {
     /// The Knowcraft views: the knowledge folders and the trash the shell

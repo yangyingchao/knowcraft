@@ -18,8 +18,8 @@ use knowcraft_core::{
     index::{Index, IndexHit},
     model::Document,
     store::Store,
-    trash::Trash,
     tags::{TagHit, Tags},
+    trash::Trash,
     workflow::Workflow,
 };
 
@@ -187,7 +187,9 @@ impl Knowledge {
         let Some(doc) = self.store.find_by_path(&path_text).unwrap_or_default() else {
             return Err("文档不在知识库中".to_owned());
         };
-        self.tags.add(doc.id, name).map_err(|error| error.to_string())
+        self.tags
+            .add(doc.id, name)
+            .map_err(|error| error.to_string())
     }
 
     /// 未归档判定：文件位于 `inbox/` 内。dispatch 会把文档移出 inbox，

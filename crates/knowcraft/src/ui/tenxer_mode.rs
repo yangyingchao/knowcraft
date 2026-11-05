@@ -6,7 +6,8 @@ use gtk::prelude::*;
 
 use super::preferences::PreferenceManager;
 
-pub(crate) const MODE_DESCRIPTION: &str = "Opinionated keyboard-centric mode with Yazi-style navigation. Disables some features. Toggle with %{tenxer_mode_keys}.";
+pub(crate) const MODE_DESCRIPTION: &str =
+    "Opinionated keyboard-centric mode with Yazi-style navigation. Disables some features.";
 pub(crate) const UNUSED_SUBTITLE: &str = "Not used in 10xer mode.";
 pub(crate) const TAG_TEXT: &str = "10X";
 pub(crate) const TAG_NAME: &str = "10xer mode";
@@ -88,93 +89,31 @@ pub(crate) enum Chord {
 }
 
 impl Chord {
-    /// The pending chord's first key, as its footer pill shows it.
+    /// The pending chord's first key, as its footer pill shows it. The prefixes
+    /// follow the removed 10xer keymap's chord triggers.
     pub(crate) fn mark(self) -> String {
-        use super::keys::{
-            Keys,
-            bindings::{ACTIONS, COPY_AS, GO, SORT_BY, TAB_CHORD},
-        };
+        use gtk::gdk::Key;
+
+        use super::keys::{Binding, Keys};
         let prefix = match self {
-            Self::Go | Self::PreviewTop => GO,
-            Self::Copy => COPY_AS,
-            Self::Sort => SORT_BY,
-            Self::Action => ACTIONS,
-            Self::Tabs => TAB_CHORD,
+            Self::Go | Self::PreviewTop => Binding::plain(Key::g),
+            Self::Copy => Binding::plain(Key::c),
+            Self::Sort => Binding::plain(Key::comma),
+            Self::Action => Binding::plain(Key::semicolon),
+            Self::Tabs => Binding::plain(Key::t),
         };
         format!("{}-", super::keys::label(&Keys::One(prefix.shown())))
     }
 
-    /// The second keys and their untranslated actions. The `;` panel lists
-    /// the matching actions itself, and a file chooser leaves out the steps
-    /// it refuses.
+    /// The second keys and their untranslated actions. The step lists lived in
+    /// the removed 10xer keymap; nothing arms a chord any more, so the panel
+    /// stays empty.
     pub(crate) fn options(
         self,
-        chooser: bool,
+        _chooser: bool,
     ) -> Vec<(super::shortcut_reference::Mention, &'static str)> {
-        use super::{
-            keys::{Keys, Keys::One, bindings::*},
-            shortcut_reference::Mention,
-        };
-        const GO_STEPS: [(Mention, &str); 14] = [
-            (
-                Mention::Keys(One(GO_FOLLOW.shown())),
-                "Follow search result",
-            ),
-            (Mention::Keys(One(GO_HOME.shown())), "Home"),
-            (Mention::Keys(One(GO_DOWNLOADS.shown())), "Downloads"),
-            (Mention::Keys(One(GO_CONFIG.shown())), "Config"),
-            (Mention::Keys(One(GO_TRASH.shown())), "Trash"),
-            (Mention::Keys(One(GO_NETWORK.shown())), "Network"),
-            (Mention::Keys(One(GO_RECENT.shown())), "Recent"),
-            (Mention::Keys(One(GO_DOCUMENTS.shown())), "Documents"),
-            (Mention::Keys(One(GO_MUSIC.shown())), "Music"),
-            (Mention::Keys(One(GO_PICTURES.shown())), "Pictures"),
-            (Mention::Keys(One(GO_VIDEOS.shown())), "Videos"),
-            (Mention::Keys(Keys::Digits(PIN_NUMBERS.step())), "Pins"),
-            (
-                Mention::Keys(Keys::Any(crate::ui::keys::shown![GO_PIN, GO_UNPIN])),
-                "Pin / unpin folder",
-            ),
-            (Mention::Keys(One(GO_PROMPT.shown())), "Type a path"),
-        ];
-        // Choosers open only local folders and Recent, and keep pins as they are.
-        const CHOOSER_REFUSES: [Mention; 3] = [
-            Mention::Keys(One(GO_TRASH.shown())),
-            Mention::Keys(One(GO_NETWORK.shown())),
-            Mention::Keys(Keys::Any(crate::ui::keys::shown![GO_PIN, GO_UNPIN])),
-        ];
-        let step = |step: super::keys::Command| Mention::Keys(One(step.shown()));
-        let go = |first| -> Vec<_> {
-            std::iter::once((step(GO_FIRST), first))
-                .chain(GO_STEPS.iter().copied())
-                .filter(|(keys, _)| !(chooser && CHOOSER_REFUSES.contains(keys)))
-                .collect()
-        };
-        match self {
-            Self::Go => go("First item"),
-            Self::PreviewTop => go("Top"),
-            Self::Copy => vec![
-                (step(COPY_AS_PATH), "Copy path"),
-                (step(COPY_AS_NAME), "Copy name"),
-            ],
-            Self::Sort => vec![
-                (step(SORT_BY_NAME), "Name"),
-                (step(SORT_BY_MODIFIED), "Modified"),
-                (step(SORT_BY_SIZE), "Size"),
-                (step(SORT_BY_TYPE), "Type"),
-                (Mention::Held(gtk::gdk::ModifierType::SHIFT_MASK), "Reverse"),
-            ],
-            Self::Action => Vec::new(),
-            Self::Tabs => vec![
-                (step(TAB_CHORD_NEW), "New tab"),
-                (step(TAB_CHORD_CLOSE), "Close tab"),
-                (step(TAB_CHORD_PREVIOUS), "Previous tab"),
-                (
-                    Mention::Keys(Keys::Digits(TAB_CHORD_NUMBERS.step())),
-                    "Select tab",
-                ),
-            ],
-        }
+        let _ = self;
+        Vec::new()
     }
 }
 
@@ -195,15 +134,12 @@ pub(crate) enum Prompt {
 }
 
 impl Prompt {
-    /// The find labels are keycaps; the others are translated.
+    /// The find labels are keycaps; the others are translated. The find keys
+    /// followed the removed 10xer keymap, so their caps are spelled out.
     pub(crate) fn label(self) -> String {
-        use super::keys::{
-            Keys,
-            bindings::{FIND, FIND_BACKWARD},
-        };
         let label = match self {
-            Self::Find => return super::keys::label(&Keys::One(FIND.shown())),
-            Self::FindBackward => return super::keys::label(&Keys::One(FIND_BACKWARD.shown())),
+            Self::Find => return "/".to_owned(),
+            Self::FindBackward => return "?".to_owned(),
             Self::Filter => "filter:",
             Self::Search => "search:",
             Self::Go => "go \u{203a}",

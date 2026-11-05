@@ -2,10 +2,7 @@
 
 //! The collapsible Knowcraft section of the sidebar.
 
-use std::{
-    cell::Cell,
-    rc::Rc,
-};
+use std::{cell::Cell, rc::Rc};
 
 use gtk::prelude::*;
 

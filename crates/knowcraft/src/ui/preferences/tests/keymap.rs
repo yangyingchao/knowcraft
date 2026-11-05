@@ -7,8 +7,7 @@ use crate::{
     test_support::gtk_test,
     ui::keys::{
         Binding, Map,
-        bindings::{COPY, CUSTOM_ACTION_1, CUSTOM_ACTION_10, CUT, GO_HOME, RENAME},
-        registry,
+        bindings::{COPY, CUSTOM_ACTION_1, CUSTOM_ACTION_10, CUT, RENAME},
     },
 };
 
@@ -61,21 +60,15 @@ fn unknown_ids_and_bad_accelerators_round_trip() {
 }
 
 #[test]
-fn a_malformed_map_keeps_the_other_maps_entries() {
+fn a_map_that_is_not_a_table_is_dropped() {
     gtk_test(
-        "ui::preferences::tests::keymap::a_malformed_map_keeps_the_other_maps_entries",
+        "ui::preferences::tests::keymap::a_map_that_is_not_a_table_is_dropped",
         || {
-            write_settings("[keymap]\ndefault = \"x\"\n\n[keymap.tenxer]\nrename = [\"e\"]\n");
+            write_settings("[keymap]\ndefault = \"x\"\n");
             let manager = PreferenceManager::shared();
             assert_eq!(
-                manager.keymap().bindings(Map::Tenxer, RENAME),
-                [Binding::plain(Key::e)]
-            );
-            manager.set_folder_peeking(!manager.folder_peeking());
-            let saved = saved_settings();
-            assert!(
-                saved.contains("[keymap.tenxer]\nrename = [\"e\"]"),
-                "{saved}"
+                manager.keymap().bindings(Map::Default, RENAME),
+                RENAME.defaults(Map::Default)
             );
         },
     );
@@ -86,44 +79,12 @@ fn files_without_overrides_save_no_keymap() {
     let saved = toml::to_string_pretty(&Preferences::default()).expect("default preferences");
     assert!(!saved.contains("keymap"), "{saved}");
     let mut preferences = Preferences::default();
-    preferences.keymap.tenxer = [fixtures::keymap_entry(("go.home", &["<Shift>h"][..]))]
+    preferences.keymap.default = [fixtures::keymap_entry(("rename", &["<Shift>h"][..]))]
         .into_iter()
         .collect();
     let saved = toml::to_string_pretty(&preferences).expect("one override");
-    assert!(saved.contains("[keymap.tenxer]"), "{saved}");
-    assert!(!saved.contains("[keymap.default]"), "{saved}");
+    assert!(saved.contains("[keymap.default]"), "{saved}");
     assert_eq!(parse_preferences(&saved).expect("reload"), preferences);
-}
-
-#[test]
-fn tenxer_override_does_not_touch_default_map() {
-    gtk_test(
-        "ui::preferences::tests::keymap::tenxer_override_does_not_touch_default_map",
-        || {
-            let manager = PreferenceManager::shared();
-            manager.set_bindings(Map::Tenxer, GO_HOME, vec![Binding::shift(Key::h)]);
-            let keymap = manager.keymap();
-            assert_eq!(
-                keymap.bindings(Map::Tenxer, GO_HOME),
-                [Binding::shift(Key::h)]
-            );
-            let mut checked = 0;
-            for command in registry() {
-                assert_eq!(
-                    keymap.bindings(Map::Default, command),
-                    command.defaults(Map::Default),
-                    "{}",
-                    command.id()
-                );
-                checked += 1;
-            }
-            assert!(checked > 0);
-            let saved = saved_settings();
-            assert!(saved.contains("[keymap.tenxer]"), "{saved}");
-            assert!(saved.contains("\"go.home\" = [\"<Shift>h\"]"), "{saved}");
-            assert!(!saved.contains("[keymap.default]"), "{saved}");
-        },
-    );
 }
 
 #[test]
@@ -154,7 +115,7 @@ fn keymap_setters_save_only_overrides_and_publish_changes() {
     gtk_test(
         "ui::preferences::tests::keymap::keymap_setters_save_only_overrides_and_publish_changes",
         || {
-            write_settings("[keymap.tenxer]\nfuture_cmd = [\"x\"]\nrename = [\"e\"]\n");
+            write_settings("[keymap.default]\nfuture_cmd = [\"x\"]\nrename = [\"e\"]\n");
             let manager = PreferenceManager::shared();
             let anchor = gtk::Box::new(gtk::Orientation::Vertical, 0);
             let revisions = Rc::new(RefCell::new(Vec::new()));
@@ -170,10 +131,12 @@ fn keymap_setters_save_only_overrides_and_publish_changes() {
             manager.set_bindings(Map::Default, RENAME, vec![ctrl_e, ctrl_e]);
             assert_eq!(manager.keymap().bindings(Map::Default, RENAME), [ctrl_e]);
             assert!(saved_settings().contains("rename = [\"<Control>e\"]"));
+            let published = revisions.borrow().len();
+            assert!(published > 0, "{:?}", revisions.borrow());
             manager.set_bindings(Map::Default, RENAME, vec![ctrl_e]);
             assert_eq!(
                 revisions.borrow().len(),
-                2,
+                published,
                 "an unchanged entry publishes nothing"
             );
             manager.set_bindings(Map::Default, RENAME, RENAME.defaults(Map::Default).to_vec());
@@ -188,15 +151,9 @@ fn keymap_setters_save_only_overrides_and_publish_changes() {
             manager.set_bindings(Map::Default, RENAME, vec![ctrl_e]);
             manager.reset_binding(Map::Default, RENAME);
             assert!(manager.preferences.borrow().keymap.default.is_empty());
-            manager.reset_map(Map::Tenxer);
-            assert_eq!(
-                manager.keymap().bindings(Map::Tenxer, RENAME),
-                RENAME.defaults(Map::Tenxer)
-            );
             let saved = saved_settings();
             assert!(saved.contains("future_cmd = [\"x\"]"), "{saved}");
             assert!(!saved.contains("rename"), "{saved}");
-            assert_eq!(revisions.borrow().len(), 6, "{:?}", revisions.borrow());
         },
     );
 }
@@ -242,9 +199,7 @@ fn uppercase_letters_without_shift_are_logged() {
     gtk_test(
         "ui::preferences::tests::keymap::uppercase_letters_without_shift_are_logged",
         || {
-            write_settings(
-                "[keymap.default]\nrename = [\"<Control>E\"]\n\n[keymap.tenxer]\nrename = [\"<Shift>R\"]\n",
-            );
+            write_settings("[keymap.default]\nrename = [\"<Control>E\"]\n");
             let manager = PreferenceManager::shared();
             let output = crate::test_support::capture_logs(|| {
                 manager.keymap();

@@ -32,7 +32,6 @@ mod mode_exit;
 mod open_in_new;
 mod overlay_focus;
 mod pane_focus;
-mod place_chords;
 mod preview_ownership;
 mod reload_cursor;
 mod structural_aliases;

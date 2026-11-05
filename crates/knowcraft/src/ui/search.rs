@@ -350,9 +350,9 @@ fn reset_for_search(state: &SearchState, roots: &[PathBuf]) {
     state.results.set_visible_child_name("status");
     state.field.set_text("");
     state.status.set_visible(true);
-    state.status.set_text(&crate::i18n::tr(
-        "Type to search the knowledge base",
-    ));
+    state
+        .status
+        .set_text(&crate::i18n::tr("Type to search the knowledge base"));
     state.truncated_hint.set_visible(false);
     show_indexing(state, true);
     state.layer.set_visible(true);
@@ -484,9 +484,9 @@ fn begin_query(state: &Rc<SearchState>, query: &str) {
     if query.trim().is_empty() {
         clear_results(state);
         state.results.set_visible_child_name("status");
-        state.status.set_text(
-            &crate::i18n::tr("Type to search the knowledge base\nFuzzy matching · try a name or path fragment"),
-        );
+        state.status.set_text(&crate::i18n::tr(
+            "Type to search the knowledge base\nFuzzy matching · try a name or path fragment",
+        ));
         return;
     }
     state.results.set_visible_child_name("status");
@@ -541,10 +541,7 @@ fn move_selection(state: &SearchState, direction: i32) {
     if entries.is_empty() {
         return;
     }
-    let current = state
-        .list
-        .selected_row()
-        .map_or(0, |row| row.index());
+    let current = state.list.selected_row().map_or(0, |row| row.index());
     let mut next = current;
     loop {
         next += direction;
@@ -648,13 +645,7 @@ fn enter_tag_mode(state: &Rc<SearchState>, name: &str) -> bool {
         .unwrap_or_default();
     let hits = documents
         .into_iter()
-        .map(|doc| {
-            provider::Hit::content(
-                doc.title,
-                doc.path.clone(),
-                PathBuf::from(&doc.path),
-            )
-        })
+        .map(|doc| provider::Hit::content(doc.title, doc.path.clone(), PathBuf::from(&doc.path)))
         .collect();
     state.tag_mode.replace(Some(TagMode {
         name: name.to_owned(),

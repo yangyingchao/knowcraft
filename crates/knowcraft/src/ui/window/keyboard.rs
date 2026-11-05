@@ -23,7 +23,6 @@ use crate::{
 use super::{SidebarState, SidebarView, TypeToSearch};
 
 mod chooser;
-pub(super) mod chords;
 mod commands;
 mod direct;
 mod escape;
@@ -228,8 +227,6 @@ struct Dispatcher {
     destination_targets: Rc<RefCell<Vec<crate::model::FileEntry>>>,
     destination_revision: Rc<Cell<u64>>,
     destinations: crate::ui::folder_picker::FolderPicker,
-    armed_actions: Rc<RefCell<Option<files::ArmedActions>>>,
-    open_with: files::OpenWithLookup,
     chooser: Option<ChooserPolicy>,
 }
 
@@ -285,8 +282,6 @@ impl Dispatcher {
             destination_targets: Rc::default(),
             destination_revision: Rc::default(),
             destinations: crate::ui::folder_picker::FolderPicker::default(),
-            armed_actions: Rc::default(),
-            open_with: files::OpenWithLookup::default(),
             sidebar: SidebarFocus {
                 state: sidebar.state.clone(),
                 widget: sidebar.widget.clone(),
@@ -295,19 +290,11 @@ impl Dispatcher {
             chooser,
         };
         dispatcher.preview.bind_keyboard_view(&dispatcher.view);
-        let keycaps = Rc::downgrade(&sidebar.state);
-        dispatcher.shortcuts.connect_chord_changed(move |chord| {
-            if let Some(sidebar) = keycaps.upgrade() {
-                sidebar.show_place_keycaps(chord == Some(crate::ui::tenxer_mode::Chord::Go));
-            }
-        });
         let cancel_on_destroy = dispatcher.shortcuts.clone();
         let destinations_on_destroy = dispatcher.destinations.clone();
-        let open_with_on_destroy = dispatcher.open_with.clone();
         dispatcher.view.widget().connect_unrealize(move |_| {
             cancel_on_destroy.cancel_chord();
             destinations_on_destroy.cancel();
-            open_with_on_destroy.invalidate();
         });
         let rename_target = dispatcher.rename_target.clone();
         let typed_name_revision = dispatcher.typed_name_revision.clone();
@@ -335,9 +322,6 @@ impl Dispatcher {
         if let Some(result) = self.rename_tab(press) {
             return Some(result);
         }
-        if !press.is_modifier() {
-            self.open_with.invalidate();
-        }
         if self.chooser_text_focused() {
             // The open reference's search entry counts as focused text; its
             // keys, Escape included, must reach the reference, not the request.
@@ -360,9 +344,6 @@ impl Dispatcher {
     }
 
     fn handle_key(&self, browser: &Rc<Browser>, press: &KeyPress) -> Propagation {
-        if !press.is_modifier() {
-            self.open_with.invalidate();
-        }
         if let Some(result) = self.rename_tab(press) {
             return result;
         }

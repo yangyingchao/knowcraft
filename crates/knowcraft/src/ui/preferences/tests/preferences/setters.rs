@@ -133,7 +133,7 @@ fn all_preference_setters_publish_and_persist_without_duplicate_notifications() 
                         vec![Binding::ctrl(gtk::gdk::Key::e)],
                     )
                 },
-                |m| m.reset_binding(Map::Tenxer, bindings::SIDEBAR_FOCUS),
+                |m| m.reset_binding(Map::Default, bindings::RENAME),
                 |m| m.reset_map(Map::Default),
             ];
             let theme_setters: &[fn(&ThemeManager)] = &[

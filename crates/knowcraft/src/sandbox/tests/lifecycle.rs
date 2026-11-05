@@ -23,7 +23,10 @@ fn renderer_uses_a_private_snapshot_after_the_original_executable_is_replaced() 
     let executable = resolve_renderer_executable(&replaced, &running, directory.path())
         .expect("snapshot running executable");
 
-    assert_eq!(executable, directory.path().join("knowcraft-preview-helper"));
+    assert_eq!(
+        executable,
+        directory.path().join("knowcraft-preview-helper")
+    );
     assert_eq!(
         fs::read(executable).expect("read snapshot"),
         b"running executable"

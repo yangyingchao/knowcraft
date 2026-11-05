@@ -8,12 +8,12 @@ use std::{
 use gtk::{gdk::ModifierType as Modifiers, glib, prelude::*};
 
 use crate::ui::keys::{
-    self,
+    self, Binding,
     bindings::{
-        DOWN, END_KEY, ENTER_ANY_SHIFT, ESCAPE_ANY_SHIFT, FOCUS_NEXT, FOCUS_PREVIOUS, HOME_KEY,
-        SPACE, UP,
+        DOWN, END_KEY, ENTER_ANY_SHIFT, ESCAPE_ANY_SHIFT, FOCUS_NEXT, FOCUS_PREVIOUS, HOME_KEY, UP,
     },
 };
+use gtk::gdk::Key;
 
 pub(super) struct NativeMenuNavigation {
     popover: glib::WeakRef<gtk::PopoverMenu>,
@@ -269,7 +269,8 @@ pub(super) fn install(popover: &gtk::Popover) {
                 };
                 buttons[next].grab_focus();
             }
-        } else if press.is(ENTER_ANY_SHIFT) || press.is(SPACE.ignoring(SHIFT)) {
+        } else if press.is(ENTER_ANY_SHIFT) || press.is(Binding::plain(Key::space).ignoring(SHIFT))
+        {
             if let Some(button) = menu_buttons(&popover)
                 .iter()
                 .find(|button| button.has_focus())

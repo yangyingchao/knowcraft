@@ -23,21 +23,15 @@ pub(super) const FALLBACK: Command = bindings::ESCAPE;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Context {
     /// A focused text field or popover, or type-to-search, reads plain
-    /// printable keys as its own. In 10xer a read-only text view, such as a
-    /// text preview, types nothing; the default map keeps treating it as a
-    /// field.
+    /// printable keys as its own.
     pub(crate) typing: bool,
 }
 
 impl Context {
     pub(crate) fn of(focused: Option<&gtk::Widget>, type_to_search: bool) -> Self {
-        let tenxer = Map::active() == Map::Tenxer;
         let owns_typing = |widget: &gtk::Widget| {
-            (if tenxer {
-                crate::ui::focus_navigation::accepts_typing(widget)
-            } else {
-                crate::ui::focus_navigation::editable(widget)
-            }) || crate::ui::focus_navigation::in_popover(widget)
+            crate::ui::focus_navigation::editable(widget)
+                || crate::ui::focus_navigation::in_popover(widget)
         };
         Self {
             typing: type_to_search || focused.is_some_and(owns_typing),

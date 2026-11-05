@@ -16,7 +16,6 @@ impl ChooserShortcuts {
         let reaches_chooser = context.press.is_any::<keys::Matcher>(&[
             REFERENCE.in_map(Map::Default).ignoring(SHORTCUT_MODIFIERS),
             ESCAPE_ANY,
-            TENXER_MODE.into(),
         ]);
         let name_tab = context.name_has_focus() && context.tab().is_some();
         (typing && !reaches_chooser && !name_tab).then_some(glib::Propagation::Proceed)

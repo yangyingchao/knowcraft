@@ -5,50 +5,24 @@ use gtk::glib::Propagation;
 use super::{Dispatcher, KeyResult};
 use crate::{
     app::Browser,
-    model::Location,
     ui::keys::{KeyPress, bindings::*},
 };
 
 pub(super) const UNAVAILABLE: &str = "Not available in the file chooser";
 const SINGLE: &str = "Only one item can be chosen";
-const LOCAL_ONLY: &str = "Only local folders can be opened here";
 
 pub(in crate::ui::window) fn refusal(
     press: &KeyPress,
     multiple: bool,
     listing_focused: bool,
 ) -> Option<&'static str> {
-    if press.is(CLOSE_WINDOW) {
-        return Some(UNAVAILABLE);
-    }
     if !listing_focused {
         return None;
     }
-    if press.is_any(&[
-        YANK,
-        PASTE_KEEP_BOTH,
-        PREVIEW,
-        YANK_CUT,
-        CUT,
-        COPY,
-        PASTE,
-        ACTIONS,
-        UNYANK,
-        PASTE_REPLACE,
-        OPEN_WITH,
-        MOVE_TO,
-        COPY_TO,
-        RESTORE,
-    ]) {
+    if press.is_any(&[PREVIEW, CUT, COPY, PASTE]) {
         return Some(UNAVAILABLE);
     }
-    let fills = press.is(SPACE)
-        || press.is_any(&[VISUAL_SELECT, VISUAL_UNSET, SELECT_ALL, INVERT_SELECTION]);
-    (fills && !multiple).then_some(SINGLE)
-}
-
-pub(in crate::ui::window) fn opens_here(location: &Location) -> bool {
-    location.native_path().is_some() || location.is_recent_root()
+    (press.is(SELECT_ALL) && !multiple).then_some(SINGLE)
 }
 
 impl Dispatcher {
@@ -57,14 +31,6 @@ impl Dispatcher {
         let reason = refusal(press, policy.multiple, self.view.item_view_has_focus())?;
         self.shortcuts.show_feedback(&crate::i18n::tr(reason));
         Some(Propagation::Stop)
-    }
-
-    pub(super) fn refuse_remote_place(&self, location: &Location) -> bool {
-        if self.chooser.is_none() || opens_here(location) {
-            return false;
-        }
-        self.shortcuts.show_feedback(&crate::i18n::tr(LOCAL_ONLY));
-        true
     }
 
     pub(super) fn chooser_save(&self, press: &KeyPress) -> KeyResult {

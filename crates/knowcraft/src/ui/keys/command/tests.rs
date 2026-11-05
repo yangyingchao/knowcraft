@@ -7,13 +7,11 @@ use gtk::gdk::{Key, ModifierType as Modifiers};
 use super::{
     super::{
         Binding, CUSTOM_ACTIONS, KeyPress, Shown,
-        bindings::{self, Entry, Listed, Maps},
+        bindings::{self, Entry, Listed},
         custom_action_slot,
     },
     Command, Group, Kind, Map, registry,
 };
-
-const MAPS: [Map; 2] = [Map::Default, Map::Tenxer];
 
 const MANY_ROLES: &str =
     "it closes a pane, leaves the sidebar, clears a filter and edits text; kept as a fixed binding";
@@ -24,7 +22,6 @@ const EXTENDS_SELECTION: &str = "Shift with a motion key extends the selection a
 /// Catalog bindings that are not commands, and why.
 const NOT_COMMANDS: &[(&str, &str)] = &[
     ("BACKSPACE", MANY_ROLES),
-    ("SPACE", GENERIC),
     ("HOME_KEY", GENERIC),
     ("END_KEY", GENERIC),
     ("PAGE_UP_KEY", GENERIC),
@@ -43,44 +40,19 @@ const NOT_COMMANDS: &[(&str, &str)] = &[
     ("DOCUMENT_END", GTK_OWNED),
 ];
 
-const TIMELINE: &str = "the media timeline reads it in either map";
-
-/// Listed commands bound in both maps although the reference shows them in
-/// one, and why.
-const LIVE_IN_BOTH_MAPS: &[(&str, &str)] = &[
-    ("COMPLETE", "location bar path completion"),
-    ("CHOOSE_FOLDER", "folder requests in the file chooser"),
-    (
-        "TERMINAL",
-        "the listing and sidebar open a terminal; only text fields leave it unbound in 10xer",
-    ),
-    ("MEDIA_SEEK_BACK_PAGE", TIMELINE),
-    ("MEDIA_SEEK_FORWARD_PAGE", TIMELINE),
-    ("MEDIA_SEEK_START", TIMELINE),
-    ("MEDIA_VOLUME_STEP_UP", TIMELINE),
-    ("MEDIA_VOLUME_STEP_DOWN", TIMELINE),
-    ("MEDIA_SEEK_END", TIMELINE),
-    (
-        "FIND_IN_PREVIEW",
-        "a focused preview opens find with Ctrl+F; the default reference lists no preview keys",
-    ),
-];
-
-fn bound_maps(command: Command) -> Vec<Map> {
-    MAPS.into_iter()
-        .filter(|map| !command.defaults(*map).is_empty())
-        .collect()
+fn bound(command: Command) -> bool {
+    !command.defaults(Map::Default).is_empty()
 }
 
 fn trigger(group: Group) -> Option<Command> {
     registry().find(|command| command.kind() == Kind::Trigger(group))
 }
 
-fn is_trigger_key(prefix: Shown, map: Map) -> bool {
+fn is_trigger_key(prefix: Shown) -> bool {
     let Shown::Command(prefix) = prefix else {
         return false;
     };
-    matches!(prefix.kind(), Kind::Trigger(_)) && !prefix.defaults(map).is_empty()
+    matches!(prefix.kind(), Kind::Trigger(_)) && !prefix.defaults(Map::Default).is_empty()
 }
 
 #[test]
@@ -88,35 +60,18 @@ fn listed_commands_are_bound_in_the_maps_that_list_them() {
     let mut checked = 0;
     for constant in bindings::listed() {
         let name = constant.name;
-        let block: Vec<Map> = MAPS
-            .into_iter()
-            .filter(|map| constant.maps.include(*map == Map::Tenxer))
-            .collect();
-        let live_in_both = LIVE_IN_BOTH_MAPS.iter().any(|(live, _)| *live == name);
         match constant.entry {
             Entry::Command(command) => {
                 // Custom action slots ship no key; users bind them.
-                let expected = if CUSTOM_ACTIONS.contains(&command) {
-                    Vec::new()
-                } else if live_in_both {
-                    MAPS.to_vec()
-                } else {
-                    block
-                };
-                assert_eq!(bound_maps(command), expected, "{name} ({})", command.id());
-                assert!(
-                    !(live_in_both && constant.maps == Maps::Both),
-                    "{name} is listed in both maps, so it needs no LIVE_IN_BOTH_MAPS entry"
-                );
+                if !CUSTOM_ACTIONS.contains(&command) {
+                    assert!(bound(command), "{name} ({})", command.id());
+                }
                 checked += 1;
             }
             // Digit ranges stay fixed; a chord's range belongs to its trigger's group.
             Entry::Digits(digits) => {
                 if let Some(prefix) = digits.prefix() {
-                    assert!(
-                        block.iter().all(|map| is_trigger_key(prefix, *map)),
-                        "{name} follows no chord trigger"
-                    );
+                    assert!(is_trigger_key(prefix), "{name} follows no chord trigger");
                 }
             }
             Entry::Binding(_) => assert!(
@@ -126,14 +81,6 @@ fn listed_commands_are_bound_in_the_maps_that_list_them() {
         }
     }
     assert!(checked > 0);
-    for (name, _) in LIVE_IN_BOTH_MAPS {
-        assert!(
-            bindings::listed()
-                .any(|constant| constant.name == *name
-                    && matches!(constant.entry, Entry::Command(_))),
-            "{name} is not a listed command"
-        );
-    }
 }
 
 #[test]
@@ -142,8 +89,8 @@ fn unlisted_constants_are_commands_or_excluded() {
     for (name, entry) in bindings::unlisted() {
         match entry {
             Entry::Command(command) => assert!(
-                !bound_maps(command).is_empty(),
-                "{} has no binding in either map",
+                bound(command),
+                "{} has no binding in the default map",
                 command.id()
             ),
             Entry::Binding(_) => assert!(
@@ -210,14 +157,12 @@ fn chord_steps_name_their_trigger() {
                 let Some(trigger) = trigger(group) else {
                     panic!("{} has no {group:?} trigger", command.id());
                 };
-                for map in bound_maps(command) {
-                    assert!(
-                        !trigger.defaults(map).is_empty(),
-                        "{} is bound in the {map:?} map, where {} is not",
-                        command.id(),
-                        trigger.id()
-                    );
-                }
+                assert!(
+                    !trigger.defaults(Map::Default).is_empty(),
+                    "{} is bound in the default map, where {} is not",
+                    command.id(),
+                    trigger.id()
+                );
                 steps += 1;
             }
             Kind::Trigger(group) => assert_eq!(
@@ -243,58 +188,36 @@ fn chord_steps_name_their_trigger() {
     }
 }
 
-/// A command matches the active map's bindings, which keeps both tables apart
-/// even where a key means different things in each.
+/// A command matches the default map's bindings, where each key keeps one
+/// meaning.
 #[test]
 fn commands_match_through_the_active_map() {
     crate::test_support::gtk_test(
         "ui::keys::command::tests::commands_match_through_the_active_map",
         || {
             use super::super::bindings::{
-                DUPLICATE, GO_PROMPT, HALF_PAGE_DOWN, MOVE_TO_TRASH, OPEN_IN_NEW_TAB, RENAME,
-                SIDEBAR, DISPATCH,
+                DISPATCH, DUPLICATE, MOVE_TO_TRASH, OPEN_IN_NEW_TAB, RENAME, SIDEBAR,
             };
             let press = |key, modifiers| KeyPress::from_signal(key, 0, modifiers);
             let ctrl = Modifiers::CONTROL_MASK;
-            let preferences = crate::ui::preferences::PreferenceManager::shared();
-            for tenxer in [false, true] {
-                preferences.set_tenxer_mode(tenxer);
-                assert_eq!(
-                    Map::active(),
-                    if tenxer { Map::Tenxer } else { Map::Default }
-                );
-                let ctrl_b = press(Key::b, ctrl);
-                assert_eq!(ctrl_b.is(SIDEBAR), !tenxer);
-                assert!(ctrl_b.is(SIDEBAR.in_map(Map::Default)));
-                assert_eq!(press(Key::n, ctrl).is(SIDEBAR), tenxer);
-                assert_eq!(press(Key::d, ctrl).is(HALF_PAGE_DOWN), tenxer);
-                assert_eq!(press(Key::d, ctrl).is(DUPLICATE), !tenxer);
-                assert!(press(Key::d, ctrl).is(DUPLICATE.in_map(Map::Default)));
-                assert!(press(Key::F2, Modifiers::empty()).is(RENAME));
-                assert_eq!(press(Key::r, Modifiers::empty()).is(RENAME), tenxer);
-                assert_eq!(press(Key::r, ctrl).is(RENAME), !tenxer);
-                assert!(press(Key::r, ctrl).is(RENAME.in_map(Map::Default)));
-                let shift_space = press(Key::space, Modifiers::SHIFT_MASK);
-                assert_eq!(
-                    shift_space.is(GO_PROMPT.ignoring(Modifiers::SHIFT_MASK)),
-                    tenxer
-                );
-                assert!(!shift_space.is(GO_PROMPT));
-                let ctrl_shift_enter = press(Key::Return, ctrl | Modifiers::SHIFT_MASK);
-                assert!(!ctrl_shift_enter.is(OPEN_IN_NEW_TAB));
-                assert!(ctrl_shift_enter.is(OPEN_IN_NEW_TAB.ignoring(Modifiers::SHIFT_MASK)));
-                let trash = MOVE_TO_TRASH
-                    .in_map(Map::Default)
-                    .ignoring(Modifiers::SHIFT_MASK);
-                assert!(press(Key::Delete, Modifiers::SHIFT_MASK).is(trash));
-                assert!(!press(Key::d, Modifiers::empty()).is(trash));
-                assert_eq!(press(Key::d, Modifiers::empty()).is(DISPATCH), !tenxer);
-                assert_eq!(
-                    press(Key::d, ctrl | Modifiers::SHIFT_MASK).is(DISPATCH),
-                    tenxer
-                );
-            }
-            preferences.set_tenxer_mode(false);
+            assert_eq!(Map::active(), Map::Default);
+            let ctrl_b = press(Key::b, ctrl);
+            assert!(ctrl_b.is(SIDEBAR));
+            assert!(ctrl_b.is(SIDEBAR.in_map(Map::Default)));
+            assert!(press(Key::d, ctrl).is(DUPLICATE));
+            assert!(press(Key::d, ctrl).is(DUPLICATE.in_map(Map::Default)));
+            assert!(press(Key::F2, Modifiers::empty()).is(RENAME));
+            assert!(press(Key::r, ctrl).is(RENAME));
+            assert!(press(Key::r, ctrl).is(RENAME.in_map(Map::Default)));
+            let ctrl_shift_enter = press(Key::Return, ctrl | Modifiers::SHIFT_MASK);
+            assert!(!ctrl_shift_enter.is(OPEN_IN_NEW_TAB));
+            assert!(ctrl_shift_enter.is(OPEN_IN_NEW_TAB.ignoring(Modifiers::SHIFT_MASK)));
+            let trash = MOVE_TO_TRASH
+                .in_map(Map::Default)
+                .ignoring(Modifiers::SHIFT_MASK);
+            assert!(press(Key::Delete, Modifiers::SHIFT_MASK).is(trash));
+            assert!(!press(Key::d, Modifiers::empty()).is(trash));
+            assert!(press(Key::d, Modifiers::empty()).is(DISPATCH));
         },
     );
 }
@@ -303,16 +226,14 @@ fn commands_match_through_the_active_map() {
 fn no_command_repeats_a_binding() {
     let mut checked = 0;
     for command in registry() {
-        for map in MAPS {
-            let bindings = command.defaults(map);
-            for (index, binding) in bindings.iter().enumerate() {
-                assert!(
-                    !bindings[..index].contains(binding),
-                    "{} lists {binding:?} twice in the {map:?} map",
-                    command.id()
-                );
-                checked += 1;
-            }
+        let bindings = command.defaults(Map::Default);
+        for (index, binding) in bindings.iter().enumerate() {
+            assert!(
+                !bindings[..index].contains(binding),
+                "{} lists {binding:?} twice in the default map",
+                command.id()
+            );
+            checked += 1;
         }
     }
     assert!(checked > 0);
@@ -325,17 +246,15 @@ fn saved_accelerators_read_back_as_the_bindings_they_name() {
         || {
             let mut checked = 0;
             for command in registry() {
-                for map in MAPS {
-                    for binding in command.defaults(map) {
-                        assert_eq!(
-                            Binding::parse(&binding.accelerator()),
-                            Some(*binding),
-                            "{} {}",
-                            command.id(),
-                            binding.accelerator()
-                        );
-                        checked += 1;
-                    }
+                for binding in command.defaults(Map::Default) {
+                    assert_eq!(
+                        Binding::parse(&binding.accelerator()),
+                        Some(*binding),
+                        "{} {}",
+                        command.id(),
+                        binding.accelerator()
+                    );
+                    checked += 1;
                 }
             }
             assert!(checked > 0);
@@ -413,11 +332,6 @@ fn saved_entries_replace_whole_entries_and_skip_what_cannot_apply() {
             assert_eq!(
                 keymap.bindings(Map::Default, COPY),
                 COPY.defaults(Map::Default)
-            );
-            assert_eq!(
-                keymap.bindings(Map::Tenxer, RENAME),
-                RENAME.defaults(Map::Tenxer),
-                "an override applies to its own map only"
             );
             assert!(keymap.overrides(Map::Default, RENAME));
             assert!(!keymap.overrides(Map::Default, COPY));
