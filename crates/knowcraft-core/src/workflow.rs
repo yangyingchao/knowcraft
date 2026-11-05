@@ -61,15 +61,15 @@ impl Workflow {
         let fname = path
             .file_name()
             .ok_or_else(|| Error::Workflow("no file name".into()))?;
+        let original_name = fname.to_string_lossy().into_owned();
         let doc = Document {
             id: 0,
-            uuid: String::new(),
+            uuid: uuid::Uuid::new_v4().to_string(),
             storage: "linked".to_string(),
-            original_name: String::new(),
+            original_name: original_name.clone(),
             path: path.to_string_lossy().into_owned(),
             doc_type: detect_type(fname),
-            title: crate::extract::extract_title(path)
-                .unwrap_or_else(|| fname.to_string_lossy().into_owned()),
+            title: crate::extract::extract_title(path).unwrap_or(original_name),
             source_url: None,
             size: std::fs::metadata(path)?.len() as i64,
             created_at: now(),
@@ -168,15 +168,15 @@ impl Workflow {
         let fname = path
             .file_name()
             .ok_or_else(|| Error::Workflow("no file name".into()))?;
+        let original_name = fname.to_string_lossy().into_owned();
         let doc = Document {
             id: 0,
-            uuid: String::new(),
+            uuid: uuid::Uuid::new_v4().to_string(),
             storage: "linked".to_string(),
-            original_name: String::new(),
+            original_name: original_name.clone(),
             path: path.to_string_lossy().into_owned(),
             doc_type: detect_type(fname),
-            title: crate::extract::extract_title(path)
-                .unwrap_or_else(|| fname.to_string_lossy().into_owned()),
+            title: crate::extract::extract_title(path).unwrap_or(original_name),
             source_url: None,
             size: std::fs::metadata(path)?.len() as i64,
             created_at: now(),

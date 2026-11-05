@@ -2,8 +2,19 @@ use rusqlite::{params, Connection};
 use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::model::{Annotation, Document, Note};
+
+/// 当前数据库 schema 版本，随 `PRAGMA user_version` 持久化。
+const SCHEMA_VERSION: i32 = 1;
+
+/// 迁移结果，供 CLI 升级等场景展示回填数量。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MigrationReport {
+    pub from: i32,
+    pub to: i32,
+    pub backfilled: usize,
+}
 
 #[derive(Clone)]
 pub struct Store {
@@ -12,13 +23,21 @@ pub struct Store {
 
 impl Store {
     pub fn open(dir: &Path) -> Result<Store> {
+        Self::open_with_report(dir).map(|(store, _)| store)
+    }
+
+    /// 打开数据库并执行迁移，返回迁移报告。CLI 升级等场景用报告展示回填数量。
+    pub fn open_with_report(dir: &Path) -> Result<(Store, MigrationReport)> {
         std::fs::create_dir_all(dir)?;
-        let conn = Connection::open(dir.join("knowcraft.db"))?;
+        let mut conn = Connection::open(dir.join("knowcraft.db"))?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS documents (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT NOT NULL DEFAULT '',
+                storage TEXT NOT NULL DEFAULT 'linked' CHECK (storage IN ('linked','archived')),
+                original_name TEXT NOT NULL DEFAULT '',
                 path TEXT NOT NULL UNIQUE,
                 doc_type TEXT NOT NULL,
                 title TEXT,
@@ -52,9 +71,10 @@ impl Store {
             CREATE UNIQUE INDEX IF NOT EXISTS idx_document_tags_unique
                 ON document_tags(document_id, tag_id);",
         )?;
-        Ok(Store {
+        let report = migrate(&mut conn, dir)?;
+        Ok((Store {
             conn: Arc::new(Mutex::new(conn)),
-        })
+        }, report))
     }
 
     // Poisoning only happens if a panic occurred while holding the lock; the
@@ -71,11 +91,14 @@ impl Store {
     }
 
     pub fn insert_document(&self, d: &Document) -> Result<i64> {
+        if d.uuid.is_empty() {
+            return Err(Error::Store("uuid required".into()));
+        }
         let conn = self.lock();
         conn.execute(
-            "INSERT INTO documents (path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-            params![d.path, d.doc_type, d.title, d.source_url, d.size, d.created_at, d.updated_at, d.checksum, d.ai_summary, d.lifecycle, d.index_status],
+            "INSERT INTO documents (uuid, storage, original_name, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            params![d.uuid, d.storage, d.original_name, d.path, d.doc_type, d.title, d.source_url, d.size, d.created_at, d.updated_at, d.checksum, d.ai_summary, d.lifecycle, d.index_status],
         )?;
         Ok(conn.last_insert_rowid())
     }
@@ -83,25 +106,25 @@ impl Store {
     pub fn get_document(&self, id: i64) -> Result<Option<Document>> {
         let conn = self.lock();
         let mut stmt = conn.prepare(
-            "SELECT id, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE id = ?1",
+            "SELECT id, uuid, storage, original_name, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE id = ?1",
         )?;
         let mut rows = stmt.query_map(params![id], |r| {
             Ok(Document {
                 id: r.get(0)?,
-                uuid: String::new(),
-                storage: "linked".to_string(),
-                original_name: String::new(),
-                path: r.get(1)?,
-                doc_type: r.get(2)?,
-                title: r.get(3)?,
-                source_url: r.get(4)?,
-                size: r.get(5)?,
-                created_at: r.get(6)?,
-                updated_at: r.get(7)?,
-                checksum: r.get(8)?,
-                ai_summary: r.get(9)?,
-                lifecycle: r.get(10)?,
-                index_status: r.get(11)?,
+                uuid: r.get(1)?,
+                storage: r.get(2)?,
+                original_name: r.get(3)?,
+                path: r.get(4)?,
+                doc_type: r.get(5)?,
+                title: r.get(6)?,
+                source_url: r.get(7)?,
+                size: r.get(8)?,
+                created_at: r.get(9)?,
+                updated_at: r.get(10)?,
+                checksum: r.get(11)?,
+                ai_summary: r.get(12)?,
+                lifecycle: r.get(13)?,
+                index_status: r.get(14)?,
             })
         })?;
         Ok(rows.next().transpose()?)
@@ -125,28 +148,46 @@ impl Store {
         Ok(())
     }
 
+    pub fn update_original_name(&self, id: i64, name: &str) -> Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "UPDATE documents SET original_name = ?1 WHERE id = ?2",
+            params![name, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_checksum(&self, id: i64, checksum: &str) -> Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "UPDATE documents SET checksum = ?1 WHERE id = ?2",
+            params![checksum, id],
+        )?;
+        Ok(())
+    }
+
     pub fn find_by_checksum(&self, checksum: &str) -> Result<Option<Document>> {
         let conn = self.lock();
         let mut stmt = conn.prepare(
-            "SELECT id, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE checksum = ?1",
+            "SELECT id, uuid, storage, original_name, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE checksum = ?1",
         )?;
         let mut rows = stmt.query_map(params![checksum], |r| {
             Ok(Document {
                 id: r.get(0)?,
-                uuid: String::new(),
-                storage: "linked".to_string(),
-                original_name: String::new(),
-                path: r.get(1)?,
-                doc_type: r.get(2)?,
-                title: r.get(3)?,
-                source_url: r.get(4)?,
-                size: r.get(5)?,
-                created_at: r.get(6)?,
-                updated_at: r.get(7)?,
-                checksum: r.get(8)?,
-                ai_summary: r.get(9)?,
-                lifecycle: r.get(10)?,
-                index_status: r.get(11)?,
+                uuid: r.get(1)?,
+                storage: r.get(2)?,
+                original_name: r.get(3)?,
+                path: r.get(4)?,
+                doc_type: r.get(5)?,
+                title: r.get(6)?,
+                source_url: r.get(7)?,
+                size: r.get(8)?,
+                created_at: r.get(9)?,
+                updated_at: r.get(10)?,
+                checksum: r.get(11)?,
+                ai_summary: r.get(12)?,
+                lifecycle: r.get(13)?,
+                index_status: r.get(14)?,
             })
         })?;
         Ok(rows.next().transpose()?)
@@ -155,27 +196,36 @@ impl Store {
     pub fn find_by_path(&self, path: &str) -> Result<Option<Document>> {
         let conn = self.lock();
         let mut stmt = conn.prepare(
-            "SELECT id, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE path = ?1",
+            "SELECT id, uuid, storage, original_name, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE path = ?1",
         )?;
         let mut rows = stmt.query_map(params![path], |r| {
             Ok(Document {
                 id: r.get(0)?,
-                uuid: String::new(),
-                storage: "linked".to_string(),
-                original_name: String::new(),
-                path: r.get(1)?,
-                doc_type: r.get(2)?,
-                title: r.get(3)?,
-                source_url: r.get(4)?,
-                size: r.get(5)?,
-                created_at: r.get(6)?,
-                updated_at: r.get(7)?,
-                checksum: r.get(8)?,
-                ai_summary: r.get(9)?,
-                lifecycle: r.get(10)?,
-                index_status: r.get(11)?,
+                uuid: r.get(1)?,
+                storage: r.get(2)?,
+                original_name: r.get(3)?,
+                path: r.get(4)?,
+                doc_type: r.get(5)?,
+                title: r.get(6)?,
+                source_url: r.get(7)?,
+                size: r.get(8)?,
+                created_at: r.get(9)?,
+                updated_at: r.get(10)?,
+                checksum: r.get(11)?,
+                ai_summary: r.get(12)?,
+                lifecycle: r.get(13)?,
+                index_status: r.get(14)?,
             })
         })?;
+        Ok(rows.next().transpose()?)
+    }
+
+    pub fn find_by_uuid(&self, uuid: &str) -> Result<Option<Document>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, uuid, storage, original_name, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE uuid = ?1",
+        )?;
+        let mut rows = stmt.query_map(params![uuid], read_document)?;
         Ok(rows.next().transpose()?)
     }
 
@@ -191,25 +241,25 @@ impl Store {
         };
         let conn = self.lock();
         let mut stmt = conn.prepare(
-            "SELECT id, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE substr(path, 1, length(?1)) = ?1",
+            "SELECT id, uuid, storage, original_name, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE substr(path, 1, length(?1)) = ?1",
         )?;
         let rows = stmt.query_map(params![prefix], |r| {
             Ok(Document {
                 id: r.get(0)?,
-                uuid: String::new(),
-                storage: "linked".to_string(),
-                original_name: String::new(),
-                path: r.get(1)?,
-                doc_type: r.get(2)?,
-                title: r.get(3)?,
-                source_url: r.get(4)?,
-                size: r.get(5)?,
-                created_at: r.get(6)?,
-                updated_at: r.get(7)?,
-                checksum: r.get(8)?,
-                ai_summary: r.get(9)?,
-                lifecycle: r.get(10)?,
-                index_status: r.get(11)?,
+                uuid: r.get(1)?,
+                storage: r.get(2)?,
+                original_name: r.get(3)?,
+                path: r.get(4)?,
+                doc_type: r.get(5)?,
+                title: r.get(6)?,
+                source_url: r.get(7)?,
+                size: r.get(8)?,
+                created_at: r.get(9)?,
+                updated_at: r.get(10)?,
+                checksum: r.get(11)?,
+                ai_summary: r.get(12)?,
+                lifecycle: r.get(13)?,
+                index_status: r.get(14)?,
             })
         })?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
@@ -261,7 +311,7 @@ impl Store {
     pub fn list_by_lifecycle(&self, lifecycle: &str) -> Result<Vec<Document>> {
         let conn = self.lock();
         let mut stmt = conn.prepare(
-            "SELECT id, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE lifecycle = ?1",
+            "SELECT id, uuid, storage, original_name, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents WHERE lifecycle = ?1",
         )?;
         let rows = stmt.query_map(params![lifecycle], read_document)?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
@@ -271,7 +321,7 @@ impl Store {
     pub fn list_documents(&self) -> Result<Vec<Document>> {
         let conn = self.lock();
         let mut stmt = conn.prepare(
-            "SELECT id, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents",
+            "SELECT id, uuid, storage, original_name, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status FROM documents",
         )?;
         let rows = stmt.query_map([], read_document)?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
@@ -281,8 +331,9 @@ impl Store {
     pub fn documents_with_tag(&self, name: &str) -> Result<Vec<Document>> {
         let conn = self.lock();
         let mut stmt = conn.prepare(
-            "SELECT d.id, d.path, d.doc_type, d.title, d.source_url, d.size, d.created_at, \
-             d.updated_at, d.checksum, d.ai_summary, d.lifecycle, d.index_status \
+            "SELECT d.id, d.uuid, d.storage, d.original_name, d.path, d.doc_type, d.title, \
+             d.source_url, d.size, d.created_at, d.updated_at, d.checksum, d.ai_summary, \
+             d.lifecycle, d.index_status \
              FROM documents d JOIN document_tags dt ON dt.document_id = d.id \
              JOIN tags t ON t.id = dt.tag_id WHERE t.name = ?1 ORDER BY d.title",
         )?;
@@ -367,19 +418,101 @@ pub(crate) fn now() -> String {
 fn read_document(row: &rusqlite::Row<'_>) -> rusqlite::Result<Document> {
     Ok(Document {
         id: row.get(0)?,
-        uuid: String::new(),
-        storage: "linked".to_string(),
-        original_name: String::new(),
-        path: row.get(1)?,
-        doc_type: row.get(2)?,
-        title: row.get(3)?,
-        source_url: row.get(4)?,
-        size: row.get(5)?,
-        created_at: row.get(6)?,
-        updated_at: row.get(7)?,
-        checksum: row.get(8)?,
-        ai_summary: row.get(9)?,
-        lifecycle: row.get(10)?,
-        index_status: row.get(11)?,
+        uuid: row.get(1)?,
+        storage: row.get(2)?,
+        original_name: row.get(3)?,
+        path: row.get(4)?,
+        doc_type: row.get(5)?,
+        title: row.get(6)?,
+        source_url: row.get(7)?,
+        size: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
+        checksum: row.get(11)?,
+        ai_summary: row.get(12)?,
+        lifecycle: row.get(13)?,
+        index_status: row.get(14)?,
+    })
+}
+
+/// 缺列则用 `ALTER TABLE ... ADD COLUMN` 补齐；已存在则不动作。
+fn ensure_column(conn: &Connection, name: &str, decl: &str) -> Result<()> {
+    let existing = {
+        let mut stmt = conn.prepare("PRAGMA table_info(documents)")?;
+        let rows = stmt.query_map([], |r| r.get::<_, String>(1))?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()?
+    };
+    if !existing.iter().any(|c| c == name) {
+        conn.execute(
+            &format!("ALTER TABLE documents ADD COLUMN {name} {decl}"),
+            [],
+        )?;
+    }
+    Ok(())
+}
+
+/// 按 path 是否位于 data_dir 的 inbox/library/notes/captures 下推断存储方式。
+fn infer_storage(path: &Path, data_dir: &Path) -> &'static str {
+    for sub in ["inbox", "library", "notes", "captures"] {
+        if path.starts_with(data_dir.join(sub)) {
+            return "linked";
+        }
+    }
+    // 旧库没有 archived 存储，未识别的路径仍按 linked 处理。
+    "linked"
+}
+
+/// 为 `uuid` 为空的行补齐 uuid/storage/original_name，返回回填行数。
+fn backfill_identity(conn: &Connection, data_dir: &Path) -> Result<usize> {
+    let rows = {
+        let mut stmt = conn.prepare("SELECT id, path FROM documents WHERE uuid = ''")?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()?
+    };
+    for (id, path) in &rows {
+        let uuid = uuid::Uuid::new_v4().to_string();
+        let storage = infer_storage(Path::new(path), data_dir);
+        let original_name = Path::new(path)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        conn.execute(
+            "UPDATE documents SET uuid = ?1, storage = ?2, original_name = ?3 WHERE id = ?4",
+            params![uuid, storage, original_name, id],
+        )?;
+    }
+    Ok(rows.len())
+}
+
+/// 把数据库迁移到 `SCHEMA_VERSION`。版本已达标则直接返回；否则在事务中补齐
+/// 列、回填身份字段、建索引并更新 `PRAGMA user_version`，任一失败整体回滚。
+fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<MigrationReport> {
+    let from: i32 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    if from >= SCHEMA_VERSION {
+        return Ok(MigrationReport {
+            from,
+            to: from,
+            backfilled: 0,
+        });
+    }
+    let tx = conn.transaction()?;
+    ensure_column(&tx, "uuid", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_column(&tx, "storage", "TEXT NOT NULL DEFAULT 'linked'")?;
+    ensure_column(&tx, "original_name", "TEXT NOT NULL DEFAULT ''")?;
+    let backfilled = backfill_identity(&tx, data_dir)?;
+    tx.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_uuid ON documents(uuid) WHERE uuid <> ''",
+        [],
+    )?;
+    tx.execute(
+        "CREATE INDEX IF NOT EXISTS idx_documents_storage ON documents(storage, lifecycle)",
+        [],
+    )?;
+    tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+    tx.commit()?;
+    Ok(MigrationReport {
+        from,
+        to: SCHEMA_VERSION,
+        backfilled,
     })
 }

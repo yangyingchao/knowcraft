@@ -19,7 +19,7 @@ fn make_doc(id: i64, dir: &Path, name: &str, doc_type: &str, content: &str) -> D
     std::fs::write(&path, content).unwrap();
     Document {
         id,
-        uuid: String::new(),
+        uuid: format!("uuid-{id}-{name}"),
         storage: "linked".to_string(),
         original_name: String::new(),
         path: path.to_string_lossy().into_owned(),

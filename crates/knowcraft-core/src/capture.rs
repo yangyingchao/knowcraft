@@ -60,11 +60,15 @@ impl Capture {
         std::fs::rename(&tmp_path, &md_path)?;
 
         let ts = now();
+        let original_name = md_path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
         let doc = Document {
             id: 0,
-            uuid: String::new(),
+            uuid: uuid::Uuid::new_v4().to_string(),
             storage: "linked".to_string(),
-            original_name: String::new(),
+            original_name,
             path: md_path.to_string_lossy().into_owned(),
             doc_type: "md".into(),
             title,
