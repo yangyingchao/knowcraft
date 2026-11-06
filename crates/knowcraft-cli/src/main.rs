@@ -86,7 +86,7 @@ fn main() -> anyhow::Result<()> {
             let index = Index::open(&cfg.data_dir)?;
             let hits = knowcraft_core::search::search(&store, &index, &query, 50)?;
             if hits.is_empty() && indexed_documents(&store)?.is_empty() {
-                eprintln!("no documents indexed yet; add files first");
+                anyhow::bail!("no documents indexed yet; add files first");
             }
             for hit in hits {
                 println!("{} {}", hit.document_id, hit.path);

@@ -88,6 +88,8 @@ graph TD
 │   └── <category>/...  # 可嵌套分类
 ├── notes/              # 独立笔记（Markdown，无归属文档）
 ├── captures/           # 网页抓取（Markdown 正文 + attachments/ 附件）
+├── archived/<ext>/     # 记录归档：<uuid>.<ext>，原名存数据库
+├── .trash/             # 回收站：files/ 与 info/
 └── knowcraft.db        # SQLite 元数据
     .index/             # tantivy 索引
 ```
@@ -97,7 +99,10 @@ graph TD
 ```mermaid
 erDiagram
     DOCUMENT {
-        int id PK
+        int id PK "内部句柄，外键与索引使用"
+        text uuid "v4，记录身份，永不变"
+        text storage "linked|archived"
+        text original_name "显示用原名；archived 时固定"
         text path "绝对路径，可变"
         text doc_type "pdf|docx|md|org|html|image|other"
         text title
@@ -105,9 +110,9 @@ erDiagram
         int size
         text created_at
         text updated_at
-        text checksum "内容指纹，去重"
+        text checksum "SHA-256，内容指纹，导入去重"
         text ai_summary "缓存 AI 摘要"
-        text lifecycle "pending|tagged|archived"
+        text lifecycle "pending|tagged|archived|trashed"
         text index_status "indexed|pending|error"
     }
     TAG {
@@ -147,8 +152,10 @@ tantivy 索引位于 `~/Knowledge/.index/`，字段：`path / title / content / 
 
 关联与一致性约定：
 - **id 为主关联键**：ANNOTATION/NOTE/DOCUMENT_TAG 及 tantivy 索引均以 `document_id` 关联，`path` 仅为可变定位属性
+- **uuid 为记录身份**：导入时生成一次，move/rename/归档/删除都不改变；`storage` 区分 `linked`（保留路径）与 `archived`（`archived/<ext>/<uuid>.<ext>`）
 - dispatch 移动文件与更新 `path` 在同一事务内完成（配合唯一写者保证原子性）
-- watcher 检测到外部移动时按 `document_id` 更新 path 并重建索引条目；孤儿记录由索引重建任务清理
+- watcher 检测到外部移动时按受管位置契约更新 path 并重建索引条目；移出受管目录才删除，`trashed` 记录保留
+- 删除保留记录与子表：文件移入 `.trash`，`lifecycle = trashed`，按 UUID 恢复；设计细节见 `docs/superpowers/specs/2026-11-05-knowcraft-uuid-archive-design.md`
 
 ## 5. 核心工作流
 
@@ -311,13 +318,15 @@ graph TD
 
 ### 7.3 CLI 子命令（直连 core，不经 HTTP）
 
-- `knowcraft search <query>`
-- `knowcraft add <path|url>`（入 inbox）
-- `knowcraft dispatch <id|path> <category>`
-- `knowcraft capture <url>`
-- `knowcraft summarize <id|path>`
-- `knowcraft status`（服务/索引状态）
-- `knowcraft serve`（GUI 内嵌服务等价入口）
+- `knowcraft-cli search <query>`
+- `knowcraft-cli add <path|url>`（入 inbox）
+- `knowcraft-cli dispatch <id> <category>`
+- `knowcraft-cli archive <path>... --category <name> | --record`
+- `knowcraft-cli capture <url>`
+- `knowcraft-cli annotations`（PDF 注释读写）
+- `knowcraft-cli status`
+- `knowcraft-cli cleanup`
+- `knowcraft-cli upgrade`（schema 迁移并报告回填数量）
 
 ## 8. 集成层
 

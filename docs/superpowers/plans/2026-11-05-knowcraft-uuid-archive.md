@@ -466,19 +466,19 @@ git commit -am "feat(gui): move/rename 同步记录路径与原名"
 - Modify: `crates/knowcraft/src/ui/window/sidebar_places.rs`
 - Create: 归档虚拟列表视图
 
-- [ ] **Step 1: 侧边栏入口**
+- [x] **Step 1: 侧边栏入口**
 
 新增「归档」行，导航到虚拟位置 `archive:///`。
 
-- [ ] **Step 2: 列表**
+- [x] **Step 2: 列表**
 
 查询 `storage = archived`，显示 `original_name`、类型、标签；支持打开/预览/搜索。
 
-- [ ] **Step 3: 导航钳制**
+- [x] **Step 3: 导航钳制**
 
 地址栏禁止直接进入 `archived/`。
 
-- [ ] **Step 4: 编译与提交**
+- [x] **Step 4: 编译与提交**
 
 Run: `cargo build`
 Expected: 通过。
@@ -494,11 +494,11 @@ git commit -am "feat(gui): 归档虚拟列表"
 **Files:**
 - Modify: `docs/superpowers/specs/2026-11-02-knowcraft-design.md`
 
-- [ ] **Step 1: 同步基础设计**
+- [x] **Step 1: 同步基础设计**
 
 更新字段、CLI 子命令、删除语义与 watcher 契约。
 
-- [ ] **Step 2: 关键测试**
+- [x] **Step 2: 关键测试**
 
 ```bash
 cargo test -p knowcraft-core
@@ -506,7 +506,7 @@ cargo test -p knowcraft-cli
 cargo build
 ```
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git commit -am "docs: 同步 UUID/归档设计"
@@ -520,9 +520,9 @@ git commit -am "docs: 同步 UUID/归档设计"
 - 类型一致：`Document` 三字段、`MigrationReport`、`Archive`/`Trash` 方法在任务间一致。
 - 无占位：每个任务给出接口签名、测试目标与验证命令。
 
-## 执行状态（2026-11-05）
+## 执行状态（2026-11-06）
 
-已完成 Task 1-10，每个任务已单独提交：
+已完成 Task 1-12：
 
 - Task 1 `7e28846`：Document 增加 uuid/storage/original_name
 - Task 2 `cf7a1e4`：schema v1 迁移与查询改造
@@ -535,10 +535,7 @@ git commit -am "docs: 同步 UUID/归档设计"
 - Task 9a `7af6e67`：GUI 归档门面与双模式对话框
 - Task 9b `b40ae8e`：GUI 右键多选归档
 - Task 10 `5a28e4a`：GUI move/rename 同步
+- Task 11 `b67fd1a`：Sidebar 归档入口与原名显示
+- Task 12：同步基础设计并完成最终验证
 
-未开始：
-
-- Task 11：Sidebar「归档」虚拟列表与搜索。
-- Task 12：同步基础设计文档与最终验证。
-
-按用户要求暂停，后续继续。
+说明：首版归档视图为 `archived/` 目录浏览加原名映射，不是虚拟平铺列表；标签列与纯虚拟列表留待后续。

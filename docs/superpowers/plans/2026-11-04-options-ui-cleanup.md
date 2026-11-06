@@ -1,6 +1,6 @@
 # options UI 清理 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 落实 todo.md 四项：整体移除 tenxer_mode 键图体系、移除 sidebar options 死配置、移除 desktop integration 设置页与 portal 集成残留、在 options 新增知识库数据目录设置。
 
@@ -27,7 +27,7 @@
 **Files:**
 - Create: `docs/superpowers/plans/2026-11-04-options-ui-cleanup.md`（本文件）
 
-- [ ] **Step 1: 提交计划**
+- [x] **Step 1: 提交计划**
 
 前两份 plan 均已 tracked，按惯例本计划入 git：
 
@@ -56,23 +56,23 @@ git add docs/superpowers/plans/2026-11-04-options-ui-cleanup.md
 **Interfaces:**
 - Produces: 无（纯删除）。删除后 `Dispatcher::tenxer_keys`、`toggles_tenxer_mode`、`tenxer_reads_keys` 不可再引用；keys 定义层（TENXER_* 命令）暂留至 Task 2。
 
-- [ ] **Step 1: 删除五个 tenxer 专属文件与三个测试文件**（上表 Delete 项）
-- [ ] **Step 2: 清理挂载点**：keyboard.rs 四处调用分支、mod/use 声明；tabs.rs splash 挂载；items/composition 子模块声明。凡条件引用 tenxer 的分支整体删除，保留非 tenxer 分支原缩进。
-- [ ] **Step 3: 验证零残留**
+- [x] **Step 1: 删除五个 tenxer 专属文件与三个测试文件**（上表 Delete 项）
+- [x] **Step 2: 清理挂载点**：keyboard.rs 四处调用分支、mod/use 声明；tabs.rs splash 挂载；items/composition 子模块声明。凡条件引用 tenxer 的分支整体删除，保留非 tenxer 分支原缩进。
+- [x] **Step 3: 验证零残留**
 
 ```bash
 cd /home/yyc/Work/oh-my-db/crates/knowcraft && rg -n "tenxer_keys|tenxer_items|tenxer_cursor|tenxer_splash" src/ --glob '!tests'
 # 预期：仅剩 src/ui/keys/bindings.rs 等定义层（Task 2 范围）
 ```
 
-- [ ] **Step 4: 构建与测试**
+- [x] **Step 4: 构建与测试**
 
 ```bash
 RUSTUP_TOOLCHAIN=1.96.0 cargo build && RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft-core 2>&1 | grep -E "test result|FAILED"
 ```
 
-- [ ] **Step 5: 合规检查**：改动文件行宽 ≤102、无行尾空格。
-- [ ] **Step 6: 提交**（subject: `refactor: 移除 tenxer 键盘分发层`）
+- [x] **Step 5: 合规检查**：改动文件行宽 ≤102、无行尾空格。
+- [x] **Step 6: 提交**（subject: `refactor: 移除 tenxer 键盘分发层`）
 
 ---
 
@@ -93,18 +93,18 @@ RUSTUP_TOOLCHAIN=1.96.0 cargo build && RUSTUP_TOOLCHAIN=1.96.0 cargo test -p kno
 **Interfaces:**
 - Produces: 无（纯删除）。Task 3 之后 `Map::Tenxer`、`TENXER_MODE`、全部 `TENXER_*` 命令不可再引用。
 
-- [ ] **Step 1: 删除 `bindings/tenxer.rs` 与 bindings.rs 中全部 TENXER_* 命令及 `Maps` 条目**
-- [ ] **Step 2: `command.rs` 删 `Map::Tenxer` 变体**；编译器指引下清理 keyboard.rs 分段控件、shortcut_reference、conflicts/alias/label、keys.rs 的全部 `Map::Tenxer`/`Map::Default` 分支；若 `Map` 仅剩单变体，删除枚举并去参数化签名（`sections()`、`command_sections()`、`label.rs`）。
-- [ ] **Step 3: 清理测试**：上表测试文件中 tenxer 用例删除（已获授权）。
-- [ ] **Step 4: 验证零残留**
+- [x] **Step 1: 删除 `bindings/tenxer.rs` 与 bindings.rs 中全部 TENXER_* 命令及 `Maps` 条目**
+- [x] **Step 2: `command.rs` 删 `Map::Tenxer` 变体**；编译器指引下清理 keyboard.rs 分段控件、shortcut_reference、conflicts/alias/label、keys.rs 的全部 `Map::Tenxer`/`Map::Default` 分支；若 `Map` 仅剩单变体，删除枚举并去参数化签名（`sections()`、`command_sections()`、`label.rs`）。
+- [x] **Step 3: 清理测试**：上表测试文件中 tenxer 用例删除（已获授权）。
+- [x] **Step 4: 验证零残留**
 
 ```bash
 rg -n "TENXER|tenxer_mode_keys|Map::Tenxer" crates/knowcraft/src/ --glob '!tests'
 # 预期：仅剩 preferences.rs 字段与 Task 3 范围的偏好分支（shortcut_reference.rs:332 等）
 ```
 
-- [ ] **Step 5: 构建与测试**（同 Task 1 Step 4）+ i18n 键序检查（en/zh-CN 同步删除）。
-- [ ] **Step 6: 提交**（subject: `refactor: 移除 tenxer 键图与键位定义`）
+- [x] **Step 5: 构建与测试**（同 Task 1 Step 4）+ i18n 键序检查（en/zh-CN 同步删除）。
+- [x] **Step 6: 提交**（subject: `refactor: 移除 tenxer 键图与键位定义`）
 
 ---
 
@@ -126,17 +126,17 @@ rg -n "TENXER|tenxer_mode_keys|Map::Tenxer" crates/knowcraft/src/ --glob '!tests
 **Interfaces:**
 - Produces: 无（纯删除）。删除后 `ui::tenxer_mode` 模块不可再引用；footer 与快捷键参考永远按 Default 行为渲染。
 
-- [ ] **Step 1: 删除各调用点的 tenxer 分支**（`if tenxer_mode()`/`if chrome_suppressed()` 判断体删除，保留非 tenxer 路径；`hide_while_enabled` 类调用整行删除）
-- [ ] **Step 2: 删除 `ui/tenxer_mode.rs` 与 mod 声明**
-- [ ] **Step 3: 验证零残留**
+- [x] **Step 1: 删除各调用点的 tenxer 分支**（`if tenxer_mode()`/`if chrome_suppressed()` 判断体删除，保留非 tenxer 路径；`hide_while_enabled` 类调用整行删除）
+- [x] **Step 2: 删除 `ui/tenxer_mode.rs` 与 mod 声明**
+- [x] **Step 3: 验证零残留**
 
 ```bash
 rg -n "chrome_suppressed|hide_while_enabled|hide_filter_while_enabled|tenxer_mode::|Chord|super::tenxer_mode" crates/knowcraft/src/ --glob '!tests'
 # 预期：无输出
 ```
 
-- [ ] **Step 4: 构建与测试**（同前）。
-- [ ] **Step 5: 提交**（subject: `refactor: 移除 tenxer chrome 隐藏分支`）
+- [x] **Step 4: 构建与测试**（同前）。
+- [x] **Step 5: 提交**（subject: `refactor: 移除 tenxer chrome 隐藏分支`）
 
 ---
 
@@ -154,17 +154,17 @@ rg -n "chrome_suppressed|hide_while_enabled|hide_filter_while_enabled|tenxer_mod
 **Interfaces:**
 - Produces: 无（纯删除）。`PreferenceManager::tenxer_mode` 不可再引用。
 
-- [ ] **Step 1: 删偏好字段与 getter/setter，编译器指引清理全部引用点**
-- [ ] **Step 2: 删 style.css tenxer 规则**
-- [ ] **Step 3: 验证零残留**
+- [x] **Step 1: 删偏好字段与 getter/setter，编译器指引清理全部引用点**
+- [x] **Step 2: 删 style.css tenxer 规则**
+- [x] **Step 3: 验证零残留**
 
 ```bash
 rg -in "tenxer" crates/knowcraft/src/ crates/knowcraft/data/locales/
 # 预期：无输出（含 style.css 与 locales）
 ```
 
-- [ ] **Step 4: 构建与全量测试**（同前）+ 合规检查。
-- [ ] **Step 5: 提交**（subject: `refactor: 移除 tenxer_mode 偏好与设置项`）
+- [x] **Step 4: 构建与全量测试**（同前）+ 合规检查。
+- [x] **Step 5: 提交**（subject: `refactor: 移除 tenxer_mode 偏好与设置项`）
 
 ---
 
@@ -186,24 +186,24 @@ rg -in "tenxer" crates/knowcraft/src/ crates/knowcraft/data/locales/
 **Interfaces:**
 - Produces: 无（纯删除）。`PreferenceManager::sidebar_order`/`sidebar_show_*`、`SidebarState.place_order` 不可再引用；侧边栏继续只显示 Knowcraft 分组，行为不变。
 
-- [ ] **Step 1: 删 general 页 SIDEBAR 组与 11 个偏好字段**
-- [ ] **Step 2: 删死文件 places.rs、sidebar_reorder.rs、sidebar_places.rs、bookmarks.rs 及 mod 声明；sidebar.rs/sidebar_view.rs 残链清理**
-- [ ] **Step 3: sidebar_pins.rs 与 adapters/bookmarks 消费面核查**
+- [x] **Step 1: 删 general 页 SIDEBAR 组与 11 个偏好字段**
+- [x] **Step 2: 删死文件 places.rs、sidebar_reorder.rs、sidebar_places.rs、bookmarks.rs 及 mod 声明；sidebar.rs/sidebar_view.rs 残链清理**
+- [x] **Step 3: sidebar_pins.rs 与 adapters/bookmarks 消费面核查**
 
 ```bash
 rg -n "sidebar_pins::|bookmarks::" crates/knowcraft/src/ --glob '!tests'
 # 删除后仅剩死引用的模块连带删除；有活引用的保留并在提交信息注明
 ```
 
-- [ ] **Step 4: 验证零残留**
+- [x] **Step 4: 验证零残留**
 
 ```bash
 rg -n "sidebar_show_|sidebar_order|resolve_place_order|STANDARD_PLACE_IDS|pinned_places|place_rows" crates/knowcraft/src/ --glob '!tests'
 # 预期：无输出
 ```
 
-- [ ] **Step 5: 构建与全量测试** + i18n 键序检查。
-- [ ] **Step 6: 提交**（subject: `refactor: 移除 sidebar options 与标准位置死代码`）
+- [x] **Step 5: 构建与全量测试** + i18n 键序检查。
+- [x] **Step 6: 提交**（subject: `refactor: 移除 sidebar options 与标准位置死代码`）
 
 ---
 
@@ -224,19 +224,19 @@ rg -n "sidebar_show_|sidebar_order|resolve_place_order|STANDARD_PLACE_IDS|pinned
 - Consumes: 无。
 - Produces: 无（纯删除）。`file_providers::Category` 签名不变（仅定义位置迁移），thumbnail 链路无感知。
 
-- [ ] **Step 1: 删 settings Integrations 页三处（mod/路由/构建函数）与页面文件**
-- [ ] **Step 2: `Category` 迁移**：枚举与 `from_id` 移入 file_providers.rs；删 `services/integration_catalog.rs` 与 mod 声明。
-- [ ] **Step 3: 删孤儿 portal_setup.rs**
-- [ ] **Step 4: targets.rs 别名条目与 diagnostics.rs 文案修订**
-- [ ] **Step 5: 验证零残留**
+- [x] **Step 1: 删 settings Integrations 页三处（mod/路由/构建函数）与页面文件**
+- [x] **Step 2: `Category` 迁移**：枚举与 `from_id` 移入 file_providers.rs；删 `services/integration_catalog.rs` 与 mod 声明。
+- [x] **Step 3: 删孤儿 portal_setup.rs**
+- [x] **Step 4: targets.rs 别名条目与 diagnostics.rs 文案修订**
+- [x] **Step 5: 验证零残留**
 
 ```bash
 rg -n "integration_catalog|portal_setup|build_integrations_page|DesktopIntegration" crates/knowcraft/src/
 # 预期：仅 file_providers.rs 的本地 Category 定义（无 integration_catalog 字样）
 ```
 
-- [ ] **Step 6: 构建与全量测试** + i18n 键序检查。
-- [ ] **Step 7: 提交**（subject: `refactor: 移除 desktop integration 设置页与残留`）
+- [x] **Step 6: 构建与全量测试** + i18n 键序检查。
+- [x] **Step 7: 提交**（subject: `refactor: 移除 desktop integration 设置页与残留`）
 
 ---
 
@@ -273,18 +273,18 @@ impl Config {
 - Consumes: `Config::load() -> Result<Config>`（已有）、`Config::persist()`（本任务新增）、`knowledge::init().data_dir() -> &Path`（已有）。
 - Produces: `Config::persist(&self) -> Result<()>`；`#[serde(skip_serializing)] http_token`（序列化面收窄，load 行为不变）。
 
-- [ ] **Step 1: core 持久化**：Config 加 skip_serializing 与 `persist()`；写持久化往返测试。
-- [ ] **Step 2: 跑 core 测试**
+- [x] **Step 1: core 持久化**：Config 加 skip_serializing 与 `persist()`；写持久化往返测试。
+- [x] **Step 2: 跑 core 测试**
 
 ```bash
 RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft-core 2>&1 | grep -E "test result|FAILED"
 # 预期：全绿，含新往返用例
 ```
 
-- [ ] **Step 3: GUI 行**：general.rs 新增行 + FileDialog 选择 + persist 调用 + 错误处理。
-- [ ] **Step 4: i18n 新键**（en/zh-CN 同锚点插入，键序一致）。
-- [ ] **Step 5: 构建、全量测试、合规检查**。
-- [ ] **Step 6: 提交**（subject: `feat: options 支持设置知识库数据目录`）
+- [x] **Step 3: GUI 行**：general.rs 新增行 + FileDialog 选择 + persist 调用 + 错误处理。
+- [x] **Step 4: i18n 新键**（en/zh-CN 同锚点插入，键序一致）。
+- [x] **Step 5: 构建、全量测试、合规检查**。
+- [x] **Step 6: 提交**（subject: `feat: options 支持设置知识库数据目录`）
 
 ---
 
@@ -293,3 +293,15 @@ RUSTUP_TOOLCHAIN=1.96.0 cargo test -p knowcraft-core 2>&1 | grep -E "test result
 - 覆盖检查：todo 第 1 项 → Task 1-4；第 2 项 → Task 5；第 3 项 → Task 6；第 4 项 → Task 7。无缺口。
 - 类型一致性：Task 7 的 `Config::persist()` 与 GUI 调用签名一致；Task 6 的 `Category` 迁移保持 `file_providers` 内部签名不变。
 - 占位符扫描：删除任务以精确文件/行号/符号为执行依据；Task 5 Step 3 的 sidebar_pins/adapters-bookmarks 消费面以 rg 判据收敛，判定规则已写明。
+
+## 执行状态（2026-11-06）
+
+四项均已完成：
+
+- tenxer 体系移除：`1c3468b`、`047bae3`
+- duplicate file 移除补充：`0c47980`
+- sidebar options 与标准位置死代码：`6a361f9`
+- desktop integration 运行时安装与残留：`ca27194`
+- 知识库数据目录设置：`1f25376`
+
+当前 `crates/knowcraft/src` 已无 `tenxer` 残留。

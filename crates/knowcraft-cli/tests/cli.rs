@@ -28,6 +28,17 @@ fn add_then_search_roundtrip() {
         String::from_utf8_lossy(&out.stderr)
     );
 
+    let index = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+        .env("KNOWCRAFT_DATA_DIR", &dir)
+        .arg("index")
+        .output()
+        .unwrap();
+    assert!(
+        index.status.success(),
+        "index failed: {}",
+        String::from_utf8_lossy(&index.stderr)
+    );
+
     let out = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
         .env("KNOWCRAFT_DATA_DIR", &dir)
         .arg("search")
@@ -170,7 +181,7 @@ fn upgrade_reports_migration() {
     );
     let text = String::from_utf8_lossy(&out.stdout);
     assert!(text.contains("from=0"), "{text}");
-    assert!(text.contains("to=1"), "{text}");
+    assert!(text.contains("to=2"), "{text}");
 }
 
 fn run_cli(dir: &std::path::Path, args: &[&str]) -> std::process::Output {

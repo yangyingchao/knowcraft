@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
 > (recommended) or superpowers:executing-plans to implement this plan task-by-task.
-> Steps use checkbox (`- [ ]`) syntax for tracking.
+> Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 让 PDF 预览支持高亮、下划线、删除线与便签，注释写回 PDF 并通过数据库缓存与全文索引检索，外部工具修改后自动吸收。
 
@@ -48,7 +48,7 @@ tantivy、notify 6、rustix。
 - Produces: `Annotation { id, document_id, nm: String, page: i64, kind: String, quads: String, anchor_x: Option<f64>, anchor_y: Option<f64>, color: String, note_text: Option<String>, selection: String, author: String, created_at: String, updated_at: String }`
 - Produces: `store.upsert_annotation(&Annotation) -> Result<i64>`、`store.delete_annotation_by_nm(document_id, nm) -> Result<()>`、`store.annotations_for(document_id) -> Result<Vec<Annotation>>`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[test]
@@ -60,12 +60,12 @@ fn annotations_migrate_to_v2_with_unique_nm() {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cargo test -p knowcraft-core annotations_migrate_to_v2_with_unique_nm`
 Expected: 编译失败，`upsert_annotation` 不存在。
 
-- [ ] **Step 3: 实现迁移与访问器**
+- [x] **Step 3: 实现迁移与访问器**
 
 `SCHEMA_VERSION = 2`。新增 `ensure_column_on(conn, table, name, decl)`，保留旧的
 `ensure_column` 包装。迁移块对 `annotations` 依次补齐 `nm`、`kind`、`quads`、
@@ -73,12 +73,12 @@ Expected: 编译失败，`upsert_annotation` 不存在。
 `idx_annotations_document_nm ON annotations(document_id, nm)`。旧行 `nm` 用
 `legacy-{id}` 回填。`Annotation` 字段按 Interfaces 更新，`bbox` 删除。
 
-- [ ] **Step 4: 运行测试**
+- [x] **Step 4: 运行测试**
 
 Run: `cargo test -p knowcraft-core annotations_migrate_to_v2_with_unique_nm`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add crates/knowcraft-core/src/store.rs crates/knowcraft-core/src/model.rs crates/knowcraft-core/src/annotations.rs
@@ -99,7 +99,7 @@ git commit -m "feat(core): 注释表迁移到 schema v2"
 - Produces: `PageGeometry { crop: [f64; 4], rotation: i32, user_unit: f64 }`
 - Produces: `view_glyphs_to_quads(page: &PageGeometry, scale: f64, glyphs: &[[f32; 4]], lines: &[u32], range: Range<usize>) -> Vec<[f64; 8]>`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[test]
@@ -112,27 +112,27 @@ fn rotated_page_maps_back_to_user_space() {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cargo test -p knowcraft-core rotated_page_maps_back_to_user_space`
 Expected: 编译失败，模块不存在。
 
-- [ ] **Step 3: 实现转换**
+- [x] **Step 3: 实现转换**
 
 像素除以 `scale` 得到视图点。按 `lines` 分组，跳过宽或高小于 0.5 的字形。用
 `pdfcraft_model::view_matrix_for(rotation, crop)` 的逆变换把四个角转到用户空间，
 按左上、右上、左下、右下输出。乘 `user_unit`。
 
-- [ ] **Step 4: 补齐几何测试**
+- [x] **Step 4: 补齐几何测试**
 
 覆盖 0/90/180/270、crop 原点 `[10, 20]`、多行不合并、零宽字形跳过。
 
-- [ ] **Step 5: 运行测试**
+- [x] **Step 5: 运行测试**
 
 Run: `cargo test -p knowcraft-core pdf_geometry`
 Expected: 全部 PASS。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add crates/knowcraft-core/src/pdf_geometry.rs crates/knowcraft-core/src/lib.rs crates/knowcraft-core/Cargo.toml
@@ -152,7 +152,7 @@ git commit -m "feat(core): PDF 坐标转换"
 **Interfaces:**
 - Produces: `PdfFile::open(bytes: Vec<u8>) -> Result<PdfFile>`、`PdfFile::summaries(&self) -> Vec<Summary>`、`PdfFile::find(&self, nm: &str) -> Option<(usize, usize)>`、`PdfFile::add(&mut self, new: &NewAnnotation, meta: &Meta) -> Result<usize>`、`PdfFile::delete(&mut self, page: usize, index: usize) -> Result<()>`、`PdfFile::write(&self) -> Result<Vec<u8>>`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[test]
@@ -165,22 +165,22 @@ fn written_annotation_reads_back_by_nm() {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cargo test -p knowcraft-core written_annotation_reads_back_by_nm`
 Expected: 编译失败。
 
-- [ ] **Step 3: 实现包装层**
+- [x] **Step 3: 实现包装层**
 
 依赖 `pdfcraft-annot`、`pdfcraft-cos`、`pdfcraft-model`（path 依赖）。`open` 用
 `Document::open(Arc::new(bytes))`；`add` 调 `add_annotation`；`delete` 调
 `delete_annotation`；`write` 用 `write_full` 与默认 `SaveOptions`。
 
-- [ ] **Step 4: 补齐幂等与删除测试**
+- [x] **Step 4: 补齐幂等与删除测试**
 
 同 `nm` 重复 `add` 前先 `find`，调用方负责跳过。删除后 `find` 返回 `None`。
 
-- [ ] **Step 5: 运行测试并提交**
+- [x] **Step 5: 运行测试并提交**
 
 Run: `cargo test -p knowcraft-core pdf_annot_file`
 Expected: PASS。
@@ -203,7 +203,7 @@ git commit -m "feat(core): PDF 注释文件读写"
 **Interfaces:**
 - Produces: `WriteLock::new(data_dir: &Path) -> WriteLock`、`WriteLock::acquire(&self) -> Result<WriteGuard>`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[test]
@@ -219,18 +219,18 @@ fn second_thread_waits_for_the_first_guard() {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cargo test -p knowcraft-core second_thread_waits_for_the_first_guard`
 Expected: 编译失败。
 
-- [ ] **Step 3: 实现锁**
+- [x] **Step 3: 实现锁**
 
 进程内 `Mutex<()>` 串行，文件锁用 `rustix::fs::flock` 在
 `data_dir/.write.lock` 上取 `LockExclusive`，非阻塞尝试配合超时轮询。`WriteGuard`
 析构时释放。core 增加 `rustix = { version = "1", features = ["fs"] }`。
 
-- [ ] **Step 4: 运行测试并提交**
+- [x] **Step 4: 运行测试并提交**
 
 Run: `cargo test -p knowcraft-core write_lock`
 Expected: PASS。
@@ -253,7 +253,7 @@ git commit -m "feat(core): 知识库写锁"
 - Consumes: Task 1 的 `upsert_annotation` 等、Task 2 的 `view_glyphs_to_quads`、Task 3 的 `PdfFile`、Task 4 的 `WriteLock`
 - Produces: `PdfAnnotations::new(store, data_dir, lock)`、`add(document_id, NewPdfAnnotation) -> Result<Annotation>`、`update_note(document_id, nm, text) -> Result<Annotation>`、`list(document_id) -> Result<Vec<Annotation>>`、`delete(document_id, nm) -> Result<()>`、`sync_from_pdf(document_id) -> Result<usize>`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[test]
@@ -280,12 +280,12 @@ fn annotations_rebuild_after_database_is_deleted() {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cargo test -p knowcraft-core sync_imports_annotation_added_by_external_tool`
 Expected: 编译失败。
 
-- [ ] **Step 3: 实现写回与同步**
+- [x] **Step 3: 实现写回与同步**
 
 `add`：取写锁；按 `document_id` 取文档与路径；拒绝符号链接、未登记、加密、签名；
 校验和比对，不一致返回 `Error::Store("file changed externally")`；`find(nm)` 存在则
@@ -300,11 +300,11 @@ Expected: 编译失败。
 `sync_from_pdf`：解析、遍历 `summaries`；无 `nm` 的生成并写回；比较字段后 upsert；
 仅在解析成功时删除数据库里已消失的 `nm`。
 
-- [ ] **Step 4: 补齐失败路径测试**
+- [x] **Step 4: 补齐失败路径测试**
 
 覆盖校验和不一致、符号链接、加密标记、同 `nm` 重试、解析失败不删除。
 
-- [ ] **Step 5: 运行测试并提交**
+- [x] **Step 5: 运行测试并提交**
 
 Run: `cargo test -p knowcraft-core pdf_annotations`
 Expected: PASS。
@@ -331,7 +331,7 @@ git commit -m "feat(core): PDF 注释写回与同步"
 **Interfaces:**
 - Produces: `Indexer::new(store, index)`、`index_document(&Document)`、`reindex_document(i64)`、`rebuild() -> usize`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[test]
@@ -343,18 +343,18 @@ fn note_text_is_searchable() {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cargo test -p knowcraft-core note_text_is_searchable`
 Expected: 编译失败。
 
-- [ ] **Step 3: 实现 Indexer**
+- [x] **Step 3: 实现 Indexer**
 
 `content` 由 `extract_text(path)` 与 `store.annotations_for(id)` 的非空 `note_text`
 拼接。`index.rs` 增加接收 `content` 的内部方法，`Index` 不持有 `Store`。将
 watcher、trash、archive、GUI `knowledge.rs`、CLI `index` 的调用改为 `Indexer`。
 
-- [ ] **Step 4: 运行测试并提交**
+- [x] **Step 4: 运行测试并提交**
 
 Run: `cargo test -p knowcraft-core indexer`
 Expected: PASS。
@@ -377,7 +377,7 @@ git commit -m "feat(core): 统一索引内容组装"
 - Consumes: `PdfAnnotations::sync_from_pdf`、`Indexer::reindex_document`
 - Produces: `Watcher::suppress_next(path: PathBuf)`，写回流程调用
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[test]
@@ -389,12 +389,12 @@ fn external_save_imports_annotations() {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cargo test -p knowcraft-core external_save_imports_annotations`
 Expected: 断言失败，注释数量为 0。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 `Watcher` 增加 `PdfAnnotations`、`Indexer` 与 `suppress: Mutex<HashMap<PathBuf, Instant>>`。
 `handle_modified` 对 PDF：跳过抑制窗口；取写锁；重算校验和，一致则返回；否则重提取
@@ -402,11 +402,11 @@ Expected: 断言失败，注释数量为 0。
 `clear_ai_summary`，仅注释变化时保留。继续使用现有 500ms 去抖，PDF 同步在事件处理内
 等待 1 秒后再执行。
 
-- [ ] **Step 4: 补齐测试**
+- [x] **Step 4: 补齐测试**
 
 覆盖自写抑制、仅注释变化保留摘要、正文变化清除摘要、删除注释后不再命中。
 
-- [ ] **Step 5: 运行测试并提交**
+- [x] **Step 5: 运行测试并提交**
 
 Run: `cargo test -p knowcraft-core watcher`
 Expected: PASS。
@@ -431,7 +431,7 @@ git commit -m "feat(core): 外部修改自动吸收"
 - Consumes: `PdfAnnotations::add`、`update_note`、`delete`、`list`
 - Produces: `PdfToolbarAction::{Highlight, Underline, Strikeout, Note}`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[test]
@@ -444,19 +444,19 @@ fn toolbar_appears_after_selection() {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cargo test -p knowcraft toolbar_appears_after_selection`
 Expected: 编译或断言失败。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 `PdfTextLayer` 增加 `scale`、`crop`、`rotation`、`user_unit`、`lines`。选区确定后显示
 工具条；按钮回调在后台线程取 `PdfAnnotations` 写回，完成后 `glib::idle_add_local_once`
 重新渲染当前页并保持滚动位置。命中区域按 `list()` 的 quads 生成透明 `DrawingArea`，
 点击打开编辑与删除菜单。
 
-- [ ] **Step 4: 运行测试并提交**
+- [x] **Step 4: 运行测试并提交**
 
 Run: `cargo test -p knowcraft toolbar_appears`
 Expected: PASS（GUI 测试环境可用时）。
@@ -477,7 +477,7 @@ git commit -m "feat(gui): PDF 注释工具条"
 **Interfaces:**
 - Consumes: `PdfAnnotations::list/sync_from_pdf`、`Indexer::rebuild`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[test]
@@ -487,16 +487,16 @@ fn annotations_list_prints_nm_page_kind_note() {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cargo test -p knowcraft-cli annotations_list_prints_nm_page_kind_note`
 Expected: 编译失败，子命令不存在。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 新增 `Annotations { List { id }, Sync }` 子命令。`index` 在重建前执行 `sync`。
 
-- [ ] **Step 4: 运行测试并提交**
+- [x] **Step 4: 运行测试并提交**
 
 Run: `cargo test -p knowcraft-cli`
 Expected: PASS。
@@ -515,19 +515,32 @@ git commit -m "feat(cli): 注释列表与同步"
 - Modify: `AGENTS.md`
 - Modify: `README.md`
 
-- [ ] **Step 1: 写 ADR**
+- [x] **Step 1: 写 ADR**
 
 记录：core 从只读 PDF 提取扩展为可写；写锁模型；PDF 为主、数据库为缓存；失败策略；
 签名与加密 PDF 的边界。
 
-- [ ] **Step 2: 修正文档引用**
+- [x] **Step 2: 修正文档引用**
 
 将 `AGENTS.md` 中不存在的 `docs/adr/0003` 改为 `docs/adr/0001`，并在 README 的功能
 列表补充 PDF 注释。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add docs/adr/0001-pdf-annotation-writeback.md AGENTS.md README.md
 git commit -m "docs: PDF 注释写回决策记录"
 ```
+
+## 执行状态（2026-11-06）
+
+功能已落地，按代码落点核对：
+
+- 数据模型迁移：`store.rs` 的 annotations 表新增 `nm/kind/quads/anchor_x/anchor_y`
+- 模块：`pdf_annotations.rs`、`pdf_annot_file.rs`、`pdf_geometry.rs`、`write_lock.rs`
+- 写回与外部修改同步：`1e81b62`
+- GUI 工具条：`ui/preview/pdf/toolbar.rs`
+- CLI：`Annotations` 子命令
+- ADR：`docs/adr/0004-pdf-annotation-writeback.md`
+
+未在本轮逐步重跑计划中的每一项验证命令。
