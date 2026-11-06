@@ -19,7 +19,14 @@ vello_common = { path = "crates/vendor/pdfcraft/vendor/vello_common" }
 vello_cpu = { path = "crates/vendor/pdfcraft/vendor/vello_cpu" }
 
 [profile.release]
-# Whole-program optimization for knowcraft's hot listing/sort/insert paths.
-# Build-time only: no runtime behavior change.
+# Everyday release builds: thin LTO with parallel codegen keeps rebuilds fast.
+# Measure with benchmarks before changing the default; see release-fat for shipping.
+lto = "thin"
+codegen-units = 16
+
+# Shipping-only profile: fat LTO and a single codegen unit. Expect several times
+# the build time of `release`; use only when benchmarked gains justify it.
+[profile.release-fat]
+inherits = "release"
 lto = true
 codegen-units = 1
