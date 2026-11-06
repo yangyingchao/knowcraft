@@ -66,7 +66,6 @@ impl Default for Preferences {
             cross_volume_drop_strategy: default_cross_volume_drop_strategy(),
             open_folder_after_drop: false,
             date_format: default_date_format(),
-            default_directory: None,
             restore_tabs: true,
             remember_folder_views: true,
             folder_colors: HashMap::new(),

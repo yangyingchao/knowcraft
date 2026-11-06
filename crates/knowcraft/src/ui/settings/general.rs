@@ -91,7 +91,6 @@ pub(super) fn general_page(
     }
 
     let startup = super::settings_group(&preferences, "STARTUP");
-    append_default_directory_option(&startup, &manager);
     append_knowledge_location_option(&startup);
     append_preference_switch(
         &startup,
@@ -443,81 +442,6 @@ fn append_preference_switch(
     content.append(&row);
 }
 
-fn append_default_directory_option(content: &gtk::Box, manager: &Rc<PreferenceManager>) {
-    let choose = gtk::Button::with_label(&default_directory_text(manager.default_directory()));
-    choose.set_valign(gtk::Align::Center);
-    choose.add_css_class("form-control");
-    choose.add_css_class("settings-choice");
-    crate::ui::accessibility::set_description(
-        &choose,
-        Some(&crate::i18n::tr("Select default directory")),
-    );
-    super::super::accessibility::set_label(&choose, &crate::i18n::tr("Default directory"));
-
-    let reset = gtk::Button::with_label(&crate::i18n::tr("Reset"));
-    reset.add_css_class("form-control");
-    reset.set_valign(gtk::Align::Center);
-    reset.set_sensitive(manager.default_directory().is_some());
-    crate::ui::accessibility::set_description(
-        &reset,
-        Some(&crate::i18n::tr("Restore the home directory as default")),
-    );
-
-    let controls = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    controls.append(&choose);
-    controls.append(&reset);
-
-    let row = super::control_row(
-        "Default directory",
-        "Open this folder when launching Knowcraft without a target.",
-        &controls,
-    );
-    content.append(&row);
-
-    manager.bind_preference(
-        &choose,
-        PreferenceManager::default_directory,
-        move |widget, value| {
-            if let Some(button) = widget.downcast_ref::<gtk::Button>() {
-                button.set_label(&default_directory_text(value));
-            }
-        },
-    );
-    let manager_for_reset = manager.clone();
-    reset.connect_clicked(move |_| {
-        manager_for_reset.set_default_directory(None);
-    });
-    manager.bind_preference(
-        &reset,
-        PreferenceManager::default_directory,
-        move |widget, value| {
-            if let Some(button) = widget.downcast_ref::<gtk::Button>() {
-                button.set_sensitive(value.is_some());
-            }
-        },
-    );
-
-    let manager = manager.clone();
-    choose.connect_clicked(move |button| {
-        let Some(window) = button.root().and_downcast::<gtk::Window>() else {
-            return;
-        };
-        let dialog = gtk::FileDialog::builder()
-            .title(crate::i18n::tr("Select default directory"))
-            .modal(true)
-            .build();
-        let manager = manager.clone();
-        dialog.select_folder(Some(&window), gio::Cancellable::NONE, move |result| {
-            let Ok(file) = result else {
-                return;
-            };
-            if let Some(path) = file.path() {
-                manager.set_default_directory(Some(path));
-            }
-        });
-    });
-}
-
 /// 知识库数据目录：写入 config.toml 的 data_dir，重启后生效。
 fn append_knowledge_location_option(content: &gtk::Box) {
     let choose = gtk::Button::with_label(&knowledge_location_text());
@@ -617,13 +541,6 @@ fn persist_data_dir(path: std::path::PathBuf) -> Result<(), String> {
     let mut config = knowcraft_core::config::Config::load().map_err(|error| error.to_string())?;
     config.data_dir = path;
     config.persist().map_err(|error| error.to_string())
-}
-
-fn default_directory_text(path: Option<std::path::PathBuf>) -> String {
-    match path {
-        Some(path) => abbreviate_home(&path),
-        None => crate::i18n::tr("Home directory"),
-    }
 }
 
 pub(crate) fn abbreviate_home(path: &std::path::Path) -> String {

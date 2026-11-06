@@ -9,6 +9,11 @@ impl PreferenceManager {
         self.preferences.borrow().single_click_previews
     }
 
+    pub fn set_single_click_previews(&self, enabled: bool) {
+        self.preferences.borrow_mut().single_click_previews = enabled;
+        self.save_preferences();
+    }
+
     pub fn search_open_files_directly(&self) -> bool {
         self.preferences.borrow().search_open_files_directly
     }

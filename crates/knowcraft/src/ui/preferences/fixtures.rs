@@ -66,7 +66,6 @@ pub(in crate::ui) fn non_default_preferences() -> Preferences {
         cross_volume_drop_strategy: CrossVolumeDropStrategy::Move.as_str().into(),
         open_folder_after_drop: true,
         date_format: "iso".into(),
-        default_directory: Some("/fixture/default".into()),
         restore_tabs: false,
         remember_folder_views: false,
         folder_colors: HashMap::from([("/fixture/folder".into(), "red".into())]),

@@ -241,8 +241,6 @@ pub(in crate::ui) struct Preferences {
     open_folder_after_drop: bool,
     #[serde(default = "default_date_format")]
     date_format: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    default_directory: Option<PathBuf>,
     #[serde(default = "default_enabled")]
     restore_tabs: bool,
     #[serde(default = "default_enabled")]

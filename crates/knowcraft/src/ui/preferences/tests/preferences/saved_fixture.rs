@@ -243,10 +243,6 @@ fn assert_saved_devices_and_folders(manager: &PreferenceManager) {
         [PathBuf::from("Backup")]
     );
     assert_eq!(
-        manager.default_directory(),
-        Some(std::path::PathBuf::from("/fixture/default"))
-    );
-    assert_eq!(
         (
             manager.folder_color(Path::new("/fixture/folder")),
             manager.custom_icon(Path::new("/fixture/folder"))

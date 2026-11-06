@@ -98,15 +98,6 @@ impl PreferenceManager {
         self.save_preferences();
     }
 
-    pub fn default_directory(&self) -> Option<PathBuf> {
-        self.preferences.borrow().default_directory.clone()
-    }
-
-    pub fn set_default_directory(&self, path: Option<PathBuf>) {
-        self.preferences.borrow_mut().default_directory = path;
-        self.save_preferences();
-    }
-
     pub fn restore_tabs(&self) -> bool {
         self.preferences.borrow().restore_tabs
     }
