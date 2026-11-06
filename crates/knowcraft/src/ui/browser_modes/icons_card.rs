@@ -53,7 +53,18 @@ impl IconsCard {
         let pending_name = look
             .state
             .and_then(|state| state.pending_rename_name(entry));
-        let shown_name = pending_name.as_deref().unwrap_or(&entry.display_name);
+        let archived = if pending_name.is_none() {
+            entry
+                .location
+                .native_path()
+                .and_then(|path| crate::knowledge::init().and_then(|k| k.archived_name(path)))
+        } else {
+            None
+        };
+        let shown_name = archived
+            .as_deref()
+            .or(pending_name.as_deref())
+            .unwrap_or(&entry.display_name);
         if self.label.text().as_deref() != Some(shown_name) {
             self.label.set_text(Some(shown_name));
         }

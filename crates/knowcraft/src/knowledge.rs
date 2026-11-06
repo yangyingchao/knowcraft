@@ -417,6 +417,17 @@ impl Knowledge {
         Ok(())
     }
 
+    /// 归档记录的原始显示名；只对 storage=archived 且原名非空时返回。
+    pub(crate) fn archived_name(&self, path: &Path) -> Option<String> {
+        let doc = self
+            .store
+            .find_by_path(&path.to_string_lossy())
+            .ok()
+            .flatten()?;
+        (doc.storage == "archived" && !doc.original_name.is_empty())
+            .then_some(doc.original_name)
+    }
+
     /// The cached `index_status` for a knowledge path, or `None` when untracked.
     pub(crate) fn index_status(&self, path: &Path) -> Option<String> {
         if with_active_index(|active| active.contains_key(path)) {

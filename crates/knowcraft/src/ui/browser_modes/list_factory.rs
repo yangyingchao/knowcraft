@@ -156,6 +156,15 @@ impl ListFactory {
             edit.bind(&binding.entry.location);
         }
         row.bind_labels(item, &binding.entry, pending_name.as_deref());
+        if pending_name.is_none()
+            && let Some(name) = binding
+                .entry
+                .location
+                .native_path()
+                .and_then(|path| crate::knowledge::init().and_then(|k| k.archived_name(path)))
+        {
+            row.name.set_label(&name);
+        }
         crate::ui::browser::find::highlight_listing_name(
             row.name.upcast_ref(),
             state

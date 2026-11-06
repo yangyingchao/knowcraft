@@ -31,6 +31,11 @@ impl SidebarState {
             self.append_place(icon, &crate::i18n::tr(label), location);
         }
         if !self.local_only {
+            self.append_place(
+                crate::assets::icons::FOLDER_ARCHIVE,
+                &crate::i18n::tr("Archived"),
+                Location::local(root.join("archived")),
+            );
             self.append_trash_place();
         }
         let count = section.collect_rows(&self.widget);

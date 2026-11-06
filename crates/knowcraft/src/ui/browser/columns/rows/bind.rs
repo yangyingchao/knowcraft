@@ -161,7 +161,20 @@ impl RowBinding<'_> {
             .state
             .as_ref()
             .and_then(|state| state.pending_rename_name(entry));
-        label.set_label(pending_name.as_deref().unwrap_or(&entry.display_name));
+        let archived = if pending_name.is_none() {
+            entry
+                .location
+                .native_path()
+                .and_then(|path| crate::knowledge::init().and_then(|k| k.archived_name(path)))
+        } else {
+            None
+        };
+        label.set_label(
+            archived
+                .as_deref()
+                .or(pending_name.as_deref())
+                .unwrap_or(&entry.display_name),
+        );
         label.set_opacity(if entry.is_hidden { 0.65 } else { 1.0 });
     }
 

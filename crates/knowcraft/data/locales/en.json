@@ -90,6 +90,7 @@
   "Archive name": "Archive name",
   "Archive to category": "Archive to category",
   "Archive too large to preview.": "Archive too large to preview.",
+  "Archived": "Archived",
   "Archived %{count} files": "Archived %{count} files",
   "Archived %{ok} files, %{failed} failed": "Archived %{ok} files, %{failed} failed",
   "Arguments": "Arguments",

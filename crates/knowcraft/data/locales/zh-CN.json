@@ -90,6 +90,7 @@
   "Archive name": "压缩文件名",
   "Archive to category": "归档到分类",
   "Archive too large to preview.": "压缩文件过大，无法预览。",
+  "Archived": "归档",
   "Archived %{count} files": "已归档 %{count} 个文件",
   "Archived %{ok} files, %{failed} failed": "已归档 %{ok} 个文件，%{failed} 个失败",
   "Arguments": "参数",
