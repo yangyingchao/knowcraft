@@ -873,3 +873,7 @@ This image is generated from GitHub contribution data so new contributors appear
 ## License
 
 Knowcraft is free software licensed under the **[MIT License](LICENSE)**. Bundled fonts, icons, and other third-party components retain their own notices in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+
+Knowcraft is an independent project. It is not affiliated with, authorized by, or
+endorsed by any third-party product it references, and product names mentioned in
+this documentation are trademarks of their respective owners.

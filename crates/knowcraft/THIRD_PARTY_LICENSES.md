@@ -2,6 +2,18 @@
 
 Knowcraft includes or derives assets from the following projects.
 
+## strata
+
+- Project: <https://github.com/lgse/strata>
+- Copyright: 2026 LGSE Ltd.
+- License: MIT
+- Derived material: the GTK4 shell under `crates/knowcraft/`, forked and extensively modified
+- Full license: <https://github.com/lgse/strata/blob/main/LICENSE>
+
+The GUI layer is derived from strata. The upstream copyright holder and MIT terms
+are the same as those in Knowcraft's own [`LICENSE`](LICENSE); this entry records
+the derivation for source and binary redistribution.
+
 ## JetBrains Mono
 
 - Project: <https://github.com/JetBrains/JetBrainsMono>

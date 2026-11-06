@@ -1,6 +1,6 @@
 # knowcraft
 
-基于 strata（GTK4 文件管理器）深改造的类 DevonThink 知识管理软件原型。Rust workspace。
+基于 strata（GTK4 文件管理器）深改造的知识管理软件原型
 
 ## 结构
 

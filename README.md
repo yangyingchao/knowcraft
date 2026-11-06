@@ -1,6 +1,7 @@
 # knowcraft
 
-基于 strata（GTK4 文件管理器）深改造的类 DevonThink 知识管理软件原型。Rust workspace，界面上是文件管理器，底层维护一个带索引、标签与归档工作流的知识库。
+基于 strata（GTK4 文件管理器）深改造的知识管理软件原型。Rust workspace，界面上是文件管理器，
+底层维护一个带索引、标签与归档工作流的知识库。
 
 当前处于原型阶段：核心层与 GUI 已打通的部分可直接使用，部分能力（网页捕获、注释、AI）只在 `knowcraft-core` 提供接口，GUI 尚未接入。
 
@@ -212,3 +213,5 @@ model = "llama3"
 - 设计：`docs/superpowers/specs/`
 - 实施计划：`docs/superpowers/plans/`
 - GUI 细节与桌面集成：`crates/knowcraft/README.md`
+- 第三方组件与许可证：`crates/knowcraft/THIRD_PARTY_LICENSES.md`
+- 许可证：MIT，见 `LICENSE`
