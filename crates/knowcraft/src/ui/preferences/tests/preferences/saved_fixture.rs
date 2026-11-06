@@ -147,17 +147,11 @@ fn assert_saved_browsing(manager: &PreferenceManager) {
         ),
         "(mode, density, frame density, group by type)"
     );
-    for mode in [BrowserMode::Columns, BrowserMode::Icons, BrowserMode::List] {
+    // Opening is always a double click now; older saved values are ignored.
+    for mode in [BrowserMode::List] {
         let activation = manager.click_activation(mode);
-        assert_eq!(activation.files, ClickCount::One);
-        assert_eq!(
-            activation.folders,
-            if mode == BrowserMode::Columns {
-                ClickCount::Two
-            } else {
-                ClickCount::One
-            }
-        );
+        assert_eq!(activation.files, ClickCount::Two);
+        assert_eq!(activation.folders, ClickCount::Two);
     }
 }
 

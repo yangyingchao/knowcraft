@@ -9,11 +9,6 @@ impl PreferenceManager {
         self.preferences.borrow().single_click_previews
     }
 
-    pub fn set_single_click_previews(&self, enabled: bool) {
-        self.preferences.borrow_mut().single_click_previews = enabled;
-        self.save_preferences();
-    }
-
     pub fn search_open_files_directly(&self) -> bool {
         self.preferences.borrow().search_open_files_directly
     }
@@ -117,56 +112,15 @@ impl PreferenceManager {
         self.save_preferences();
     }
 
+    /// 列表视图始终双击打开文件与文件夹。
     pub fn click_activation(
         &self,
-        mode: super::super::browser_modes::BrowserMode,
+        _mode: super::super::browser_modes::BrowserMode,
     ) -> super::super::browser_modes::ClickActivation {
-        use super::super::browser_modes::{BrowserMode, ClickActivation, ClickCount};
-
-        let preferences = self.preferences.borrow();
-        let (files, folders) = match mode {
-            BrowserMode::Columns => (
-                preferences.columns_file_clicks,
-                preferences.columns_folder_clicks,
-            ),
-            BrowserMode::Icons => (
-                preferences.icons_file_clicks,
-                preferences.icons_folder_clicks,
-            ),
-            BrowserMode::List => (preferences.list_file_clicks, preferences.list_folder_clicks),
-        };
-        let defaults = ClickActivation::default_for(mode);
+        use super::super::browser_modes::{ClickActivation, ClickCount};
         ClickActivation {
-            files: ClickCount::from_stored(files).unwrap_or(defaults.files),
-            folders: ClickCount::from_stored(folders).unwrap_or(defaults.folders),
+            files: ClickCount::Two,
+            folders: ClickCount::Two,
         }
-    }
-
-    pub fn set_click_activation(
-        &self,
-        mode: super::super::browser_modes::BrowserMode,
-        activation: super::super::browser_modes::ClickActivation,
-    ) {
-        use super::super::browser_modes::BrowserMode;
-
-        let mut preferences = self.preferences.borrow_mut();
-        let files = activation.files.stored();
-        let folders = activation.folders.stored();
-        match mode {
-            BrowserMode::Columns => {
-                preferences.columns_file_clicks = files;
-                preferences.columns_folder_clicks = folders;
-            }
-            BrowserMode::Icons => {
-                preferences.icons_file_clicks = files;
-                preferences.icons_folder_clicks = folders;
-            }
-            BrowserMode::List => {
-                preferences.list_file_clicks = files;
-                preferences.list_folder_clicks = folders;
-            }
-        }
-        drop(preferences);
-        self.save_preferences();
     }
 }

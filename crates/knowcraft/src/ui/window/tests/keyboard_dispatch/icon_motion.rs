@@ -90,7 +90,6 @@ impl IconMotion {
         let fixture = KeyboardFixture::new();
         let preferences = PreferenceManager::shared();
         preferences.set_folder_peeking(false);
-        preferences.set_single_click_previews(true);
         let browser = fixture.view.browser();
         let root = fixture._directory.path();
         std::fs::create_dir(root.join("nest")).expect("nest");

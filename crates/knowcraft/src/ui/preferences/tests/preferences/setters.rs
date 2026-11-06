@@ -21,7 +21,6 @@ fn all_preference_setters_publish_and_persist_without_duplicate_notifications() 
             );
             let preference_setters: &[fn(&PreferenceManager)] = &[
                 |m| m.set_folder_peeking(false),
-                |m| m.set_single_click_previews(true),
                 |m| m.set_columns_mirror_selection(true),
                 |m| m.set_columns_show_sizes(true),
                 |m| m.set_render_documents_by_default(true),
@@ -42,33 +41,12 @@ fn all_preference_setters_publish_and_persist_without_duplicate_notifications() 
                 |m| m.set_element_glow(true),
                 |m| m.set_omarchy_variant(OmarchyVariant::Contrast),
                 |m| m.set_file_icon_colors(FileIconColors::Brand),
-                |m| m.set_browser_mode(BrowserMode::Icons),
                 |m| m.set_browser_density(BrowserDensity::Custom(9)),
                 |m| m.set_browser_density(BrowserDensity::Compact),
                 |m| m.set_frame_density(FrameDensity::Custom(5)),
                 |m| m.set_frame_density(FrameDensity::Airy),
                 |m| m.set_frame_density(FrameDensity::Compact),
                 |m| m.set_group_by_type(false),
-                |m| {
-                    m.set_click_activation(
-                        BrowserMode::Columns,
-                        crate::ui::browser_modes::ClickActivation::default_for(
-                            BrowserMode::Columns,
-                        ),
-                    )
-                },
-                |m| {
-                    m.set_click_activation(
-                        BrowserMode::Icons,
-                        crate::ui::browser_modes::ClickActivation::default_for(BrowserMode::Icons),
-                    )
-                },
-                |m| {
-                    m.set_click_activation(
-                        BrowserMode::List,
-                        crate::ui::browser_modes::ClickActivation::default_for(BrowserMode::List),
-                    )
-                },
                 |m| m.set_sidebar_expanded(true),
                 |m| m.set_sidebar_pinned_collapsed(false),
                 |m| m.set_sidebar_devices_collapsed(false),

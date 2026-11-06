@@ -37,7 +37,6 @@ impl ListMotion {
         let preferences = PreferenceManager::shared();
         preferences.set_columns_mirror_selection(true);
         preferences.set_group_by_type(false);
-        preferences.set_single_click_previews(true);
         let browser = fixture.view.browser();
         let root = fixture._directory.path().to_path_buf();
         seed_motion_files(&root);

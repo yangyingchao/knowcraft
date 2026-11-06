@@ -21,7 +21,6 @@ fn a_release_stops_the_preview_of_what_it_changes_until_the_operation_ends() {
             drawer.observe_browser(&browser);
             let preferences = crate::ui::preferences::PreferenceManager::shared();
             preferences.set_preview_autoplay(false);
-            preferences.set_single_click_previews(false);
             browser.select(0, 0);
             let shown = || {
                 drawer

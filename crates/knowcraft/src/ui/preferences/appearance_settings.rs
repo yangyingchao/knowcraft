@@ -136,14 +136,13 @@ impl PreferenceManager {
         self.save_preferences();
     }
 
+    /// 列表是唯一保留的呈现方式。
     pub fn browser_mode(&self) -> super::super::browser_modes::BrowserMode {
-        browser_mode_from_stored(&self.preferences.borrow().browser_mode)
+        super::super::browser_modes::BrowserMode::List
     }
 
-    pub fn set_browser_mode(&self, mode: super::super::browser_modes::BrowserMode) {
-        self.preferences.borrow_mut().browser_mode = stored_browser_mode(mode).to_owned();
-        self.save_preferences();
-    }
+    /// 视图固定为列表；保留空实现供旧测试与调用点编译。
+    pub fn set_browser_mode(&self, _mode: super::super::browser_modes::BrowserMode) {}
 
     pub fn browser_density(&self) -> super::super::browser_modes::BrowserDensity {
         let preferences = self.preferences.borrow();

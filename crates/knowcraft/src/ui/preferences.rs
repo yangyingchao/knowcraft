@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     model::{FolderColorValue, SortDirection, SortKey, ViewPreferences},
     sandbox::MediaPreviewBackend,
-    services::{Channel, CrossVolumeDropStrategy, SearchLimits},
+    services::{CrossVolumeDropStrategy, SearchLimits},
     storage::{
         file_stamp,
         writer::{self, Policy},
@@ -52,9 +52,9 @@ mod trashed;
 pub(in crate::ui) use bindings::notify_live;
 pub use corner_roundness::CornerRoundness;
 use defaults::{
-    default_browser_density, default_browser_mode, default_cross_volume_drop_strategy,
-    default_date_format, default_density_custom_px, default_double_clicks, default_enabled,
-    default_file_clicks, default_folder_clicks, default_frame_density, default_full_volume,
+    default_browser_density, default_cross_volume_drop_strategy,
+    default_date_format, default_density_custom_px, default_enabled,
+    default_frame_density, default_full_volume,
     default_icons_thumbnail_size, default_search_entry_limit,
     default_search_time_limit, default_sort_direction, default_sort_key,
     default_video_preview_backend,
@@ -77,9 +77,9 @@ use persistence::{
 };
 pub(in crate::ui) use stored::{SEARCH_ENTRY_LIMIT_CHOICES, SEARCH_TIME_LIMIT_CHOICES};
 use stored::{
-    browser_mode_from_stored, configured_hardware_acceleration, configured_video_preview_backend,
+    configured_hardware_acceleration, configured_video_preview_backend,
     normalized_search_limit, normalized_volume, sort_preferences, store_density, store_sort,
-    stored_browser_mode, stored_density,
+    stored_density,
 };
 pub use text_size::TextSize;
 
@@ -173,8 +173,6 @@ pub(in crate::ui) struct Preferences {
     element_glow: bool,
     #[serde(default)]
     file_icon_colors: FileIconColors,
-    #[serde(default = "default_browser_mode")]
-    browser_mode: String,
     #[serde(default = "default_browser_density")]
     browser_density: String,
     #[serde(default = "default_density_custom_px")]
@@ -185,18 +183,6 @@ pub(in crate::ui) struct Preferences {
     frame_density_custom_px: u8,
     #[serde(default)]
     group_by_type: bool,
-    #[serde(default = "default_file_clicks", rename = "list_file_clicks")]
-    columns_file_clicks: u8,
-    #[serde(default = "default_folder_clicks", rename = "list_folder_clicks")]
-    columns_folder_clicks: u8,
-    #[serde(default = "default_file_clicks", rename = "grid_file_clicks")]
-    icons_file_clicks: u8,
-    #[serde(default = "default_double_clicks", rename = "grid_folder_clicks")]
-    icons_folder_clicks: u8,
-    #[serde(default = "default_file_clicks", rename = "explorer_file_clicks")]
-    list_file_clicks: u8,
-    #[serde(default = "default_double_clicks", rename = "explorer_folder_clicks")]
-    list_folder_clicks: u8,
     #[serde(default = "default_enabled")]
     sidebar_expanded: bool,
     #[serde(default)]

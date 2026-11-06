@@ -103,8 +103,7 @@ pub fn build_layer(
     page.append(&titlebar);
 
     let stack = page_stack();
-    let (general, responsive_setting_rows, responsive_activation_rows) =
-        general_page(preferences.clone());
+    let (general, responsive_setting_rows) = general_page(preferences.clone());
     stack.add_named(&general, Some("general"));
     stack.add_named(&diagnostics::diagnostics_page(), Some("diagnostics"));
     stack.add_named(&about_page(), Some("about"));
@@ -120,7 +119,7 @@ pub fn build_layer(
             flows: Vec::new(),
             actions: Vec::new(),
             setting_rows: responsive_setting_rows,
-            activation_rows: responsive_activation_rows,
+            activation_rows: Vec::new(),
         },
     );
     let dismiss_hooks = DismissHooks::default();

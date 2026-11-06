@@ -120,23 +120,6 @@ pub enum ClickCount {
     Two,
 }
 
-impl ClickCount {
-    pub fn from_stored(value: u8) -> Option<Self> {
-        match value {
-            1 => Some(Self::One),
-            2 => Some(Self::Two),
-            _ => None,
-        }
-    }
-
-    pub fn stored(self) -> u8 {
-        match self {
-            Self::One => 1,
-            Self::Two => 2,
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ClickActivation {
     pub files: ClickCount,

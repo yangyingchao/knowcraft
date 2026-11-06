@@ -147,12 +147,6 @@ pub(super) const TARGETS: &[Target] = &[
         aliases: "search filter exclusions exclude folders directories ignore venv prune",
     },
     Target {
-        id: "opening",
-        page: "general",
-        title: "Opening items",
-        aliases: "single double click activation columns icons list files folders",
-    },
-    Target {
         id: "transfers",
         page: "general",
         title: "Drag & drop to another device",

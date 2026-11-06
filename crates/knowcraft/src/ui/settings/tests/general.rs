@@ -25,8 +25,8 @@ fn language_choices_and_restart_notice_synchronize_without_changing_running_ui()
             let manager = PreferenceManager::shared();
             let startup = manager.language();
             let running = rust_i18n::locale().to_string();
-            let (first, _, _) = general_page(manager.clone());
-            let (second, _, _) = general_page(manager.clone());
+            let (first, _) = general_page(manager.clone());
+            let (second, _) = general_page(manager.clone());
             let alternate = if running == "zh-CN" {
                 crate::i18n::Language::English
             } else {
@@ -52,7 +52,7 @@ fn language_choices_and_restart_notice_synchronize_without_changing_running_ui()
                         .is_visible()
                 );
             }
-            let (rebuilt, _, _) = general_page(manager.clone());
+            let (rebuilt, _) = general_page(manager.clone());
             assert!(
                 named_widget(&rebuilt, "settings-language-restart")
                     .expect("rebuilt restart button")

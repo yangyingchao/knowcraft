@@ -240,7 +240,6 @@ fn columns_mirror_home_and_end_in_the_default_key_map() {
             let fixture = KeyboardFixture::new();
             let preferences = PreferenceManager::shared();
             preferences.set_columns_mirror_selection(true);
-            preferences.set_single_click_previews(false);
             fixture.view.set_columns_mirror_selection(true);
             fixture.view.set_single_click_previews(false);
             let browser = fixture.view.browser();

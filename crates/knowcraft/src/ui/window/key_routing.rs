@@ -157,11 +157,10 @@ pub(super) fn sidebar_focus_direction(
 
 pub(in crate::ui) fn apply_browser_mode(
     view: &BrowserView,
-    preferences: &PreferenceManager,
-    mode: BrowserMode,
+    _preferences: &PreferenceManager,
+    _mode: BrowserMode,
 ) {
-    view.set_view_mode(mode);
-    preferences.set_browser_mode(mode);
+    view.set_view_mode(BrowserMode::List);
 }
 
 /// 列表是唯一保留的视图，视图切换快捷键不再生效。

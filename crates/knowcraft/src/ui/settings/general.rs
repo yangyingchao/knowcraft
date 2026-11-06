@@ -11,21 +11,19 @@ use crate::{
     sandbox::MediaPreviewBackend,
     services::CrossVolumeDropStrategy,
     ui::{
-        browser_modes::{BrowserMode, ClickActivation, ClickCount},
-        controls::{menu_option, number_stepper, segmented_control},
+        controls::{menu_option, number_stepper},
         preferences::PreferenceManager,
     },
 };
 
 use super::{
-    ResponsiveActivationRow, append_heading,
-    bindings::{bind_choice, bind_number, bind_switch, show_choice_value},
+    bindings::{bind_number, bind_switch, show_choice_value},
     page_content, scrollable_page, settings_option,
 };
 
 pub(super) fn general_page(
     manager: Rc<PreferenceManager>,
-) -> (gtk::Widget, Vec<gtk::Box>, Vec<ResponsiveActivationRow>) {
+) -> (gtk::Widget, Vec<gtk::Box>) {
     let preferences = page_content();
 
     append_language_option(&preferences, &manager);
@@ -37,14 +35,6 @@ pub(super) fn general_page(
     ));
     append_browsing_options(&preferences, &manager);
 
-    append_heading(&preferences, "OPENING ITEMS");
-    let description = gtk::Label::new(Some(&crate::i18n::tr(
-        "How many clicks open a file or folder in each view.",
-    )));
-    description.set_xalign(0.0);
-    description.add_css_class("settings-section-description");
-    preferences.append(&description);
-    let responsive_activation_rows = append_click_activation(&preferences, &manager);
 
     let transfers = super::settings_group(&preferences, "FILE TRANSFERS");
     append_cross_volume_drop_option(&transfers, &manager);
@@ -114,11 +104,7 @@ pub(super) fn general_page(
         },
     );
 
-    (
-        scrollable_page(&preferences, None),
-        Vec::new(),
-        responsive_activation_rows,
-    )
+    (scrollable_page(&preferences, None), Vec::new())
 }
 
 fn append_language_option(content: &gtk::Box, manager: &Rc<PreferenceManager>) {
@@ -287,12 +273,6 @@ fn append_browsing_options(content: &gtk::Box, manager: &Rc<PreferenceManager>) 
             description: "Preview folders on hover in the List view.",
             read: PreferenceManager::folder_peeking,
             write: PreferenceManager::set_folder_peeking,
-        },
-        PreferenceSwitch {
-            title: "Single-click file previews",
-            description: "Show a quick preview when selecting a supported file.",
-            read: PreferenceManager::single_click_previews,
-            write: PreferenceManager::set_single_click_previews,
         },
         PreferenceSwitch {
             title: "Autoplay media previews",
@@ -707,149 +687,6 @@ fn append_video_preview_option(content: &gtk::Box, manager: &Rc<PreferenceManage
     );
     content.append(&video_row);
     video_row
-}
-
-fn append_click_activation(
-    content: &gtk::Box,
-    manager: &Rc<PreferenceManager>,
-) -> Vec<ResponsiveActivationRow> {
-    let activation_options = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let mut responsive_activation_rows = Vec::new();
-    activation_options.add_css_class("settings-group");
-    activation_options.add_css_class("click-activation-options");
-    super::search::tag(&activation_options, "Opening items");
-    let header = gtk::Box::new(gtk::Orientation::Horizontal, 24);
-    header.add_css_class("activation-header");
-    let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    spacer.set_hexpand(true);
-    header.append(&spacer);
-    // Keep the column headings over controls that grow for longer translations.
-    let columns = [(); 2].map(|_| gtk::SizeGroup::new(gtk::SizeGroupMode::Horizontal));
-    for (text, column) in ["FILES", "FOLDERS"].into_iter().zip(&columns) {
-        let label = gtk::Label::new(Some(&crate::i18n::tr(text)));
-        label.set_width_chars(17);
-        column.add_widget(&label);
-        header.append(&label);
-    }
-    activation_options.append(&header);
-    for (label, mode) in [("List view", BrowserMode::List)] {
-        let (row, options) = bind_click_activation_row(manager, label, mode);
-        for (option, column) in options.iter().zip(&columns) {
-            column.add_widget(option);
-        }
-        activation_options.append(&row);
-        responsive_activation_rows.push(ResponsiveActivationRow { row, options });
-    }
-    content.append(&activation_options);
-    responsive_activation_rows
-}
-
-fn bind_click_activation_row(
-    manager: &Rc<PreferenceManager>,
-    label: &str,
-    mode: BrowserMode,
-) -> (gtk::Box, Vec<gtk::Box>) {
-    let activation = manager.click_activation(mode);
-    let (row, options, file_buttons, folder_buttons) = click_activation_option(label, activation);
-    for (buttons, files) in [(&file_buttons, true), (&folder_buttons, false)] {
-        for (button, count) in buttons.iter().zip([ClickCount::One, ClickCount::Two]) {
-            bind_click_count(manager, button, ClickCountBinding { mode, files, count });
-        }
-    }
-    (row, options)
-}
-
-struct ClickCountBinding {
-    mode: BrowserMode,
-    files: bool,
-    count: ClickCount,
-}
-
-fn bind_click_count(
-    manager: &Rc<PreferenceManager>,
-    button: &gtk::ToggleButton,
-    binding: ClickCountBinding,
-) {
-    let ClickCountBinding { mode, files, count } = binding;
-    bind_choice(
-        manager,
-        button,
-        count,
-        move |manager| {
-            let activation = manager.click_activation(mode);
-            if files {
-                activation.files
-            } else {
-                activation.folders
-            }
-        },
-        move |manager, count| {
-            let mut activation = manager.click_activation(mode);
-            if files {
-                activation.files = count;
-            } else {
-                activation.folders = count;
-            }
-            manager.set_click_activation(mode, activation);
-        },
-    );
-}
-
-fn click_activation_option(
-    mode: &str,
-    activation: ClickActivation,
-) -> (
-    gtk::Box,
-    Vec<gtk::Box>,
-    Vec<gtk::ToggleButton>,
-    Vec<gtk::ToggleButton>,
-) {
-    let row = gtk::Box::new(gtk::Orientation::Horizontal, 24);
-    row.add_css_class("click-activation-row");
-    let title = gtk::Label::new(Some(&crate::i18n::tr(mode)));
-    title.set_xalign(0.0);
-    title.set_hexpand(true);
-    title.add_css_class("settings-option-title");
-    title.add_css_class("click-activation-title");
-    row.append(&title);
-
-    let selected = |count| usize::from(count == ClickCount::Two);
-    let (file_control, file_buttons) =
-        segmented_control(&["Single", "Double"], selected(activation.files));
-    let (folder_control, folder_buttons) =
-        segmented_control(&["Single", "Double"], selected(activation.folders));
-    let mut options = Vec::new();
-    for (label, control, buttons) in [
-        ("Files", &file_control, &file_buttons),
-        ("Folders", &folder_control, &folder_buttons),
-    ] {
-        let option = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-        option.add_css_class("activation-option");
-        option.set_hexpand(false);
-        option.set_valign(gtk::Align::Center);
-        let label = gtk::Label::new(Some(&crate::i18n::tr(label)));
-        label.set_xalign(0.0);
-        label.set_width_chars(7);
-        label.add_css_class("settings-option-description");
-        control.set_hexpand(false);
-        control.set_width_request(180);
-        control.set_valign(gtk::Align::Center);
-        control.add_css_class("click-activation-control");
-        // Include the view and item kind so assistive tools distinguish all twelve choices.
-        for button in buttons {
-            crate::ui::accessibility::set_labelled_by(
-                button,
-                &[title.upcast_ref(), label.upcast_ref(), button.upcast_ref()],
-            );
-        }
-        label.add_css_class("activation-inline-label");
-        label.set_visible(false);
-        option.append(&label);
-        option.append(control);
-        row.append(&option);
-        options.push(option);
-    }
-    (row, options, file_buttons, folder_buttons)
 }
 
 fn video_preview_option(

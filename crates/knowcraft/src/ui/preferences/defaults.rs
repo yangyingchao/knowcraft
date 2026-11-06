@@ -32,18 +32,11 @@ impl Default for Preferences {
             reduce_motion: false,
             element_glow: true,
             file_icon_colors: FileIconColors::default(),
-            browser_mode: default_browser_mode(),
             browser_density: default_browser_density(),
             browser_density_custom_px: default_density_custom_px(),
             frame_density: default_frame_density(),
             frame_density_custom_px: default_density_custom_px(),
             group_by_type: false,
-            columns_file_clicks: default_file_clicks(),
-            columns_folder_clicks: default_folder_clicks(),
-            icons_file_clicks: default_file_clicks(),
-            icons_folder_clicks: default_double_clicks(),
-            list_file_clicks: default_file_clicks(),
-            list_folder_clicks: default_double_clicks(),
             sidebar_expanded: true,
             sidebar_pinned_collapsed: false,
             sidebar_devices_collapsed: false,
@@ -93,9 +86,6 @@ pub(super) fn default_enabled() -> bool {
     true
 }
 
-pub(super) fn default_browser_mode() -> String {
-    "columns".to_owned()
-}
 
 pub(super) fn default_video_preview_backend() -> String {
     "automatic".to_owned()
@@ -114,17 +104,8 @@ pub(super) fn default_density_custom_px() -> u8 {
     0
 }
 
-pub(super) fn default_file_clicks() -> u8 {
-    2
-}
 
-pub(super) fn default_folder_clicks() -> u8 {
-    1
-}
 
-pub(super) fn default_double_clicks() -> u8 {
-    2
-}
 
 pub(super) fn default_search_time_limit() -> u32 {
     SearchLimits::default()
