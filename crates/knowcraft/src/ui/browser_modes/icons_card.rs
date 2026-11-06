@@ -57,7 +57,7 @@ impl IconsCard {
             entry
                 .location
                 .native_path()
-                .and_then(|path| crate::knowledge::init().and_then(|k| k.archived_name(path)))
+                .and_then(|path| crate::knowledge::init().and_then(|k| k.display_title(path)))
         } else {
             None
         };

@@ -417,13 +417,22 @@ impl Knowledge {
         Ok(())
     }
 
-    /// 归档记录的原始显示名；只对 storage=archived 且原名非空时返回。
-    pub(crate) fn archived_name(&self, path: &Path) -> Option<String> {
+    /// 文件列表显示的标题：优先数据库 `title`；它与文件名相同（无内容标题）时视为
+    /// 没有标题。归档记录回退 `original_name`，其他文件由调用方回退文件系统名。
+    pub(crate) fn display_title(&self, path: &Path) -> Option<String> {
         let doc = self
             .store
             .find_by_path(&path.to_string_lossy())
             .ok()
             .flatten()?;
+        let title = doc.title.trim();
+        let file_name = path
+            .file_name()
+            .map(|name| name.to_string_lossy())
+            .unwrap_or_default();
+        if !title.is_empty() && title != file_name.as_ref() {
+            return Some(doc.title);
+        }
         (doc.storage == "archived" && !doc.original_name.is_empty())
             .then_some(doc.original_name)
     }
