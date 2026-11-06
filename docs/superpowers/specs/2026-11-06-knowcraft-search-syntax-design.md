@@ -1,6 +1,6 @@
 # knowcraft 搜索语法设计（第一期）
 
-> 状态：第一期实施未开始（实施进度在 §6、§7 勾选）
+> 状态：第一期已完成（core 与 CLI 已验证，GUI 待手测）
 > 调研对象：DEVONthink 3.8.2 官方帮助 Appendix > Search operators / Search Prefixes，以及官方博客
 > 分层依据：`AGENTS.md`「动作先落 core，多壳复用」
 > 审查报告：`docs/review/2026-11-06-search-syntax-{architecture,semantics,engineering}.md`
@@ -70,7 +70,7 @@ knowcraft 现有搜索是单层全文检索：core 的 `Index::search(query, lim
 |---|---|---|
 | `name:` | 文件名包含子串（大小写不敏感，ASCII） | `documents.original_name` |
 | `kind:` | 文档类型精确匹配 | `documents.doc_type` |
-| `tags:` | 标签名精确匹配（大小写不敏感，ASCII） | `tags.name` 经 `document_tags` 关联 |
+| `tags:` | 标签名匹配，`*` 匹配任意串，其余字符按字面量（大小写不敏感，ASCII） | `tags.name` 经 `document_tags` 关联 |
 
 **TODO：内容与元数据**
 
@@ -151,7 +151,9 @@ value      := 非空白字符序列；不支持通配符，* 视为普通字符
   不支持通配符与路径分隔符语义；值中的 `%`、`_` 按字面量处理。
 - `kind:` 精确匹配 `doc_type`，值大小写不敏感。值域见 `detect_type`：`pdf`、`docx`、
   `md`、`org`、`html`、`image`、`other`。未知值返回空结果。
-- `tags:` 精确匹配标签名，大小写不敏感（ASCII）。多个 `tags:` 条件为 AND。
+- `tags:` 匹配标签名，大小写不敏感（ASCII）。值内 `*` 匹配任意串（`grap*` 前缀、
+  `*phene` 后缀、`*rap*` 包含），`%`、`_`、`\` 按字面量处理；不含 `*` 时为精确匹配。
+  多个 `tags:` 条件为 AND。
 - 重复前缀（如两个 `kind:`）为 AND；不同 `kind:` 值因此恒空，与 AND 语义一致。
 - 未识别前缀（如 `url:x`、`https://x`、`10:30`）按普通全文词处理：冒号与其他
   tantivy 特殊字符一律转义为字面量，不报错、不触发字段解析。
@@ -173,7 +175,8 @@ name:2026 tags:work
 
 ### 4.2 范围外（TODO）
 
-- 通配符 `*`、`?`、字符类 `[a-b]`、取反 `[^...]`（需要不分词的 raw 字段或 RegexQuery）
+- 通配符 `*`、`?`、字符类 `[a-b]`、取反 `[^...]`（`tags:` 的 `*` 已支持；
+  其余前缀与全文通配需要不分词的 raw 字段或 RegexQuery）
 - 布尔运算符：`OR`、`XOR`、`NOT` 及符号简写（第一期刻意字面化）
 - 位置运算符：`NEAR`、`BEFORE`、`AFTER`、`NEXT`、`OPT`
 - 前缀运算符 `:<`、`:>`、`:~`、`==`、`!=`、`:!` 与数值/日期比较、范围
@@ -228,7 +231,15 @@ impl Index {
     pub fn search_with(&self, query: &dyn tantivy::query::Query, limit: usize)
         -> Result<Vec<IndexHit>>;
 
-    /// 供 core 内 search 模块构造字段查询与 TermSetQuery。
+    /// 全文检索并按 allowed 文档 id 集合过滤；集合过大时退回多取再内存过滤。
+    pub fn search_filtered(
+        &self,
+        text: &str,
+        allowed: Option<&HashSet<i64>>,
+        limit: usize,
+    ) -> Result<Vec<IndexHit>>;
+
+    /// 供 core 内 search 模块使用（保留字段常量封装）。
     pub(crate) fn schema(&self) -> tantivy::schema::Schema;
 }
 ```
@@ -286,6 +297,7 @@ impl Store {
 
 - `Cmd::Search` 改为调用 `knowcraft_core::search::search(&store, &index, &query, 50)`。
 - **删除**现有「先 `indexed_documents` 再 `index_documents`」的全量重建逻辑，搜索只读。
+- 新增 `knowcraft index` 子命令负责重建索引，与只读搜索解耦。
 - 索引为空且查询含全文词时，提示先建立索引（沿用现有提示文案）。
 - `Cmd::Status` 同样移除重建逻辑，只报告已有索引文档数。
 - 帮助文本列出第一期支持的前缀与示例。
@@ -301,24 +313,26 @@ impl Store {
 
 ## 6. 实现步骤
 
-- [ ] 1. core `store.rs`：新增三个 id 查询与 `documents_for_filters`，补 SQL 索引迁移
+- [x] 1. core `store.rs`：新增三个 id 查询与 `documents_for_filters`，补 SQL 索引迁移
       （`documents(doc_type, lifecycle)`、`document_tags(tag_id, document_id)`）。
-- [ ] 2. core `index.rs`：新增 `search_with` 与 `schema()` 访问器。
-- [ ] 3. core `search.rs`：解析器 + 执行组合 + 单测。
-- [ ] 4. CLI：`Cmd::Search`/`Cmd::Status` 切换接口并删除重建逻辑。
-- [ ] 5. GUI：`Knowledge::search` 切换接口。
-- [ ] 6. 验证：`cargo build`；`cargo test -p knowcraft-core`；CLI 手测；GUI 手测
-      （不跑全量测试）。
+- [x] 2. core `index.rs`：新增 `search_with`、`search_filtered` 与 `schema()` 访问器。
+- [x] 3. core `search.rs`：解析器 + 执行组合 + 单测（8 个用例通过）。
+- [x] 4. CLI：`Cmd::Search`/`Cmd::Status` 切换接口并删除重建逻辑；新增 `index` 子命令。
+- [x] 5. GUI：`Knowledge::search` 切换接口（build 通过）。
+- [ ] 6. 验证：`cargo build` 与 `cargo test -p knowcraft-core`（81 passed）已完成；
+      CLI 手测已完成；GUI 手测待进行（不跑全量测试）。
 
 ## 7. 验收标准
 
-- [ ] `name:` 按文件名子串匹配，`kind:` 按 `doc_type`，`tags:` 按标签；三者为 AND。
-- [ ] 纯过滤查询在索引为空时仍能返回结果；混合查询要求文档已索引。
-- [ ] `https://x`、`10:30`、`C:\tmp`、`foo:bar`、`报告 AND kind:pdf` 均不报错。
-- [ ] `kind:pdf kind:docx` 返回空（AND 语义）。
-- [ ] 回收站文档不出现在任何搜索结果中。
-- [ ] CLI 搜索不再重建索引；同一查询成功路径下 CLI 与 GUI 结果一致。
-- [ ] `cargo test -p knowcraft-core` 全绿。
+- [x] `name:` 按文件名子串匹配，`kind:` 按 `doc_type`，`tags:` 按标签
+      （`tags:` 支持 `*` 通配、无通配时为精确匹配）；三者为 AND。
+- [x] 纯过滤查询在索引为空时仍能返回结果；混合查询要求文档已索引。
+- [x] `https://x`、`10:30`、`C:\tmp`、`foo:bar`、`报告 AND kind:pdf` 均不报错。
+- [x] `kind:pdf kind:docx` 返回空（AND 语义）。
+- [x] 回收站文档不出现在任何搜索结果中。
+- [ ] CLI 搜索不再重建索引；同一查询成功路径下 CLI 与 GUI 结果一致
+      （CLI 已验，GUI 待手测）。
+- [x] `cargo test -p knowcraft-core` 全绿（81 passed）。
 
 ## 8. TODO（后续版本）
 

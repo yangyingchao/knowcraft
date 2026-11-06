@@ -7,6 +7,7 @@ pub mod error;
 pub mod extract;
 pub mod index;
 pub mod model;
+pub mod search;
 pub mod store;
 pub mod tags;
 pub mod trash;

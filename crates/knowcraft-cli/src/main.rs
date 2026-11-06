@@ -20,8 +20,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// 全文搜索，返回命中的文档 id 与路径
+    /// 全文搜索，返回命中的文档 id 与路径。
+    /// 支持前缀：name: 文件名子串、kind: 文档类型、tags: 标签（空格分隔为 AND）
     Search { query: String },
+    /// 重建搜索索引；搜索本身只读，不触发重建
+    Index,
     /// 导入文件或目录到 inbox
     Add { path: PathBuf },
     /// 将文档归入 library 下的分类目录
@@ -64,14 +67,19 @@ fn main() -> anyhow::Result<()> {
         Cmd::Upgrade => {} // 上面已提前返回
         Cmd::Search { query } => {
             let index = Index::open(&cfg.data_dir)?;
-            let docs = indexed_documents(&store)?;
-            if docs.is_empty() {
-                anyhow::bail!("no documents indexed yet; add files first");
+            let hits = knowcraft_core::search::search(&store, &index, &query, 50)?;
+            if hits.is_empty() && indexed_documents(&store)?.is_empty() {
+                eprintln!("no documents indexed yet; add files first");
             }
-            index.index_documents(&docs)?;
-            for hit in index.search(&query, 50)? {
+            for hit in hits {
                 println!("{} {}", hit.document_id, hit.path);
             }
+        }
+        Cmd::Index => {
+            let index = Index::open(&cfg.data_dir)?;
+            let docs = indexed_documents(&store)?;
+            index.index_documents(&docs)?;
+            println!("indexed: {}", docs.len());
         }
         Cmd::Add { path } => {
             if path.is_dir() {
@@ -97,15 +105,8 @@ fn main() -> anyhow::Result<()> {
         Cmd::Status => {
             let inbox = wf.list_inbox()?;
             let docs = indexed_documents(&store)?;
-            let indexed = if docs.is_empty() {
-                0
-            } else {
-                let index = Index::open(&cfg.data_dir)?;
-                index.index_documents(&docs)?;
-                docs.len()
-            };
             println!("data_dir: {}", cfg.data_dir.display());
-            println!("indexed: {indexed}");
+            println!("indexed: {}", docs.len());
             println!("inbox: {}", inbox.len());
         }
         Cmd::Cleanup => {

@@ -69,7 +69,11 @@ impl Store {
                 title TEXT, content TEXT, created_at TEXT, updated_at TEXT
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_document_tags_unique
-                ON document_tags(document_id, tag_id);",
+                ON document_tags(document_id, tag_id);
+            CREATE INDEX IF NOT EXISTS idx_documents_kind
+                ON documents(doc_type, lifecycle);
+            CREATE INDEX IF NOT EXISTS idx_document_tags_tag
+                ON document_tags(tag_id, document_id);",
         )?;
         let report = migrate(&mut conn, dir)?;
         Ok((Store {
@@ -81,6 +85,92 @@ impl Store {
     // connection itself stays valid, so recover the guard instead of panicking.
     pub(crate) fn lock(&self) -> MutexGuard<'_, Connection> {
         self.conn.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// 按文档类型取未回收的文档 id（类型名大小写不敏感）。
+    pub fn document_ids_by_kind(&self, kind: &str) -> Result<Vec<i64>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id FROM documents WHERE lower(doc_type) = lower(?1) AND lifecycle <> 'trashed'",
+        )?;
+        let rows = stmt.query_map(params![kind], |r| r.get(0))?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// 按文件名子串取未回收的文档 id（大小写不敏感，ASCII）。
+    pub fn document_ids_by_name(&self, needle: &str) -> Result<Vec<i64>> {
+        let pattern = format!("%{}%", escape_like(needle).to_lowercase());
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id FROM documents
+             WHERE lower(original_name) LIKE ?1 ESCAPE '\\' AND lifecycle <> 'trashed'",
+        )?;
+        let rows = stmt.query_map(params![pattern], |r| r.get(0))?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// 取同时带有全部标签的未回收文档 id（标签名大小写不敏感，ASCII）。
+    pub fn document_ids_with_all_tags(&self, tags: &[String]) -> Result<Vec<i64>> {
+        if tags.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut sql = String::from(
+            "SELECT DISTINCT d.id FROM documents d WHERE d.lifecycle <> 'trashed'",
+        );
+        for _ in 0..tags.len() {
+            sql.push_str(
+                " AND EXISTS (SELECT 1 FROM document_tags dt JOIN tags t ON t.id = dt.tag_id
+                   WHERE dt.document_id = d.id AND lower(t.name) LIKE lower(?) ESCAPE '\\')",
+            );
+        }
+        let values: Vec<rusqlite::types::Value> = tags
+            .iter()
+            .map(|tag| rusqlite::types::Value::Text(tag_like_pattern(tag)))
+            .collect();
+        let conn = self.lock();
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(values), |r| r.get(0))?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// 纯过滤查询：kind/name/tags 之间为 AND，按标题排序，最多 `limit` 条。
+    pub fn documents_for_filters(
+        &self,
+        names: &[String],
+        kinds: &[String],
+        tags: &[String],
+        limit: usize,
+    ) -> Result<Vec<Document>> {
+        let mut sql = String::from(
+            "SELECT id, uuid, storage, original_name, path, doc_type, title, source_url,
+                    size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status
+             FROM documents WHERE lifecycle <> 'trashed'",
+        );
+        let mut values: Vec<rusqlite::types::Value> = Vec::new();
+        for kind in kinds {
+            sql.push_str(" AND lower(doc_type) = lower(?)");
+            values.push(rusqlite::types::Value::Text(kind.clone()));
+        }
+        for name in names {
+            sql.push_str(" AND lower(original_name) LIKE ? ESCAPE '\\'");
+            values.push(rusqlite::types::Value::Text(format!(
+                "%{}%",
+                escape_like(name).to_lowercase()
+            )));
+        }
+        for tag in tags {
+            sql.push_str(
+                " AND EXISTS (SELECT 1 FROM document_tags dt JOIN tags t ON t.id = dt.tag_id
+                   WHERE dt.document_id = documents.id AND lower(t.name) LIKE lower(?) ESCAPE '\\')",
+            );
+            values.push(rusqlite::types::Value::Text(tag_like_pattern(tag)));
+        }
+        sql.push_str(" ORDER BY title LIMIT ?");
+        values.push(rusqlite::types::Value::Integer(limit as i64));
+        let conn = self.lock();
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(values), document_from_row)?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
     }
 
     pub fn column_names(&self, table: &str) -> Result<Vec<String>> {
@@ -491,6 +581,54 @@ fn backfill_identity(conn: &Connection, data_dir: &Path) -> Result<usize> {
         )?;
     }
     Ok(rows.len())
+}
+
+fn document_from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Document> {
+    Ok(Document {
+        id: r.get(0)?,
+        uuid: r.get(1)?,
+        storage: r.get(2)?,
+        original_name: r.get(3)?,
+        path: r.get(4)?,
+        doc_type: r.get(5)?,
+        title: r.get(6)?,
+        source_url: r.get(7)?,
+        size: r.get(8)?,
+        created_at: r.get(9)?,
+        updated_at: r.get(10)?,
+        checksum: r.get(11)?,
+        ai_summary: r.get(12)?,
+        lifecycle: r.get(13)?,
+        index_status: r.get(14)?,
+    })
+}
+
+/// 把标签查询转成 SQL LIKE 模式：`*` 匹配任意串，`%`、`_`、`\` 按字面量转义。
+fn tag_like_pattern(tag: &str) -> String {
+    let mut out = String::with_capacity(tag.len());
+    for ch in tag.chars() {
+        match ch {
+            '*' => out.push('%'),
+            '\\' | '%' | '_' => {
+                out.push('\\');
+                out.push(ch);
+            }
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
+/// 转义 SQL LIKE 的元字符，使搜索值按字面量匹配。
+fn escape_like(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if matches!(ch, '\\' | '%' | '_') {
+            out.push('\\');
+        }
+        out.push(ch);
+    }
+    out
 }
 
 /// 把数据库迁移到 `SCHEMA_VERSION`。版本已达标则直接返回；否则在事务中补齐

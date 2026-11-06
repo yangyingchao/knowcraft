@@ -12,7 +12,7 @@ mod tokenizer;
 use std::path::Path;
 
 use tantivy::collector::TopDocs;
-use tantivy::query::{MoreLikeThisQuery, QueryParser};
+use tantivy::query::{BooleanQuery, MoreLikeThisQuery, Occur, QueryParser, TermSetQuery};
 use tantivy::schema::{
     IndexRecordOption, OwnedValue, Schema, TextFieldIndexing, TextOptions, Value, INDEXED, STORED,
 };
@@ -30,6 +30,8 @@ const CONTENT: &str = "content";
 const SCHEMA_VERSION: &str = "2";
 const TOKENIZER: &str = "jieba";
 const SNIPPET_CHARS: usize = 60;
+/// `TermSetQuery` 的 id 数量阈值；超过后退回多取再内存过滤。
+const MAX_TERM_SET: usize = 20_000;
 
 /// 搜索命中的单条结果。
 #[derive(Debug)]
@@ -129,8 +131,6 @@ impl Index {
 
     /// 全文搜索，返回最多 `limit` 条命中。
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<IndexHit>> {
-        let reader = self.index.reader()?;
-        let searcher = reader.searcher();
         let schema = self.index.schema();
         let title = schema.get_field(TITLE)?;
         let content = schema.get_field(CONTENT)?;
@@ -138,9 +138,25 @@ impl Index {
         let query = parser
             .parse_query(query)
             .map_err(|e| Error::Index(e.to_string()))?;
-        let top = searcher.search(&query, &TopDocs::with_limit(limit))?;
-        let mut snippets = SnippetGenerator::create(&searcher, &*query, content)?;
-        snippets.set_max_num_chars(SNIPPET_CHARS);
+        self.search_with(&*query, limit)
+    }
+
+    /// 用已经构造好的 tantivy 查询检索，复用 reader、TopDocs 与摘要生成。
+    /// 摘要无法生成时降级为空串，不影响命中结果。
+    pub fn search_with(
+        &self,
+        query: &dyn tantivy::query::Query,
+        limit: usize,
+    ) -> Result<Vec<IndexHit>> {
+        let reader = self.index.reader()?;
+        let searcher = reader.searcher();
+        let schema = self.index.schema();
+        let content = schema.get_field(CONTENT)?;
+        let top = searcher.search(query, &TopDocs::with_limit(limit))?;
+        let mut snippets = SnippetGenerator::create(&searcher, query, content).ok();
+        if let Some(snippets) = snippets.as_mut() {
+            snippets.set_max_num_chars(SNIPPET_CHARS);
+        }
 
         let mut hits = Vec::with_capacity(top.len());
         for (_score, addr) in top {
@@ -150,13 +166,62 @@ impl Index {
                 path: self.stored_text(&retrieved, PATH),
                 title: self.stored_text(&retrieved, TITLE),
                 snippet: snippets
-                    .snippet_from_doc(&retrieved)
-                    .fragment()
-                    .trim()
-                    .to_owned(),
+                    .as_mut()
+                    .map(|generator| {
+                        generator
+                            .snippet_from_doc(&retrieved)
+                            .fragment()
+                            .trim()
+                            .to_owned()
+                    })
+                    .unwrap_or_default(),
             });
         }
         Ok(hits)
+    }
+
+    /// 供 core 内搜索模块构造字段查询与文档 id 集合查询。
+    pub(crate) fn schema(&self) -> Schema {
+        self.index.schema()
+    }
+
+    /// 全文检索并按文档 id 集合过滤（`None` 表示不过滤）。
+    /// 集合很小时用 `TermSetQuery`；超过阈值时退回「多取再内存过滤」。
+    pub fn search_filtered(
+        &self,
+        text: &str,
+        allowed: Option<&std::collections::HashSet<i64>>,
+        limit: usize,
+    ) -> Result<Vec<IndexHit>> {
+        let schema = self.index.schema();
+        let title = schema.get_field(TITLE)?;
+        let content = schema.get_field(CONTENT)?;
+        let id_field = schema.get_field(DOCUMENT_ID)?;
+        let parser = QueryParser::for_index(&self.index, vec![title, content]);
+        let text_query = parser
+            .parse_query(text)
+            .map_err(|e| Error::Index(e.to_string()))?;
+        let Some(ids) = allowed else {
+            return self.search_with(&*text_query, limit);
+        };
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        if ids.len() > MAX_TERM_SET {
+            let mut hits = self.search_with(&*text_query, limit.saturating_mul(64).max(limit))?;
+            hits.retain(|hit| ids.contains(&hit.document_id));
+            hits.truncate(limit);
+            return Ok(hits);
+        }
+        let terms: Vec<Term> = ids
+            .iter()
+            .map(|id| Term::from_field_i64(id_field, *id))
+            .collect();
+        let query = BooleanQuery::new(vec![
+            (Occur::Must, text_query),
+            (Occur::Must, Box::new(TermSetQuery::new(terms)) as Box<dyn tantivy::query::Query>),
+        ]);
+        self.search_with(&query, limit)
     }
 
     /// 按标题与正文查找相似文档，用于归档分类推荐。

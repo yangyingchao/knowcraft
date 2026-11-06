@@ -149,7 +149,8 @@ impl Knowledge {
         if query.trim().is_empty() {
             return Vec::new();
         }
-        self.index.search(query, limit).unwrap_or_default()
+        knowcraft_core::search::search(&self.store, &self.index, query, limit)
+            .unwrap_or_default()
     }
 
     pub(crate) fn search_tags(&self, query: &str) -> Vec<TagHit> {
