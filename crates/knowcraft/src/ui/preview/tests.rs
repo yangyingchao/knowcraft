@@ -253,10 +253,14 @@ fn an_explicit_close_blocks_automatic_previews_until_reopened() {
             assert!(!released.is_enabled());
             assert!(released.state.reserves_column_space());
             released.state.toggle_panel(None, None);
+            assert!(
+                released.is_enabled(),
+                "the preview panel cannot be closed"
+            );
             released.handle_browser_event(&browser, &automatic);
             assert!(
-                !released.is_enabled(),
-                "releasing the panel before any preview also blocks mirroring"
+                released.is_enabled(),
+                "automatic preview keeps the panel open"
             );
             assert_eq!(provider.0.borrow().len(), 3);
         },
@@ -439,7 +443,7 @@ fn only_a_docked_preview_offers_its_divider_for_resizing() {
 
             preview.state.toggle_panel(None, None);
             settle();
-            assert!(!offered(), "closing the preview withdraws its resize");
+            assert!(offered(), "the preview panel stays open");
             window.destroy();
         },
     );

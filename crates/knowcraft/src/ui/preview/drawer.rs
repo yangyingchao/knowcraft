@@ -281,7 +281,7 @@ impl PreviewState {
             slot: parts.slot,
             resize_grip: parts.resize_grip,
             reserve_columns: Cell::new(true),
-            enabled: Cell::new(false),
+            enabled: Cell::new(true),
             dismissed: Cell::new(false),
             child_pane: Cell::new(false),
             pane: parts.pane,

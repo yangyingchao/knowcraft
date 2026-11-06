@@ -40,13 +40,11 @@ impl PreviewState {
             .set_state(&(self.is_enabled() || self.reserves_column_space()).to_variant());
     }
 
+    /// 面板始终打开：该入口只确保可见，不再关闭。
     pub(super) fn toggle_panel(self: &Rc<Self>, entry: Option<FileEntry>, depth: Option<usize>) {
-        let enabled = self.is_enabled() || self.reserves_column_space();
-        self.reserve_columns.set(!enabled);
-        if enabled {
-            self.dismissed.set(true);
-            self.close();
-        } else {
+        self.reserve_columns.set(true);
+        self.dismissed.set(false);
+        if !self.is_enabled() {
             self.toggle(entry, depth);
         }
     }
