@@ -6,6 +6,7 @@ use gtk::prelude::*;
 
 use crate::{
     assets::icons,
+    knowledge,
     model::{SortDirection, SortKey},
     sandbox::MediaPreviewBackend,
     services::CrossVolumeDropStrategy,
@@ -101,6 +102,7 @@ pub(super) fn general_page(
 
     let startup = super::settings_group(&preferences, "STARTUP");
     append_default_directory_option(&startup, &manager);
+    append_knowledge_location_option(&startup);
     append_preference_switch(
         &startup,
         &manager,
@@ -546,6 +548,107 @@ fn append_default_directory_option(content: &gtk::Box, manager: &Rc<PreferenceMa
             }
         });
     });
+}
+
+/// 知识库数据目录：写入 config.toml 的 data_dir，重启后生效。
+fn append_knowledge_location_option(content: &gtk::Box) {
+    let choose = gtk::Button::with_label(&knowledge_location_text());
+    choose.set_valign(gtk::Align::Center);
+    choose.add_css_class("form-control");
+    choose.add_css_class("settings-choice");
+    crate::ui::accessibility::set_description(
+        &choose,
+        Some(&crate::i18n::tr("Select knowledge base folder")),
+    );
+    super::super::accessibility::set_label(&choose, &crate::i18n::tr("Knowledge base location"));
+
+    let reset = gtk::Button::with_label(&crate::i18n::tr("Reset"));
+    reset.add_css_class("form-control");
+    reset.set_valign(gtk::Align::Center);
+    let default = default_data_dir();
+    reset.set_sensitive(knowledge::data_dir_path() != Some(default.as_path()));
+    crate::ui::accessibility::set_description(
+        &reset,
+        Some(&crate::i18n::tr("Restore the default knowledge base location")),
+    );
+
+    let controls = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    controls.append(&choose);
+    controls.append(&reset);
+
+    let row = super::control_row(
+        "Knowledge base location",
+        "Where the knowledge base stores its data. Changes take effect after restart; \
+         existing data is not moved.",
+        &controls,
+    );
+    content.append(&row);
+
+    let choose_for_reset = choose.clone();
+    let reset_for_reset = reset.clone();
+    reset.connect_clicked(move |button| {
+        let default = default_data_dir();
+        match persist_data_dir(default.clone()) {
+            Ok(()) => {
+                choose_for_reset.set_label(&abbreviate_home(&default));
+                reset_for_reset.set_sensitive(false);
+            }
+            Err(error) => crate::ui::modal::show_error_dialog(
+                button,
+                &crate::i18n::tr("Could not save the knowledge base location"),
+                &error,
+            ),
+        }
+    });
+
+    let choose_for_click = choose.clone();
+    choose.connect_clicked(move |button| {
+        let Some(window) = button.root().and_downcast::<gtk::Window>() else {
+            return;
+        };
+        let dialog = gtk::FileDialog::builder()
+            .title(crate::i18n::tr("Select knowledge base folder"))
+            .modal(true)
+            .build();
+        let choose = choose_for_click.clone();
+        let reset = reset.clone();
+        dialog.select_folder(Some(&window), gio::Cancellable::NONE, move |result| {
+            let Ok(file) = result else {
+                return;
+            };
+            let Some(path) = file.path() else {
+                return;
+            };
+            match persist_data_dir(path.clone()) {
+                Ok(()) => {
+                    choose.set_label(&abbreviate_home(&path));
+                    reset.set_sensitive(path != default_data_dir());
+                }
+                Err(error) => crate::ui::modal::show_error_dialog(
+                    &choose,
+                    &crate::i18n::tr("Could not save the knowledge base location"),
+                    &error,
+                ),
+            }
+        });
+    });
+}
+
+fn knowledge_location_text() -> String {
+    match knowledge::data_dir_path() {
+        Some(path) => abbreviate_home(path),
+        None => crate::i18n::tr("Unavailable"),
+    }
+}
+
+fn default_data_dir() -> std::path::PathBuf {
+    glib::home_dir().join("Knowledge")
+}
+
+fn persist_data_dir(path: std::path::PathBuf) -> Result<(), String> {
+    let mut config = knowcraft_core::config::Config::load().map_err(|error| error.to_string())?;
+    config.data_dir = path;
+    config.persist().map_err(|error| error.to_string())
 }
 
 fn default_directory_text(path: Option<std::path::PathBuf>) -> String {
