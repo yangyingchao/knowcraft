@@ -13,7 +13,7 @@ use crate::ui::{
         Binding, KeyPress,
         bindings::{
             BACKSPACE, DOWN, END_KEY, ENTER, FILTER_SLASH, FOCUS_NEXT, HOME_KEY, LEFT,
-            PAGE_DOWN_KEY, PAGE_UP_KEY, RIGHT, UP, VIEW_COLUMNS, VIEW_ICONS, VIEW_LIST,
+            PAGE_DOWN_KEY, PAGE_UP_KEY, RIGHT, UP,
         },
     },
     preferences::PreferenceManager,
@@ -164,13 +164,7 @@ pub(in crate::ui) fn apply_browser_mode(
     preferences.set_browser_mode(mode);
 }
 
-pub(in crate::ui) fn browser_mode_for_digit(press: &KeyPress) -> Option<BrowserMode> {
-    [
-        (VIEW_COLUMNS, BrowserMode::Columns),
-        (VIEW_ICONS, BrowserMode::Icons),
-        (VIEW_LIST, BrowserMode::List),
-    ]
-    .into_iter()
-    .find(|(view, _)| press.is(*view))
-    .map(|(_, mode)| mode)
+/// 列表是唯一保留的视图，视图切换快捷键不再生效。
+pub(in crate::ui) fn browser_mode_for_digit(_press: &KeyPress) -> Option<BrowserMode> {
+    None
 }

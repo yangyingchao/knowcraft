@@ -598,7 +598,6 @@ const DEFAULT_TOOLS: &[Shortcut] = &[
     row(One(TERMINAL.shown()), "Open a terminal"),
     row(One(REFRESH.shown()), "Refresh"),
     row(One(HIDDEN_FILES.shown()), "Show or hide hidden files"),
-    row(VIEW_MODES, "Switch to Columns, Icons, or List"),
     row(TEXT_SIZE, "Increase / decrease / reset text size"),
     row(One(SIDEBAR.shown()), "Show or hide the sidebar"),
     row(
@@ -622,8 +621,6 @@ const SELECT_TAB: Shortcut = row(
     "Select a tab (hold %{keys} for numbers)",
 )
 .mentioning(Mention::Held(TAB_NUMBERS.modifiers()));
-
-const VIEW_MODES: Keys = Any(shown![VIEW_COLUMNS, VIEW_ICONS, VIEW_LIST]);
 
 const TEXT_SIZE: Keys = Any(shown![TEXT_LARGER.alternate(0), TEXT_SMALLER, TEXT_RESET]);
 

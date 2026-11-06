@@ -87,18 +87,6 @@ pub(super) const TARGETS: &[Target] = &[
         aliases: "browsing keyboard navigation focus sidebar toolbar",
     },
     Target {
-        id: "columns-sizes",
-        page: "general",
-        title: "Show sizes in Columns view",
-        aliases: "columns miller size sizes folders count counts items metadata filenames",
-    },
-    Target {
-        id: "columns-mirror",
-        page: "general",
-        title: "Mirror columns selection",
-        aliases: "browsing columns keyboard selection next pane folders",
-    },
-    Target {
         id: "hints",
         page: "general",
         title: "Show %{reference_keys} Shortcuts button",

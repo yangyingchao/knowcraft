@@ -13,7 +13,6 @@ mod enter_target;
 mod escape;
 mod live_changes;
 mod returning_focus;
-mod view_switch;
 
 fn settles(condition: impl Fn() -> bool) -> bool {
     let deadline = Instant::now() + Duration::from_secs(5);

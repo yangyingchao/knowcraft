@@ -228,7 +228,7 @@ impl ChooserHeader {
         let sidebar_toggle = crate::ui::sidebar_toggle::SidebarToggle::new();
         let location = view.location_widget();
         location.set_hexpand(true);
-        let appearance = build_appearance_menu(view, browser, theme.clone(), preview);
+        let appearance = build_appearance_menu(view, browser, theme.clone());
         let content = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         content.set_hexpand(true);
         content.set_valign(gtk::Align::Center);

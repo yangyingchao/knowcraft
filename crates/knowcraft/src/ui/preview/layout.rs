@@ -228,6 +228,7 @@ impl PreviewState {
         self.current.borrow().is_none() && !self.reserves_empty_preview()
     }
 
+    /// 列表视图下预览面板始终占位；没有选中项时显示空白。
     pub(super) fn reserves_empty_preview(&self) -> bool {
         self.is_enabled()
             && !self.child_pane.get()
@@ -237,12 +238,7 @@ impl PreviewState {
                 .borrow()
                 .as_ref()
                 .and_then(|binding| binding.browser.upgrade())
-                .is_some_and(|browser| {
-                    matches!(
-                        browser.view_mode(),
-                        BrowserMode::Columns | BrowserMode::Icons
-                    )
-                })
+                .is_some()
     }
 
     pub(super) fn browsing_columns(&self) -> bool {

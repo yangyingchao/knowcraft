@@ -284,7 +284,7 @@ fn append_browsing_options(content: &gtk::Box, manager: &Rc<PreferenceManager>) 
     for switch in [
         PreferenceSwitch {
             title: "Folder peeking",
-            description: "Preview folders on hover in Icons and List views.",
+            description: "Preview folders on hover in the List view.",
             read: PreferenceManager::folder_peeking,
             write: PreferenceManager::set_folder_peeking,
         },
@@ -311,18 +311,6 @@ fn append_browsing_options(content: &gtk::Box, manager: &Rc<PreferenceManager>) 
             description: "Stop arrow keys from leaving the file list. Use %{sidebar_focus_keys} to focus the sidebar, or use the mouse.",
             read: PreferenceManager::arrow_navigation_scoped,
             write: PreferenceManager::set_arrow_navigation_scoped,
-        },
-        PreferenceSwitch {
-            title: "Show sizes in Columns view",
-            description: "Show file sizes and folder item counts when hovering or selecting items in Columns view.",
-            read: PreferenceManager::columns_show_sizes,
-            write: PreferenceManager::set_columns_show_sizes,
-        },
-        PreferenceSwitch {
-            title: "Mirror columns selection",
-            description: "Show the selected folder's contents in the next pane as you move with the keyboard.",
-            read: PreferenceManager::columns_mirror_selection,
-            write: PreferenceManager::set_columns_mirror_selection,
         },
         PreferenceSwitch {
             title: "Show %{reference_keys} Shortcuts button",
@@ -744,11 +732,7 @@ fn append_click_activation(
         header.append(&label);
     }
     activation_options.append(&header);
-    for (label, mode) in [
-        ("Columns view", BrowserMode::Columns),
-        ("Icons view", BrowserMode::Icons),
-        ("List view", BrowserMode::List),
-    ] {
+    for (label, mode) in [("List view", BrowserMode::List)] {
         let (row, options) = bind_click_activation_row(manager, label, mode);
         for (option, column) in options.iter().zip(&columns) {
             column.add_widget(option);

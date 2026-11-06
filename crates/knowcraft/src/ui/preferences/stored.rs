@@ -4,20 +4,13 @@
 
 use super::*;
 
-pub(super) fn browser_mode_from_stored(value: &str) -> super::super::browser_modes::BrowserMode {
-    match value {
-        "icons" | "grid" => super::super::browser_modes::BrowserMode::Icons,
-        "list" | "explorer" => super::super::browser_modes::BrowserMode::List,
-        _ => super::super::browser_modes::BrowserMode::Columns,
-    }
+/// 列表是唯一保留的呈现方式；旧配置里的 columns/icons 一律按 List 读取。
+pub(super) fn browser_mode_from_stored(_value: &str) -> super::super::browser_modes::BrowserMode {
+    super::super::browser_modes::BrowserMode::List
 }
 
-pub(super) fn stored_browser_mode(mode: super::super::browser_modes::BrowserMode) -> &'static str {
-    match mode {
-        super::super::browser_modes::BrowserMode::Columns => "columns",
-        super::super::browser_modes::BrowserMode::Icons => "icons",
-        super::super::browser_modes::BrowserMode::List => "list",
-    }
+pub(super) fn stored_browser_mode(_mode: super::super::browser_modes::BrowserMode) -> &'static str {
+    "list"
 }
 
 pub(super) fn stored_density<D: DensityScale>(mode: &str, custom_px: u8) -> D {

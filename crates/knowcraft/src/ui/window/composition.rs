@@ -37,7 +37,7 @@ impl WindowContent {
     ) -> Self {
         let browser = super::browser_for_window();
         let preview = layout::preview(&browser, preferences);
-        let header = layout::Header::new(window, &browser, &preview, preferences);
+        let header = layout::Header::new(window, &browser, preferences);
         let sidebar = super::build_sidebar(browser.clone(), preferences.clone(), false);
         let root = layout::browser_layout(&browser, &preview, &sidebar, &header, preferences);
         let footer = layout::FooterBinding::new(window, &root, &browser, preferences);

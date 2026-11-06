@@ -44,7 +44,6 @@ impl Header {
     pub(super) fn new(
         window: &gtk::ApplicationWindow,
         browser: &BrowserView,
-        preview: &PreviewDrawer,
         preferences: &Rc<PreferenceManager>,
     ) -> Self {
         let widget = gtk::HeaderBar::new();
@@ -76,7 +75,7 @@ impl Header {
         crate::ui::shortcut_reference::follow_tooltip(&search, "Search (%{keys})", search_keys);
         crate::ui::shortcut_reference::follow_label(&search, "Search (%{keys})", search_keys);
         let appearance =
-            build_appearance_menu(browser, &browser.browser(), preferences.clone(), preview);
+            build_appearance_menu(browser, &browser.browser(), preferences.clone());
         let settings_label = crate::i18n::tr("Settings");
         let settings = header_action(icons::SETTINGS, &settings_label);
         crate::ui::accessibility::set_label(&settings, &settings_label);
