@@ -64,7 +64,6 @@ pub(crate) use accessibility::qa as accessibility_qa;
 pub(crate) use browser::read_mime_bytes as read_clipboard_mime_bytes;
 #[cfg(feature = "qa")]
 pub(crate) use enter_target::CSS_CLASS as ENTER_TARGET_CLASS;
-pub(crate) use settings::schedule_rollback_cleanup;
 #[cfg(test)]
 pub(in crate::ui) use window::offer_removable_destinations_for_test;
 pub(in crate::ui) use window::{

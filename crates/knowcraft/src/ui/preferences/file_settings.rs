@@ -212,47 +212,6 @@ impl PreferenceManager {
         self.preferences.borrow_mut().cross_volume_drop_strategy = strategy.as_str().to_owned();
         self.save_preferences();
     }
-
-    pub fn release_channel(&self) -> Channel {
-        crate::services::InstallSource::detect()
-            .managed()
-            .and_then(crate::services::ManagedInstall::tracked_channel)
-            .unwrap_or_else(|| Channel::parse(&self.preferences.borrow().release_channel))
-    }
-
-    pub fn set_release_channel(&self, channel: Channel) {
-        if crate::services::InstallSource::detect()
-            .managed()
-            .and_then(crate::services::ManagedInstall::tracked_channel)
-            .is_some()
-        {
-            return;
-        }
-        self.preferences.borrow_mut().release_channel = channel.as_str().to_owned();
-        self.save_preferences();
-    }
-
-    pub fn on_release_channel_changed(
-        &self,
-        anchor: &impl IsA<gtk::Widget>,
-        refresh: Rc<dyn Fn()>,
-    ) {
-        let initial = Cell::new(true);
-        self.bind_preference(anchor, Self::release_channel, move |_, _| {
-            if !initial.replace(false) {
-                refresh();
-            }
-        });
-    }
-
-    pub fn checks_for_updates(&self) -> bool {
-        self.preferences.borrow().check_for_updates
-    }
-
-    pub fn set_checks_for_updates(&self, enabled: bool) {
-        self.preferences.borrow_mut().check_for_updates = enabled;
-        self.save_preferences();
-    }
 }
 
 /// Device labels are short single-line names.

@@ -245,7 +245,6 @@ fn main() -> gtk::glib::ExitCode {
         knowledge::init();
         knowledge::spawn_warm_index();
     });
-    application.connect_startup(|_application| ui::schedule_rollback_cleanup());
     application.connect_shutdown(|_| {
         ui::preferences::flush_pending_folder_views();
         storage::writer::flush_at_exit();

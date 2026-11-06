@@ -27,27 +27,6 @@ pub fn present(application: &gtk::Application) {
     present_target(application, None, Vec::new(), false, true, true);
 }
 
-pub(super) fn bind_update_notice_preferences(
-    anchor: &impl IsA<gtk::Widget>,
-    manager: &PreferenceManager,
-    notice: &crate::ui::settings::UpdateNoticeHandler,
-) {
-    let initial = Cell::new(true);
-    let notice = Rc::downgrade(notice);
-    manager.bind_preference(
-        anchor,
-        |manager| (manager.checks_for_updates(), manager.release_channel()),
-        move |_, _| {
-            if !initial.replace(false)
-                && let Some(notice) = notice.upgrade()
-            {
-                crate::ui::settings::clear_cached_update_notice();
-                notice(None);
-            }
-        },
-    );
-}
-
 pub(super) fn browser_for_window() -> BrowserView {
     let browser = BrowserView::new(Rc::new(LocalFileSource), PeekBehavior::default());
     browser.set_operation_provider(Rc::new(LocalOperationProvider));
@@ -140,10 +119,8 @@ impl FirstFolder {
 pub(super) fn schedule_after_first_paint(
     window: &gtk::ApplicationWindow,
     sidebar: &SidebarView,
-    manager: &Rc<PreferenceManager>,
 ) {
     let state = Rc::downgrade(&sidebar.state);
-    let manager = manager.clone();
     let armed = Cell::new(false);
     window.connect_map(move |window| {
         if armed.get() {
@@ -156,7 +133,6 @@ pub(super) fn schedule_after_first_paint(
         let handler = Rc::new(RefCell::new(None));
         let handler_for_paint = handler.clone();
         let state = state.clone();
-        let manager = manager.clone();
         let id = clock.connect_after_paint(move |clock| {
             if let Some(id) = handler_for_paint.borrow_mut().take() {
                 clock.disconnect(id);
@@ -167,10 +143,6 @@ pub(super) fn schedule_after_first_paint(
                 if let Some(state) = state.upgrade() {
                     state.rebuild();
                 }
-            });
-            let manager = manager.clone();
-            glib::idle_add_local_once(move || {
-                crate::ui::settings::maybe_run_due_update_check(&manager);
             });
         });
         handler.replace(Some(id));

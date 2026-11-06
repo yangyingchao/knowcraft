@@ -62,6 +62,19 @@ pub enum BuildKind {
     Rc,
 }
 
+impl BuildKind {
+    /// The build kind's name in the app language, for display.
+    pub(crate) fn localized_label(self) -> String {
+        crate::i18n::tr(match self {
+            BuildKind::Stable => "Stable",
+            BuildKind::Nightly => "build_kind.nightly",
+            BuildKind::Alpha => "Alpha",
+            BuildKind::Beta => "Beta",
+            BuildKind::Rc => "Release candidate",
+        })
+    }
+}
+
 /// A comparable ordinal for a prerelease build.
 ///
 /// For an RC, `primary` is the candidate number and `suffix` is always

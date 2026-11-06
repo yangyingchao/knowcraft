@@ -72,8 +72,7 @@ pub(crate) use launch::home_directory;
 pub use launch::present;
 pub(super) use launch::present_target;
 use launch::{
-    bind_update_notice_preferences, browser_for_window, open_checked, open_default_folder,
-    schedule_after_first_paint,
+    browser_for_window, open_checked, open_default_folder, schedule_after_first_paint,
 };
 use modal_layers::topmost_modal_layer;
 pub(super) use modal_layers::{
@@ -131,7 +130,6 @@ pub(super) struct SidebarState {
     pub(in crate::ui) rail: Cell<bool>,
     policy: RailPolicy,
     pub(in crate::ui) saved_width: Cell<Option<i32>>,
-    update_label: gtk::Label,
     rail_changed: RefCell<Option<RailListener>>,
     keycaps: RefCell<Vec<gtk::Label>>,
     keycaps_shown: Cell<bool>,

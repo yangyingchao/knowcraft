@@ -58,7 +58,6 @@ impl Default for Preferences {
             folders_first: true,
             sort_key: default_sort_key(),
             sort_direction: default_sort_direction(),
-            check_for_updates: true,
             preview_muted: false,
             preview_volume: default_full_volume(),
             preview_text_wrap: false,
@@ -74,7 +73,6 @@ impl Default for Preferences {
             cross_volume_drop_strategy: default_cross_volume_drop_strategy(),
             open_folder_after_drop: false,
             date_format: default_date_format(),
-            release_channel: default_release_channel(),
             default_directory: None,
             restore_tabs: true,
             remember_folder_views: true,
@@ -93,10 +91,6 @@ impl Default for Preferences {
 
 pub(super) fn default_enabled() -> bool {
     true
-}
-
-pub(super) fn default_release_channel() -> String {
-    "stable".to_owned()
 }
 
 pub(super) fn default_browser_mode() -> String {

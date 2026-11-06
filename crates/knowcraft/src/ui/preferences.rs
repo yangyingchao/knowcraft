@@ -55,7 +55,7 @@ use defaults::{
     default_browser_density, default_browser_mode, default_cross_volume_drop_strategy,
     default_date_format, default_density_custom_px, default_double_clicks, default_enabled,
     default_file_clicks, default_folder_clicks, default_frame_density, default_full_volume,
-    default_icons_thumbnail_size, default_release_channel, default_search_entry_limit,
+    default_icons_thumbnail_size, default_search_entry_limit,
     default_search_time_limit, default_sort_direction, default_sort_key,
     default_video_preview_backend,
 };
@@ -225,8 +225,6 @@ pub(in crate::ui) struct Preferences {
     sort_key: String,
     #[serde(default = "default_sort_direction")]
     sort_direction: String,
-    #[serde(default = "default_enabled")]
-    check_for_updates: bool,
     #[serde(default)]
     preview_muted: bool,
     #[serde(default = "default_full_volume")]
@@ -257,8 +255,6 @@ pub(in crate::ui) struct Preferences {
     open_folder_after_drop: bool,
     #[serde(default = "default_date_format")]
     date_format: String,
-    #[serde(default = "default_release_channel")]
-    release_channel: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     default_directory: Option<PathBuf>,
     #[serde(default = "default_enabled")]

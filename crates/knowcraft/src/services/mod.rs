@@ -33,8 +33,6 @@ pub(crate) mod rtf;
 mod search;
 pub(crate) mod table;
 mod transfer_action;
-mod update_check;
-mod update_install;
 
 pub use actions::{
     ActionAvailability, ActionCatalog, ActionHandle, ActionLoadFailure, ActionProgram,
@@ -103,11 +101,6 @@ pub(crate) use transfer_action::{
     CrossVolumeDropStrategy, DropActionInput, DropCommit, DropOverride, TransferKind,
     VolumeIdentity, VolumeRelation, drop_commit, transferable_drop_sources, volume_relation,
 };
-// `best_update`, `rollback_target`, and `ReleaseSummary` are deliberately not
-// re-exported here: `rollback_target` is the never-downgrade bypass, and only
-// `update_check` (which imports them directly from `release_channel`) has any
-// business calling it. Widening this re-export would make that bypass
-// reachable from UI code.
 pub(crate) use release_channel::{BuildKind, Channel, Version};
 pub(crate) use remote_download::{
     RemoteDownload, download_remote, remote_file_name, remote_file_url,
@@ -120,12 +113,4 @@ pub(crate) use search::{
     RefusedFolders, SearchCoverage, SearchEvent, SearchExclusions, SearchHandle, SearchItem,
     SearchLimits, filter_name_matches, filter_query_allows_typos, fold_for_search, index_filter,
     index_folder_paths, index_paths, index_trees_with_exclusions,
-};
-pub(crate) use update_check::{
-    ReleaseChoice, ReleaseMetadata, ReleaseNotes, UpdateCheck, check_for_updates,
-    fetch_release_notes, fetch_releases, resolve_release_commit,
-};
-pub(crate) use update_install::{
-    InstallCancel, InstallRequest, UpdateInstall, UpdateMethod, install_update, rollback_path,
-    update_method,
 };

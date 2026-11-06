@@ -15,13 +15,13 @@ pub(super) struct NavigationEntry {
     pub(super) accessible_label: Option<&'static str>,
 }
 
-pub(super) fn page_shown(page: &str) -> bool {
-    page != "updates" || crate::build_info::updater_enabled()
+pub(super) fn page_shown(_page: &str) -> bool {
+    true
 }
 
 /// Settings pages in navigation order. Search finds page titles here and routes
 /// to the button built from each entry.
-pub(super) static NAVIGATION: [NavigationEntry; 8] = [
+pub(super) static NAVIGATION: [NavigationEntry; 7] = [
     NavigationEntry {
         page: "general",
         label: "General",
@@ -55,13 +55,6 @@ pub(super) static NAVIGATION: [NavigationEntry; 8] = [
         label: "Integrations",
         subtitle: "Apps and services",
         icon: icons::BLOCKS,
-        accessible_label: None,
-    },
-    NavigationEntry {
-        page: "updates",
-        label: "Updates",
-        subtitle: "Channel, release notes",
-        icon: icons::DOWNLOADS,
         accessible_label: None,
     },
     NavigationEntry {

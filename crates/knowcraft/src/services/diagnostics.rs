@@ -12,7 +12,7 @@ use std::{
 
 use gio::prelude::*;
 
-use super::{network_error::NetworkError, package_manager::PackageManager};
+use super::package_manager::PackageManager;
 use crate::sandbox::{
     self, Cancellation, MediaPreviewBackend, ParseOperation, browser::WorkerSupport,
 };
@@ -42,7 +42,6 @@ pub(crate) enum CheckId {
     Cameras,
     Drives,
     FolderMonitoring,
-    UpdateServer,
     Terminal,
     Portal,
     SecretService,
@@ -91,7 +90,6 @@ pub(crate) const GROUPS: [(Group, &[CheckId]); 4] = [
     (
         Group::Desktop,
         &[
-            CheckId::UpdateServer,
             CheckId::Terminal,
             CheckId::Portal,
             CheckId::SecretService,
@@ -149,8 +147,6 @@ pub(crate) enum Finding {
         limit: u64,
     },
     MonitoringFailed,
-    Connected,
-    ConnectionFailed(NetworkError),
     TerminalMissing,
     ServiceAvailable,
     PortalMissing,
@@ -330,10 +326,9 @@ type Worker = fn(&Sender<Check>);
 /// Runs the background checks on worker threads, sending each result as it
 /// completes. The receiver disconnects once every worker has finished.
 pub(crate) fn spawn(sender: Sender<Check>) {
-    let workers: [(&str, Worker); 3] = [
+    let workers: [(&str, Worker); 2] = [
         ("knowcraft-diagnostics-previews", preview_checks),
         ("knowcraft-diagnostics-system", system_checks),
-        ("knowcraft-diagnostics-network", network_checks),
     ];
     for (name, run) in workers {
         let sender = sender.clone();
@@ -420,10 +415,6 @@ fn system_checks(sender: &Sender<Check>) {
     send(drives(session.as_ref(), system.as_ref()));
     send(session_service(CheckId::Portal, session.as_ref()));
     send(session_service(CheckId::SecretService, session.as_ref()));
-}
-
-fn network_checks(sender: &Sender<Check>) {
-    let _ = sender.send(update_server(super::update_check::test_connection()));
 }
 
 const RAW_TOOLS: [&str; 4] = ["magick", "convert", "dcraw", "simple_dcraw"];
@@ -791,12 +782,6 @@ fn folder_monitoring_for(monitored: Result<(), String>, limit: Option<u64>) -> C
     }
 }
 
-fn update_server(result: Result<(), NetworkError>) -> Check {
-    match result {
-        Ok(()) => Check::passed(CheckId::UpdateServer, Finding::Connected),
-        Err(error) => Check::problem(CheckId::UpdateServer, Finding::ConnectionFailed(error)),
-    }
-}
 
 pub(crate) fn terminal(program: Option<String>) -> Check {
     match program {

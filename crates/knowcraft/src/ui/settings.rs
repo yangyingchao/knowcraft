@@ -9,7 +9,7 @@ use gtk::{glib, prelude::*};
 
 use crate::{
     assets::icons,
-    services::{BuildKind, Channel, InstallSource, UpdateCheck, UpdateMethod},
+    services::{BuildKind, Channel, InstallSource},
 };
 
 #[cfg(test)]
@@ -18,80 +18,35 @@ mod tests;
 mod about;
 mod actions;
 mod bindings;
-mod channel;
 mod compact_bin;
 mod diagnostics;
 mod exclusions;
 mod general;
 pub(crate) use general::abbreviate_home;
-mod install;
 mod install_command;
 mod integrations;
 mod keyboard;
-mod managed_update;
 mod navigation;
 mod page;
-mod release_notes;
-mod release_picker;
 mod responsive;
 mod restart;
 mod search;
 mod theme;
-mod update_check;
-mod update_dialog;
-mod update_messages;
-mod update_status;
-mod updates;
 mod wrap;
 use about::about_page;
 use bindings::bind_switch;
 use general::general_page;
 use theme::theme_page;
 
-pub(crate) use install::{InstallGuard, install_guard};
-use install::{InstallLauncher, default_install_launcher};
 use navigation::{NAVIGATION, navigation_button, page_shown};
 use page::{page_content, scrollable_page};
-use release_notes::release_date;
 use responsive::{ResponsiveActivationRow, ResponsiveBin, ResponsiveContent};
 use restart::restart;
-pub(crate) use restart::schedule_rollback_cleanup;
-use update_check::resolve_update_method_async;
-pub(crate) use update_check::{
-    UpdateNoticeHandler, clear_cached_update_notice, maybe_run_due_update_check,
-    register_update_notice,
-};
-pub(crate) use update_dialog::show_update_dialog;
-use update_dialog::{UpdateOffer, build_update_dialog};
-use updates::updates_page;
 
-// Read by `update_status` and the test modules through their `super::*` globs.
 #[cfg(test)]
-use self::{
-    channel::managed_install_summary,
-    install::FINALIZING_STATUS,
-    managed_update::launch_aur_update,
-    release_notes::{ReleaseNotesKind, release_notes_card},
-    restart::{
-        close_windows_for_restart, remove_unless_replaced, restart_waiter, restart_with,
-        schedule_rollback_cleanup_with,
-    },
-    update_check::{complete_due_update_check, next_check_generation},
-    update_dialog::UpdateDialog,
-    updates::{UpdateCheckRow, update_check_row_with},
-};
-#[cfg(test)]
-use crate::services::{InstallCancel, InstallRequest, ReleaseMetadata, UpdateInstall};
+use self::restart::{close_windows_for_restart, restart_waiter, restart_with};
 #[cfg(test)]
 use gtk::gio;
-use managed_update::aur_update_action_label;
-use release_notes::{ReleaseNotesCard, show_release_notes};
-use update_check::{CachedUpdate, effective_update_channel};
-use update_messages::{
-    installed_version_status, shows_available_release_notes, update_check_message,
-    update_status_markup,
-};
-use updates::PendingInstall;
 
 use super::{
     blur::BlurBin,
@@ -129,8 +84,6 @@ pub fn build_layer(
     settings_button: &gtk::Button,
     root: &BlurBin,
     preferences: Rc<PreferenceManager>,
-    update_notice: UpdateNoticeHandler,
-    install_guard: InstallGuard,
     open_folder: OpenFolder,
 ) -> SettingsLayer {
     let layer = backdrop_layer();
@@ -155,13 +108,6 @@ pub fn build_layer(
     stack.add_named(&general, Some("general"));
     stack.add_named(&diagnostics::diagnostics_page(), Some("diagnostics"));
     stack.add_named(&about_page(), Some("about"));
-    // Heavy pages build on first selection, never during startup: the
-    // Updates page spawns package-manager detection plus release-note
-    // network work, and the theme page builds its swatch flows.
-    let updates_container = updates_placeholder();
-    if page_shown("updates") {
-        stack.add_named(&updates_container, Some("updates"));
-    }
     page.append(&stack);
 
     // Created before the navigation loop so lazy builders can register
@@ -193,9 +139,6 @@ pub fn build_layer(
         )),
         navigation: CurrentPage::default(),
         preferences,
-        update_notice,
-        install_guard,
-        updates_container,
         responsive_panel: responsive_panel.clone(),
         search_state: settings_search.state.clone(),
         dismiss_hooks: dismiss_hooks.clone(),
@@ -284,19 +227,6 @@ fn page_stack() -> gtk::Stack {
         .build()
 }
 
-fn updates_placeholder() -> gtk::Box {
-    let updates_container = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    updates_container.set_hexpand(true);
-    updates_container.set_vexpand(true);
-    let updates_spinner = gtk::Spinner::new();
-    updates_spinner.start();
-    updates_spinner.set_halign(gtk::Align::Center);
-    updates_spinner.set_valign(gtk::Align::Center);
-    updates_spinner.set_vexpand(true);
-    updates_container.append(&updates_spinner);
-    updates_container
-}
-
 /// The responsive bin fills the window; the dialog is the panel inside its margin.
 fn center_in_layer(layer: &gtk::Box, responsive_panel: &ResponsiveBin) {
     let top = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -377,9 +307,6 @@ struct PageHost {
     built: Rc<RefCell<std::collections::HashSet<&'static str>>>,
     navigation: CurrentPage,
     preferences: Rc<PreferenceManager>,
-    update_notice: UpdateNoticeHandler,
-    install_guard: InstallGuard,
-    updates_container: gtk::Box,
     responsive_panel: ResponsiveBin,
     search_state: search::State,
     dismiss_hooks: DismissHooks,
@@ -431,7 +358,6 @@ impl PageHost {
                 self.add_page(name, &keyboard::keyboard_page(self.preferences.clone()));
             }
             "integrations" => self.build_integrations_page(),
-            "updates" => self.build_updates_page(),
             _ => {}
         }
     }
@@ -461,29 +387,6 @@ impl PageHost {
             open_folder(path);
         })));
         self.add_page("integrations", &page);
-    }
-
-    fn build_updates_page(&self) {
-        let host = self.clone();
-        resolve_update_method_async(move |method| host.fill_updates_page(method));
-    }
-
-    fn fill_updates_page(&self, method: UpdateMethod) {
-        maybe_run_due_update_check(&self.preferences);
-        let (updates, actions) = updates_page(
-            self.preferences.clone(),
-            self.update_notice.clone(),
-            self.install_guard.clone(),
-            method,
-        );
-        while let Some(child) = self.updates_container.first_child() {
-            self.updates_container.remove(&child);
-        }
-        search::apply(&updates, &self.search_state);
-        self.updates_container.append(&updates);
-        for (row, button) in actions {
-            self.responsive_panel.add_action(row, button);
-        }
     }
 }
 

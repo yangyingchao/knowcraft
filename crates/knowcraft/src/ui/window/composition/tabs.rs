@@ -301,7 +301,7 @@ impl TabWindow {
             }
         });
         if id == 1 {
-            super::super::schedule_after_first_paint(&window, &content.sidebar, &self.preferences);
+            super::super::schedule_after_first_paint(&window, &content.sidebar);
         } else {
             content.sidebar.schedule_after_first_paint(&content.overlay);
         }

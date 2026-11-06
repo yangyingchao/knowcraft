@@ -309,69 +309,6 @@ fn search_field_selects_all_with_ctrl_a_on_any_layout() {
 }
 
 #[test]
-fn late_page_filter_uses_the_current_query_and_recovers_its_sections() {
-    crate::test_support::gtk_test(
-        "ui::settings::search::tests::late_page_filter_uses_the_current_query_and_recovers_its_sections",
-        || {
-            crate::ui::prepare_portal_ui();
-            for (method, channel_available) in [
-                (crate::services::UpdateMethod::InPlace, true),
-                (crate::services::UpdateMethod::Pacman, false),
-            ] {
-                let state = Rc::new(RefCell::new(Some(find_matches("nightly"))));
-                let (page, _) = super::super::updates_page(
-                    PreferenceManager::shared(),
-                    Rc::new(|_| {}),
-                    super::super::install_guard(),
-                    method,
-                );
-                apply(&page, &state);
-                assert_eq!(item(&page, "channel").is_visible(), channel_available);
-                assert!(!item(&page, "check").is_visible());
-                assert!(!item(&page, "auto-updates").is_visible());
-                let empty = descendants(&page)
-                    .into_iter()
-                    .find(|widget| widget.has_css_class("settings-search-page-empty"))
-                    .expect("installation-specific empty state");
-                assert_eq!(empty.is_visible(), !channel_available);
-                state.replace(None);
-                apply(&page, &state);
-                assert!(item(&page, "check").is_visible());
-                assert!(item(&page, "auto-updates").is_visible());
-                assert_eq!(item(&page, "channel").is_visible(), channel_available);
-                assert!(!empty.is_visible());
-            }
-        },
-    );
-}
-
-fn nav(layer: &gtk::Widget, page: &str) -> gtk::Button {
-    descendants(layer)
-        .into_iter()
-        .filter_map(|widget| widget.downcast::<gtk::Button>().ok())
-        .find(|button| button.widget_name() == page)
-        .unwrap_or_else(|| panic!("navigation button for {page}"))
-}
-
-/// Whether `widget` and every ancestor up to its stack page are visible.
-fn shown_on_page(widget: &gtk::Widget) -> bool {
-    let mut current = Some(widget.clone());
-    while let Some(widget) = current {
-        if widget
-            .parent()
-            .is_some_and(|parent| parent.is::<gtk::Stack>())
-        {
-            return true;
-        }
-        if !widget.is_visible() {
-            return false;
-        }
-        current = widget.parent();
-    }
-    false
-}
-
-#[test]
 fn global_search_routes_every_target_to_its_page() {
     crate::test_support::gtk_test(
         "ui::settings::search::tests::global_search_routes_every_target_to_its_page",
@@ -478,16 +415,6 @@ fn navigation_pages() -> Vec<(&'static str, gtk::Widget)> {
         (
             "integrations",
             super::super::integrations::integrations_page(None),
-        ),
-        (
-            "updates",
-            super::super::updates_page(
-                manager.clone(),
-                Rc::new(|_| {}),
-                super::super::install_guard(),
-                crate::services::UpdateMethod::InPlace,
-            )
-            .0,
         ),
         ("diagnostics", super::super::diagnostics::diagnostics_page()),
         ("about", super::super::about_page()),

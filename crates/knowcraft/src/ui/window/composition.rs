@@ -6,7 +6,6 @@ use gtk::{gio, prelude::*};
 
 use crate::ui::{
     blur::BlurBin, browser::BrowserView, preferences::PreferenceManager, preview::PreviewDrawer,
-    settings::UpdateNoticeHandler,
 };
 
 use super::{SidebarView, TypeToSearch, keyboard};
@@ -66,15 +65,14 @@ impl WindowContent {
         &self,
         window: &gtk::ApplicationWindow,
         preferences: &Rc<PreferenceManager>,
-    ) -> UpdateNoticeHandler {
-        let notice = self.bind_context(window, preferences);
+    ) {
+        self.bind_context(window, preferences);
         self.activate_actions(window);
         window.set_child(Some(&self.overlay));
         super::install_modal_focus_trap(window);
         crate::ui::keys::install_native_aliases(window);
         self.browser
             .set_as_modal_focus_fallback(window.upcast_ref());
-        notice
     }
 
     fn activate_actions(&self, window: &gtk::ApplicationWindow) {
@@ -89,10 +87,10 @@ impl WindowContent {
         &self,
         window: &gtk::ApplicationWindow,
         preferences: &Rc<PreferenceManager>,
-    ) -> UpdateNoticeHandler {
+    ) {
         search::install(window, self, preferences);
         install_browser_actions(window, &self.actions, &self.browser, preferences);
-        let notice = settings::install(window, self, preferences);
+        settings::install(window, self, preferences);
         let click_browser = self.browser.clone();
         let click = gtk::GestureClick::new();
         click.set_propagation_phase(gtk::PropagationPhase::Capture);
@@ -125,7 +123,6 @@ impl WindowContent {
             },
         );
         self.key_controllers.borrow_mut().extend(controllers);
-        notice
     }
 
     #[cfg(test)]

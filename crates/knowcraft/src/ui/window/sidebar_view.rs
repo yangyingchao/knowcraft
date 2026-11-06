@@ -14,10 +14,6 @@ use super::SidebarState;
 pub(in crate::ui) struct SidebarView {
     pub(in crate::ui) widget: gtk::Widget,
     pub(in crate::ui) state: Rc<SidebarState>,
-    pub(super) update_notice: gtk::Button,
-    pub(super) update_area: gtk::Box,
-    pub(super) update_label: gtk::Label,
-    pub(super) update_version: gtk::Label,
 }
 
 impl SidebarView {

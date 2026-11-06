@@ -416,7 +416,6 @@ fn title(id: CheckId) -> &'static str {
         CheckId::Cameras => "Cameras",
         CheckId::Drives => "Removable drives",
         CheckId::FolderMonitoring => "Folder change monitoring",
-        CheckId::UpdateServer => "Update server",
         CheckId::Terminal => "Terminal",
         CheckId::Portal => "Desktop portal",
         CheckId::SecretService => "Password storage",
@@ -508,10 +507,6 @@ fn message(check: &Check) -> String {
         Finding::MonitoringFailed => {
             tr("Folder changes can't be detected, so folders won't refresh automatically.")
         }
-        Finding::Connected => tr("Connected to GitHub."),
-        Finding::ConnectionFailed(_) => {
-            tr("Couldn't connect to GitHub, so update checks and release notes are unavailable.")
-        }
         Finding::TerminalMissing => crate::ui::terminal::no_terminal_message(),
         Finding::ServiceAvailable => tr("The service is available."),
         Finding::PortalMissing => tr(
@@ -547,7 +542,6 @@ fn message(check: &Check) -> String {
 
 fn detail(check: &Check) -> Option<String> {
     match (&check.finding, &check.detail) {
-        (Finding::ConnectionFailed(error), _) => Some(error.message()),
         (_, Some(detail)) => Some(crate::i18n::tr(detail)),
         (_, None) => None,
     }
@@ -575,9 +569,6 @@ fn environment(anchor: &impl IsA<gtk::Widget>) -> Vec<(String, String)> {
     let tr = crate::i18n::tr;
     let installation = match InstallSource::detect().managed() {
         Some(managed) => managed.ownership_summary(),
-        None if !crate::build_info::updater_enabled() => {
-            tr("In-app updates are disabled in this build.")
-        }
         None => tr("Self-managed"),
     };
     let kernel = ["ostype", "osrelease"]

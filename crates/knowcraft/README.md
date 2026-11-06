@@ -59,11 +59,8 @@ Knowcraft combines spatial Miller-column navigation with familiar Icons and List
 - **Remote locations:** browse GIO/GVfs locations such as authenticated SMB shares and SFTP servers from the location field, with explicit host-key decisions.
 - **Administrator access:** open a local folder you can't read, such as a root-owned backup folder, after the system's polkit password prompt. See [Administrator access](docs/administrator-access.md).
 - **Adaptive appearance:** compact or airy density, 95 bundled themes, custom themes, and live Omarchy Quattro theme following.
-- **Updates in the app:** automatic update checks (on by default; turn them off in **Settings → Updates**), release notes, verified downloads, and in-place installation for release binaries.
 - **Custom actions:** add your own scripts to the file and folder context menus, with a manager in **Settings → Actions** and background progress in the Jobs dashboard. See [Custom actions](docs/custom-actions.md).
 - **Integrations:** opt-in providers maintained in the repository's [`integrations/`](integrations/README.md) catalog, installed, updated and removed from **Settings → Integrations**; they plug services and devices into the context menu and the **Send to…** menu. See [External file providers](docs/file-providers.md).
-- **System file chooser:** opt in through **Settings → General → Desktop integration → System file manager**, the installer, or `knowcraft --install-portal`; see [portal setup](docs/portal-file-chooser.md).
-- **Encrypted-volume unlock:** opt in through the installer, **Settings → General → Desktop integration** on Omarchy, or `knowcraft --install-udiskie-unlock`; restore with `knowcraft --uninstall-udiskie-unlock` (Settings **Restore default** on Omarchy only).
 
 ## Installation
 
@@ -180,8 +177,8 @@ operations are logged without recording terminal password input.
 The installer shows every privileged package operation before asking to run it.
 Before extracting anything, it downloads the release's
 [signed update manifest](docs/signed-updates.md), verifies its Ed25519 signature
-with `openssl` against the release key pinned in the script (the same key the
-in-app updater trusts), and checks the archive's size and SHA-256 against the
+with `openssl` against the release key pinned in the script, and checks the
+archive's size and SHA-256 against the
 signed values. It needs no GitHub CLI or account, and it stops instead of falling
 back to a checksum when a release is unsigned or verification fails. The binary
 is installed per-user at `~/.local/bin/knowcraft`.
@@ -355,9 +352,7 @@ Download the matching `knowcraft-<version>-<target>.debug` asset from the same r
 
 #### 3. Update or uninstall
 
-In-app updates verify [signed release manifests](docs/signed-updates.md) inside Knowcraft, without `gh`, a GitHub account, or a token. Releases published before signed manifests were introduced require manual installation; the updater never falls back to checksum-only verification.
-
-For a manual installation, use **Settings → Updates** for verified in-app updates, or repeat the download, verification, and `install` steps for a newer release. An in-app update also refreshes an already installed desktop entry and application icon from the new archive; it never creates desktop metadata that was not installed before. If the user opted into Knowcraft's system file chooser, the update restarts the portal frontend so subsequent dialogs use the newly installed build. Package-managed installations are updated only by their system package manager. To remove a per-user installation, run `knowcraft --uninstall-udiskie-unlock` before deleting the binary if you opted into encrypted-volume unlock, then:
+To upgrade, repeat the download, verification, and `install` steps for a newer release. This refreshes the installed desktop entry and application icon from the new archive; it never creates desktop metadata that was not installed before. Package-managed installations are updated only by their system package manager. To remove a per-user installation, delete the binary and its desktop entry:
 
 ```bash
 rm -f ~/.local/bin/knowcraft \
@@ -783,20 +778,6 @@ Custom themes are stored as shareable TOML files in `~/.config/knowcraft/themes/
 
 To go beyond the color tokens, an optional `~/.config/knowcraft/style.css` is loaded above Knowcraft's own stylesheets and re-read when it changes; see [User stylesheet](docs/themes.md#user-stylesheet).
 
-## Release channels
-
-Knowcraft defaults to the **Stable** channel: only final tagged releases are ever offered, and a Stable install never receives, sees, or is notified about a prerelease.
-
-Knowcraft checks for updates automatically by default: each time it starts, once its first window opens, and again when a window or **Settings → Updates** opens if no check has completed in the last 24 hours. Turning **Check for updates automatically** back on, or changing the channel, also runs a check. The check asks the update source for your installation: GitHub for release binaries and source builds, the AUR for AUR packages, the Omarchy package repository for Omarchy packages, or the local pacman sync database for other pacman packages. When a newer version is found, Knowcraft also fetches that release's details from GitHub. Turning the switch off stops the automatic checks, discards the result of a check still running, hides any update notice already shown, and locks the channel. **Check now** still checks on demand, and the Updates page's release-notes card asks GitHub for the current version's notes when they are not already cached. Knowcraft never downloads or installs an update without your confirmation.
-
-To try upcoming changes early, choose a channel in **Settings → Updates** (the channel is locked while automatic checks are off). **Preview** receives curated alpha, beta, and release-candidate builds but excludes nightlies. **Nightly** receives every recognised prerelease, including daily development builds. The update dialog and release notes always identify the exact build kind.
-
-When a prerelease installation selects **Stable**, the Updates card immediately offers the newest stable release as the channel target—even when that requires a semantic downgrade—and labels the action **Return to stable**. Preview and Nightly selections use the same card for ordinary forward updates, so channel changes never create a separate competing rollback card.
-
-To roll back or switch to a particular build, open **Install a specific release** in **Settings → Updates**. It lists the releases your channel offers, newest first, whether older or newer than the installed one: Stable lists stable releases, Preview adds alpha, beta, and release-candidate builds, and Nightly lists everything. Knowcraft asks GitHub for the list only when the menu opens, and lists only releases with a signed update manifest for your architecture. Choosing one opens the same verified install dialog as an update. Package-managed installations do not show the list, since their package manager decides the version.
-
-See [Releasing](docs/releasing.md) for the tag grammar these channels rely on and, for maintainers, how a release candidate is cut and promoted.
-
 ## Under the hood
 
 ### Why search stays fast
@@ -863,19 +844,6 @@ ZIP, 7z, TAR, CBZ, and EPUB support is unchanged. Use `--features rar` to opt ba
 in; `--all-features` also enables UnRAR. The source lockfile and license notices
 still describe the optional dependency; they do not mean it is linked into the
 feature-disabled binary. See [third-party notices](THIRD_PARTY_LICENSES.md#unrar).
-
-### Builds without the in-app updater
-
-Distributions that ship Knowcraft updates through their own packages build with
-`KNOWCRAFT_UPDATER=disabled`, which removes update checks, installs, and the
-Updates settings page. See [distribution packaging](docs/packaging.md#building-without-the-in-app-updater).
-
-### Builds with package-provided integrations
-
-Store-based packages such as Nix build with `KNOWCRAFT_INTEGRATIONS=package`, which
-turns off the runtime installers for the file chooser portal, the FileManager1
-service, the Omarchy shortcuts, and the udiskie unlock hook so the package can
-ship those files itself. See [distribution packaging](docs/packaging.md#building-with-package-provided-integrations).
 
 Start with [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Deeper references:
 

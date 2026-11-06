@@ -82,7 +82,6 @@ impl SidebarState {
         {
             apply_rail_to_shell(&scroller, &shell, rail);
         }
-        self.sync_update_notice_rail(rail);
         self.sync_rail_rows();
     }
 
@@ -92,38 +91,9 @@ impl SidebarState {
         }
     }
 
-    fn sync_update_notice_rail(&self, rail: bool) {
-        let text = self.update_label.parent();
-        if let Some(text) = &text {
-            text.set_visible(!rail);
-        }
-        let Some(content) = text
-            .and_then(|text| text.parent())
-            .and_downcast::<gtk::Box>()
-        else {
-            return;
-        };
-        content.set_spacing(if rail { 0 } else { 8 });
-        content.set_halign(if rail {
-            gtk::Align::Center
-        } else {
-            gtk::Align::Fill
-        });
-        if let Some(dot) = content.first_child() {
-            dot.set_visible(!rail);
-        }
-    }
-
     pub(super) fn sync_rail_rows(&self) {
         let rail = self.rail.get();
-        let size = if rail { sidebar_rail_button_size() } else { -1 };
-        if let Some(notice) = self
-            .update_label
-            .ancestor(gtk::Button::static_type())
-            .and_downcast::<gtk::Button>()
-        {
-            notice.set_size_request(if rail { sidebar_rail_width() } else { -1 }, size);
-        }
+        let _size = if rail { sidebar_rail_button_size() } else { -1 };
         let mut widget_child = self.widget.first_child();
         while let Some(child) = widget_child {
             widget_child = child.next_sibling();
