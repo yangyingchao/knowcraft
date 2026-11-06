@@ -335,7 +335,17 @@ impl BrowserView {
                 self.state
                     .browser
                     .entry_at(depth, position)
-                    .is_some_and(|entry| !match_ranges(&entry.display_name, query).is_empty())
+                    .is_some_and(|entry| {
+                        let name = entry
+                            .location
+                            .native_path()
+                            .and_then(|path| {
+                                crate::knowledge::init()
+                                    .and_then(|knowledge| knowledge.display_title(path))
+                            })
+                            .unwrap_or_else(|| entry.display_name.clone());
+                        !match_ranges(&name, query).is_empty()
+                    })
             });
         let Some(position) = found else {
             return false;

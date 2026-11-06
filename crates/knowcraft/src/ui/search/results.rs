@@ -4,7 +4,7 @@
 //! 分段标题与命中行混合，按 provider 优先级排序后增量更新。
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     path::{Path, PathBuf},
     rc::Rc,
 };
@@ -14,7 +14,9 @@ use gtk::{gdk, glib, prelude::*};
 use super::{SearchState, provider, record_interaction, reveal_result};
 use crate::services::SearchItem;
 
-type RowsByKey = HashMap<String, (Entry, gtk::ListBoxRow)>;
+/// 上一轮条目对应的行，按出现顺序排队：同一 id 可能有多行，因为文件名段与
+/// 正文段共用 `path:` 标识。
+type RowsByKey = HashMap<String, VecDeque<(Entry, gtk::ListBoxRow)>>;
 type ThumbnailChange = (
     crate::ui::thumbnail::ThumbnailSlot,
     Option<PathBuf>,
@@ -167,36 +169,57 @@ pub(super) fn render_sections(state: &Rc<SearchState>, mut sections: Vec<provide
 /// Keeps rows whose entry is unchanged and rebuilds or removes the rest.
 fn reconcile_entries(state: &Rc<SearchState>, old_entries: &[Entry], entries: Vec<Entry>) {
     state.reconciling_results.set(true);
-    let mut rows = old_entries
-        .iter()
-        .enumerate()
-        .filter_map(|(position, entry)| {
-            state
-                .list
-                .row_at_index(position as i32)
-                .map(|row| (entry.id(), (entry.clone(), row)))
-        })
-        .collect::<RowsByKey>();
+    // 按位置配对旧条目与行，重复 id 保留在各自的队列里，逐个消费。
+    let mut rows: RowsByKey = HashMap::new();
+    for (position, entry) in old_entries.iter().enumerate() {
+        if let Some(row) = state.list.row_at_index(position as i32) {
+            rows.entry(entry.id())
+                .or_default()
+                .push_back((entry.clone(), row));
+        }
+    }
     let mut requested = state.requested_thumbnails.borrow_mut();
     let ordered_rows = entries
         .iter()
         .map(|entry| reuse_or_build_row(state, &mut rows, &mut requested, entry))
         .collect::<Vec<_>>();
-    for (_, (entry, row)) in rows {
-        discard_row(state, &mut requested, hit_path(&entry).as_deref(), &row);
+    for (_, queued) in rows {
+        for (entry, row) in queued {
+            discard_row(state, &mut requested, hit_path(&entry).as_deref(), &row);
+        }
     }
     drop(requested);
 
     state.positions.replace(
         ordered_rows
-            .into_iter()
+            .iter()
             .enumerate()
-            .filter_map(|(position, row)| row.map(|row| (row, position)))
+            .filter_map(|(position, row)| row.as_ref().map(|row| (row.clone(), position)))
             .collect(),
     );
     state.visible_entries.replace(entries);
     state.list.invalidate_sort();
+    // 认领之外的行一律删除，旧版本遗留在列表里的孤儿行不会继续累积。
+    prune_rows_outside(state, &ordered_rows);
     state.reconciling_results.set(false);
+}
+
+/// 渲染结果必须与列表内容一一对应：移除任何不在 `kept` 里的行。
+fn prune_rows_outside(state: &SearchState, kept: &[Option<gtk::ListBoxRow>]) {
+    let mut child = state.list.first_child();
+    while let Some(widget) = child {
+        let next = widget.next_sibling();
+        if let Some(row) = widget.downcast_ref::<gtk::ListBoxRow>()
+            && !kept
+                .iter()
+                .flatten()
+                .any(|candidate| candidate == row)
+        {
+            crate::ui::thumbnail::cancel_thumbnails_in(&widget);
+            state.list.remove(row);
+        }
+        child = next;
+    }
 }
 
 fn reuse_or_build_row(
@@ -205,7 +228,7 @@ fn reuse_or_build_row(
     requested: &mut HashSet<PathBuf>,
     entry: &Entry,
 ) -> Option<gtk::ListBoxRow> {
-    let Some((previous, row)) = rows.remove(&entry.id()) else {
+    let Some((previous, row)) = rows.get_mut(&entry.id()).and_then(VecDeque::pop_front) else {
         return append_entry_row(state, entry);
     };
     if previous == *entry {

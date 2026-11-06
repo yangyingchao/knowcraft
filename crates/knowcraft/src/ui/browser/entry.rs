@@ -43,14 +43,23 @@ pub(in crate::ui) fn entry_model_value(entry: &FileEntry) -> String {
     let hidden = if entry.is_hidden { 'h' } else { 'v' };
     let entry_type = crate::services::entry_type(entry);
     let group = entry_type.description();
-    let name = entry.display_name.as_str();
+    let name = model_name(entry);
     let mut value = String::with_capacity(group.len() + name.len() + 3);
     value.push(kind);
     value.push(hidden);
     value.push_str(group);
     value.push('\t');
-    value.push_str(name);
+    value.push_str(&name);
     value
+}
+
+/// 列表模型里的显示名：优先知识库 `title`，回退文件系统名。
+fn model_name(entry: &FileEntry) -> String {
+    entry
+        .location
+        .native_path()
+        .and_then(|path| crate::knowledge::init().and_then(|k| k.display_title(path)))
+        .unwrap_or_else(|| entry.display_name.clone())
 }
 
 pub(super) fn model_display_name(value: &str) -> &str {

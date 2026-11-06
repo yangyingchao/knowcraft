@@ -41,6 +41,22 @@ static STATUS_CACHE: Mutex<Option<HashMap<PathBuf, String>>> = Mutex::new(None);
 /// Paths this process is indexing right now, so rows can show a busy mark.
 static ACTIVE_INDEX: Mutex<Option<HashMap<PathBuf, ()>>> = Mutex::new(None);
 
+/// Last known display title per knowledge path; `None` means "no title".
+static TITLE_CACHE: Mutex<Option<HashMap<PathBuf, Option<String>>>> = Mutex::new(None);
+
+fn with_title_cache<T>(
+    update: impl FnOnce(&mut HashMap<PathBuf, Option<String>>) -> T,
+) -> T {
+    let mut cache = TITLE_CACHE
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    update(cache.get_or_insert_with(HashMap::new))
+}
+
+fn clear_title_cache() {
+    with_title_cache(|cache| cache.clear());
+}
+
 fn with_active_index<T>(update: impl FnOnce(&mut HashMap<PathBuf, ()>) -> T) -> T {
     let mut active = ACTIVE_INDEX
         .lock()
@@ -293,6 +309,7 @@ impl Knowledge {
             .archive_to_library(&self.store, &self.index, doc.id, category)
             .map_err(|error| error.to_string())?;
         self.mark_indexed(&archived);
+        clear_title_cache();
         Ok(archived)
     }
 
@@ -305,6 +322,7 @@ impl Knowledge {
             .archive_record(&self.store, &self.index, doc.id)
             .map_err(|error| error.to_string())?;
         self.mark_indexed(&archived);
+        clear_title_cache();
         Ok(archived)
     }
 
@@ -329,6 +347,7 @@ impl Knowledge {
         } else {
             self.workflow.register_library_file(path)
         };
+        clear_title_cache();
         registered.map_err(|error| error.to_string())
     }
 
@@ -389,6 +408,7 @@ impl Knowledge {
                 Err(error) => tracing::warn!(%error, path = %doc.path, "relocate failed"),
             }
         }
+        clear_title_cache();
         Ok(moved)
     }
 
@@ -417,9 +437,21 @@ impl Knowledge {
         Ok(())
     }
 
-    /// 文件列表显示的标题：优先数据库 `title`；它与文件名相同（无内容标题）时视为
-    /// 没有标题。归档记录回退 `original_name`，其他文件由调用方回退文件系统名。
+    /// 文件列表显示的标题：优先数据库 `title`；空白、`Untitled` 等占位值，或与文件名
+    /// 相同（无内容标题）时视为没有标题。归档记录回退 `original_name`，其他文件由调用方
+    /// 回退文件系统名。
     pub(crate) fn display_title(&self, path: &Path) -> Option<String> {
+        if let Some(cached) = with_title_cache(|cache| cache.get(path).cloned()) {
+            return cached;
+        }
+        let result = self.lookup_display_title(path);
+        with_title_cache(|cache| {
+            cache.insert(path.to_path_buf(), result.clone());
+        });
+        result
+    }
+
+    fn lookup_display_title(&self, path: &Path) -> Option<String> {
         let doc = self
             .store
             .find_by_path(&path.to_string_lossy())
@@ -430,11 +462,18 @@ impl Knowledge {
             .file_name()
             .map(|name| name.to_string_lossy())
             .unwrap_or_default();
-        if !title.is_empty() && title != file_name.as_ref() {
+        if !Self::is_placeholder_title(title) && title != file_name.as_ref() {
             return Some(doc.title);
         }
         (doc.storage == "archived" && !doc.original_name.is_empty())
             .then_some(doc.original_name)
+    }
+
+    /// 无内容标题的占位值：空白，或提取器留下的 `Untitled`（可能带引号）。
+    /// 只决定显示回退，不改写数据库里的原值。
+    fn is_placeholder_title(title: &str) -> bool {
+        let title = title.trim().trim_matches(['\'', '"']).trim();
+        title.is_empty() || title.eq_ignore_ascii_case("untitled")
     }
 
     /// The cached `index_status` for a knowledge path, or `None` when untracked.
@@ -548,6 +587,7 @@ impl Knowledge {
         with_active_index(|active| {
             active.remove(path);
         });
+        clear_title_cache();
         outcome
     }
 
@@ -675,6 +715,7 @@ pub(crate) fn warm_index(knowledge: &Knowledge) -> WarmReport {
             }
         }
     }
+    clear_title_cache();
     report
 }
 

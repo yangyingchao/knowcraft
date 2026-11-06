@@ -42,6 +42,48 @@ fn providers_render_in_priority_order_with_section_headers() {
 }
 
 #[test]
+fn a_path_in_two_sections_leaves_no_row_behind_when_it_leaves_one() {
+    crate::test_support::gtk_test(
+        "ui::search::tests::a_path_in_two_sections_leaves_no_row_behind_when_it_leaves_one",
+        || {
+            // 不映射窗口，避免依赖帧时钟；行簿记在 append/remove 时同步完成。
+            let dialog = SearchDialog::new(
+                Rc::new(|_| {}),
+                Rc::new(|_| {}),
+                Rc::new(|_| {}),
+                Rc::new(|| {}),
+            );
+            let window = gtk::Window::builder().child(&dialog.widget()).build();
+            dialog.state.layer.set_visible(true);
+            let path = PathBuf::from("/k/note.md");
+            let files = provider::Section::new(
+                "文件名",
+                10,
+                vec![provider::Hit::content(
+                    "note.md",
+                    "/k/note.md",
+                    path.clone(),
+                )],
+            );
+            let content = provider::Section::new(
+                "文档内容",
+                30,
+                vec![provider::Hit::content("笔记", "摘要", path.clone())],
+            );
+            render_sections(&dialog.state, vec![files, content.clone()]);
+            assert_rows_match_entries(&dialog.state, "两个分段各有一行");
+            // 文件名命中消失后，同路径的正文命中仍在：上一轮的那一行不能留下。
+            render_sections(&dialog.state, vec![content]);
+            assert_rows_match_entries(&dialog.state, "文件名段消失后");
+            let mut texts = row_texts(&dialog.state);
+            texts.sort();
+            assert_eq!(texts, ["文档内容", ""], "只剩正文段");
+            window.destroy();
+        },
+    );
+}
+
+#[test]
 fn content_hits_become_a_documents_section() {
     let hits = vec![knowcraft_core::index::IndexHit {
         document_id: 1,
@@ -323,6 +365,24 @@ fn search_items(prefix: &str, count: usize) -> Vec<SearchItem> {
             )
         })
         .collect()
+}
+
+fn row_count(state: &SearchState) -> usize {
+    let mut count = 0;
+    let mut child = state.list.first_child();
+    while let Some(row) = child {
+        count += 1;
+        child = row.next_sibling();
+    }
+    count
+}
+
+fn assert_rows_match_entries(state: &SearchState, context: &str) {
+    assert_eq!(
+        row_count(state),
+        state.visible_entries.borrow().len(),
+        "{context}: 每轮渲染后行数必须等于可见条目数"
+    );
 }
 
 fn row_texts(state: &SearchState) -> Vec<String> {
