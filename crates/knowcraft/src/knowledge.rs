@@ -10,18 +10,21 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{Mutex, MutexGuard, OnceLock},
+    sync::{Arc, Mutex, MutexGuard, OnceLock},
 };
 
 use knowcraft_core::{
     archive::Archive,
     config::Config,
     index::{Index, IndexHit},
-    model::Document,
+    indexer::Indexer,
+    model::{Annotation, Document},
+    pdf_annotations::PdfAnnotations,
     store::Store,
     tags::{TagHit, Tags},
     trash::Trash,
     workflow::Workflow,
+    write_lock::WriteLock,
 };
 
 static KNOWLEDGE: OnceLock<Option<Knowledge>> = OnceLock::new();
@@ -77,6 +80,8 @@ pub(crate) struct Knowledge {
     tags: Tags,
     trash: Trash,
     archive: Archive,
+    /// 与 PDF 注释写回共享的进程内与跨进程写锁。
+    write_lock: Arc<WriteLock>,
 }
 
 /// What one index warm-up pass did, for tests and logging.
@@ -118,6 +123,7 @@ impl Knowledge {
         let tags = Tags::new(store.clone());
         let trash = Trash::new(data_dir.clone());
         let archive = Archive::new(data_dir.clone()).map_err(|error| error.to_string())?;
+        let write_lock = Arc::new(WriteLock::new(&data_dir));
         Ok(Self {
             data_dir,
             store,
@@ -126,11 +132,42 @@ impl Knowledge {
             tags,
             trash,
             archive,
+            write_lock,
         })
     }
 
     pub(crate) fn data_dir(&self) -> &Path {
         &self.data_dir
+    }
+
+    /// 按路径取已登记文档；未登记返回 `None`。
+    pub(crate) fn document_by_path(&self, path: &Path) -> Option<Document> {
+        self.store
+            .find_by_path(&path.to_string_lossy())
+            .ok()
+            .flatten()
+    }
+
+    /// 文档的注释缓存，供 PDF 预览绘制命中区域。
+    pub(crate) fn annotations_for_document(&self, document_id: i64) -> Vec<Annotation> {
+        self.pdf_annotations().list(document_id).unwrap_or_default()
+    }
+
+    /// 注释变化后重建该文档的索引，使便签文字可检索。
+    pub(crate) fn reindex_document(&self, document_id: i64) {
+        let indexer = Indexer::new(self.store.clone(), self.index.clone());
+        if let Err(error) = indexer.reindex_document(document_id) {
+            tracing::warn!(%error, "could not reindex document after an annotation change");
+        }
+    }
+
+    /// 新的 PDF 注释写回句柄，与 GUI 其他写入共享同一把写锁。
+    pub(crate) fn pdf_annotations(&self) -> PdfAnnotations {
+        PdfAnnotations::new(
+            self.store.clone(),
+            self.data_dir.clone(),
+            self.write_lock.clone(),
+        )
     }
 
     pub(crate) fn inbox(&self) -> Vec<Document> {
@@ -691,11 +728,19 @@ fn walk_files(root: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// Runs the warm-up off the GTK main thread.
+/// Runs the warm-up off the GTK main thread, and starts the file watcher so
+/// external edits (including PDF annotations from other tools) are absorbed.
 pub(crate) fn spawn_warm_index() {
     let Some(knowledge) = init() else {
         return;
     };
+    if let Err(error) = knowcraft_core::watcher::Watcher::spawn(
+        knowledge.data_dir.clone(),
+        knowledge.store.clone(),
+        knowledge.index.clone(),
+    ) {
+        tracing::warn!(%error, "could not start the file watcher");
+    }
     std::thread::spawn(move || {
         let report = warm_index(knowledge);
         tracing::debug!(

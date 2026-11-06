@@ -92,7 +92,7 @@ fn migrate_backfills_identity_on_old_db() {
 
     let (store, report) = Store::open_with_report(&dir).unwrap();
     assert_eq!(report.from, 0);
-    assert_eq!(report.to, 1);
+    assert_eq!(report.to, 2);
     assert_eq!(report.backfilled, 2);
 
     let inbox_doc = store
@@ -109,8 +109,8 @@ fn migrate_backfills_identity_on_old_db() {
 
     // 已迁移的库再次打开不应重复回填。
     let (_, report) = Store::open_with_report(&dir).unwrap();
-    assert_eq!(report.from, 1);
-    assert_eq!(report.to, 1);
+    assert_eq!(report.from, 2);
+    assert_eq!(report.to, 2);
     assert_eq!(report.backfilled, 0);
 }
 

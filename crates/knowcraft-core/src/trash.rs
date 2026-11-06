@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
 use crate::index::Index;
+use crate::indexer::Indexer;
 use crate::model::Document;
 use crate::store::Store;
 
@@ -93,7 +94,8 @@ impl Trash {
         let updated = store
             .get_document(doc.id)?
             .ok_or_else(|| Error::Store("document missing after restore".into()))?;
-        index.reindex_document(&updated)?;
+        let content = Indexer::content(store, &updated)?;
+        index.index_document_with_content(&updated, &content)?;
         Ok(updated)
     }
 

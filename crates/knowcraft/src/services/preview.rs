@@ -148,14 +148,52 @@ pub enum PreviewContent {
     Unsupported,
 }
 
+fn default_pdf_scale() -> f32 {
+    1.0
+}
+
+fn default_user_unit() -> f64 {
+    1.0
+}
+
 /// Extracted text and per-character bounds for one rendered PDF page.
 /// `glyphs[i]` locates the i-th char of `text` in rendered PNG pixels.
+///
+/// `scale` is the render scale the glyphs were multiplied by, and `crop`、`rotation`、
+/// `user_unit` describe the page geometry needed to map a selection back to PDF user
+/// space. `lines[i]` is the renderer's line index for the same character.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PdfTextLayer {
     pub width: f32,
     pub height: f32,
     pub text: String,
     pub glyphs: Vec<[f32; 4]>,
+    #[serde(default = "default_pdf_scale")]
+    pub scale: f32,
+    #[serde(default)]
+    pub crop: [f64; 4],
+    #[serde(default)]
+    pub rotation: i64,
+    #[serde(default = "default_user_unit")]
+    pub user_unit: f64,
+    #[serde(default)]
+    pub lines: Vec<u32>,
+}
+
+impl Default for PdfTextLayer {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            text: String::new(),
+            glyphs: Vec::new(),
+            scale: default_pdf_scale(),
+            crop: [0.0; 4],
+            rotation: 0,
+            user_unit: default_user_unit(),
+            lines: Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

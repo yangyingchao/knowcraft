@@ -60,6 +60,7 @@ fn pdf_text_keys_select_and_copy_only_on_their_exact_chords() {
                                     [x, 0.0, x + 10.0, 12.0]
                                 })
                                 .collect(),
+                            ..PdfTextLayer::default()
                         })),
                     },
                 }));

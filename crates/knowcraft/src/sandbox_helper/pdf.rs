@@ -9,11 +9,36 @@ use pdfcraft_render::{OpenError, PageRenderer, RenderConfig, RenderRequest, Requ
 
 use crate::sandbox::PdfRenderSize;
 
-/// One page's displayed size in points, after rotation.
+/// One page's displayed size in points and its user-space geometry.
 #[derive(Clone, Copy)]
 struct PageBox {
     width: f32,
     height: f32,
+    /// Effective crop box in user space, `[x0, y0, x1, y1]`.
+    crop: [f64; 4],
+    /// Clockwise rotation in degrees.
+    rotation: i64,
+    /// `/UserUnit`, never below 1.
+    user_unit: f64,
+}
+
+impl PageBox {
+    /// `PageInfo` reports the displayed size after `/UserUnit`; the crop box stays in
+    /// user space, so their ratio recovers the unit.
+    fn user_unit(width: f32, _height: f32, crop: [f32; 4], rotation: u16) -> f64 {
+        // The displayed width is the crop width, or its height on a quarter turn.
+        let span = if rotation % 180 == 0 {
+            f64::from(crop[2] - crop[0])
+        } else {
+            f64::from(crop[3] - crop[1])
+        };
+        let displayed = f64::from(width);
+        if span > 0.0 && displayed > 0.0 {
+            (displayed / span).max(1.0)
+        } else {
+            1.0
+        }
+    }
 }
 
 struct Document {
@@ -49,6 +74,9 @@ fn open_document(path: &Path) -> Result<Document, OpenFailure> {
         .map(|page| PageBox {
             width: page.width,
             height: page.height,
+            crop: page.crop.map(f64::from),
+            rotation: i64::from(page.rotation),
+            user_unit: PageBox::user_unit(page.width, page.height, page.crop, page.rotation),
         })
         .collect();
     Ok(Document { bytes, pages })
@@ -129,6 +157,7 @@ pub(super) fn render_pdf_thumbnail(path: &Path, size: i32) -> Result<Vec<u8>, St
 fn pdf_text_layer(
     renderer: &mut PageRenderer,
     page_index: usize,
+    page: PageBox,
     width: u32,
     height: u32,
     scale: f32,
@@ -145,8 +174,8 @@ fn pdf_text_layer(
     if page_text.is_empty() {
         return None;
     }
-    let (text, glyphs) = collect_glyphs(&page_text, scale);
-    if text.is_empty() || text.chars().count() != glyphs.len() {
+    let (text, glyphs, lines) = collect_glyphs(&page_text, scale);
+    if text.is_empty() || text.chars().count() != glyphs.len() || lines.len() != glyphs.len() {
         return None;
     }
     let layer = crate::services::PdfTextLayer {
@@ -154,15 +183,24 @@ fn pdf_text_layer(
         height: height as f32,
         text,
         glyphs,
+        scale,
+        crop: page.crop,
+        rotation: page.rotation,
+        user_unit: page.user_unit,
+        lines,
     };
     serde_json::to_vec(&layer)
         .ok()
         .filter(|bytes| bytes.len() as u64 <= crate::sandbox::MAX_TEXT_LAYER_BYTES)
 }
 
-fn collect_glyphs(page_text: &pdfcraft_render::PageText, scale: f32) -> (String, Vec<[f32; 4]>) {
+fn collect_glyphs(
+    page_text: &pdfcraft_render::PageText,
+    scale: f32,
+) -> (String, Vec<[f32; 4]>, Vec<u32>) {
     let mut text = String::new();
     let mut boxes = Vec::new();
+    let mut lines = Vec::new();
     let mut previous_line: Option<u32> = None;
     for (index, glyph) in page_text.glyphs.iter().enumerate() {
         let rect = [
@@ -172,24 +210,28 @@ fn collect_glyphs(page_text: &pdfcraft_render::PageText, scale: f32) -> (String,
             glyph.rect[3] * scale,
         ];
         let line = page_text.line_of.get(index).copied();
+        let separator_line = line.or(previous_line).unwrap_or(0);
         if let Some(previous) = previous_line {
             if line.is_some_and(|line| line != previous) {
                 text.push('\n');
                 boxes.push(empty_box(rect));
+                lines.push(separator_line);
             } else if page_text.space_before.get(index).copied().unwrap_or(false) {
                 text.push(' ');
                 boxes.push(empty_box(rect));
+                lines.push(separator_line);
             }
         }
         for character in glyph.text.chars() {
             text.push(character);
             boxes.push(rect);
+            lines.push(separator_line);
         }
         if let Some(line) = line {
             previous_line = Some(line);
         }
     }
-    (text, boxes)
+    (text, boxes, lines)
 }
 
 /// A zero-width box at the glyph's bottom-right corner: separators carry no ink.
@@ -272,6 +314,7 @@ pub(super) fn preview(input: &Path, output: &Path, value: &str) -> Result<PdfPre
     let text_layer = pdf_text_layer(
         &mut renderer,
         page_index,
+        page,
         raster.width,
         raster.height,
         scale as f32,

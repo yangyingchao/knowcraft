@@ -89,6 +89,7 @@ x11rb = { version = "0.14.0", default-features = false, features = ["xkb", "xtes
 regex = { version = "1.13.1", optional = true }
 frizbee = "0.13"
 fitparser = "0.11.0"
+uuid = { version = "1", features = ["v4"] }
 wayland-client = { version = "0.31.15", optional = true }
 wayland-protocols-misc = { version = "0.3.12", features = ["client"], optional = true }
 wayland-protocols-wlr = { version = "0.3.12", features = ["client"], optional = true }

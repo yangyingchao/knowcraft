@@ -186,13 +186,9 @@ fn assert_saved_views_and_updates(manager: &PreferenceManager) {
         }
     );
     assert_eq!(
-        (
-            manager.remember_folder_views(),
-            manager.checks_for_updates(),
-            manager.release_channel(),
-        ),
-        (false, false, Channel::Nightly),
-        "(remember folder views, update checks, release channel)"
+        manager.remember_folder_views(),
+        false,
+        "remember folder views"
     );
 }
 

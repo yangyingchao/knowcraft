@@ -18,6 +18,7 @@ fn layer(text: &str) -> Arc<PdfTextLayer> {
         height: 600.0,
         text: text.to_owned(),
         glyphs,
+        ..PdfTextLayer::default()
     })
 }
 

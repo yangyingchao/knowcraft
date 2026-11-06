@@ -6,7 +6,7 @@ use crate::error::{Error, Result};
 use crate::model::{Annotation, Document, Note};
 
 /// 当前数据库 schema 版本，随 `PRAGMA user_version` 持久化。
-const SCHEMA_VERSION: i32 = 1;
+const SCHEMA_VERSION: i32 = 2;
 
 /// 迁移结果，供 CLI 升级等场景展示回填数量。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -265,6 +265,16 @@ impl Store {
         Ok(())
     }
 
+    /// 更新文档的修改时间与大小，供写回与外部同步使用。
+    pub fn touch_document(&self, id: i64, size: i64) -> Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "UPDATE documents SET updated_at = ?1, size = ?2 WHERE id = ?3",
+            params![now(), size, id],
+        )?;
+        Ok(())
+    }
+
     pub fn find_by_checksum(&self, checksum: &str) -> Result<Option<Document>> {
         let conn = self.lock();
         let mut stmt = conn.prepare(
@@ -441,33 +451,96 @@ impl Store {
     }
 
     pub fn insert_annotation(&self, a: &Annotation) -> Result<i64> {
+        self.upsert_annotation(a)
+    }
+
+    /// 按 `(document_id, nm)` 幂等写入注释；已存在则更新可变字段。
+    pub fn upsert_annotation(&self, a: &Annotation) -> Result<i64> {
+        let conn = self.lock();
+        let nm = if a.nm.is_empty() {
+            uuid::Uuid::new_v4().to_string()
+        } else {
+            a.nm.clone()
+        };
+        conn.execute(
+            "INSERT INTO annotations (document_id, nm, page, kind, quads, anchor_x, anchor_y, \
+             color, note_text, selection, author, created_at, updated_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13) \
+             ON CONFLICT(document_id, nm) DO UPDATE SET \
+             page = excluded.page, kind = excluded.kind, quads = excluded.quads, \
+             anchor_x = excluded.anchor_x, anchor_y = excluded.anchor_y, \
+             color = excluded.color, note_text = excluded.note_text, \
+             selection = excluded.selection, author = excluded.author, \
+             updated_at = excluded.updated_at",
+            params![
+                a.document_id,
+                nm,
+                a.page,
+                a.kind,
+                a.quads,
+                a.anchor_x,
+                a.anchor_y,
+                a.color,
+                a.note_text,
+                a.selection,
+                a.author,
+                a.created_at,
+                a.updated_at
+            ],
+        )?;
+        let id = conn.query_row(
+            "SELECT id FROM annotations WHERE document_id = ?1 AND nm = ?2",
+            params![a.document_id, nm],
+            |r| r.get(0),
+        )?;
+        Ok(id)
+    }
+
+    pub fn delete_annotation_by_nm(&self, document_id: i64, nm: &str) -> Result<()> {
         let conn = self.lock();
         conn.execute(
-            "INSERT INTO annotations (document_id, page, bbox, color, note_text, created_at, selection)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![a.document_id, a.page, a.bbox, a.color, a.note_text, a.created_at, a.selection],
+            "UPDATE notes SET annotation_id = NULL WHERE annotation_id IN \
+             (SELECT id FROM annotations WHERE document_id = ?1 AND nm = ?2)",
+            params![document_id, nm],
         )?;
-        Ok(conn.last_insert_rowid())
+        conn.execute(
+            "DELETE FROM annotations WHERE document_id = ?1 AND nm = ?2",
+            params![document_id, nm],
+        )?;
+        Ok(())
     }
 
     pub fn get_annotations(&self, document_id: i64) -> Result<Vec<Annotation>> {
         let conn = self.lock();
         let mut stmt = conn.prepare(
-            "SELECT id, document_id, page, bbox, color, note_text, created_at, selection FROM annotations WHERE document_id = ?1",
+            "SELECT id, document_id, nm, page, kind, quads, anchor_x, anchor_y, color, \
+             note_text, selection, author, created_at, updated_at \
+             FROM annotations WHERE document_id = ?1 ORDER BY page, id",
         )?;
         let rows = stmt.query_map(params![document_id], |r| {
             Ok(Annotation {
                 id: r.get(0)?,
                 document_id: r.get(1)?,
-                page: r.get(2)?,
-                bbox: r.get(3)?,
-                color: r.get(4)?,
-                note_text: r.get(5)?,
-                created_at: r.get(6)?,
-                selection: r.get(7)?,
+                nm: r.get(2)?,
+                page: r.get(3)?,
+                kind: r.get(4)?,
+                quads: r.get(5)?,
+                anchor_x: r.get(6)?,
+                anchor_y: r.get(7)?,
+                color: r.get(8)?,
+                note_text: r.get(9)?,
+                selection: r.get(10)?,
+                author: r.get(11)?,
+                created_at: r.get(12)?,
+                updated_at: r.get(13)?,
             })
         })?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// `get_annotations` 的别名，供索引组装等新代码使用。
+    pub fn annotations_for(&self, document_id: i64) -> Result<Vec<Annotation>> {
+        self.get_annotations(document_id)
     }
 
     pub fn insert_note(&self, n: &Note) -> Result<i64> {
@@ -535,18 +608,43 @@ fn read_document(row: &rusqlite::Row<'_>) -> rusqlite::Result<Document> {
 }
 
 /// 缺列则用 `ALTER TABLE ... ADD COLUMN` 补齐；已存在则不动作。
-fn ensure_column(conn: &Connection, name: &str, decl: &str) -> Result<()> {
+fn ensure_column(conn: &Connection, table: &str, name: &str, decl: &str) -> Result<()> {
     let existing = {
-        let mut stmt = conn.prepare("PRAGMA table_info(documents)")?;
+        let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
         let rows = stmt.query_map([], |r| r.get::<_, String>(1))?;
         rows.collect::<std::result::Result<Vec<_>, _>>()?
     };
     if !existing.iter().any(|c| c == name) {
         conn.execute(
-            &format!("ALTER TABLE documents ADD COLUMN {name} {decl}"),
+            &format!("ALTER TABLE {table} ADD COLUMN {name} {decl}"),
             [],
         )?;
     }
+    Ok(())
+}
+
+/// 补 annotations 表在 schema v2 新增的列，并为旧行生成可用的 `nm`。
+fn ensure_annotation_columns(conn: &Connection) -> Result<()> {
+    ensure_column(conn, "annotations", "nm", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_column(conn, "annotations", "kind", "TEXT NOT NULL DEFAULT 'highlight'")?;
+    ensure_column(conn, "annotations", "quads", "TEXT NOT NULL DEFAULT '[]'")?;
+    ensure_column(conn, "annotations", "anchor_x", "REAL")?;
+    ensure_column(conn, "annotations", "anchor_y", "REAL")?;
+    ensure_column(conn, "annotations", "author", "TEXT NOT NULL DEFAULT 'Knowcraft'")?;
+    ensure_column(conn, "annotations", "updated_at", "TEXT NOT NULL DEFAULT ''")?;
+    conn.execute(
+        "UPDATE annotations SET nm = 'legacy-' || id WHERE nm = ''",
+        [],
+    )?;
+    conn.execute(
+        "UPDATE annotations SET updated_at = created_at WHERE updated_at = ''",
+        [],
+    )?;
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_annotations_document_nm \
+         ON annotations(document_id, nm)",
+        [],
+    )?;
     Ok(())
 }
 
@@ -643,9 +741,9 @@ fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<MigrationReport> {
         });
     }
     let tx = conn.transaction()?;
-    ensure_column(&tx, "uuid", "TEXT NOT NULL DEFAULT ''")?;
-    ensure_column(&tx, "storage", "TEXT NOT NULL DEFAULT 'linked'")?;
-    ensure_column(&tx, "original_name", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_column(&tx, "documents", "uuid", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_column(&tx, "documents", "storage", "TEXT NOT NULL DEFAULT 'linked'")?;
+    ensure_column(&tx, "documents", "original_name", "TEXT NOT NULL DEFAULT ''")?;
     let backfilled = backfill_identity(&tx, data_dir)?;
     tx.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_uuid ON documents(uuid) WHERE uuid <> ''",
@@ -655,6 +753,7 @@ fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<MigrationReport> {
         "CREATE INDEX IF NOT EXISTS idx_documents_storage ON documents(storage, lifecycle)",
         [],
     )?;
+    ensure_annotation_columns(&tx)?;
     tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     tx.commit()?;
     Ok(MigrationReport {

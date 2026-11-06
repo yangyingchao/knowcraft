@@ -120,7 +120,52 @@ impl PageLoader {
             page.stop_spinner();
             return;
         }
-        self.request_page(page_index, &page, binding_name);
+        self.request_page(page_index, &page, binding_name, None);
+    }
+
+    /// Re-renders a bound page after its file changed, keeping the scroll offset.
+    pub(super) fn reload(&self, page_index: i32) {
+        let (overlay, picture, text_area, spinner) = {
+            let pages = self.viewer.pages.borrow();
+            let Some((overlay, picture, text_area)) = pages.get(&page_index) else {
+                return;
+            };
+            let Some(spinner) = overlay.last_child().and_downcast::<gtk::Spinner>() else {
+                return;
+            };
+            (
+                overlay.clone(),
+                picture.clone(),
+                text_area.clone(),
+                spinner,
+            )
+        };
+        let restore = self
+            .viewer
+            .scroll
+            .borrow()
+            .as_ref()
+            .and_then(|weak| weak.upgrade())
+            .map(|scroll| {
+                (
+                    scroll.hadjustment().value(),
+                    scroll.vadjustment().value(),
+                )
+            });
+        let binding_name = overlay.widget_name().to_string();
+        spinner.start();
+        spinner.set_visible(true);
+        self.request_page(
+            page_index,
+            &PageWidgets {
+                overlay,
+                picture,
+                spinner,
+                text_area,
+            },
+            binding_name,
+            restore,
+        );
     }
 
     fn take_initial(&self, page_index: i32) -> Option<Vec<u8>> {
@@ -137,7 +182,13 @@ impl PageLoader {
         cached.map(|(_, png)| png)
     }
 
-    fn request_page(&self, page_index: i32, page: &PageWidgets, binding_name: String) {
+    fn request_page(
+        &self,
+        page_index: i32,
+        page: &PageWidgets,
+        binding_name: String,
+        restore: Option<(f64, f64)>,
+    ) {
         let request_id = PreviewRequestId(self.next_request.get());
         self.next_request
             .set(self.next_request.get().saturating_add(1));
@@ -151,6 +202,8 @@ impl PageLoader {
             text_area: page.text_area.downgrade(),
             layers: self.viewer.layers.clone(),
             page_width: self.viewer.page_width.clone(),
+            scroll: self.viewer.scroll.borrow().clone(),
+            restore,
         };
         let loads_for_event = self.loads.clone();
         let emit = Rc::new(move |event| {
@@ -248,6 +301,8 @@ struct PageTarget {
     text_area: glib::WeakRef<gtk::DrawingArea>,
     layers: Rc<RefCell<PdfLayers>>,
     page_width: Rc<Cell<i32>>,
+    scroll: Option<glib::WeakRef<gtk::ScrolledWindow>>,
+    restore: Option<(f64, f64)>,
 }
 
 impl PageTarget {
@@ -307,6 +362,14 @@ impl PageTarget {
         }
         if let Some(picture) = self.picture.upgrade() {
             set_pdf_page_texture(overlay, &picture, png, self.page_width.get());
+        }
+        if let Some((horizontal, vertical)) = self.restore
+            && let Some(scroll) = self.scroll.as_ref().and_then(|weak| weak.upgrade())
+        {
+            glib::idle_add_local_once(move || {
+                set_adjustment_value(&scroll.hadjustment(), horizontal);
+                set_adjustment_value(&scroll.vadjustment(), vertical);
+            });
         }
     }
 }

@@ -95,6 +95,19 @@ impl Index {
         self.index_documents(std::slice::from_ref(doc))
     }
 
+    /// 用调用方组装好的内容索引单个文档。注释文本由 `Indexer` 负责拼接。
+    pub fn index_document_with_content(&self, doc: &Document, content: &str) -> Result<()> {
+        if crate::util::is_hidden_path(Path::new(&doc.path)) {
+            return Ok(());
+        }
+        let mut writer: IndexWriter = self.index.writer(50_000_000)?;
+        let id_field = self.index.schema().get_field(DOCUMENT_ID)?;
+        writer.delete_term(Term::from_field_i64(id_field, doc.id));
+        self.add_document(&mut writer, doc, content.to_owned())?;
+        writer.commit()?;
+        Ok(())
+    }
+
     /// 批量索引：同一次提交内按 `document_id` 先删后加，重复执行不产生重复命中。
     pub fn index_documents(&self, docs: &[Document]) -> Result<()> {
         if docs.is_empty() {

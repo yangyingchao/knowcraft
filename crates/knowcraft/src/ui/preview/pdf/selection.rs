@@ -10,7 +10,7 @@ pub(super) struct LayerPoint {
     pub(super) y: f32,
 }
 
-fn layer_position(
+pub(super) fn layer_position(
     scroll: &gtk::ScrolledWindow,
     area: &gtk::DrawingArea,
     layer: &PdfTextLayer,

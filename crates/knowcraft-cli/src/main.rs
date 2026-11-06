@@ -5,17 +5,29 @@
 //! SQLite/tantivy 写权限）。子命令失败以非零退出码结束。
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
 
 use knowcraft_core::index::Index;
+use knowcraft_core::indexer::Indexer;
+use knowcraft_core::pdf_annotations::PdfAnnotations;
 use knowcraft_core::workflow::Workflow;
+use knowcraft_core::write_lock::WriteLock;
 
 #[derive(Parser)]
 #[command(name = "knowcraft", version, about = "knowcraft 知识库命令行接口")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
+}
+
+#[derive(Subcommand)]
+enum AnnotationsCmd {
+    /// 列出某文档的注释：nm page kind note
+    List { id: i64 },
+    /// 扫描全部 PDF，把文件中的注释同步进数据库
+    Sync,
 }
 
 #[derive(Subcommand)]
@@ -37,6 +49,11 @@ enum Cmd {
     Cleanup,
     /// 迁移数据库 schema 并报告回填数量
     Upgrade,
+    /// PDF 注释：列出或从文件同步
+    Annotations {
+        #[command(subcommand)]
+        cmd: AnnotationsCmd,
+    },
     /// 归档文件：--category 保留路径，--record 写入 UUID 存储
     Archive {
         paths: Vec<PathBuf>,
@@ -76,10 +93,16 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Cmd::Index => {
-            let index = Index::open(&cfg.data_dir)?;
-            let docs = indexed_documents(&store)?;
-            index.index_documents(&docs)?;
-            println!("indexed: {}", docs.len());
+            let lock = Arc::new(WriteLock::new(&cfg.data_dir));
+            let annotations =
+                PdfAnnotations::new(store.clone(), cfg.data_dir.clone(), lock);
+            for doc in store.list_documents()? {
+                if doc.doc_type == "pdf" {
+                    let _ = annotations.sync_from_pdf(doc.id)?;
+                }
+            }
+            let indexer = Indexer::new(store.clone(), Index::open(&cfg.data_dir)?);
+            println!("indexed: {}", indexer.rebuild()?);
         }
         Cmd::Add { path } => {
             if path.is_dir() {
@@ -131,6 +154,33 @@ fn main() -> anyhow::Result<()> {
                 "cleanup: scanned={} removed={}",
                 report.scanned, report.removed
             );
+        }
+        Cmd::Annotations { cmd } => {
+            let lock = Arc::new(WriteLock::new(&cfg.data_dir));
+            let annotations =
+                PdfAnnotations::new(store.clone(), cfg.data_dir.clone(), lock);
+            match cmd {
+                AnnotationsCmd::List { id } => {
+                    for annotation in annotations.list(id)? {
+                        println!(
+                            "{} {} {} {}",
+                            annotation.nm,
+                            annotation.page,
+                            annotation.kind,
+                            annotation.note_text.unwrap_or_default()
+                        );
+                    }
+                }
+                AnnotationsCmd::Sync => {
+                    let mut synced = 0;
+                    for doc in store.list_documents()? {
+                        if doc.doc_type == "pdf" {
+                            synced += annotations.sync_from_pdf(doc.id)?;
+                        }
+                    }
+                    println!("synced: {synced}");
+                }
+            }
         }
         Cmd::Archive {
             paths,

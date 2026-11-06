@@ -1,5 +1,5 @@
 use knowcraft_core::annotations::Annotations;
-use knowcraft_core::model::Document;
+use knowcraft_core::model::{Annotation, Document};
 use knowcraft_core::store::Store;
 use knowcraft_core::tags::Tags;
 
@@ -36,12 +36,26 @@ fn tag_and_annotate_document() {
     tags.add(doc_id, "rust").unwrap();
     assert_eq!(tags.list_for(doc_id).unwrap().len(), 2);
 
-    let ann_id = anns
-        .create(doc_id, 3, "[[0.1,0.1,0.5,0.3]]", "yellow", "selected text")
-        .unwrap();
+    let annotation = Annotation {
+        id: 0,
+        document_id: doc_id,
+        nm: "nm-1".into(),
+        page: 3,
+        kind: "highlight".into(),
+        quads: "[[0.1,0.1,0.5,0.3]]".into(),
+        anchor_x: None,
+        anchor_y: None,
+        color: "yellow".into(),
+        note_text: None,
+        selection: "selected text".into(),
+        author: "Knowcraft".into(),
+        created_at: "now".into(),
+        updated_at: "now".into(),
+    };
+    let ann_id = anns.create(&annotation).unwrap();
     let list = anns.list(doc_id).unwrap();
     assert_eq!(list.len(), 1);
-    assert_eq!(list[0].bbox, "[[0.1,0.1,0.5,0.3]]");
+    assert_eq!(list[0].quads, "[[0.1,0.1,0.5,0.3]]");
     assert_eq!(list[0].selection, "selected text");
     anns.delete(ann_id).unwrap();
     assert!(anns.list(doc_id).unwrap().is_empty());

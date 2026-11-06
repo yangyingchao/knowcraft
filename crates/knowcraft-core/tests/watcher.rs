@@ -57,12 +57,18 @@ fn handle_delete_event_removes_index_entry() {
     let annotation = Annotation {
         id: 0,
         document_id: doc.id,
+        nm: "nm-1".into(),
         page: 1,
-        bbox: "[]".into(),
+        kind: "highlight".into(),
+        quads: "[]".into(),
+        anchor_x: None,
+        anchor_y: None,
         color: "yellow".into(),
         note_text: None,
-        created_at: "now".into(),
         selection: "word".into(),
+        author: "Knowcraft".into(),
+        created_at: "now".into(),
+        updated_at: "now".into(),
     };
     store.insert_annotation(&annotation).unwrap();
 
@@ -326,4 +332,140 @@ fn move_out_of_managed_dir_deletes_record() {
     );
     assert!(index.search("move out", 10).unwrap().is_empty(), "索引移除");
     let _ = std::fs::remove_file(&outside);
+}
+
+mod pdf_sync {
+    use std::path::PathBuf;
+
+    use knowcraft_core::index::Index;
+    use knowcraft_core::pdf_annot_file::PdfFile;
+    use knowcraft_core::store::Store;
+    use knowcraft_core::watcher::{FileEvent, Watcher};
+    use knowcraft_core::workflow::Workflow;
+    use pdfcraft_annot::{Markup, Meta, NewAnnotation, Shape, Style};
+
+    fn minimal_pdf() -> Vec<u8> {
+        let objects: Vec<&[u8]> = vec![
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 600 800] >>",
+            b"<< /Type /Page /Parent 2 0 R >>",
+        ];
+        let mut out = b"%PDF-1.7\n".to_vec();
+        let mut offsets = Vec::new();
+        for (index, object) in objects.iter().enumerate() {
+            offsets.push(out.len());
+            out.extend_from_slice(format!("{} 0 obj\n", index + 1).as_bytes());
+            out.extend_from_slice(object);
+            out.extend_from_slice(b"\nendobj\n");
+        }
+        let xref = out.len();
+        out.extend_from_slice(
+            format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).as_bytes(),
+        );
+        for offset in offsets {
+            out.extend_from_slice(format!("{offset:010} 00000 n \n").as_bytes());
+        }
+        out.extend_from_slice(
+            format!(
+                "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+                objects.len() + 1
+            )
+            .as_bytes(),
+        );
+        out
+    }
+
+    fn setup(name: &str) -> (PathBuf, PathBuf, Store, Index, Watcher) {
+        let dir = std::env::temp_dir().join(format!("kc-watch-pdf-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("inbox")).unwrap();
+        let path = dir.join("inbox").join("paper.pdf");
+        std::fs::write(&path, minimal_pdf()).unwrap();
+
+        let store = Store::open(&dir).unwrap();
+        let index = Index::open(&dir).unwrap();
+        let workflow = Workflow::new(store.clone(), dir.clone()).unwrap();
+        let watcher = Watcher::new(store.clone(), index.clone(), workflow, dir.clone());
+        (dir, path, store, index, watcher)
+    }
+
+    #[test]
+    fn external_annotation_is_imported_and_indexed() {
+        let (dir, path, store, index, watcher) = setup("import");
+        watcher
+            .handle(FileEvent::Created(path.clone()))
+            .expect("registers the PDF");
+        let document = store
+            .find_by_path(&path.to_string_lossy())
+            .unwrap()
+            .expect("document row");
+
+        let mut file = PdfFile::open(std::fs::read(&path).unwrap()).unwrap();
+        file.add(
+            &NewAnnotation {
+                page: 0,
+                shape: Shape::TextMarkup {
+                    kind: Markup::Highlight,
+                    quads: vec![[72.0, 700.0, 200.0, 700.0, 72.0, 688.0, 200.0, 688.0]],
+                },
+                style: Style {
+                    color: [0.0, 0.0, 1.0],
+                    opacity: 1.0,
+                    width: 1.0,
+                    fill: None,
+                },
+                contents: "神经网络".into(),
+                author: "pdfcraft".into(),
+            },
+            &Meta {
+                id: "external-1".into(),
+                date: None,
+            },
+        )
+        .unwrap();
+        std::fs::write(&path, file.write().unwrap()).unwrap();
+
+        watcher
+            .handle(FileEvent::Modified(path.clone()))
+            .expect("absorbs the external change");
+
+        let annotations = store.annotations_for(document.id).unwrap();
+        assert_eq!(annotations.len(), 1);
+        assert_eq!(annotations[0].nm, "external-1");
+        assert!(
+            index
+                .search("神经网络", 10)
+                .unwrap()
+                .iter()
+                .any(|hit| hit.document_id == document.id),
+            "annotation text is searchable"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn unchanged_checksum_skips_the_sync() {
+        let (dir, path, store, index, watcher) = setup("skip");
+        watcher
+            .handle(FileEvent::Created(path.clone()))
+            .expect("registers the PDF");
+        let document = store
+            .find_by_path(&path.to_string_lossy())
+            .unwrap()
+            .expect("document row");
+
+        watcher
+            .handle(FileEvent::Modified(path.clone()))
+            .expect("self write");
+        assert!(store.annotations_for(document.id).unwrap().is_empty());
+        assert!(
+            index
+                .search("anything", 1)
+                .is_ok(),
+            "index remains readable"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

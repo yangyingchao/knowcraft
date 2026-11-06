@@ -3477,6 +3477,15 @@ paned > separator {
   padding: 0 6px 6px;
 }
 
+.preview-pdf-toolbar,
+.preview-pdf-annotation-menu {
+  padding: 3px;
+  border: 1px solid alpha(@knowcraft_text, 0.18);
+  border-radius: 8px;
+  background: @knowcraft_surface;
+  box-shadow: 0 2px 8px alpha(@knowcraft_text, 0.28);
+}
+
 .preview-feedback {
   padding: 24px;
 }

@@ -162,7 +162,6 @@ fn closing_settings_cancels_the_theme_preview_and_collapses_the_editor() {
                     &root,
                     PreferenceManager::shared(),
                     Rc::new(|_| {}),
-                    Rc::new(|_| {}),
                 )
                 .widget;
                 overlay.add_overlay(&layer);

@@ -319,8 +319,6 @@ fn search_finds_rows_by_action_and_key() {
                 &root,
                 PreferenceManager::shared(),
                 Rc::new(|_| {}),
-                super::super::install_guard(),
-                Rc::new(|_| {}),
             )
             .widget;
             layer.set_visible(true);

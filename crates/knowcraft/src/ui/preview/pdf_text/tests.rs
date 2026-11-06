@@ -8,6 +8,7 @@ fn layer(text: &str, glyphs: Vec<[f32; 4]>) -> PdfTextLayer {
         height: 600.0,
         text: text.to_owned(),
         glyphs,
+        ..PdfTextLayer::default()
     }
 }
 

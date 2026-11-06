@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
 use crate::index::Index;
+use crate::indexer::Indexer;
 use crate::model::Document;
 use crate::store::Store;
 
@@ -222,7 +223,8 @@ impl Archive {
         let result = (|| {
             updates()?;
             let updated = load(store, doc_id)?;
-            index.reindex_document(&updated)?;
+            let content = Indexer::content(store, &updated)?;
+            index.index_document_with_content(&updated, &content)?;
             Ok(updated)
         })();
         result.map_err(|err| match self.move_file(target, source) {

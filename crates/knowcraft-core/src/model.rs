@@ -21,12 +21,21 @@ pub struct Document {
 pub struct Annotation {
     pub id: i64,
     pub document_id: i64,
+    /// PDF 注释的 `/NM`，跨写回稳定，同一文档内唯一。
+    pub nm: String,
     pub page: i64,
-    pub bbox: String, // 归一化坐标 JSON
+    /// `highlight`、`underline`、`strikeout`、`note`。
+    pub kind: String,
+    /// PDF 用户空间四点多边形 JSON；便签为空。
+    pub quads: String,
+    pub anchor_x: Option<f64>,
+    pub anchor_y: Option<f64>,
     pub color: String,
     pub note_text: Option<String>,
-    pub created_at: String,
     pub selection: String,
+    pub author: String,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone)]

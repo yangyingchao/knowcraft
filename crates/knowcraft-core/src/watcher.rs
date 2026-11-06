@@ -23,6 +23,9 @@ use notify::{Event as NEvent, EventKind, RecursiveMode, Watcher as NotifyWatcher
 
 use crate::error::{Error, Result};
 use crate::index::Index;
+use crate::indexer::Indexer;
+use crate::pdf_annotations::PdfAnnotations;
+use crate::write_lock::WriteLock;
 use crate::model::Document;
 use crate::store::Store;
 use crate::workflow::Workflow;
@@ -46,15 +49,18 @@ pub struct Watcher {
     index: Index,
     workflow: Workflow,
     data_dir: PathBuf,
+    write_lock: std::sync::Arc<WriteLock>,
 }
 
 impl Watcher {
     pub fn new(store: Store, index: Index, workflow: Workflow, data_dir: PathBuf) -> Watcher {
+        let write_lock = std::sync::Arc::new(WriteLock::new(&data_dir));
         Watcher {
             store,
             index,
             workflow,
             data_dir,
+            write_lock,
         }
     }
 
@@ -228,7 +234,8 @@ impl Watcher {
             Err(Error::Workflow(_)) => return Ok(()),
             Err(e) => return Err(e),
         };
-        self.index.index_document(&doc)?;
+        let content = Indexer::content(&self.store, &doc)?;
+        self.index.index_document_with_content(&doc, &content)?;
         self.store.set_index_status(doc.id, "indexed")?;
         Ok(())
     }
@@ -237,8 +244,37 @@ impl Watcher {
         let Some(doc) = self.store.find_by_path(&path_string(&path))? else {
             return Ok(());
         };
+        if doc.doc_type == "pdf" {
+            return self.handle_pdf_modified(doc, &path);
+        }
         self.store.clear_ai_summary(doc.id)?;
-        self.index.reindex_document(&doc)?;
+        let content = Indexer::content(&self.store, &doc)?;
+        self.index.index_document_with_content(&doc, &content)?;
+        Ok(())
+    }
+
+    /// 外部工具保存 PDF 后重新吸收：注释缓存、标题、摘要与索引。
+    ///
+    /// 写回自己触发的事件在校验和一致时直接返回，不会重复导入。
+    fn handle_pdf_modified(&self, doc: Document, path: &Path) -> Result<()> {
+        let bytes = std::fs::read(path)?;
+        let checksum = crate::pdf_annotations::sha256_hex(&bytes);
+        if !doc.checksum.is_empty() && doc.checksum == checksum {
+            return Ok(());
+        }
+        let annotations =
+            PdfAnnotations::new(self.store.clone(), self.data_dir.clone(), self.write_lock.clone());
+        annotations.sync_from_pdf(doc.id)?;
+        if let Some(title) = crate::extract::extract_title(path) {
+            self.store.update_title(doc.id, &title)?;
+        }
+        self.store.clear_ai_summary(doc.id)?;
+        let updated = self
+            .store
+            .get_document(doc.id)?
+            .ok_or_else(|| Error::Store("document missing after sync".into()))?;
+        let content = Indexer::content(&self.store, &updated)?;
+        self.index.index_document_with_content(&updated, &content)?;
         Ok(())
     }
 
@@ -281,7 +317,8 @@ impl Watcher {
                 .store
                 .get_document(doc.id)?
                 .ok_or_else(|| Error::Store("missing".into()))?;
-            self.index.reindex_document(&updated)?;
+            let content = Indexer::content(&self.store, &updated)?;
+            self.index.index_document_with_content(&updated, &content)?;
             return Ok(());
         }
         // 移出受管目录（to 为 Trash 或 Other）：删除记录与索引，

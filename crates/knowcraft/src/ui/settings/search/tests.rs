@@ -178,8 +178,6 @@ fn settings_layer(manager: &Rc<PreferenceManager>) -> (gtk::Widget, gtk::Entry, 
         &root,
         manager.clone(),
         Rc::new(|_| {}),
-        super::super::install_guard(),
-        Rc::new(|_| {}),
     )
     .widget;
     layer.set_visible(true);
@@ -242,34 +240,6 @@ fn global_search_navigates_filters_lazy_pages_and_restores_without_editing_prefe
             assert!(item(layer, "themes").is_visible());
             assert!(item(layer, "motion").is_visible());
             assert_eq!(manager.folder_peeking(), original);
-        },
-    );
-}
-
-#[test]
-fn builds_without_the_updater_leave_updates_out_of_navigation_and_search() {
-    crate::test_support::gtk_test(
-        "ui::settings::search::tests::builds_without_the_updater_leave_updates_out_of_navigation_and_search",
-        || {
-            crate::ui::prepare_portal_ui();
-            for updater in [true, false] {
-                if !updater {
-                    crate::build_info::disable_updater_for_test();
-                }
-                let (layer, entry, stack) = settings_layer(&PreferenceManager::shared());
-                let has_button = descendants(&layer)
-                    .iter()
-                    .any(|widget| widget.is::<gtk::Button>() && widget.widget_name() == "updates");
-                assert_eq!(has_button, updater);
-                assert_eq!(stack.child_by_name("updates").is_some(), updater);
-                entry.set_text("release channel");
-                let expected = if updater {
-                    "updates"
-                } else {
-                    "settings-search-empty"
-                };
-                assert_eq!(stack.visible_child_name().as_deref(), Some(expected));
-            }
         },
     );
 }
@@ -396,6 +366,25 @@ fn describe(widget: &gtk::Widget) -> String {
         .find(|text| !text.is_empty())
         .unwrap_or_default();
     format!("{} {text:?}", widget.type_().name())
+}
+
+
+fn nav(layer: &gtk::Widget, page: &str) -> gtk::Widget {
+    descendants(layer)
+        .into_iter()
+        .find(|widget| widget.widget_name() == page)
+        .unwrap_or_else(|| panic!("navigation button for {page}"))
+}
+
+fn shown_on_page(widget: &gtk::Widget) -> bool {
+    let mut current = Some(widget.clone());
+    while let Some(item) = current {
+        if !item.is_visible() {
+            return false;
+        }
+        current = item.parent();
+    }
+    true
 }
 
 fn navigation_pages() -> Vec<(&'static str, gtk::Widget)> {
