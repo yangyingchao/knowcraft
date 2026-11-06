@@ -1,31 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-#![expect(
-    dead_code,
-    reason = "reached only from the removed sidebar standard-place rows; stage 7 cleanup"
-)]
-
-//! The catalogue of standard sidebar places: identifiers, icons, chord keys
-//! and the persisted order.
+//! 标准用户目录的判定，供侧边栏固定逻辑与固定夹（pin）限制使用。
 
 use gtk::glib;
 
-use crate::{model::Location, ui::preferences::PreferenceManager};
+use crate::model::Location;
 
 use super::home_directory;
-
-pub(super) const STANDARD_PLACE_IDS: &[&str] = &[
-    "home",
-    "trash",
-    "network",
-    "recent",
-    "desktop",
-    "documents",
-    "downloads",
-    "music",
-    "pictures",
-    "videos",
-];
 
 pub(super) fn is_standard_place_location(location: &Location) -> bool {
     let Some(path) = location.native_path() else {
@@ -45,105 +26,4 @@ pub(super) fn is_standard_place_location(location: &Location) -> bool {
     .into_iter()
     .filter_map(glib::user_special_dir)
     .any(|standard| standard == path)
-}
-
-pub(super) fn should_show_standard_place(
-    id: &str,
-    path: &std::path::Path,
-    home: &std::path::Path,
-) -> bool {
-    id != "desktop" || path != home
-}
-
-pub(super) fn sidebar_standard_place_visible(manager: &PreferenceManager, id: &str) -> bool {
-    match id {
-        "desktop" => manager.sidebar_show_desktop(),
-        "documents" => manager.sidebar_show_documents(),
-        "downloads" => manager.sidebar_show_downloads(),
-        "music" => manager.sidebar_show_music(),
-        "pictures" => manager.sidebar_show_pictures(),
-        "videos" => manager.sidebar_show_videos(),
-        _ => true,
-    }
-}
-
-pub(super) fn resolve_place_order(persisted: &[String]) -> Vec<&'static str> {
-    let mut order: Vec<&'static str> = Vec::new();
-    for id in persisted {
-        if let Some(canonical) = canonical_place_id(id)
-            && !order.contains(&canonical)
-        {
-            order.push(canonical);
-        }
-    }
-    for (index, &id) in STANDARD_PLACE_IDS.iter().enumerate() {
-        insert_missing_place(&mut order, index, id);
-    }
-    order
-}
-
-fn insert_missing_place(order: &mut Vec<&'static str>, index: usize, id: &'static str) {
-    if !order.contains(&id) {
-        order.insert(upgraded_place_position(order, index), id);
-    }
-}
-
-fn canonical_place_id(id: &str) -> Option<&'static str> {
-    STANDARD_PLACE_IDS
-        .iter()
-        .copied()
-        .find(|known| *known == id)
-}
-
-/// Preserve the old sidebar layout when upgrading orders without special places:
-/// a missing place lands after the closest earlier standard place already present.
-fn upgraded_place_position(order: &[&'static str], index: usize) -> usize {
-    STANDARD_PLACE_IDS[..index]
-        .iter()
-        .rev()
-        .find_map(|earlier| {
-            order
-                .iter()
-                .position(|place| place == earlier)
-                .map(|position| position + 1)
-        })
-        .unwrap_or(0)
-}
-
-pub(super) fn standard_place(
-    id: &str,
-) -> Option<(&'static str, &'static str, glib::UserDirectory)> {
-    match id {
-        "desktop" => Some((
-            crate::assets::icons::FOLDER,
-            "Desktop",
-            glib::UserDirectory::Desktop,
-        )),
-        "documents" => Some((
-            crate::assets::icons::DOCUMENTS,
-            "Documents",
-            glib::UserDirectory::Documents,
-        )),
-        "downloads" => Some((
-            crate::assets::icons::DOWNLOADS,
-            "Downloads",
-            glib::UserDirectory::Downloads,
-        )),
-        "music" => Some((
-            crate::assets::icons::MUSIC,
-            "Music",
-            glib::UserDirectory::Music,
-        )),
-        "pictures" => Some((
-            crate::assets::icons::PICTURES,
-            "Pictures",
-            glib::UserDirectory::Pictures,
-        )),
-        "videos" => Some((
-            crate::assets::icons::VIDEOS,
-            "Videos",
-            glib::UserDirectory::Videos,
-        )),
-        _ => None,
-    }
 }

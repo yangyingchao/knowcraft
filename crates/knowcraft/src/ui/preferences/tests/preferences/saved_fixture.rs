@@ -163,27 +163,6 @@ fn assert_saved_browsing(manager: &PreferenceManager) {
 
 fn assert_saved_sidebar(manager: &PreferenceManager) {
     assert_eq!(
-        manager.sidebar_order(),
-        non_default_preferences().sidebar_order
-    );
-    assert_eq!(
-        [
-            manager.sidebar_show_home(),
-            manager.sidebar_show_trash(),
-            manager.sidebar_show_network(),
-            manager.sidebar_show_recent(),
-            manager.sidebar_show_desktop(),
-            manager.sidebar_show_documents(),
-            manager.sidebar_show_downloads(),
-            manager.sidebar_show_music(),
-            manager.sidebar_show_pictures(),
-            manager.sidebar_show_videos(),
-        ],
-        [false; 10],
-        "shown places (home, trash, network, recent, desktop, documents, downloads, \
-         music, pictures, videos)"
-    );
-    assert_eq!(
         [
             manager.sidebar_expanded(),
             manager.sidebar_pinned_collapsed(),
@@ -192,12 +171,6 @@ fn assert_saved_sidebar(manager: &PreferenceManager) {
         ],
         [false, true, true, true],
         "(expanded, pinned collapsed, devices collapsed, compact)"
-    );
-    assert_eq!(
-        manager.sidebar_places_visibility(),
-        [
-            false, false, false, false, false, false, false, false, false, false
-        ]
     );
 }
 

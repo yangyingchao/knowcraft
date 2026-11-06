@@ -35,7 +35,6 @@ pub(super) fn general_page(
         &units,
     ));
     append_browsing_options(&preferences, &manager);
-    append_sidebar_options(&preferences, &manager);
 
     append_heading(&preferences, "OPENING ITEMS");
     let description = gtk::Label::new(Some(&crate::i18n::tr(
@@ -562,118 +561,6 @@ pub(crate) fn abbreviate_home(path: &std::path::Path) -> String {
         format!("~/{}", rest.display())
     } else {
         path.display().to_string()
-    }
-}
-
-fn append_sidebar_options(content: &gtk::Box, manager: &Rc<PreferenceManager>) {
-    let sidebar = super::settings_group(content, "SIDEBAR");
-    let chips = super::wrap::WrapRow::new(8);
-    let row = super::control_row(
-        "Items shown in sidebar",
-        "Toggle which locations appear in the sidebar.",
-        &chips,
-    );
-    row.add_css_class("settings-sidebar-places");
-    row.set_orientation(gtk::Orientation::Vertical);
-    row.set_spacing(18);
-    sidebar.append(&row);
-    use crate::assets::icons;
-    let icons = [
-        icons::HOME,
-        icons::TRASH,
-        icons::GLOBE,
-        icons::CLOCK,
-        icons::MONITOR,
-        icons::DOCUMENTS,
-        icons::DOWNLOADS,
-        icons::MUSIC,
-        icons::PICTURES,
-        icons::VIDEOS,
-    ];
-    for (switch, icon) in [
-        PreferenceSwitch {
-            title: "Show Home in sidebar",
-            description: "Show the Home folder in the sidebar.",
-            read: PreferenceManager::sidebar_show_home,
-            write: PreferenceManager::set_sidebar_show_home,
-        },
-        PreferenceSwitch {
-            title: "Show Trash in sidebar",
-            description: "Show Trash in the sidebar.",
-            read: PreferenceManager::sidebar_show_trash,
-            write: PreferenceManager::set_sidebar_show_trash,
-        },
-        PreferenceSwitch {
-            title: "Show Network in sidebar",
-            description: "Show Network in the sidebar.",
-            read: PreferenceManager::sidebar_show_network,
-            write: PreferenceManager::set_sidebar_show_network,
-        },
-        PreferenceSwitch {
-            title: "Show Recent in sidebar",
-            description: "Show Recent files in the sidebar.",
-            read: PreferenceManager::sidebar_show_recent,
-            write: PreferenceManager::set_sidebar_show_recent,
-        },
-        PreferenceSwitch {
-            title: "Show Desktop in sidebar",
-            description: "Show the Desktop folder in the sidebar.",
-            read: PreferenceManager::sidebar_show_desktop,
-            write: PreferenceManager::set_sidebar_show_desktop,
-        },
-        PreferenceSwitch {
-            title: "Show Documents in sidebar",
-            description: "Show the Documents folder in the sidebar.",
-            read: PreferenceManager::sidebar_show_documents,
-            write: PreferenceManager::set_sidebar_show_documents,
-        },
-        PreferenceSwitch {
-            title: "Show Downloads in sidebar",
-            description: "Show the Downloads folder in the sidebar.",
-            read: PreferenceManager::sidebar_show_downloads,
-            write: PreferenceManager::set_sidebar_show_downloads,
-        },
-        PreferenceSwitch {
-            title: "Show Music in sidebar",
-            description: "Show the Music folder in the sidebar.",
-            read: PreferenceManager::sidebar_show_music,
-            write: PreferenceManager::set_sidebar_show_music,
-        },
-        PreferenceSwitch {
-            title: "Show Pictures in sidebar",
-            description: "Show the Pictures folder in the sidebar.",
-            read: PreferenceManager::sidebar_show_pictures,
-            write: PreferenceManager::set_sidebar_show_pictures,
-        },
-        PreferenceSwitch {
-            title: "Show Videos in sidebar",
-            description: "Show the Videos folder in the sidebar.",
-            read: PreferenceManager::sidebar_show_videos,
-            write: PreferenceManager::set_sidebar_show_videos,
-        },
-    ]
-    .into_iter()
-    .zip(icons)
-    {
-        let label = switch
-            .title
-            .trim_start_matches("Show ")
-            .trim_end_matches(" in sidebar");
-        let button = gtk::ToggleButton::new();
-        button.add_css_class("sidebar-place-chip");
-        let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-        content.append(&crate::assets::primary_icon(icon, 16));
-        let label = gtk::Label::new(Some(&crate::i18n::tr(label)));
-        label.add_css_class("settings-word-wrap");
-        content.append(&label);
-        button.set_child(Some(&content));
-        crate::ui::accessibility::set_own_label(&button, &crate::i18n::tr(switch.title));
-        crate::ui::accessibility::set_description(
-            &button,
-            Some(&crate::i18n::tr(switch.description)),
-        );
-        super::bindings::bind_toggle(manager, &button, switch.read, switch.write);
-        chips.append(&button);
     }
 }
 

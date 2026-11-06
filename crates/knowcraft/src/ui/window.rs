@@ -7,10 +7,9 @@ use std::{
 
 use crate::{app::Browser, model::Location};
 
-use super::browser::{BrowserView, WeakBrowserView, show_error_dialog};
+use super::browser::{BrowserView, WeakBrowserView};
 
 mod appearance_menu;
-mod bookmarks;
 mod composition;
 mod density_slider;
 mod device_actions;
@@ -40,7 +39,6 @@ mod sidebar_pins;
 mod sidebar_places;
 mod sidebar_popover;
 mod sidebar_rail;
-mod sidebar_reorder;
 mod sidebar_rows;
 mod sidebar_sections;
 mod sidebar_trash;
@@ -82,7 +80,6 @@ pub(super) use modal_layers::{
     foreign_modal_visible, install_modal_focus_trap, visible_modal_layer,
 };
 pub use open_argument::present_open;
-use places::resolve_place_order;
 pub(super) use sidebar::build_sidebar;
 use sidebar_context_menu::{PlaceMenuExtra, sidebar_context_option};
 use sidebar_devices::sidebar_device_row;
@@ -110,7 +107,6 @@ use {
     gtk::prelude::*,
     sidebar_devices::sidebar_eject_button,
     sidebar_pins::{move_pinned_place, pin_gap_index, pin_locations_at},
-    sidebar_reorder::sidebar_reorder_matches,
     sidebar_rows::sidebar_button,
     std::time::{Duration, Instant},
 };
@@ -122,7 +118,6 @@ pub(super) struct SidebarState {
     view: BrowserView,
     browser: Rc<Browser>,
     preference_manager: Rc<super::preferences::PreferenceManager>,
-    place_order: RefCell<Vec<&'static str>>,
     pinned_places: Rc<RefCell<Vec<(Location, String)>>>,
     place_rows: RefCell<Vec<(Location, gtk::Button)>>,
     trash_contents: Cell<TrashContents>,

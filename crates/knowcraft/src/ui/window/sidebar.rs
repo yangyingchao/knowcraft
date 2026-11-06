@@ -14,8 +14,7 @@ use crate::{
 
 use super::{
     RailPolicy, SIDEBAR_WIDTH, SidebarState, SidebarView, TrashContents,
-    event_changes_trash_contents, install_sidebar_file_drop, resolve_place_order,
-    select_sidebar_row,
+    event_changes_trash_contents, install_sidebar_file_drop, select_sidebar_row,
 };
 
 pub(super) fn install_open_in_tab(
@@ -239,7 +238,6 @@ impl SidebarState {
         local_only: bool,
         update_label: gtk::Label,
     ) -> Rc<Self> {
-        let place_order = resolve_place_order(&preference_manager.sidebar_order());
         let drop_feedback = Rc::new(super::sidebar_drop_feedback::SidebarDropFeedback::new(
             &widget,
         ));
@@ -248,7 +246,6 @@ impl SidebarState {
             browser: view.browser(),
             view,
             preference_manager,
-            place_order: RefCell::new(place_order),
             pinned_places: Rc::new(RefCell::new(crate::adapters::bookmarks::current())),
             place_rows: RefCell::new(Vec::new()),
             trash_contents: Cell::new(TrashContents::Unknown),

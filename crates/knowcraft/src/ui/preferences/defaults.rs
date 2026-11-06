@@ -44,17 +44,6 @@ impl Default for Preferences {
             icons_folder_clicks: default_double_clicks(),
             list_file_clicks: default_file_clicks(),
             list_folder_clicks: default_double_clicks(),
-            sidebar_order: default_sidebar_order(),
-            sidebar_show_home: true,
-            sidebar_show_trash: true,
-            sidebar_show_network: true,
-            sidebar_show_recent: true,
-            sidebar_show_desktop: true,
-            sidebar_show_documents: true,
-            sidebar_show_downloads: true,
-            sidebar_show_music: true,
-            sidebar_show_pictures: true,
-            sidebar_show_videos: true,
             sidebar_expanded: true,
             sidebar_pinned_collapsed: false,
             sidebar_devices_collapsed: false,
@@ -141,21 +130,6 @@ pub(super) fn default_folder_clicks() -> u8 {
 
 pub(super) fn default_double_clicks() -> u8 {
     2
-}
-
-pub(super) fn default_sidebar_order() -> Vec<String> {
-    vec![
-        "home".to_owned(),
-        "trash".to_owned(),
-        "network".to_owned(),
-        "recent".to_owned(),
-        "desktop".to_owned(),
-        "documents".to_owned(),
-        "downloads".to_owned(),
-        "music".to_owned(),
-        "pictures".to_owned(),
-        "videos".to_owned(),
-    ]
 }
 
 pub(super) fn default_search_time_limit() -> u32 {

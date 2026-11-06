@@ -23,7 +23,6 @@ use super::{
 
 struct TrashMenuItems {
     properties: gtk::Button,
-    unpin: gtk::Button,
     empty: gtk::Button,
 }
 
@@ -288,15 +287,12 @@ impl SidebarState {
         });
         open_on_secondary_click(&row, &popover);
         self.append_sidebar_row(&row);
-        self.make_place_reorderable(&row, "trash");
     }
 
     fn build_trash_menu(&self) -> (gtk::Box, TrashMenuItems) {
         let menu = crate::ui::accessibility::menu_box();
         menu.add_css_class("folder-context-menu");
         let properties = sidebar_context_option(crate::assets::icons::INFO, "Properties", false);
-        let unpin = sidebar_context_option(crate::assets::icons::PIN, "Unpin", false);
-        menu.append(&unpin);
         let empty = sidebar_context_option(crate::assets::icons::TRASH, "Empty Trash…", true);
         empty.add_css_class("danger");
         let separator = gtk::Separator::new(gtk::Orientation::Horizontal);
@@ -309,7 +305,6 @@ impl SidebarState {
         });
         let items = TrashMenuItems {
             properties,
-            unpin,
             empty,
         };
         (menu, items)
@@ -324,9 +319,6 @@ impl SidebarState {
         let properties_location = location.clone();
         connect_view_item(&items.properties, popover, &self.view, move |view| {
             view.show_location_properties(&properties_location);
-        });
-        self.connect_state_item(&items.unpin, popover, |state| {
-            state.preference_manager.set_sidebar_show_trash(false);
         });
         connect_view_item(
             &items.empty,

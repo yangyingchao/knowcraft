@@ -56,7 +56,7 @@ use defaults::{
     default_date_format, default_density_custom_px, default_double_clicks, default_enabled,
     default_file_clicks, default_folder_clicks, default_frame_density, default_full_volume,
     default_icons_thumbnail_size, default_release_channel, default_search_entry_limit,
-    default_search_time_limit, default_sidebar_order, default_sort_direction, default_sort_key,
+    default_search_time_limit, default_sort_direction, default_sort_key,
     default_video_preview_backend,
 };
 #[cfg(test)]
@@ -197,28 +197,6 @@ pub(in crate::ui) struct Preferences {
     list_file_clicks: u8,
     #[serde(default = "default_double_clicks", rename = "explorer_folder_clicks")]
     list_folder_clicks: u8,
-    #[serde(default = "default_sidebar_order")]
-    sidebar_order: Vec<String>,
-    #[serde(default = "default_enabled")]
-    sidebar_show_home: bool,
-    #[serde(default = "default_enabled")]
-    sidebar_show_trash: bool,
-    #[serde(default = "default_enabled")]
-    sidebar_show_network: bool,
-    #[serde(default = "default_enabled")]
-    sidebar_show_recent: bool,
-    #[serde(default = "default_enabled")]
-    sidebar_show_desktop: bool,
-    #[serde(default = "default_enabled")]
-    sidebar_show_documents: bool,
-    #[serde(default = "default_enabled")]
-    sidebar_show_downloads: bool,
-    #[serde(default = "default_enabled")]
-    sidebar_show_music: bool,
-    #[serde(default = "default_enabled")]
-    sidebar_show_pictures: bool,
-    #[serde(default = "default_enabled")]
-    sidebar_show_videos: bool,
     #[serde(default = "default_enabled")]
     sidebar_expanded: bool,
     #[serde(default)]

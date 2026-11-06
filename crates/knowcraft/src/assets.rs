@@ -94,7 +94,7 @@ pub mod icons {
     pub const SKIP_FORWARD: &str = "knowcraft-skip-forward";
     pub const MINUS: &str = "knowcraft-minus";
     pub const MINUS_SYMBOLIC: &str = "knowcraft-minus-symbolic";
-    pub const MUSIC: &str = "knowcraft-music-2";
+
     pub const PLUS: &str = "knowcraft-plus";
     pub const PLUS_SYMBOLIC: &str = "knowcraft-plus-symbolic";
     pub const PRESENTATION: &str = "knowcraft-presentation";
