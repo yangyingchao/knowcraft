@@ -207,18 +207,6 @@ pub(super) const TARGETS: &[Target] = &[
         aliases: "window buttons header top bar titlebar controls hide",
     },
     Target {
-        id: "desktop",
-        page: "general",
-        title: "Desktop integration",
-        aliases: "configure portal file chooser open save dialog default file manager encrypted udiskie",
-    },
-    Target {
-        id: "udiskie-unlock",
-        page: "general",
-        title: "Unlock encrypted volumes",
-        aliases: "encrypted luks password udiskie automount usb volume desktop integration omarchy",
-    },
-    Target {
         id: "omarchy",
         page: "theme",
         title: "Follow Omarchy",

@@ -47,7 +47,7 @@ fn diagnostics_page_with(spawn: Spawner) -> gtk::Widget {
     title.set_xalign(0.0);
     title.add_css_class("settings-option-title");
     let description = gtk::Label::new(Some(&crate::i18n::tr(
-        "Checks the tools and services that previews, locations, devices and desktop integration rely on. Sample files are rendered in the preview sandbox and GitHub is contacted to test the connection. Nothing is changed or installed.",
+        "Checks the tools and services that previews, locations and devices rely on. Sample files are rendered in the preview sandbox and GitHub is contacted to test the connection. Nothing is changed or installed.",
     )));
     description.set_xalign(0.0);
     description.set_wrap(true);

@@ -62,35 +62,6 @@ pub(crate) fn disable_updater_for_test() {
     UPDATER_DISABLED_FOR_TEST.store(true, std::sync::atomic::Ordering::Relaxed);
 }
 
-/// Whether this build installs its own desktop integrations (file chooser portal,
-/// FileManager1 service, Omarchy shortcuts, udiskie hook) at runtime. Store-based
-/// packages turn that off with `KNOWCRAFT_INTEGRATIONS=package` and ship the files.
-pub fn runtime_integrations_enabled() -> bool {
-    #[cfg(test)]
-    if RUNTIME_INTEGRATIONS_DISABLED_FOR_TEST.load(std::sync::atomic::Ordering::Relaxed) {
-        return false;
-    }
-    !cfg!(knowcraft_integrations_package)
-}
-
-#[cfg(test)]
-#[expect(
-    dead_code,
-    reason = "runtime-integration toggle for isolated GTK test processes"
-)]
-static RUNTIME_INTEGRATIONS_DISABLED_FOR_TEST: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-
-/// Process-wide, so only for isolated GTK test processes.
-#[cfg(test)]
-#[expect(
-    dead_code,
-    reason = "runtime-integration toggle for isolated GTK test processes"
-)]
-pub(crate) fn disable_runtime_integrations_for_test() {
-    RUNTIME_INTEGRATIONS_DISABLED_FOR_TEST.store(true, std::sync::atomic::Ordering::Relaxed);
-}
-
 /// The version this build identifies as, for update-channel comparisons.
 ///
 /// Parses [`RELEASE_TAG`] first, since that -- not `Cargo.toml` -- is where

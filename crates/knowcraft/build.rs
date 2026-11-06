@@ -24,10 +24,6 @@ fn main() {
     println!("cargo::rerun-if-env-changed=KNOWCRAFT_UPDATER");
     configure_updater();
 
-    println!("cargo::rustc-check-cfg=cfg(knowcraft_integrations_package)");
-    println!("cargo::rerun-if-env-changed=KNOWCRAFT_INTEGRATIONS");
-    configure_integrations();
-
     println!("cargo::rerun-if-env-changed=KNOWCRAFT_BUILD_COMMIT");
     track_git_metadata();
 
@@ -72,20 +68,6 @@ fn configure_updater() {
         Some("" | "enabled") => {}
         Some("disabled") => println!("cargo::rustc-cfg=knowcraft_updater_disabled"),
         _ => panic!("KNOWCRAFT_UPDATER must be \"enabled\" or \"disabled\", not {value:?}"),
-    }
-}
-
-/// Store-based packages (Nix, Guix) set `KNOWCRAFT_INTEGRATIONS=package` because every
-/// path the runtime installers would record changes on update. The package ships the
-/// portal, D-Bus service, and udiskie files instead.
-fn configure_integrations() {
-    let Some(value) = env::var_os("KNOWCRAFT_INTEGRATIONS") else {
-        return;
-    };
-    match value.to_str().map(str::trim) {
-        Some("" | "runtime") => {}
-        Some("package") => println!("cargo::rustc-cfg=knowcraft_integrations_package"),
-        _ => panic!("KNOWCRAFT_INTEGRATIONS must be \"runtime\" or \"package\", not {value:?}"),
     }
 }
 
