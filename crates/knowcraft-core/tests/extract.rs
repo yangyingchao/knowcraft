@@ -87,3 +87,30 @@ fn minimal_pdf(text: &str) -> Vec<u8> {
     ));
     out.into_bytes()
 }
+
+#[test]
+fn extract_org_title_prefers_file_keyword() {
+    let f = std::env::temp_dir().join("kc-ext-title.org");
+    std::fs::write(&f, "#+TITLE: 我的研究笔记\n\n* 引言\n").unwrap();
+    assert_eq!(
+        knowcraft_core::extract::extract_title(&f).as_deref(),
+        Some("我的研究笔记")
+    );
+}
+
+#[test]
+fn extract_org_title_falls_back_to_first_heading() {
+    let f = std::env::temp_dir().join("kc-ext-heading.org");
+    std::fs::write(&f, "* TODO [#A] 任务标题\n** 子标题\n").unwrap();
+    assert_eq!(
+        knowcraft_core::extract::extract_title(&f).as_deref(),
+        Some("任务标题")
+    );
+}
+
+#[test]
+fn extract_org_title_ignores_second_level_heading() {
+    let f = std::env::temp_dir().join("kc-ext-second.org");
+    std::fs::write(&f, "** 仅二级标题\n").unwrap();
+    assert_eq!(knowcraft_core::extract::extract_title(&f), None);
+}

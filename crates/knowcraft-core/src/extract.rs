@@ -42,6 +42,7 @@ pub fn extract_title(path: &Path) -> Option<String> {
         "docx" => docx_title(path),
         "html" | "htm" => html_title(&std::fs::read_to_string(path).ok()?),
         "md" | "markdown" => markdown_title(&std::fs::read_to_string(path).ok()?),
+        "org" => org_title(&std::fs::read_to_string(path).ok()?),
         _ => None,
     }?;
     let title = title.trim();
@@ -88,6 +89,63 @@ fn markdown_title(md: &str) -> Option<String> {
             .strip_prefix("# ")
             .map(|title| title.trim().to_owned())
     })
+}
+
+/// org 标题：优先 `#+TITLE:`，否则第一个一级标题 `* ...`。
+fn org_title(org: &str) -> Option<String> {
+    for line in org.lines() {
+        let trimmed = line.trim_start();
+        if let Some((key, value)) = trimmed.split_once(':') {
+            if key.eq_ignore_ascii_case("#+TITLE") {
+                let title = value.trim();
+                if !title.is_empty() {
+                    return Some(title.to_owned());
+                }
+            }
+        }
+    }
+    for line in org.lines() {
+        let Some(rest) = line.trim_start().strip_prefix("* ") else {
+            continue;
+        };
+        let title = strip_org_heading(rest);
+        if !title.is_empty() {
+            return Some(title.to_owned());
+        }
+    }
+    None
+}
+
+/// 去掉 org 标题里的 `[#A]` 优先级、`TODO` 等关键字与 `COMMENT` 标记。
+fn strip_org_heading(text: &str) -> &str {
+    let mut text = text.trim();
+    loop {
+        let before = text;
+        if let Some(rest) = text.strip_prefix('[') {
+            if let Some(end) = rest.find(']') {
+                if rest[..end].starts_with('#') {
+                    text = rest[end + 1..].trim_start();
+                }
+            }
+        }
+        if let Some(rest) = text.strip_prefix("COMMENT") {
+            if rest.starts_with(char::is_whitespace) {
+                return "";
+            }
+        }
+        for keyword in ["TODO", "DONE", "WAITING", "NEXT", "CANCELLED"] {
+            if let Some(rest) = text.strip_prefix(keyword) {
+                if rest.starts_with(char::is_whitespace) {
+                    text = rest.trim_start();
+                    break;
+                }
+            }
+        }
+        if text == before {
+            break;
+        }
+    }
+    text
 }
 
 /// Extract text runs from a `.docx` package by reading `word/document.xml` directly.
