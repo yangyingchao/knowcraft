@@ -240,6 +240,13 @@ impl ItemMenu {
                 handler(entry.location, entry.display_name, Box::new(|_| {}));
             }
         });
+        self.on_entry(&single.record, |state, _, entry| {
+            if let Some(path) = entry.location.native_path().map(PathBuf::from)
+                && let Some(handler) = state.record_handler.borrow().as_ref()
+            {
+                handler(vec![path]);
+            }
+        });
         self.on_entry(&single.dispatch, |state, _, entry| {
             if let Some(path) = entry.location.native_path().map(PathBuf::from)
                 && let Some(handler) = state.dispatch_handler.borrow().as_ref()
@@ -252,6 +259,19 @@ impl ItemMenu {
                 && let Some(handler) = state.reindex_handler.borrow().as_ref()
             {
                 handler(path);
+            }
+        });
+        self.on_selection(&options.multiple.record, |state, entries| {
+            let paths: Vec<PathBuf> = entries
+                .iter()
+                .filter(|entry| !entry.is_directory())
+                .filter_map(|entry| entry.location.native_path().map(PathBuf::from))
+                .collect();
+            if paths.is_empty() {
+                return;
+            }
+            if let Some(handler) = state.record_handler.borrow().as_ref() {
+                handler(paths);
             }
         });
         self.on_selection(&options.multiple.dispatch, |state, entries| {
@@ -626,6 +646,9 @@ impl ItemMenuOptions {
         self.single
             .dispatch
             .set_visible(in_knowledge && !entry.is_directory() && !self.in_trash);
+        self.single
+            .record
+            .set_visible(in_knowledge && !entry.is_directory() && !self.in_trash);
         let all_in_knowledge = target.entries.iter().all(|entry| {
             entry
                 .location
@@ -635,6 +658,9 @@ impl ItemMenuOptions {
         let any_directory = target.entries.iter().any(|entry| entry.is_directory());
         self.multiple
             .dispatch
+            .set_visible(all_in_knowledge && !any_directory && !self.in_trash);
+        self.multiple
+            .record
             .set_visible(all_in_knowledge && !any_directory && !self.in_trash);
         self.single
             .reindex

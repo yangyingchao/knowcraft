@@ -257,6 +257,8 @@ fn bind_knowledge_handlers(
     let dispatch_window = window.clone();
     let dispatch_browser = browser.clone();
     let dispatch_shortcuts = shortcuts.clone();
+    let record_browser = browser.clone();
+    let record_shortcuts = shortcuts.clone();
     let import_window = window.clone();
     let import_browser = browser.clone();
     let import_shortcuts = shortcuts.clone();
@@ -268,6 +270,15 @@ fn bind_knowledge_handlers(
             let feedback = dispatch_shortcuts.clone();
             super::super::knowledge_dispatch::dispatch_path(
                 dispatch_window.upcast_ref(),
+                paths,
+                Rc::new(move || view.refresh()),
+                Rc::new(move |text| feedback.show_feedback(text)),
+            );
+        }),
+        Rc::new(move |paths| {
+            let view = record_browser.clone();
+            let feedback = record_shortcuts.clone();
+            super::super::knowledge_dispatch::archive_record_paths(
                 paths,
                 Rc::new(move || view.refresh()),
                 Rc::new(move |text| feedback.show_feedback(text)),

@@ -139,6 +139,8 @@ type UnpinHandler = Rc<dyn Fn(&Location)>;
 type PinStatusHandler = Rc<dyn Fn(&Location) -> PinStatus>;
 /// Archives one or more knowledge documents into a library category or as records.
 type DispatchHandler = Rc<dyn Fn(Vec<std::path::PathBuf>)>;
+/// Archives the given knowledge files as records, without a dialog.
+type RecordHandler = Rc<dyn Fn(Vec<std::path::PathBuf>)>;
 /// Opens a folder picker for importing the picked directory into the inbox.
 type ImportHandler = Rc<dyn Fn(Option<std::path::PathBuf>)>;
 /// Rebuilds the search index for one knowledge file.
@@ -282,6 +284,7 @@ pub(super) struct ViewState {
     unpin_handler: RefCell<Option<UnpinHandler>>,
     pin_status_handler: RefCell<Option<PinStatusHandler>>,
     dispatch_handler: RefCell<Option<DispatchHandler>>,
+    record_handler: RefCell<Option<RecordHandler>>,
     import_handler: RefCell<Option<ImportHandler>>,
     reindex_handler: RefCell<Option<ReindexHandler>>,
     search_selection_handlers: RefCell<Vec<Rc<dyn Fn()>>>,
@@ -488,10 +491,12 @@ impl BrowserView {
     pub(super) fn set_knowledge_handlers(
         &self,
         dispatch_handler: DispatchHandler,
+        record_handler: RecordHandler,
         import_handler: ImportHandler,
         reindex_handler: ReindexHandler,
     ) {
         self.state.dispatch_handler.replace(Some(dispatch_handler));
+        self.state.record_handler.replace(Some(record_handler));
         self.state.import_handler.replace(Some(import_handler));
         self.state.reindex_handler.replace(Some(reindex_handler));
     }

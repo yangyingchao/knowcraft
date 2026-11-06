@@ -95,6 +95,20 @@ pub(crate) fn dispatch_path(
     }
 }
 
+/// 直接把路径归档为记录（跳过对话框），结果经 `feedback` 展示，
+/// 成功后调用 `refresh`。
+pub(crate) fn archive_record_paths(
+    paths: Vec<PathBuf>,
+    refresh: Rc<dyn Fn()>,
+    feedback: Rc<dyn Fn(&str)>,
+) {
+    if paths.is_empty() {
+        feedback(&tr("Nothing to archive"));
+        return;
+    }
+    run_archive(paths, ArchiveChoice::Record, refresh, feedback);
+}
+
 fn run_archive(
     paths: Vec<PathBuf>,
     choice: ArchiveChoice,

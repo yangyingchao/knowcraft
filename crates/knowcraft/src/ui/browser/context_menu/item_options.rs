@@ -218,6 +218,7 @@ pub(super) struct SingleEditOptions {
     pub(super) move_to: gtk::Button,
     pub(super) copy_to: gtk::Button,
     pub(super) compress: gtk::Button,
+    pub(super) record: gtk::Button,
     pub(super) dispatch: gtk::Button,
     pub(super) reindex: gtk::Button,
     pub(super) pin: gtk::Button,
@@ -248,6 +249,10 @@ fn compress_option() -> gtk::Button {
     item_context_option(icons::PACKAGE_PLUS, "Compress…", ContextHint::None)
 }
 
+fn record_option() -> gtk::Button {
+    item_context_option(icons::FILE_ARCHIVE, "Archive as record", ContextHint::None)
+}
+
 fn dispatch_option() -> gtk::Button {
     item_context_option(icons::FOLDER_ARCHIVE, "Archive", ContextHint::None)
 }
@@ -270,6 +275,7 @@ impl SingleEditOptions {
             move_to: move_to_option(),
             copy_to: copy_to_option(),
             compress: compress_option(),
+            record: record_option(),
             dispatch: dispatch_option(),
             reindex: reindex_option(),
             pin: item_context_option(icons::PIN, "Pin to sidebar", ContextHint::Pin),
@@ -290,6 +296,7 @@ impl SingleEditOptions {
                 options.copy_to.upcast_ref(),
                 separator().upcast_ref(),
                 options.compress.upcast_ref(),
+                options.record.upcast_ref(),
                 options.dispatch.upcast_ref(),
                 options.reindex.upcast_ref(),
                 separator().upcast_ref(),
@@ -354,6 +361,7 @@ pub(super) struct MultipleEditOptions {
     pub(super) move_to: gtk::Button,
     pub(super) copy_to: gtk::Button,
     pub(super) compress: gtk::Button,
+    pub(super) record: gtk::Button,
     pub(super) dispatch: gtk::Button,
     pub(super) copy_paths: gtk::Button,
     pub(super) copy_names: gtk::Button,
@@ -370,6 +378,7 @@ impl MultipleEditOptions {
             move_to: move_to_option(),
             copy_to: copy_to_option(),
             compress: compress_option(),
+            record: record_option(),
             dispatch: dispatch_option(),
             copy_paths: item_context_option(icons::ROUTE, "Copy paths", ContextHint::CopyPaths),
             copy_names: item_context_option(icons::FILE_TYPE, "Copy names", ContextHint::None),
@@ -386,6 +395,7 @@ impl MultipleEditOptions {
                 options.copy_to.upcast_ref(),
                 separator().upcast_ref(),
                 options.compress.upcast_ref(),
+                options.record.upcast_ref(),
                 options.dispatch.upcast_ref(),
                 separator().upcast_ref(),
                 options.copy_paths.upcast_ref(),
