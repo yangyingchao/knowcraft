@@ -128,10 +128,11 @@ fn read_limited(path: &Path, limit: u64) -> Option<Vec<u8>> {
     (bytes.len() <= limit as usize).then_some(bytes)
 }
 pub(crate) fn discover(root: &Path) -> Vec<Registration> {
-    if !trusted(root, true) {
+    // 允许配置目录本身是指向受信任目录的符号链接；子目录与文件仍须是真实路径。
+    let Some(root) = fs::canonicalize(root).ok().filter(|root| trusted(root, true)) else {
         return Vec::new();
-    }
-    let Ok(dirs) = fs::read_dir(root) else {
+    };
+    let Ok(dirs) = fs::read_dir(&root) else {
         return Vec::new();
     };
     let mut dirs: Vec<_> = dirs
