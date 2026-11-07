@@ -17,7 +17,7 @@ fn a_release_stops_the_preview_of_what_it_changes_until_the_operation_ends() {
             let (directory, view) = super::video::sorted_listing(&["a.wav", "b.wav"]);
             let browser = view.browser();
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             drawer.observe_browser(&browser);
             let preferences = crate::ui::preferences::PreferenceManager::shared();
             preferences.set_preview_autoplay(false);

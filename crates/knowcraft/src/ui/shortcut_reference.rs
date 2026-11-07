@@ -520,7 +520,7 @@ fn default_navigation(mode: BrowserMode) -> Vec<Shortcut> {
 }
 const DEFAULT_FILES: &[Shortcut] = &[
     row(One(ENTER.shown()), "Open the current item"),
-    row(One(PREVIEW.shown()), "Preview a file, or open a folder"),
+    row(One(PREVIEW.shown()), "Focus the preview panel"),
     row(Any(shown![COPY, CUT]), "Copy / cut selected items"),
     row(One(PASTE.shown()), "Paste into the indicated directory"),
     row(One(DISPATCH.shown()), "Archive selected file"),
@@ -611,7 +611,7 @@ const DEFAULT_TOOLS: &[Shortcut] = &[
     row(One(SETTINGS.shown()), "Open Settings"),
     row(
         One(ESCAPE.shown()),
-        "Close preview or cancel the current interaction",
+        "Return to the file list or cancel the current interaction",
     ),
     row(One(REFERENCE.shown()), "Show or hide this reference"),
 ];

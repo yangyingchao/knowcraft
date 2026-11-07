@@ -13,7 +13,7 @@
 {"key":"shift+Up"}
 {"wait":{"selected":["folder","data.csv","notes.txt"]},"message":"the selection to become ['folder', 'data.csv', 'notes.txt']"}
 {"wait":{"focused":"folder"},"message":"the focused folder"}
-{"wait":{"preview":null},"message":"the focused folder to dismiss the preview"}
+{"wait":{"preview":"No preview for this selection"},"message":"the focused folder to dismiss the preview"}
 {"key":"shift+Down"}
 {"wait":{"selected":["data.csv","notes.txt"]},"message":"the selection to become ['data.csv', 'notes.txt']"}
 {"wait":{"preview":"alpha"},"message":"preview to resume after the folder"}

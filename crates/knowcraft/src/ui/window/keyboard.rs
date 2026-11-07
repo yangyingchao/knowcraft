@@ -425,7 +425,8 @@ impl Dispatcher {
         if !self.preview.password_has_focus(event.focused.as_ref()) {
             return None;
         }
-        self.dismiss_preview_or_selection(browser)
+        self.return_from_preview(browser);
+        Some(Propagation::Stop)
     }
 
     /// Where GTK's accelerators ran: window actions, then a focused text

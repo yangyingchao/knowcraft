@@ -2,4 +2,4 @@
 {"select_with_keyboard":"folder"}
 {"key":"space"}
 {"wait":{"entries":{"contains":["inner.txt"]}},"message":"Space to enter the folder"}
-{"expect":{"preview":null}}
+{"expect":{"preview":"No preview for this selection"}}

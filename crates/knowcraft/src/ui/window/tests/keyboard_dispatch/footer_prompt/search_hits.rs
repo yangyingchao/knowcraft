@@ -289,19 +289,22 @@ fn i_peeks_the_hit_folder(fixture: &KeyboardFixture, mode: BrowserMode, folder: 
     assert!(location_ends_with(browser.active_location(), folder));
 }
 
-/// `i` on a hit file toggles the preview without taking ownership of focus.
+/// Space on a hit file opens the resident preview and hands it the keys; Esc returns focus.
 fn i_previews_a_file_without_ownership(fixture: &KeyboardFixture, mode: BrowserMode) {
     let none = ModifierType::empty();
     cursor_to_hit(fixture, "alpha-report.txt");
-    assert!(fixture.press(Key::i, none));
+    assert!(fixture.press(Key::space, none));
     wait_until(|| fixture.preview.is_enabled());
     assert!(
-        !fixture.preview.owns_focus(window_focus(fixture).as_ref()),
-        "{mode:?}: i never takes preview ownership"
+        fixture.preview.owns_focus(window_focus(fixture).as_ref()),
+        "{mode:?}: Space focuses the preview"
     );
-    assert!(fixture.view.item_view_has_focus(), "{mode:?}");
-    assert!(fixture.press(Key::i, none));
-    wait_until(|| !fixture.preview.is_enabled());
+    assert!(fixture.press(Key::Escape, none));
+    wait_until(|| fixture.view.item_view_has_focus());
+    assert!(
+        fixture.preview.is_enabled(),
+        "{mode:?}: Esc leaves the resident preview open"
+    );
 }
 
 /// `l` enters the preview, `h` returns to the same hit, and a second `h`

@@ -15,7 +15,6 @@
 {"expect":{"dialog":null},"message":"Delete in the preview must not ask to delete the file","timeout_ms":0}
 {"expect":{"focus_within":{"preview":true}},"message":"file commands must leave focus in the preview","timeout_ms":0}
 {"key":"Escape"}
-{"wait":{"preview":null},"message":"Escape to close the preview"}
 {"wait":{"focused":"$filename"},"message":"focus to return to the previewed file"}
 {"key":"ctrl+d"}
 {"fs":{"path":"$first","exists":true},"message":"Ctrl+D in the listing to duplicate the file"}

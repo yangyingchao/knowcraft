@@ -67,8 +67,8 @@ fn model_progress_and_theme_reloads_follow_the_current_request_in_each_drawer() 
         "ui::preview::tests::model_progress_and_theme_reloads_follow_the_current_request_in_each_drawer",
         || {
             let provider = Rc::new(Provider::default());
-            let first = PreviewDrawer::new(provider.clone(), false);
-            let second = PreviewDrawer::new(provider.clone(), false);
+            let first = PreviewDrawer::new(provider.clone(), false, false);
+            let second = PreviewDrawer::new(provider.clone(), false, false);
             let manager = super::super::theme::ThemeManager::shared();
             first.show(entry("old.stl"), None);
             second.show(entry("second.stl"), None);
@@ -199,7 +199,7 @@ fn an_explicit_close_blocks_automatic_previews_until_reopened() {
         "ui::preview::tests::an_explicit_close_blocks_automatic_previews_until_reopened",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             let browser = Browser::new(Rc::new(EmptySource));
             let automatic = BrowserEvent::PreviewRequested {
                 entry: entry("mirrored.txt"),
@@ -246,7 +246,7 @@ fn an_explicit_close_blocks_automatic_previews_until_reopened() {
                 Rc::new(EmptySource),
                 crate::ui::browser::PeekBehavior::default(),
             );
-            let released = PreviewDrawer::new(provider.clone(), false);
+            let released = PreviewDrawer::new(provider.clone(), false, false);
             let split = gtk::Paned::new(gtk::Orientation::Horizontal);
             let content = gtk::Paned::new(gtk::Orientation::Horizontal);
             released.attach_split(&split, &content, &view, None);
@@ -273,7 +273,7 @@ fn preview_loads_on_first_show_when_sidebar_rails_in_narrow_split() {
         "ui::preview::tests::preview_loads_on_first_show_when_sidebar_rails_in_narrow_split",
         || {
             let provider = Rc::new(Provider::default());
-            let preview = PreviewDrawer::new(provider.clone(), false);
+            let preview = PreviewDrawer::new(provider.clone(), false, false);
             let preferences = crate::ui::preferences::PreferenceManager::shared();
             preferences.set_browser_mode(crate::ui::browser_modes::BrowserMode::List);
             let browser = crate::ui::browser::BrowserView::new(
@@ -339,7 +339,7 @@ fn keyboard_divider_moves_lower_the_columns_session_minimum_without_moving_the_p
         "ui::preview::tests::keyboard_divider_moves_lower_the_columns_session_minimum_without_moving_the_panel",
         || {
             let provider = Rc::new(Provider::default());
-            let preview = PreviewDrawer::new(provider, false);
+            let preview = PreviewDrawer::new(provider, false, false);
             crate::ui::preferences::PreferenceManager::shared()
                 .set_browser_mode(crate::ui::browser_modes::BrowserMode::Columns);
             let root = tempfile::tempdir().expect("preview fixture");
@@ -405,7 +405,7 @@ fn only_a_docked_preview_offers_its_divider_for_resizing() {
         "ui::preview::tests::only_a_docked_preview_offers_its_divider_for_resizing",
         || {
             let provider = Rc::new(Provider::default());
-            let preview = PreviewDrawer::new(provider, false);
+            let preview = PreviewDrawer::new(provider, false, false);
             crate::ui::preferences::PreferenceManager::shared()
                 .set_browser_mode(crate::ui::browser_modes::BrowserMode::Columns);
             let browser = crate::ui::browser::BrowserView::new(

@@ -86,6 +86,7 @@ impl PreviewState {
         self.sizing.resizing.set(false);
         if self.sizing.dragging.replace(false) {
             self.fade_minimum_outline();
+            self.persist_width();
         }
     }
 
@@ -248,6 +249,7 @@ fn remember_keyboard_width(weak: Weak<PreviewState>) {
             if state.lays_out_split() && split.position() != before {
                 state.resize_preview(&split, split.position());
             }
+            state.persist_width();
         }
     });
 }

@@ -36,7 +36,7 @@ fn pdf_text_keys_select_and_copy_only_on_their_exact_chords() {
         "ui::preview::tests::pdf::pdf_text_keys_select_and_copy_only_on_their_exact_chords",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             drawer.show(entry("paper.pdf"), None);
             let text = "page text";
             {
@@ -120,7 +120,7 @@ fn password_protected_pdf_failures_offer_external_opening_only_where_allowed() {
                 (true, "The sandboxed preview renderer failed", false),
             ] {
                 let provider = Rc::new(Provider::default());
-                let drawer = PreviewDrawer::new(provider.clone(), allow_external_open);
+                let drawer = PreviewDrawer::new(provider.clone(), allow_external_open, false);
                 let opened = Rc::new(Cell::new(0));
                 let count = opened.clone();
                 drawer

@@ -135,12 +135,7 @@ impl Dispatcher {
     }
 
     pub(super) fn dismiss_preview_or_selection(&self, browser: &Browser) -> KeyResult {
-        if self.preview.is_enabled() {
-            self.preview.close();
-            browser.focus_active();
-            return Some(Propagation::Stop);
-        }
-        // Transient surfaces may return focus to pane chrome rather than an item.
+        // 主窗口预览常驻：Esc 只转交焦点，由 preview_navigation 先处理。
         (browser.close_peek() || browser.clear_active_selection()).then_some(Propagation::Stop)
     }
 
@@ -306,7 +301,7 @@ impl Dispatcher {
         let activated_directory =
             press.is(PREVIEW.in_map(Map::Default)) && self.view.activate_directory_on_space();
         if !activated_directory {
-            self.preview.toggle(
+            self.preview.open_and_focus(
                 preview_target(browser.focused_entry()),
                 browser.active_depth(),
             );

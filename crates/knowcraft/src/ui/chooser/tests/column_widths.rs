@@ -52,6 +52,7 @@ fn open_split_browser(root: &Path) -> (gtk::Window, PreviewDrawer) {
             PreferenceManager::shared().media_preview_backend()
         }))),
         false,
+        false,
     );
     let content = gtk::Paned::new(gtk::Orientation::Horizontal);
     content.set_end_child(Some(&view.widget()));

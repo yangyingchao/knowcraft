@@ -4,12 +4,12 @@
 {"wait":{"preview":"alpha"},"message":"the enabled preview"}
 {"key":"Up"}
 {"wait":{"selected":["folder"]},"message":"the selection to become ['folder']"}
-{"wait":{"preview":null},"message":"the folder to hide preview"}
+{"wait":{"preview":"No preview for this selection"},"message":"the folder to hide preview"}
 {"settle":{"entry":"third.txt"}}
 {"drag":{"from":{"entry":"third.txt"},"from_at":["50%","end+60"],"to":{"entry":"data.csv"},"to_at":[50,"50%"]},"release":false}
 {"wait":{"selected":["data.csv","notes.txt","page.md","third.txt"]},"message":"the selection to become ['data.csv', 'notes.txt', 'page.md', 'third.txt']"}
-{"expect":{"preview":null},"message":"held marquee must not open preview"}
+{"expect":{"preview":"No preview for this selection"},"message":"held marquee must not open preview"}
 {"button_up":1}
-{"expect":{"preview":null}}
+{"expect":{"preview":"No preview for this selection"}}
 {"select_with_keyboard":"notes.txt"}
 {"wait":{"preview":"the quick brown fox"},"message":"keyboard preview to resume"}

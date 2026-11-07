@@ -14,7 +14,7 @@ fn audio_steps_keep_playback_and_volume_but_never_reuse_an_ended_request() {
             let (_directory, view) = super::video::sorted_listing(&["a.wav", "b.wav", "c.wav"]);
             let browser = view.browser();
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             drawer.state.keyboard_view.replace(Some(view.downgrade()));
             drawer.observe_browser(&browser);
             let preferences = crate::ui::preferences::PreferenceManager::shared();
@@ -98,7 +98,7 @@ fn probed_video_replaces_the_audio_view_without_stopping_playback() {
         "ui::preview::tests::audio::probed_video_replaces_the_audio_view_without_stopping_playback",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             let preferences = crate::ui::preferences::PreferenceManager::shared();
             preferences.set_preview_autoplay(true);
             drawer.show(entry("movie.ogg"), None);
@@ -126,7 +126,7 @@ fn autoplayed_audio_fades_in_quickly_unless_the_listener_acts() {
         "ui::preview::tests::audio::autoplayed_audio_fades_in_quickly_unless_the_listener_acts",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             let preferences = crate::ui::preferences::PreferenceManager::shared();
             preferences.set_preview_autoplay(true);
             preferences.set_preview_audio(0.8, false);

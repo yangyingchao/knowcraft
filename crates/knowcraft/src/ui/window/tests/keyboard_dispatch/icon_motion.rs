@@ -397,23 +397,6 @@ impl IconMotion {
         assert!(self.keyboard_navigation());
     }
 
-    fn i_previews_a_tile_in_place(&self) {
-        let preview = &self.fixture.preview;
-        preview.close();
-        pump(40);
-        focus_icon(&self.fixture, &self.browser, "tile-02.txt");
-        self.press(Key::i);
-        wait_until(|| preview.is_open());
-        assert!(!self.peek_open());
-        assert!(
-            self.fixture.view.item_view_has_focus(),
-            "Icons i leaves focus on the tile"
-        );
-        self.assert_at_origin();
-        self.press(Key::i);
-        assert!(!preview.is_enabled());
-    }
-
     fn i_peeks_a_folder_without_taking_focus(&self) {
         self.focus_nest();
         self.press(Key::j);
@@ -538,7 +521,6 @@ fn icons_move_spatially_open_explicitly_and_peek() {
             motion.left_stays_on_the_first_tile(&first);
             motion.an_empty_folder_keeps_every_motion_key();
             motion.a_parked_pointer_leaves_motion_to_the_keyboard();
-            motion.i_previews_a_tile_in_place();
             motion.i_peeks_a_folder_without_taking_focus();
             motion.search_aliases_move_among_hits_without_the_hidden_cursor();
         },

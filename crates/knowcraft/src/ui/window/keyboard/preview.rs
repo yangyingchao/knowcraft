@@ -4,21 +4,11 @@
 
 use std::rc::Rc;
 
-use gtk::{gdk::ModifierType as Modifiers, glib::Propagation};
-
-use super::{Dispatcher, KeyResult};
+use super::Dispatcher;
 use crate::{
     app::Browser,
-    ui::{
-        keys::{
-            KeyPress,
-            bindings::{ESCAPE, FOCUS_PREVIOUS},
-        },
-        preview::{PreviewSurface, preview_target},
-    },
+    ui::preview::{PreviewSurface, preview_target},
 };
-
-const CONTROL: Modifiers = Modifiers::CONTROL_MASK;
 
 impl Dispatcher {
     fn preview_focus(&self) -> Option<gtk::Widget> {
@@ -32,28 +22,6 @@ impl Dispatcher {
             .is_some_and(|focused| self.preview.surface(&focused) != PreviewSurface::Text)
     }
 
-    /// **Esc** closes the drawer; **Shift+Tab** returns keys to the listing
-    /// with the drawer still open. Both work on every preview surface.
-    fn leave_or_close_preview(&self, browser: &Browser, press: &KeyPress) -> KeyResult {
-        if press.is(ESCAPE) {
-            self.close_preview(browser);
-            return Some(Propagation::Stop);
-        }
-        let held_too = CONTROL
-            .union(Modifiers::ALT_MASK)
-            .union(Modifiers::SUPER_MASK);
-        if press.is(FOCUS_PREVIOUS.ignoring(held_too)) {
-            self.return_from_preview(browser);
-            return Some(Propagation::Stop);
-        }
-        None
-    }
-
-    pub(super) fn close_preview(&self, browser: &Browser) {
-        self.preview.close();
-        self.return_from_preview(browser);
-    }
-
     /// Results replacing the listing take the keys back on their own cursor.
     pub(super) fn return_from_preview(&self, browser: &Browser) {
         if self.view.focus_results_cursor() {
@@ -61,29 +29,6 @@ impl Dispatcher {
         }
         self.view.keyboard_navigation();
         browser.focus_active();
-    }
-
-    /// **i** on a file opens or closes the preview and leaves focus in the
-    /// listing. Directories keep their Miller column or folder peek.
-    pub(super) fn toggle_file_preview(&self, browser: &Rc<Browser>) -> bool {
-        let entry = if self.view.selected_search_results().is_some() {
-            self.view.selected_search_result()
-        } else {
-            browser.focused_entry()
-        };
-        if entry.as_ref().is_none_or(|entry| entry.is_directory()) {
-            return false;
-        }
-        self.view.keyboard_navigation();
-        if self.preview.is_enabled() {
-            self.preview.close();
-        } else if let Some(target) = preview_target(entry) {
-            self.preview.show(target, browser.active_depth());
-        } else {
-            self.shortcuts
-                .show_feedback(&crate::i18n::tr("Nothing to preview"));
-        }
-        true
     }
 
     /// List and Columns **l** / **→** on a file: open the drawer if needed and

@@ -237,7 +237,7 @@ fn default_editing_and_file_keys_stay_in_a_focused_preview() {
                     "Ctrl+C and Ctrl+X mark no files"
                 );
                 fixture.press(Key::Escape, none);
-                wait_until(|| !fixture.preview.is_enabled() && fixture.view.item_view_has_focus());
+                wait_until(|| fixture.preview.is_enabled() && fixture.view.item_view_has_focus());
             }
             assert_eq!(directory_names(fixture._directory.path()), names);
         },

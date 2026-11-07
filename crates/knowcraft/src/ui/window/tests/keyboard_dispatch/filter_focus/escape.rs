@@ -151,8 +151,8 @@ fn preview_case(mode: BrowserMode) -> Result<(), String> {
         )
     })?;
     ensure(
-        escape(&fixture) && settles(|| !fixture.preview.is_enabled()),
-        || "the second Escape did not close the preview".to_owned(),
+        escape(&fixture) && settles(|| fixture.preview.is_enabled()),
+        || "the second Escape should return focus without closing the preview".to_owned(),
     )
 }
 

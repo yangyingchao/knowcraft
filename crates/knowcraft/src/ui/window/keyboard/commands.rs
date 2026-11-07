@@ -95,7 +95,7 @@ impl Dispatcher {
             if self.view.activate_directory_on_space() {
                 return Some(Propagation::Stop);
             }
-            self.preview.toggle(
+            self.preview.open_and_focus(
                 crate::ui::preview::preview_target(Some(entry)),
                 self.view.browser().active_depth(),
             );

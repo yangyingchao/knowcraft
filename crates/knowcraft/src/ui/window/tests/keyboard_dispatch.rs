@@ -110,7 +110,8 @@ impl KeyboardFixture {
         header.append(&toggle);
         header.append(&view.location_widget());
         let top_bar = TopBarNavigation::new(&header, &sidebar.widget, &toggle);
-        let preview = PreviewDrawer::new(provider, false);
+        let preview = PreviewDrawer::new(provider, false, true);
+        preview.set_enabled_for_test(false);
         let shortcuts = ShortcutFooter::new(BrowserMode::Columns);
         let overlay = fixture_overlay(
             &header,

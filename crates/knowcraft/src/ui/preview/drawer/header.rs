@@ -26,7 +26,7 @@ pub(super) struct Metadata {
 }
 
 impl Header {
-    pub(super) fn new(allow_external_open: bool) -> Self {
+    pub(super) fn new(allow_external_open: bool, resident: bool) -> Self {
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         row.add_css_class("preview-header");
         let icon = crate::assets::chrome_icon(crate::assets::icons::DOCUMENTS);
@@ -37,6 +37,7 @@ impl Header {
         let document_view_button = document_view_button(&document_view_icon);
         let wrap = wrap_button();
         let close = close_button();
+        close.set_visible(!resident);
         let handle = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         handle.add_css_class("preview-header-handle");
         handle.set_hexpand(true);

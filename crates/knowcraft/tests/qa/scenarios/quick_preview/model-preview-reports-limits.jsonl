@@ -42,21 +42,15 @@
 {"expect":{"preview":"ASCII STL"},"timeout_ms":0}
 {"expect":{"preview":"1 triangle"},"timeout_ms":0}
 {"expect":{"preview":"4 of 4 in folder"},"timeout_ms":0}
-{"click":{"role":"button","name":"Close preview (Space)","within":{"preview":true}}}
-{"wait":{"preview":null},"message":"STL preview to close"}
 {"select":{"entry":"binary.stl"}}
 {"key":"space"}
 {"wait":{"all":[{"preview":"Binary STL"},{"preview":"1 triangle"}]},"message":"binary STL mesh details"}
 {"expect":{"preview":"1 of 4 in folder"},"timeout_ms":0}
-{"click":{"role":"button","name":"Close preview (Space)","within":{"preview":true}}}
-{"wait":{"preview":null},"message":"binary STL preview to close"}
 {"select":{"entry":"sample.3mf"}}
 {"key":"space"}
 {"wait":{"all":[{"present":{"role":"image","name":"Model preview","within":{"preview":true}}},{"state":{"target":{"role":"image","name":"Model preview","within":{"preview":true}},"busy":false}}]},"message":"embedded 3MF thumbnail"}
 {"expect":{"absent":{"role":"button","name":"Next model view","within":{"preview":true}}},"message":"a thumbnail preview has no camera views"}
 {"expect":{"absent":{"role":"image","name":"Camera position","within":{"preview":true}}},"timeout_ms":0}
-{"click":{"role":"button","name":"Close preview (Space)","within":{"preview":true}}}
-{"wait":{"preview":null},"message":"model preview to close"}
 {"select":{"entry":"geometry.3mf"}}
 {"key":"space"}
 {"wait":{"all":[{"present":{"role":"button","name":"Previous model view","within":{"preview":true}}},{"state":{"target":{"role":"image","name":"Model preview","within":{"preview":true}},"busy":false}}]},"message":"rendered 3MF camera controls"}
@@ -65,22 +59,16 @@
 {"expect":{"preview":"3MF"},"timeout_ms":0}
 {"expect":{"preview":"1 triangle"},"timeout_ms":0}
 {"expect":{"preview":"2 of 4 in folder"},"timeout_ms":0}
-{"click":{"role":"button","name":"Close preview (Space)","within":{"preview":true}}}
-{"wait":{"preview":null},"message":"geometry preview to close"}
 {"fs":{"path":"assembly.3mf","zip":[["3D/Objects/part.model","<model/>"],["3D/3dmodel.model","<model/>"]]}}
 {"wait":{"entry":"assembly.3mf"},"message":"multipart model in listing"}
 {"select":{"entry":"assembly.3mf"}}
 {"key":"space"}
 {"wait":{"preview":"Multipart model detected. Unable to render preview."},"message":"multipart model notice"}
-{"click":{"role":"button","name":"Close preview (Space)","within":{"preview":true}}}
-{"wait":{"preview":null},"message":"multipart preview to close"}
 {"fs":{"path":"missing.FCStd","zip":[["Document.xml","<Document/>"]]}}
 {"wait":{"entry":"missing.FCStd"},"message":"FreeCAD file in listing"}
 {"select":{"entry":"missing.FCStd"}}
 {"key":"space"}
 {"wait":{"preview":"This FreeCAD file has no usable embedded thumbnail"},"message":"specific sandbox error"}
-{"click":{"role":"button","name":"Close preview (Space)","within":{"preview":true}}}
-{"wait":{"preview":null},"message":"FreeCAD preview to close"}
 {"fs":{"path":"oversized.stl","truncate":134217729}}
 {"wait":{"entry":"oversized.stl"},"message":"oversized STL in listing"}
 {"select":{"entry":"oversized.stl"}}

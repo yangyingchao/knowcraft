@@ -29,7 +29,7 @@ fn initial_mesh_load_shows_details_before_the_image_arrives() {
         "ui::preview::tests::model::initial_mesh_load_shows_details_before_the_image_arrives",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             drawer.show(entry("mesh.stl"), None);
             {
                 let model = drawer.state.model.borrow();
@@ -83,7 +83,7 @@ fn camera_buttons_cycle_views_keep_the_image_while_loading_and_reset_for_another
         "ui::preview::tests::model::camera_buttons_cycle_views_keep_the_image_while_loading_and_reset_for_another_file",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             drawer.show(entry("mesh.stl"), None);
             ready(&provider, 0, Some(ModelView::FrontLeft));
             for (index, view) in [
@@ -213,7 +213,7 @@ fn camera_reload_failures_keep_the_last_view_and_allow_retry() {
         "ui::preview::tests::model::camera_reload_failures_keep_the_last_view_and_allow_retry",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             drawer.show(entry("mesh.stl"), None);
             ready(&provider, 0, Some(ModelView::FrontLeft));
             let image = drawer
@@ -294,7 +294,7 @@ fn camera_buttons_keep_the_keys_in_the_drawer_while_a_view_renders() {
         "ui::preview::tests::model::camera_buttons_keep_the_keys_in_the_drawer_while_a_view_renders",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             let window = gtk::Window::builder().child(&drawer.widget()).build();
             window.present();
             drawer.show(entry("mesh.stl"), None);

@@ -8,7 +8,7 @@ fn source_find_tracks_incremental_text_and_resets_for_another_file() {
         "ui::preview::tests::find::source_find_tracks_incremental_text_and_resets_for_another_file",
         || {
             let provider = Rc::new(Provider::default());
-            let preview = PreviewDrawer::new(provider.clone(), false);
+            let preview = PreviewDrawer::new(provider.clone(), false, false);
             preview.show(entry("source.rs"), None);
             let content = format!("{}// tail ÉCLAIR\n", "// padding line\n".repeat(600));
             {

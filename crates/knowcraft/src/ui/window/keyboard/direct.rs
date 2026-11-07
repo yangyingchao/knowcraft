@@ -20,7 +20,7 @@ impl Dispatcher {
     pub(super) fn dismiss_direct_search(&self, event: &KeyEvent) -> bool {
         Map::active() == Map::Default
             && !event.text_has_focus()
-            && !self.preview.is_enabled()
+            && !self.preview.owns_focus(event.focused.as_ref())
             && self.view.item_view_has_focus()
             && self.view.listing_search_active()
             && self.view.dismiss_listing_search()

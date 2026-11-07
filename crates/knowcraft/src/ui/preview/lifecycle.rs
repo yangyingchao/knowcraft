@@ -162,6 +162,7 @@ impl PreviewState {
     }
 
     pub(super) fn stop(&self) {
+        self.persist_width();
         self.set_enabled(false);
         self.child_pane.set(false);
         self.clear_target();
@@ -171,6 +172,15 @@ impl PreviewState {
     }
 
     pub(super) fn close(self: &Rc<Self>) {
+        if self.resident {
+            // 主窗口的预览常驻：关闭只把键盘交回文件列表，内容保留。
+            self.content.set_focusable(false);
+            self.set_keyboard_owner(false);
+            if let Some(browser) = self.sizing.browser() {
+                browser.focus_file_view();
+            }
+            return;
+        }
         self.media_checks.borrow_mut().stop();
         let tree_focused = self.archive_tree_focused();
         // The preview closes now, so input such as the next Escape already

@@ -65,16 +65,19 @@ impl PreviewState {
     /// Shows the empty placeholder when one is reserved and fits; `false` stops the sync.
     fn show_empty_preview(&self, geometry: Geometry) -> bool {
         let reserves_empty_preview = self.reserves_empty_preview();
-        if reserves_empty_preview && geometry.can_show_preview() {
-            self.show_placeholder();
-            return true;
+        if reserves_empty_preview {
+            if geometry.can_show_preview() {
+                self.show_placeholder();
+                return true;
+            }
+            // 常驻占位也参与窄窗口挂起，恢复时才能续上键盘与布局。
+            self.suspend_panel();
+            return false;
         }
         if self.revealer.reveals_child() {
             self.hide_panel();
         }
-        if !reserves_empty_preview {
-            self.sizing.suspended.set(false);
-        }
+        self.sizing.suspended.set(false);
         false
     }
 

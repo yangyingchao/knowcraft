@@ -143,7 +143,7 @@ fn video_steps_reuse_one_view_and_keep_playback() {
             let (_directory, view) = sorted_listing(&["a.mp4", "b.mp4", "c.mp4"]);
             let browser = view.browser();
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             drawer.state.keyboard_view.replace(Some(view.downgrade()));
             drawer.observe_browser(&browser);
             let preferences = crate::ui::preferences::PreferenceManager::shared();
@@ -229,7 +229,7 @@ fn steps_stay_within_the_same_media_type() {
             let (_directory, view) = sorted_listing(&["a.mp3", "b.mp4", "c.mp3", "d.mp4"]);
             let browser = view.browser();
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             drawer.state.keyboard_view.replace(Some(view.downgrade()));
             drawer.observe_browser(&browser);
             crate::ui::preferences::PreferenceManager::shared().set_preview_autoplay(false);
@@ -343,7 +343,7 @@ fn video_drawer(
 ) {
     let browser = view.browser();
     let provider = Rc::new(Provider::default());
-    let drawer = PreviewDrawer::new(provider.clone(), false);
+    let drawer = PreviewDrawer::new(provider.clone(), false, false);
     drawer.state.keyboard_view.replace(Some(view.downgrade()));
     drawer.observe_browser(&browser);
     crate::ui::preferences::PreferenceManager::shared().set_preview_autoplay(false);
@@ -560,7 +560,7 @@ fn the_frame_shows_a_poster_or_surface_until_the_first_frame() {
         "ui::preview::tests::video::the_frame_shows_a_poster_or_surface_until_the_first_frame",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             let preferences = crate::ui::preferences::PreferenceManager::shared();
             preferences.set_preview_autoplay(false);
             preferences.set_reduce_motion(true);
@@ -644,7 +644,7 @@ fn badges_replace_their_skeleton_once_the_probe_answers() {
         "ui::preview::tests::video::badges_replace_their_skeleton_once_the_probe_answers",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             crate::ui::preferences::PreferenceManager::shared().set_preview_autoplay(false);
             drawer.show(entry("clip.mkv"), None);
             ready(&provider, 0, "video/x-matroska");
@@ -722,7 +722,7 @@ fn seeks_show_the_nearest_storyboard_cell_until_the_new_frame_lands() {
         "ui::preview::tests::video::seeks_show_the_nearest_storyboard_cell_until_the_new_frame_lands",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             let preferences = crate::ui::preferences::PreferenceManager::shared();
             preferences.set_preview_autoplay(false);
             preferences.set_reduce_motion(true);
@@ -803,7 +803,7 @@ fn the_glow_stays_dark_without_the_preference_or_under_reduced_motion() {
         "ui::preview::tests::video::the_glow_stays_dark_without_the_preference_or_under_reduced_motion",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             let preferences = crate::ui::preferences::PreferenceManager::shared();
             preferences.set_preview_autoplay(false);
             preferences.set_element_glow(true);
@@ -876,7 +876,7 @@ fn autoplay_starts_silent_and_eases_in_unless_the_viewer_acts_or_is_muted() {
         "ui::preview::tests::video::autoplay_starts_silent_and_eases_in_unless_the_viewer_acts_or_is_muted",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             let preferences = crate::ui::preferences::PreferenceManager::shared();
             preferences.set_preview_autoplay(true);
             preferences.set_preview_audio(0.8, false);
@@ -956,7 +956,7 @@ fn handoffs_pause_the_shown_video_and_report_positions_away_from_the_ends() {
         "ui::preview::tests::video::handoffs_pause_the_shown_video_and_report_positions_away_from_the_ends",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             crate::ui::preferences::PreferenceManager::shared().set_preview_autoplay(false);
             let clip = entry("clip.mp4");
             drawer.show(clip.clone(), None);
@@ -1018,7 +1018,7 @@ fn files_opened_externally_stay_paused_when_their_preview_lands() {
         "ui::preview::tests::video::files_opened_externally_stay_paused_when_their_preview_lands",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             let preferences = crate::ui::preferences::PreferenceManager::shared();
             preferences.set_preview_autoplay(true);
             let state = &drawer.state;

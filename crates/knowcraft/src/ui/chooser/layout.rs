@@ -162,6 +162,7 @@ fn build_preview(theme: &Rc<PreferenceManager>) -> PreviewDrawer {
             preview_preferences.media_preview_backend()
         }))),
         false,
+        false,
     )
 }
 

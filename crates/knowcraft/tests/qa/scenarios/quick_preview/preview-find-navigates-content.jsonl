@@ -31,8 +31,6 @@
 {"wait":{"absent":{"role":"text","name":"Find in preview","within":{"preview":true}}},"message":"Escape to close find without closing the document","variants":["default"]}
 {"expect":{"preview":"second NEEDLE line"},"message":"the document must stay open after find closes","variants":["default"]}
 {"expect":{"entries":"$entries_before"},"message":"find in the preview must not filter the file list","variants":["default"]}
-{"click":{"role":"button","name":"Close preview (Space)","within":{"preview":true}},"variants":["default"]}
-{"wait":{"preview":null},"message":"the Markdown preview to close","variants":["default"]}
 {"select_with_keyboard":"find.txt","variants":["default"]}
 {"key":"space","variants":["default"]}
 {"wait":{"preview":"alpha needle omega"},"message":"the long plain-text preview","variants":["default"]}
@@ -46,8 +44,6 @@
 {"wait":{"absent":{"role":"text","name":"Find in preview","within":{"preview":true}}},"message":"Escape to close find in the virtual text document","variants":["default"]}
 {"key":"ctrl+c","variants":["default"]}
 {"clipboard":"NEEDLE","message":"the far match to be selected in the virtual text document","variants":["default"]}
-{"click":{"role":"button","name":"Close preview (Space)","within":{"preview":true}},"variants":["default"]}
-{"wait":{"preview":null},"message":"the text preview to close","variants":["default"]}
 {"select_with_keyboard":"find.py","variants":["default"]}
 {"key":"space","variants":["default"]}
 {"wait":{"preview":"alpha needle omega"},"message":"the incrementally loaded source preview","variants":["default"]}

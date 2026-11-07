@@ -7,7 +7,7 @@
 {"key":"Up","modes":["list"]}
 {"wait":{"selected":["folder"],"dir":"$root"},"message":"the selection to become ['folder']"}
 {"wait":{"preview":"No preview for this selection"},"message":"the folder's reserved preview space","modes":["icons"]}
-{"wait":{"preview":null},"message":"the folder to dismiss the preview","modes":["columns","list"]}
+{"wait":{"preview":"No preview for this selection"},"message":"the folder to dismiss the preview","modes":["columns","list"]}
 {"key":"Down","modes":["columns"]}
 {"key":"Right","modes":["icons"]}
 {"key":"Down","modes":["list"]}

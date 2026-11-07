@@ -43,6 +43,7 @@ mod feedback;
 mod find;
 mod keyboard;
 mod layout;
+mod width;
 mod lifecycle;
 mod loading;
 mod media_content;
@@ -151,6 +152,8 @@ struct PreviewState {
     reserve_columns: Cell<bool>,
     // Dismissing content stops selection-following without reclaiming its column slot.
     enabled: Cell<bool>,
+    /// 主窗口常驻：只有布局与销毁能收起面板。
+    resident: bool,
     dismissed: Cell<bool>,
     child_pane: Cell<bool>,
     pane: gtk::Box,
@@ -300,6 +303,24 @@ impl PreviewDrawer {
 
     pub fn toggle(&self, entry: Option<FileEntry>, depth: Option<usize>) {
         self.state.toggle(entry, depth);
+    }
+
+    /// Opens the drawer and hands it the keys; never closes it.
+    pub fn open_and_focus(&self, entry: Option<FileEntry>, depth: Option<usize>) {
+        match entry {
+            Some(entry) => self.show(entry, depth),
+            None => {
+                self.state.dismissed.set(false);
+                self.state.set_enabled(true);
+                self.state.clear_target();
+            }
+        }
+        self.take_keyboard();
+    }
+
+    #[cfg(test)]
+    pub(in crate::ui) fn set_enabled_for_test(&self, enabled: bool) {
+        self.state.set_enabled(enabled);
     }
 }
 

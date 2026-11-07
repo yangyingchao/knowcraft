@@ -6,7 +6,7 @@ use gtk::prelude::*;
 
 use super::super::PreviewState;
 use super::geometry::{Geometry, separator_width, sidebar_width};
-use super::{BrowserBinding, MIN_SPLIT_PREVIEW_WIDTH, RAIL_RELEASE_MARGIN};
+use super::{BrowserBinding, RAIL_RELEASE_MARGIN};
 use crate::ui::{
     browser::COLUMN_WIDTH,
     window::{
@@ -151,13 +151,8 @@ impl PreviewState {
             Some(browser) if geometry.columns => browser.preview_standard_navigation_width(),
             _ => COLUMN_WIDTH,
         };
-        // A previously clamped manual width must not defeat the preview minimum.
-        let preview_needed = self
-            .sizing
-            .manual_width
-            .get()
-            .unwrap_or(MIN_SPLIT_PREVIEW_WIDTH)
-            .max(MIN_SPLIT_PREVIEW_WIDTH);
+        // 侧边栏预算使用与布局相同的夹紧宽度，避免持久化的宽值在小窗口里误折叠侧边栏。
+        let preview_needed = geometry.preview_width(self.sizing.manual_width.get());
         occupied + geometry.separator + preview_needed
     }
 

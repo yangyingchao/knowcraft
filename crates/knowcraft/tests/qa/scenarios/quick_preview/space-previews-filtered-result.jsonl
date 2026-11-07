@@ -10,5 +10,5 @@
 {"wait":{"preview":"nested preview fixture"},"message":"Space to preview the search result, not the stale directory selection"}
 {"expect":[{"field":{"of":"filter","text":"nested-notes"}},{"matches":["nested-notes.txt"]}]}
 {"key":"space"}
-{"wait":{"preview":null},"message":"Space to close the filtered preview"}
+{"expect":{"preview":"nested preview fixture"},"message":"the resident preview stays open"}
 {"expect":[{"field":{"of":"filter","text":"nested-notes"}},{"matches":["nested-notes.txt"]}]}

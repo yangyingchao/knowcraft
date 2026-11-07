@@ -28,7 +28,7 @@ fn volume_slider_steps_pages_and_jumps_persist_the_preview_volume() {
         || {
             crate::ui::media::use_test_streams(true);
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             let preferences = crate::ui::preferences::PreferenceManager::shared();
             preferences.set_preview_autoplay(false);
             preferences.set_preview_audio(0.3, false);
@@ -104,7 +104,7 @@ fn unclassified_media_seek_slider_steps_seek_the_stream_immediately() {
         || {
             crate::ui::media::use_test_streams(true);
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             let preferences = crate::ui::preferences::PreferenceManager::shared();
             preferences.set_preview_autoplay(false);
             drawer.show(entry("tune.mid"), None);

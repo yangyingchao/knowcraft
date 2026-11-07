@@ -60,7 +60,7 @@ fn route_media_commands_restart_at_the_end_and_stop_on_replacement_or_close() {
         "ui::preview::tests::route::route_media_commands_restart_at_the_end_and_stop_on_replacement_or_close",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             drawer.show(entry("first.gpx"), None);
             ready(&provider, 0);
             let player = drawer
@@ -144,8 +144,8 @@ fn route_units_load_before_settings_and_update_across_drawers_and_files() {
             crate::ui::preferences::fixtures::seed_saved_preferences_for_test();
             let manager = PreferenceManager::shared();
             let provider = Rc::new(Provider::default());
-            let first = PreviewDrawer::new(provider.clone(), false);
-            let second = PreviewDrawer::new(provider.clone(), false);
+            let first = PreviewDrawer::new(provider.clone(), false, false);
+            let second = PreviewDrawer::new(provider.clone(), false, false);
             first.show(entry("first.gpx"), None);
             ready_with_elevation(&provider, 0, Some([-5.0, 100.0]));
             second.show(entry("second.fit"), None);
@@ -219,7 +219,7 @@ fn suspended_route_reloads_with_the_latest_palette_on_resume() {
         "ui::preview::tests::route::suspended_route_reloads_with_the_latest_palette_on_resume",
         || {
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             drawer.show(entry("route.gpx"), None);
             ready(&provider, 0);
             let split = gtk::Paned::new(gtk::Orientation::Horizontal);
@@ -275,7 +275,7 @@ fn route_caption_counts_supported_files_in_listing_order() {
                 super::video::sorted_listing(&["a.gpx", "b.fit", "c.kml", "notes.txt"]);
             let browser = view.browser();
             let provider = Rc::new(Provider::default());
-            let drawer = PreviewDrawer::new(provider.clone(), false);
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
             drawer.state.keyboard_view.replace(Some(view.downgrade()));
             for index in 0..3 {
                 drawer.show(browser.entry_at(0, index).expect("route entry"), Some(0));

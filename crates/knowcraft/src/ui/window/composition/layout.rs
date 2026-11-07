@@ -194,6 +194,7 @@ pub(super) fn preview(browser: &BrowserView, preferences: &Rc<PreferenceManager>
             backend.media_preview_backend()
         }))),
         true,
+        true,
     );
     preview.bind_find_shortcut(preferences);
     preview.observe_browser(&browser.browser());

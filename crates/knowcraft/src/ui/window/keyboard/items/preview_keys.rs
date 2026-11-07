@@ -20,6 +20,10 @@ impl Dispatcher {
         &self,
         event: &KeyEvent,
     ) -> KeyResult {
+        if self.preview.owns_focus(event.focused.as_ref()) && event.press.is(ESCAPE_ANY) {
+            self.return_from_preview(&self.view.browser());
+            return Some(Propagation::Stop);
+        }
         if event.text_has_focus() && !self.preview_document_has_focus(event) {
             return None;
         }

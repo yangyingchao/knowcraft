@@ -30,6 +30,8 @@ pub(super) const RESIZE_GRIP_WIDTH: i32 = 6;
 pub(super) struct SplitSizing {
     binding: RefCell<Option<BrowserBinding>>,
     manual_width: Cell<Option<i32>>,
+    /// The last width written to or read from the state file.
+    saved_width: Cell<Option<i32>>,
     resizing: Cell<bool>,
     /// A pointer, not the keyboard, is dragging the divider.
     dragging: Cell<bool>,
@@ -51,6 +53,7 @@ impl SplitSizing {
 
     pub(super) fn close(&self) {
         self.resizing.set(false);
+        self.dragging.set(false);
         self.suspended.set(false);
         self.resume_media.set(false);
         self.reload_on_resume.set(false);
@@ -78,6 +81,29 @@ impl SplitSizing {
 
     pub(super) fn is_suspended(&self) -> bool {
         self.suspended.get()
+    }
+
+    /// Reads the last window's preview width; only the resident window calls this.
+    pub(super) fn load_saved_width(&self) {
+        let Some(width) = super::width::load_from(&super::width::path()) else {
+            return;
+        };
+        self.saved_width.set(Some(width));
+        self.manual_width.set(Some(width));
+    }
+
+    /// Writes the current manual width once, when it differs from the last save.
+    pub(super) fn persist_width(&self) {
+        if self.suspended.get() {
+            return;
+        }
+        let Some(width) = self.manual_width.get() else {
+            return;
+        };
+        if self.saved_width.replace(Some(width)) == Some(width) {
+            return;
+        }
+        super::width::save(width);
     }
 }
 
@@ -405,6 +431,7 @@ impl PreviewState {
             .set(self.animation_generation.get().saturating_add(1));
         self.animating.set(false);
         self.sizing.resizing.set(false);
+        self.sizing.dragging.set(false);
         let media = self.media.borrow().clone();
         self.sizing
             .resume_media
@@ -423,6 +450,13 @@ impl PreviewState {
                 self.geometry(split)
                     .preview_width(self.sizing.manual_width.get())
             })
+    }
+
+    pub(super) fn persist_width(&self) {
+        if !self.resident {
+            return;
+        }
+        self.sizing.persist_width();
     }
 }
 

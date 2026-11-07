@@ -307,32 +307,6 @@ impl ListMotion {
         assert!(fixture.view.item_view_has_focus());
     }
 
-    fn i_toggles_the_preview_of_a_file(&self) {
-        let preview = &self.fixture.preview;
-        self.press(Key::k);
-        wait_until(|| preview.is_open());
-        assert!(
-            self.browser.column_snapshot(1).is_none(),
-            "a file under the cursor closes the child column"
-        );
-        assert!(self.files_keep_focus_off_the_preview());
-        self.press(Key::i);
-        assert!(!preview.is_enabled(), "i closes the preview");
-        self.press(Key::i);
-        wait_until(|| preview.is_open());
-        assert!(
-            self.browser.column_snapshot(1).is_none(),
-            "i on a file opens no column"
-        );
-        assert!(
-            self.files_keep_focus_off_the_preview(),
-            "i leaves focus in the list"
-        );
-        self.press(Key::i);
-        assert!(!preview.is_enabled(), "a second i closes the preview");
-        assert!(self.fixture.view.item_view_has_focus());
-    }
-
     fn keyboard_navigation(&self) -> bool {
         self.fixture
             .view
@@ -521,7 +495,6 @@ fn list_and_columns_move_enter_and_traverse_history() {
             motion.an_empty_folder_keeps_focus_off_the_sidebar();
 
             motion.the_cursor_folder_mirrors_into_the_next_column();
-            motion.i_toggles_the_preview_of_a_file();
             motion.the_pointer_claims_the_destination_only_by_moving();
             motion.l_and_h_enter_and_leave_the_child_column();
             motion.an_empty_child_column_opens_nothing_further();

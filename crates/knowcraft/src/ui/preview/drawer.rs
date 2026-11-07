@@ -7,7 +7,11 @@ mod header;
 use header::Header;
 
 impl PreviewDrawer {
-    pub fn new(provider: Rc<dyn PreviewProvider>, allow_external_open: bool) -> Self {
+    pub fn new(
+        provider: Rc<dyn PreviewProvider>,
+        allow_external_open: bool,
+        resident: bool,
+    ) -> Self {
         let pane = super::super::accessibility::pane_box();
         pane.add_css_class("preview-pane");
         super::super::accessibility::set_label(&pane, &crate::i18n::tr(PREVIEW_LABEL));
@@ -15,7 +19,7 @@ impl PreviewDrawer {
         pane.set_hexpand(true);
         pane.set_vexpand(true);
 
-        let header = Header::new(allow_external_open);
+        let header = Header::new(allow_external_open, resident);
         pane.append(&header.row);
         let find = find::PreviewFind::new();
         pane.append(&find.widget);
@@ -36,6 +40,7 @@ impl PreviewDrawer {
         let state = PreviewState::new(DrawerParts {
             provider,
             allow_external_open,
+            resident,
             pane,
             header: &header,
             find,
@@ -260,6 +265,7 @@ impl PreviewDrawer {
 struct DrawerParts<'a> {
     provider: Rc<dyn PreviewProvider>,
     allow_external_open: bool,
+    resident: bool,
     pane: gtk::Box,
     header: &'a Header,
     find: find::PreviewFind,
@@ -275,13 +281,15 @@ struct DrawerParts<'a> {
 impl PreviewState {
     fn new(parts: DrawerParts) -> Rc<Self> {
         let header = parts.header;
-        Rc::new(PreviewState {
+        let resident = parts.resident;
+        let state = Rc::new(PreviewState {
             provider: parts.provider,
+            resident,
             revealer: parts.revealer,
             slot: parts.slot,
             resize_grip: parts.resize_grip,
             reserve_columns: Cell::new(true),
-            enabled: Cell::new(true),
+            enabled: Cell::new(resident),
             dismissed: Cell::new(false),
             child_pane: Cell::new(false),
             pane: parts.pane,
@@ -350,7 +358,11 @@ impl PreviewState {
             claim_on_resume: Cell::new(false),
             released_from: Cell::new(None),
             operations: RefCell::new(None),
-        })
+        });
+        if resident {
+            state.sizing.load_saved_width();
+        }
+        state
     }
 
     fn toggle_document_view(self: &Rc<Self>) {
