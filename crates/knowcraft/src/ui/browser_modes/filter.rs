@@ -18,18 +18,32 @@ use super::{
 use crate::{
     app::Browser,
     ui::{
-        browser::{self, FilterFocus, ViewState, paths::is_trash_location},
+        browser::{
+            self, FilterFocus, ViewState, filter_mode::FilterModeController,
+            paths::is_trash_location,
+        },
         enter_target::EnterTarget,
         inline_search::{self, InlineSearch, SearchPresentation},
     },
 };
 
-/// `tooltip` names the filter shortcut with `%{keys}`.
+/// A pane's filter field, its two toggles, and their shared mode.
+pub(crate) struct FilterControls {
+    pub(crate) entry: gtk::Entry,
+    pub(crate) revealer: gtk::Revealer,
+    pub(crate) filter_button: gtk::ToggleButton,
+    pub(crate) search_button: gtk::ToggleButton,
+    pub(crate) mode: FilterModeController,
+}
+
+/// `tooltip` names the filter shortcut with `%{keys}`; `search_tooltip` the search one.
 pub(crate) fn filter_controls(
     tooltip: &'static str,
-) -> (gtk::Entry, gtk::Revealer, gtk::ToggleButton) {
+    search_tooltip: &'static str,
+) -> FilterControls {
+    let filter_placeholder = browser::filter_placeholder(0);
     let entry = gtk::Entry::builder()
-        .placeholder_text(browser::filter_placeholder(0))
+        .placeholder_text(&filter_placeholder)
         .has_frame(false)
         .hexpand(true)
         .build();
@@ -42,35 +56,60 @@ pub(crate) fn filter_controls(
         .transition_type(gtk::RevealerTransitionType::SlideDown)
         .child(&row)
         .build();
+    let filter_button = shortcut_toggle(
+        tooltip,
+        crate::ui::keys::bindings::FILTER,
+        crate::assets::icons::FUNNEL,
+        Some(entry.clone()),
+    );
+    let search_button = shortcut_toggle(
+        search_tooltip,
+        crate::ui::keys::bindings::SEARCH,
+        crate::assets::icons::SEARCH,
+        None,
+    );
+    let mode = FilterModeController::new(
+        filter_button.clone(),
+        search_button.clone(),
+        revealer.clone(),
+        entry.clone(),
+        filter_placeholder,
+        rust_i18n::t!("Search the knowledge base…").into_owned(),
+    );
+    FilterControls {
+        entry,
+        revealer,
+        filter_button,
+        search_button,
+        mode,
+    }
+}
+
+/// An icon toggle that names its shortcut in its tooltip and accessible label.
+fn shortcut_toggle(
+    tooltip: &'static str,
+    command: crate::ui::keys::Command,
+    icon: &str,
+    labelled_entry: Option<gtk::Entry>,
+) -> gtk::ToggleButton {
     let button = gtk::ToggleButton::new();
-    let labelled_entry = entry.clone();
     // There is a single keymap, so the button names its key.
     crate::ui::shortcut_reference::follow_keys(&button, move |button| {
         let keys = crate::ui::keys::label_in_map(
             &rust_i18n::locale(),
-            &crate::ui::keys::Keys::One(crate::ui::keys::bindings::FILTER.shown()),
+            &crate::ui::keys::Keys::One(command.shown()),
             crate::ui::keys::Map::Default,
         );
         let label = rust_i18n::t!(tooltip, keys = keys);
         button.set_tooltip_text(Some(&label));
         crate::ui::accessibility::set_label(button, &label);
-        crate::ui::accessibility::set_label(&labelled_entry, &label);
-    });
-    button.set_child(Some(&crate::assets::chrome_icon(
-        crate::assets::icons::FUNNEL,
-    )));
-    crate::ui::controls::pane_header_action(&button);
-    let shown_filter = revealer.clone();
-    let focused_filter = entry.clone();
-    button.connect_toggled(move |button| {
-        shown_filter.set_reveal_child(button.is_active());
-        if button.is_active() {
-            focused_filter.grab_focus();
-        } else {
-            focused_filter.set_text("");
+        if let Some(entry) = &labelled_entry {
+            crate::ui::accessibility::set_label(entry, &label);
         }
     });
-    (entry, revealer, button)
+    button.set_child(Some(&crate::assets::chrome_icon(icon)));
+    crate::ui::controls::pane_header_action(&button);
+    button
 }
 
 /// A pane's filter field bound to the model that narrows its listing.
@@ -84,6 +123,7 @@ pub(super) struct PaneFilter {
     /// Recursive-filter results replace a native listing; hiding its rows too
     /// would drop their selection out of sight.
     results_replace_listing: Rc<Cell<bool>>,
+    pub(super) mode: FilterModeController,
     pub(super) enter_target: Option<EnterTarget>,
 }
 
@@ -93,6 +133,7 @@ impl PaneFilter {
         button: gtk::ToggleButton,
         inputs: &PaneBuild,
         model: &gtk::StringList,
+        mode: FilterModeController,
     ) -> Self {
         let query = Rc::new(RefCell::new(String::new()));
         let browser = &inputs.browser;
@@ -120,6 +161,7 @@ impl PaneFilter {
             filter,
             model: filtered,
             results_replace_listing,
+            mode,
             enter_target,
         }
     }
@@ -171,7 +213,8 @@ impl PaneFilter {
                     .and_then(|location| location.native_path().map(std::path::Path::to_path_buf))
             },
             &inputs.browser,
-            search_collection_options(presentation, inputs),
+            search_collection_options(presentation, inputs, &self.mode, &self.entry),
+            self.mode.clone(),
         );
         self.results_replace_listing.set(search.replaces_listing());
         search
@@ -325,10 +368,14 @@ pub(super) fn pane_filter_focus(pane: &Pane, focused: Option<&gtk::Widget>) -> O
     {
         return Some(FilterFocus::Entry);
     }
-    let revealed = pane
-        .filter_button
-        .as_ref()
-        .is_some_and(gtk::ToggleButton::is_active);
+    let revealed = pane.filter_mode.as_ref().map_or_else(
+        || {
+            pane.filter_button
+                .as_ref()
+                .is_some_and(gtk::ToggleButton::is_active)
+        },
+        FilterModeController::is_open,
+    );
     let results = if pane.search.replaces_listing() {
         pane.search.results_view().is_some() && pane.search.has_item_focus(focused)
     } else {

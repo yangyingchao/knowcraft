@@ -17,7 +17,7 @@ fn reference_follows_keymap_overrides_without_reopening() {
             footer.bind_preferences(&manager);
             let labels = reference_labels(&footer);
             assert!(
-                reference_pairs(&labels, "Ctrl+K", "Open global search"),
+                reference_pairs(&labels, "Ctrl+K", "Search the knowledge base in this pane"),
                 "{labels:?}"
             );
             manager.set_bindings(Map::Default, SEARCH, Vec::new());
@@ -32,7 +32,7 @@ fn reference_follows_keymap_overrides_without_reopening() {
             );
             let labels = reference_labels(&footer);
             assert!(
-                !has_label(&labels, "Open global search"),
+                !has_label(&labels, "Search the knowledge base in this pane"),
                 "an unbound command has no row: {labels:?}"
             );
             assert!(
@@ -56,13 +56,13 @@ fn reference_follows_keymap_overrides_without_reopening() {
             );
             let labels = reference_labels(&footer);
             assert!(
-                reference_pairs(&labels, "Ctrl+K", "Open global search"),
+                reference_pairs(&labels, "Ctrl+K", "Search the knowledge base in this pane"),
                 "type-to-search types the added key: {labels:?}"
             );
             manager.set_type_to_search(false);
             let labels = reference_labels(&footer);
             assert!(
-                reference_pairs(&labels, "Ctrl+K / e", "Open global search"),
+                reference_pairs(&labels, "Ctrl+K / e", "Search the knowledge base in this pane"),
                 "{labels:?}"
             );
         },

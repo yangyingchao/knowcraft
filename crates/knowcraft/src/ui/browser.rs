@@ -49,10 +49,13 @@ mod dissolve_delete;
 mod entry;
 mod entry_animation;
 mod events;
+pub(in crate::ui) mod filter_mode;
+pub(in crate::ui) mod filter_rows;
 mod file_commands;
 pub(in crate::ui) mod find;
 pub(super) mod fly_to_trash;
 mod inline_edit;
+pub(in crate::ui) mod knowledge_query;
 mod leftovers;
 mod listing_filter;
 mod listing_search;
@@ -93,10 +96,11 @@ pub(crate) use crate::ui::browser::clipboard::{
     locations_from_file_list_value, prepare_file_drop_target,
 };
 pub(crate) use crate::ui::browser::collection::{
-    ActivePaneFilter, bind_listing_filter, detach_collection_view, filter_placeholder,
-    focus_collection_item_when_allocated, focus_filter_entry, notify_filter_query,
-    prepare_collection_inline_edit, refocus_filter_entry, restore_filter_controls,
-    reveal_collection_after_layout, scroll_collection_when_allocated, search_result_entry,
+    ActivePaneFilter, activate_row, bind_listing_filter, detach_collection_view,
+    filter_placeholder, focus_collection_item_when_allocated, focus_filter_entry,
+    notify_filter_query, prepare_collection_inline_edit, refocus_filter_entry,
+    restore_filter_controls, result_entry, reveal_collection_after_layout,
+    scroll_collection_when_allocated, search_result_entry,
 };
 pub(in crate::ui) use crate::ui::browser::collection::{FilterQueryBinding, bind_filter_query};
 pub(crate) use crate::ui::browser::content_drop::{

@@ -4,6 +4,7 @@ use crate::app::Browser;
 use crate::model::Location;
 use crate::services::{filter_query_allows_typos, fold_for_search};
 use crate::ui::browser::entry::entry_matches;
+use crate::ui::browser::filter_rows::{ResultRow, content_display_name};
 use crate::ui::entry_list_model::EntryListModel;
 use crate::ui::keys::{
     KeyPress,
@@ -243,6 +244,7 @@ pub(crate) fn detach_collection_view(view: &impl IsA<gtk::Widget>) {
 pub(crate) struct ActivePaneFilter {
     pub query: String,
     pub revealed: bool,
+    pub(in crate::ui) source: crate::ui::browser::filter_mode::QuerySource,
 }
 
 impl ActivePaneFilter {
@@ -338,6 +340,20 @@ pub(in crate::ui) struct FilterQueryBinding {
     pending: Rc<RefCell<Option<glib::SourceId>>>,
     callback: Weak<FilterQueryCallback>,
     scope: FilterScope,
+}
+
+/// A clone shares the entry, the pending debounce and the callback, but not the
+/// `changed` handler: only the binding the entry was connected through disconnects it.
+impl Clone for FilterQueryBinding {
+    fn clone(&self) -> Self {
+        Self {
+            entry: self.entry.clone(),
+            changed: None,
+            pending: self.pending.clone(),
+            callback: self.callback.clone(),
+            scope: self.scope.clone(),
+        }
+    }
 }
 
 // An intent change requeries without overwriting the saved subfolder preference.
@@ -542,7 +558,7 @@ pub(crate) fn notify_filter_query(
 /// rebuild.
 pub(crate) fn deactivate_recursive_search(
     search_active: &Cell<bool>,
-    search_results: &RefCell<Vec<crate::services::SearchItem>>,
+    search_results: &RefCell<Vec<ResultRow>>,
     search_model: &gtk::StringList,
     filtered_model: &gtk::FilterListModel,
     directory_model: &EntryListModel,
@@ -716,27 +732,96 @@ pub(crate) fn search_result_entry(item: &crate::services::SearchItem) -> crate::
     }
 }
 
+pub(crate) fn result_entry(row: &ResultRow) -> Option<crate::model::FileEntry> {
+    use crate::model::{EntryKind, FileEntry, MetadataValue};
+    match row {
+        ResultRow::File(item) => Some(search_result_entry(item)),
+        ResultRow::Content(content) => Some(FileEntry {
+            location: Location::local(content.path.clone()),
+            thumbnail_path: None,
+            native_name: content.path.file_name().unwrap_or_default().to_os_string(),
+            display_name: content_display_name(&content.path, Some(&content.title)),
+            kind: EntryKind::File,
+            size: MetadataValue::Unknown,
+            modified_unix_seconds: MetadataValue::Unknown,
+            recent_unix_seconds: MetadataValue::Unknown,
+            is_hidden: false,
+            mode: MetadataValue::Unknown,
+            image_dimensions: MetadataValue::Unknown,
+            child_count: MetadataValue::Unknown,
+            duration_seconds: MetadataValue::Unknown,
+            listable: MetadataValue::Unknown,
+            recent_uri: None,
+        }),
+        ResultRow::Tag(_) => None,
+    }
+}
+
 pub(crate) fn recursive_search_activation_key(press: &KeyPress) -> bool {
     press.is_any(&[ENTER, RIGHT])
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Activation {
+    Open,
+    Navigate,
+    Retag(String),
+}
+
+pub(crate) fn activation_for(row: &ResultRow) -> Activation {
+    match row {
+        ResultRow::File(item) if item.is_directory => Activation::Navigate,
+        ResultRow::File(_) | ResultRow::Content(_) => Activation::Open,
+        ResultRow::Tag(tag) => Activation::Retag(format!("tags:{}", tag.name)),
+    }
+}
+
+pub(crate) fn activate_row(
+    browser: &Weak<Browser>,
+    row: &ResultRow,
+    close_search: impl FnOnce(),
+    retag: impl FnOnce(String),
+) -> bool {
+    match activation_for(row) {
+        Activation::Navigate => {
+            let Some(path) = row.path() else {
+                return false;
+            };
+            close_search();
+            let Some(browser) = browser.upgrade() else {
+                return false;
+            };
+            browser.navigate(Location::local(path.clone()));
+            true
+        }
+        Activation::Open => {
+            let Some(path) = row.path() else {
+                return false;
+            };
+            let Some(browser) = browser.upgrade() else {
+                return false;
+            };
+            browser.open_location(Location::local(path.clone()));
+            true
+        }
+        Activation::Retag(query) => {
+            retag(query);
+            true
+        }
+    }
+}
+
 pub(crate) fn activate_recursive_search_result(
     browser: &Weak<Browser>,
-    results: &RefCell<Vec<crate::services::SearchItem>>,
+    results: &RefCell<Vec<ResultRow>>,
     position: u32,
+    close_search: impl FnOnce(),
+    retag: impl FnOnce(String),
 ) -> bool {
-    let Some(item) = results.borrow().get(position as usize).cloned() else {
+    let Some(row) = results.borrow().get(position as usize).cloned() else {
         return false;
     };
-    let Some(browser) = browser.upgrade() else {
-        return false;
-    };
-    if item.is_directory {
-        browser.navigate(Location::local(item.path));
-    } else {
-        browser.open_location(Location::local(item.path));
-    }
-    true
+    activate_row(browser, &row, close_search, retag)
 }
 
 pub(crate) fn search_result_navigation_position(

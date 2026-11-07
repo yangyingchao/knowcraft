@@ -14,15 +14,6 @@ impl PreferenceManager {
         self.save_preferences();
     }
 
-    pub fn search_open_files_directly(&self) -> bool {
-        self.preferences.borrow().search_open_files_directly
-    }
-
-    pub fn set_search_open_files_directly(&self, enabled: bool) {
-        self.preferences.borrow_mut().search_open_files_directly = enabled;
-        self.save_preferences();
-    }
-
     pub fn search_exclusions(&self) -> Vec<String> {
         self.preferences.borrow().search_exclusions.clone()
     }

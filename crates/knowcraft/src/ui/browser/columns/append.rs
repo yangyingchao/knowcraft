@@ -85,6 +85,7 @@ impl ColumnParts {
             header_actions_stack: header.header_actions_stack,
             filter_entry: header.filter_entry,
             filter_button: header.filter_button,
+            filter_mode: header.filter_mode,
             selection: models.selection,
             syncing_selection: models.syncing_selection,
             list,
@@ -171,12 +172,14 @@ impl ViewState {
                 search_results: &models.search_results,
                 hits: &models.hits,
                 enter_target: &header.enter_target,
+                mode: &header.filter_mode,
+                entry: &header.filter_entry,
             },
         );
         let list = column_list(location, &models.selection, factory);
         self.install_filter_navigation(depth, &header, &models, &list);
         self.install_return_to_filter(&header, &models, &list);
-        self.connect_list_activation(depth, &models, &list);
+        self.connect_list_activation(depth, &header, &models, &list);
         let scroll = self.listing_scroll(&list);
         let visit_rows = surface::visit_bound_rows(&bound_rows);
         let syncing_for_enter = models.syncing_selection.clone();

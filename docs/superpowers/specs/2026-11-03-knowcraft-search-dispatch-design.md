@@ -1,5 +1,8 @@
 # knowcraft 搜索与归档设计
 
+> 本设计已被 `2026-11-07-knowledge-search-inline-design.md` 与 ADR 0005 取代：
+> 知识库搜索已内联到面板过滤栏，中央浮层只保留文件夹跳转。
+
 - 日期：2026-11-03
 - 状态：设计完成，待 grill 压力测试与用户最终确认
 - 关联设计：`docs/superpowers/specs/2026-11-02-knowcraft-design.md`（第 6 节 GUI 设计）

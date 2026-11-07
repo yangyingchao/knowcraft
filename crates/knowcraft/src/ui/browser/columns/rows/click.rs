@@ -10,8 +10,8 @@ use super::{RowContext, RowHandle};
 use crate::model::{FileEntry, Location};
 use crate::ui::browser::{
     ViewState, collection::activate_recursive_search_result,
-    entry::entry_responds_to_preview_click, paths::is_trash_location,
-    tab_location::TabLocationHold,
+    entry::entry_responds_to_preview_click, filter_mode::QuerySource,
+    filter_rows::ResultRow, paths::is_trash_location, tab_location::TabLocationHold,
 };
 use crate::ui::browser_modes::{FilteredFileClick, filtered_file_click};
 use crate::ui::collection_interaction::{MiddleClickAction, PointerSequence, SelectionChange};
@@ -276,7 +276,8 @@ impl RowClick {
             modifiers,
             control: modifiers.contains(ModifierType::CONTROL_MASK),
             shift: modifiers.contains(ModifierType::SHIFT_MASK),
-            filtered: context.search_active.get() || context.map.has_query(),
+            filtered: (context.result_list_active() && context.result_at(position))
+                || context.map.has_query(),
             source_position: context.map.source_position(position),
         };
         self.sequence.press(modifiers);
@@ -384,11 +385,25 @@ impl RowClick {
             return;
         };
         let position = press.position;
-        let pending = if context.search_active.get() {
-            context.search_entry(position).and_then(|entry| {
-                let kind = filtered_click_kind(&state, &entry, true)?;
-                Some((position as usize, entry.location, kind))
-            })
+        let results_active = context.result_list_active() && context.result_at(position);
+        let pending = if results_active {
+            let row = context
+                .search_results
+                .borrow()
+                .get(position as usize)
+                .cloned();
+            match row {
+                Some(ResultRow::Tag(_)) => {
+                    Some((position as usize, None, PendingActivationKind::RecursiveSearch))
+                }
+                Some(row) => {
+                    crate::ui::browser::collection::result_entry(&row).and_then(|entry| {
+                        let kind = filtered_click_kind(&state, &entry, true)?;
+                        Some((position as usize, Some(entry.location), kind))
+                    })
+                }
+                None => None,
+            }
         } else {
             context
                 .map
@@ -397,7 +412,7 @@ impl RowClick {
                     let entry = state.browser.entry_at(context.depth, source_position)?;
                     state.browser.select(context.depth, source_position);
                     let kind = filtered_click_kind(&state, &entry, false)?;
-                    Some((source_position, entry.location, kind))
+                    Some((source_position, Some(entry.location), kind))
                 })
         };
         if let Some((position, location, kind)) = pending {
@@ -478,7 +493,7 @@ impl RowClick {
         };
         self.arm(PendingPointerActivation {
             position: source_position,
-            location: entry.location.clone(),
+            location: Some(entry.location.clone()),
             press: press.point,
             moved: false,
             kind,
@@ -635,7 +650,7 @@ impl RowClick {
     }
 
     fn navigate_chooser_search(&self, state: &ViewState, pending: &PendingPointerActivation) {
-        let Some(item) = self
+        let Some(row) = self
             .context()
             .search_results
             .borrow()
@@ -644,38 +659,60 @@ impl RowClick {
         else {
             return;
         };
-        let location = Location::local(item.path.clone());
-        if item.is_directory && pending.can_activate(&location) {
-            state.browser.navigate(location);
+        let Some(entry) = crate::ui::browser::collection::result_entry(&row) else {
+            return;
+        };
+        if entry.is_directory() && pending.can_activate(&entry.location) {
+            state.browser.navigate(entry.location);
         }
     }
 
     fn activate_recursive_search(&self, state: &ViewState, pending: &PendingPointerActivation) {
-        let search_results = &self.context().search_results;
-        let matches = search_results
-            .borrow()
-            .get(pending.position)
-            .is_some_and(|item| pending.can_activate(&Location::local(item.path.clone())));
-        if matches {
-            activate_recursive_search_result(
-                &Rc::downgrade(&state.browser),
-                search_results,
-                pending.position as u32,
-            );
-        }
-    }
-
-    fn preview_recursive_search(&self, state: &ViewState, pending: &PendingPointerActivation) {
-        let Some(item) = self
-            .context()
-            .search_results
+        let context = self.context();
+        let search_results = &context.search_results;
+        let Some(row) = search_results
             .borrow()
             .get(pending.position)
             .cloned()
         else {
             return;
         };
-        let entry = crate::ui::browser::search_result_entry(&item);
+        let matches = match row.path() {
+            Some(path) => pending.can_activate(&Location::local(path)),
+            None => !pending.moved,
+        };
+        if !matches {
+            return;
+        }
+        let close_mode = context.mode.clone();
+        let entry = context.entry.clone();
+        let retag_mode = context.mode.clone();
+        activate_recursive_search_result(
+            &Rc::downgrade(&state.browser),
+            search_results,
+            pending.position as u32,
+            || close_mode.close(),
+            move |query| {
+                entry.set_text(&query);
+                retag_mode.focus_or_switch(QuerySource::Knowledge);
+                entry.select_region(0, -1);
+            },
+        );
+    }
+
+    fn preview_recursive_search(&self, state: &ViewState, pending: &PendingPointerActivation) {
+        let Some(row) = self
+            .context()
+            .search_results
+            .borrow()
+            .get(pending.position as usize)
+            .cloned()
+        else {
+            return;
+        };
+        let Some(entry) = crate::ui::browser::collection::result_entry(&row) else {
+            return;
+        };
         if pending.can_activate(&entry.location) && state.single_click_previews.get() {
             state.browser.request_preview(entry);
         }

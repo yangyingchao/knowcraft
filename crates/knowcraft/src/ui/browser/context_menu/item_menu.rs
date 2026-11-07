@@ -71,7 +71,7 @@ fn picked_context_target(
     if let Some(column) = search {
         let results = column.search_results.borrow();
         let result = results.get(position as usize)?;
-        return Some((None, crate::ui::browser::search_result_entry(result)));
+        return Some((None, crate::ui::browser::collection::result_entry(result)?));
     }
     let source = source_position(position)?;
     Some((Some(source), state.browser.entry_at(depth, source)?))

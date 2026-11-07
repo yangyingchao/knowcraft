@@ -4,7 +4,8 @@
 
 use super::{scroll_column_to, set_active_path_style, set_column_selections};
 use crate::ui::browser::ViewState;
-use crate::ui::browser::collection::{ActivePaneFilter, restore_filter_controls};
+use crate::ui::browser::collection::ActivePaneFilter;
+use crate::ui::browser::filter_mode::QuerySource;
 use gtk::glib;
 use gtk::prelude::*;
 use std::rc::Rc;
@@ -39,6 +40,7 @@ impl ViewState {
         ActivePaneFilter {
             query: column.filter_entry.text().to_string(),
             revealed: column.filter_button.is_active(),
+            source: column.filter_mode.source().unwrap_or(QuerySource::Files),
         }
     }
 
@@ -50,7 +52,9 @@ impl ViewState {
         let Some(column) = columns.get(depth) else {
             return;
         };
-        restore_filter_controls(&column.filter_button, &column.filter_entry, filter);
+        column
+            .filter_mode
+            .restore(Some(filter.source), filter.revealed, &filter.query);
     }
 
     /// Reapplies the directory selection to rows that return unselected when a filter ends.

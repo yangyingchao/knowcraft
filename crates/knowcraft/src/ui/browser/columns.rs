@@ -6,6 +6,7 @@ use crate::ui::browser::collection::{
     ViewMap, apply_selection_plan, bitset_positions, filter_placeholder,
 };
 use crate::ui::browser::find::{HitRanges, highlight_hit_name, highlight_listing_name};
+use crate::ui::browser::filter_rows::{ContentRow, ResultRow};
 use crate::ui::browser::presentation::LoadPresentation;
 use crate::ui::browser_modes::{ClickActivation, ClickCount};
 use crate::ui::entry_list_model::EntryListModel;
@@ -49,7 +50,8 @@ pub(super) enum PendingActivationKind {
 struct PendingPointerActivation {
     // Source-model index for Standard/Mapped; search-result index otherwise.
     pub(super) position: usize,
-    pub(super) location: Location,
+    // `None` for a tag result row, which has no location to confirm.
+    pub(super) location: Option<Location>,
     pub(super) press: (f64, f64),
     pub(super) moved: bool,
     pub(super) kind: PendingActivationKind,
@@ -63,7 +65,7 @@ impl PendingPointerActivation {
     }
 
     fn can_activate(&self, location: &Location) -> bool {
-        !self.moved && self.location == *location
+        !self.moved && self.location.as_ref() == Some(location)
     }
 }
 
@@ -86,6 +88,7 @@ pub(super) struct ColumnView {
     pub(super) header_actions_stack: gtk::Stack,
     pub(super) filter_entry: gtk::Entry,
     pub(super) filter_button: gtk::ToggleButton,
+    pub(super) filter_mode: crate::ui::browser::filter_mode::FilterModeController,
     pub(super) selection: gtk::MultiSelection,
     pub(super) syncing_selection: Rc<Cell<bool>>,
     pub(super) list: gtk::ListView,
@@ -105,7 +108,7 @@ pub(super) struct ColumnView {
     pub(super) leftovers_button: gtk::Button,
     pub(super) show_hidden: Rc<Cell<bool>>,
     pub(super) filter: gtk::CustomFilter,
-    pub(super) search_results: Rc<RefCell<Vec<crate::services::SearchItem>>>,
+    pub(super) search_results: Rc<RefCell<Vec<ResultRow>>>,
     pub(super) search_session: crate::ui::search_session::SearchSession,
     query_binding: Rc<RefCell<Option<super::collection::FilterQueryBinding>>>,
     pub(super) search_model: gtk::StringList,
@@ -166,7 +169,8 @@ impl ColumnView {
             if searching {
                 let hit = results
                     .get(item.position() as usize)
-                    .and_then(|hit| hits.ranges.get(&hit.path));
+                    .and_then(|row| row.path())
+                    .and_then(|path| hits.ranges.get(path));
                 highlight_hit_name(label.upcast_ref(), find, hit.map(Vec::as_slice));
             } else {
                 highlight_listing_name(label.upcast_ref(), find);
@@ -267,7 +271,9 @@ pub(super) fn refresh_source_filter(column: &ColumnView, browser: &crate::app::B
         .search_results
         .borrow()
         .iter()
-        .filter(|item| browser.allows_entry(&super::search_result_entry(item)))
+        .filter(|row| {
+            super::collection::result_entry(row).is_none_or(|entry| browser.allows_entry(&entry))
+        })
         .cloned()
         .collect();
     let update = column.result_lists().update(items, true);
@@ -316,7 +322,7 @@ pub(super) fn prune_missing_search_results(
         .search_results
         .borrow()
         .iter()
-        .map(|item| item.path.clone())
+        .filter_map(|row| row.path().cloned())
         .collect();
     let lists = column.result_lists();
     let list = column.list.downgrade();
@@ -327,13 +333,29 @@ pub(super) fn prune_missing_search_results(
             return;
         };
         let items = lists.results.borrow().clone();
-        if !items.iter().any(|item| gone.contains(&item.path)) {
+        if !items
+            .iter()
+            .any(|row| row.path().is_some_and(|path| gone.contains(path)))
+        {
             return;
         }
-        let items = lists.renamed.prune(items, &gone, |item| {
-            (show_hidden.get() || !item.name.starts_with('.'))
-                && browser.allows_entry(&super::search_result_entry(item))
-        });
+        let items = lists.renamed.prune_items(
+            items,
+            |row| row.path().map(std::path::PathBuf::as_path),
+            |row, path| match row {
+                ResultRow::File(item) => ResultRow::File(item.renamed(path)),
+                ResultRow::Content(row) => ResultRow::Content(ContentRow { path, ..row }),
+                tag @ ResultRow::Tag(_) => tag,
+            },
+            &gone,
+            |row| match super::collection::result_entry(row) {
+                Some(entry) => {
+                    (show_hidden.get() || !entry.display_name.starts_with('.'))
+                        && browser.allows_entry(&entry)
+                }
+                None => true,
+            },
+        );
         let update = lists.update(items, true);
         if let Some(position) = update.renamed
             && let Some(list) = list.upgrade()

@@ -14,7 +14,6 @@ pub(super) struct SearchWidgets {
     pub(super) layer: gtk::Box,
     pub(super) panel: gtk::Box,
     pub(super) field: gtk::Entry,
-    pub(super) indexing_spinner: gtk::Spinner,
     pub(super) list: gtk::ListBox,
     pub(super) positions: Rc<RefCell<HashMap<gtk::ListBoxRow, usize>>>,
     pub(super) scroller: gtk::ScrolledWindow,
@@ -27,7 +26,7 @@ impl SearchWidgets {
     pub(super) fn build() -> Self {
         let layer = search_layer();
         let panel = search_panel();
-        let (search_bar, field, indexing_spinner) = search_bar();
+        let (search_bar, field) = search_bar();
         panel.append(&search_bar);
         let status = status_label();
         let (list, positions) = results_list();
@@ -47,7 +46,6 @@ impl SearchWidgets {
             layer,
             panel,
             field,
-            indexing_spinner,
             list,
             positions,
             scroller,
@@ -82,7 +80,7 @@ fn search_panel() -> gtk::Box {
     panel
 }
 
-fn search_bar() -> (gtk::Box, gtk::Entry, gtk::Spinner) {
+fn search_bar() -> (gtk::Box, gtk::Entry) {
     let search_bar = gtk::Box::new(gtk::Orientation::Horizontal, 10);
     search_bar.add_css_class("search-bar");
     search_bar.append(&crate::assets::primary_icon(
@@ -90,26 +88,17 @@ fn search_bar() -> (gtk::Box, gtk::Entry, gtk::Spinner) {
         20,
     ));
     let field = gtk::Entry::builder()
-        .placeholder_text(crate::i18n::tr("Search files and folders…"))
+        .placeholder_text(crate::i18n::tr("Jump to a folder…"))
         .hexpand(true)
         .build();
     field.add_css_class("search-field");
-    crate::ui::accessibility::set_label(&field, &crate::i18n::tr("Search files and folders…"));
+    crate::ui::accessibility::set_label(&field, &crate::i18n::tr("Jump to a folder…"));
     search_bar.append(&field);
-    let indexing_spinner = gtk::Spinner::new();
-    indexing_spinner.add_css_class("search-indexing-spinner");
-    crate::ui::accessibility::set_description(
-        &indexing_spinner,
-        Some(&crate::i18n::tr("Indexing files…")),
-    );
-    indexing_spinner.set_valign(gtk::Align::Center);
-    indexing_spinner.set_visible(false);
-    search_bar.append(&indexing_spinner);
-    (search_bar, field, indexing_spinner)
+    (search_bar, field)
 }
 
 fn status_label() -> gtk::Label {
-    let status = gtk::Label::new(Some(&crate::i18n::tr("Type to search the knowledge base")));
+    let status = gtk::Label::new(Some(&crate::i18n::tr("Type to jump to a visited folder")));
     status.add_css_class("search-status");
     status.set_wrap(true);
     status.set_justify(gtk::Justification::Center);

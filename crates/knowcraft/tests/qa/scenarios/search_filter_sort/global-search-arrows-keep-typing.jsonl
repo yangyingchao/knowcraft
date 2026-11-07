@@ -1,24 +1,20 @@
-{"scenario":"global-search-arrows-keep-typing","modes":["columns"],"layout":"us","mutation":null,"known_bug":null,"cost":{"columns":1.0},"quality":{"impact":3,"coverage":3,"criticality":3,"diagnostic":3,"score":25,"note":"Arrows move global-search selection, typing refines it, Enter opens it; unit arrow_keys test covers focus, this adds Ctrl+K wiring and real index"}}
-{"fs":{"path":"$home/navigation-alpha","mkdir":true}}
-{"fs":{"path":"$home/navigation-beta","mkdir":true}}
-{"fs":{"path":"$home/navigation-final","mkdir":true}}
-{"fs":{"path":"$home/navigation-gamma","mkdir":true}}
+{"scenario":"global-search-arrows-keep-typing","modes":["columns"],"layout":"us","mutation":null,"known_bug":null,"cost":{"columns":1.0},"quality":{"impact":3,"coverage":3,"criticality":3,"diagnostic":3,"score":25,"note":"Typing refines the pane's knowledge results, Down moves into them and Enter opens the folder; unit arrow_keys test covers focus, this adds the Ctrl+K wiring and the real knowledge walk"}}
+{"fs":{"path":"$home/Knowledge/navigation-alpha","mkdir":true,"parents":true}}
+{"fs":{"path":"$home/Knowledge/navigation-beta","mkdir":true,"parents":true}}
+{"fs":{"path":"$home/Knowledge/navigation-final","mkdir":true,"parents":true}}
+{"fs":{"path":"$home/Knowledge/navigation-gamma","mkdir":true,"parents":true}}
 {"key":"ctrl+k"}
-{"wait":{"field":{}},"message":"an editable field to take focus"}
+{"wait":{"field":{}},"message":"the pane's knowledge search field to take focus"}
 {"remember":{"field":true},"as":"field"}
 {"type":"nav"}
-{"wait":{"field":{"of":"field","text":"nav"}},"message":"the initial global-search query"}
-{"wait":{"all":[{"present":{"role":"label","name":"navigation-alpha"}},{"present":{"role":"label","name":"navigation-beta"}},{"present":{"role":"label","name":"navigation-final"}},{"present":{"role":"label","name":"navigation-gamma"}}]},"message":"all navigation results to be indexed"}
-{"expect":{"present":{"role":"list item","name_ends_with":["/navigation-alpha","/navigation-beta","/navigation-final","/navigation-gamma"],"nth":3}}}
-{"expect":{"absent":{"role":"list item","name_ends_with":["/navigation-alpha","/navigation-beta","/navigation-final","/navigation-gamma"],"nth":4}}}
-{"expect":{"state":{"target":{"role":"list item","name_ends_with":["/navigation-alpha","/navigation-beta","/navigation-final","/navigation-gamma"],"nth":0},"selected":true}}}
-{"key":"Down"}
-{"wait":{"state":{"target":{"role":"list item","name_ends_with":["/navigation-alpha","/navigation-beta","/navigation-final","/navigation-gamma"],"nth":1},"selected":true}},"message":"the first Down press to advance past the preselected result"}
-{"key":"Down","repeat":2}
+{"wait":{"field":{"of":"field","text":"nav"}},"message":"the initial knowledge query"}
+{"wait":{"matches":{"set":["navigation-alpha","navigation-beta","navigation-final","navigation-gamma"]}},"message":"all navigation folders to appear in the pane's results"}
 {"type":"igation-final"}
-{"wait":{"field":{"of":"field","text":"navigation-final"}},"message":"typing after arrow navigation to extend the query"}
-{"wait":{"present":{"role":"list item","name_ends_with":["/navigation-final"]}},"message":"the refined selected result"}
-{"wait":{"state":{"target":{"role":"list item","name_ends_with":["/navigation-final"]},"selected":true}},"message":"the refined result to be selected"}
+{"wait":{"field":{"of":"field","text":"navigation-final"}},"message":"typing to refine the knowledge query"}
+{"wait":{"matches":{"set":["navigation-final"]}},"message":"the refined knowledge result"}
+{"wait":{"state":{"target":{"search_result":"navigation-final"},"marked":true}},"message":"the refined folder to carry the Enter mark"}
+{"key":"Down"}
+{"wait":{"state":{"target":{"search_result":"navigation-final"},"selected":true}},"message":"Down to move into the knowledge results"}
 {"key":"Return"}
-{"wait":{"directory":"navigation-final"},"message":"the browser to be working in 'navigation-final'"}
+{"wait":{"directory":"navigation-final"},"message":"Enter to open the selected folder"}
 {"settle":{"pane":"navigation-final"}}

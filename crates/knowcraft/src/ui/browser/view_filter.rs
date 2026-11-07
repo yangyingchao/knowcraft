@@ -62,7 +62,7 @@ impl BrowserView {
         let Some(column) = column else {
             return false;
         };
-        column.filter_button.set_active(false);
+        column.filter_mode.close();
         // Show the listing now rather than after the debounce, so focus lands on it.
         column.flush_filter_query();
         column.focus_surface();

@@ -17,7 +17,10 @@ use super::{
 use crate::{
     app::Browser,
     model::Location,
-    ui::{collection_edit::EditWidgets, inline_search::InlineSearch, loading_skeleton, marquee},
+    ui::{
+        browser::filter_mode::FilterModeController, collection_edit::EditWidgets,
+        inline_search::InlineSearch, loading_skeleton, marquee,
+    },
 };
 
 pub(super) use super::pane_shell::{
@@ -114,6 +117,7 @@ pub(super) struct Pane {
     pub(super) search: InlineSearch,
     pub(super) filter_entry: Option<gtk::Entry>,
     pub(super) filter_button: Option<gtk::ToggleButton>,
+    pub(super) filter_mode: Option<FilterModeController>,
     pub(super) empty_trash_button: Option<gtk::Button>,
     pub(super) leftovers_button: gtk::Button,
     pub(super) show_hidden: Rc<Cell<bool>>,
@@ -216,6 +220,7 @@ impl Pane {
             search: listing.search,
             filter_entry: Some(filter.entry),
             filter_button: Some(filter.button),
+            filter_mode: None,
             empty_trash_button: listing.empty_trash_button,
             leftovers_button: listing.leftovers_button,
             show_hidden: filter.show_hidden,

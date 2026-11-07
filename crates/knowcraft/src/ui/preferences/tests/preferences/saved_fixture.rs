@@ -26,7 +26,6 @@ fn assert_saved_behaviour(manager: &PreferenceManager) {
 }
 
 fn assert_saved_search(manager: &PreferenceManager) {
-    assert!(manager.search_open_files_directly());
     assert_eq!(
         manager.search_exclusions(),
         vec![".venv", "/fixture/custom_excluded"]

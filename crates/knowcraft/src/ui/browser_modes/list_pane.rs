@@ -13,7 +13,7 @@ use super::{
     BrowserMode, column_options,
     context_menu::install_section_context_menu,
     drag_drop::install_mode_directory_drop_target,
-    filter::{PaneFilter, attach_in_place, filter_controls},
+    filter::{FilterControls, PaneFilter, attach_in_place, filter_controls},
     grouped_model::GroupedModel,
     list_columns::{ListColumnLayout, column_shown, register_list_column_cell},
     list_factory::{ListFactory, refresh_list_section},
@@ -149,8 +149,18 @@ impl ListActions {
 pub(super) fn build_list_pane(inputs: &PaneBuild, group_by_type: bool) -> Pane {
     let table = ListTable::new(inputs);
     let actions = ListActions::new(inputs, &table);
-    let (filter_entry, filter_revealer, filter_button) = filter_controls("Filter list (%{keys})");
+    let FilterControls {
+        entry: filter_entry,
+        revealer: filter_revealer,
+        filter_button,
+        search_button,
+        mode: filter_mode,
+    } = filter_controls(
+        "Filter list (%{keys})",
+        "Search the knowledge base (%{keys})",
+    );
     actions.widget.append(&filter_button);
+    actions.widget.append(&search_button);
     let base = pane_base(PaneChrome {
         depth: inputs.depth,
         location: inputs.location(),
@@ -162,7 +172,13 @@ pub(super) fn build_list_pane(inputs: &PaneBuild, group_by_type: bool) -> Pane {
         actions: actions.widget.clone().upcast(),
     });
     base.prepare_listing(inputs, &filter_revealer);
-    let filter = PaneFilter::bind(filter_entry, filter_button, inputs, &base.model);
+    let filter = PaneFilter::bind(
+        filter_entry,
+        filter_button,
+        inputs,
+        &base.model,
+        filter_mode.clone(),
+    );
     let type_group_sorter =
         group_by_type.then(|| pane_type_group_sorter(&inputs.browser, inputs.depth));
     let listing = ListListing {
@@ -180,6 +196,7 @@ pub(super) fn build_list_pane(inputs: &PaneBuild, group_by_type: bool) -> Pane {
     pane.sorting = Some(table.sorting);
     pane.list_headings = Some(table.headings);
     pane.list_columns = Some(table.columns);
+    pane.filter_mode = Some(filter_mode);
     refresh_marquee_targets(&pane);
     pane
 }

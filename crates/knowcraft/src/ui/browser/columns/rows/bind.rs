@@ -192,7 +192,8 @@ impl RowBinding<'_> {
             .search_results
             .borrow()
             .get(self.item.position() as usize)
-            .and_then(|hit| hits.ranges.get(&hit.path).cloned());
+            .and_then(|row| row.path())
+            .and_then(|path| hits.ranges.get(path).cloned());
         crate::ui::browser::find::highlight_hit_name(label, find.as_deref(), hit.as_deref());
     }
 

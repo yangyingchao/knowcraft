@@ -42,12 +42,12 @@ fn track_drop_hover(
 /// Search hits drag the selected hits when the pressed one is among them.
 fn dragged_search_entries(context: &RowContext, position: u32) -> Option<Vec<FileEntry>> {
     let results = context.search_results.borrow();
-    let entry = crate::ui::browser::search_result_entry(results.get(position as usize)?);
+    let entry = crate::ui::browser::collection::result_entry(results.get(position as usize)?)?;
     let selected: Vec<_> =
         crate::ui::browser::collection::bitset_positions(&context.selection.selection())
             .into_iter()
             .filter_map(|position| results.get(position as usize))
-            .map(crate::ui::browser::search_result_entry)
+            .filter_map(crate::ui::browser::collection::result_entry)
             .collect();
     if selected
         .iter()

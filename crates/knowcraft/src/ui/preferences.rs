@@ -145,8 +145,6 @@ pub(in crate::ui) struct Preferences {
     hardware_accelerated_video_previews: Option<bool>,
     #[serde(default = "default_video_preview_backend")]
     video_preview_backend: String,
-    #[serde(default)]
-    search_open_files_directly: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     search_exclusions: Vec<String>,
     #[serde(default = "default_search_time_limit")]

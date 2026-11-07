@@ -1,5 +1,4 @@
-{"scenario":"toolbar-controls-named","modes":["columns"],"layout":"us","mutation":null,"known_bug":null,"cost":{"columns":0.3},"quality":{"impact":3,"coverage":3,"criticality":3,"diagnostic":5,"score":31,"note":"Toolbar names for screen readers; Search (Ctrl+K) and Toggle sidebar (Ctrl+B) checked only here, others by name elsewhere"}}
-{"expect":{"present":{"named":"Search (Ctrl+K)","within":{"window":true}}},"message":"'Search (Ctrl+K)' is unnamed"}
+{"scenario":"toolbar-controls-named","modes":["columns"],"layout":"us","mutation":null,"known_bug":null,"cost":{"columns":0.3},"quality":{"impact":3,"coverage":3,"criticality":3,"diagnostic":5,"score":31,"note":"Toolbar names for screen readers; Toggle sidebar (Ctrl+B) checked only here, others by name elsewhere; the header search button is gone and knowledge search lives in each pane"}}
 {"expect":{"present":{"named":"Appearance","within":{"window":true}}},"message":"'Appearance' is unnamed"}
 {"expect":{"present":{"named":"Settings","within":{"window":true}}},"message":"'Settings' is unnamed"}
 {"expect":{"present":{"named":"Close window","within":{"window":true}}},"message":"'Close window' is unnamed"}

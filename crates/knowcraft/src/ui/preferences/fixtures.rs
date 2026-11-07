@@ -18,7 +18,6 @@ pub(in crate::ui) fn non_default_preferences() -> Preferences {
         render_documents_by_default: false,
         hardware_accelerated_video_previews: Some(false),
         video_preview_backend: "vulkan".into(),
-        search_open_files_directly: true,
         search_exclusions: vec![".venv".into(), "/fixture/custom_excluded".into()],
         search_time_limit: 300,
         search_entry_limit: 1_000_000,

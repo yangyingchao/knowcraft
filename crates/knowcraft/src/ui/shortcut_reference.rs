@@ -572,11 +572,11 @@ const DEFAULT_FILES: &[Shortcut] = &[
 
 /// The context menu renames inline, and only there does Tab move the editor.
 const DEFAULT_TOOLS: &[Shortcut] = &[
-    row(One(SEARCH.shown()), "Open global search"),
+    row(One(SEARCH.shown()), "Search the knowledge base in this pane"),
     row(One(JUMP_TO_FOLDER.shown()), "Jump to a recent folder"),
     row(
         One(OPEN_CONTAINING_FOLDER.shown()),
-        "Open containing folder (global search)",
+        "Open containing folder (folder jump)",
     ),
     row(One(LOCATION.shown()), "Edit the location"),
     row(One(TAB_NEW.shown()), "New tab"),

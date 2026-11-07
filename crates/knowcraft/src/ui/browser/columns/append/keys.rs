@@ -5,11 +5,12 @@
 use super::header::ColumnHeader;
 use super::models::ColumnModels;
 use crate::app::Browser;
-use crate::services::SearchItem;
 use crate::ui::browser::collection::{
     ViewMap, activate_recursive_search_result, bitset_positions, recursive_search_activation_key,
     search_result_navigation_position,
 };
+use crate::ui::browser::filter_mode::{FilterModeController, QuerySource};
+use crate::ui::browser::filter_rows::ResultRow;
 use crate::ui::browser::{BrowserView, ViewState};
 use crate::ui::enter_target::EnterTarget;
 use crate::ui::keys::{
@@ -33,6 +34,10 @@ fn filter_active(search_active: &Cell<bool>, query: &RefCell<String>) -> bool {
     search_active.get() || !query.borrow().trim().is_empty()
 }
 
+fn result_list_active(search_active: &Cell<bool>, mode: &FilterModeController) -> bool {
+    search_active.get() || mode.source() == Some(QuerySource::Knowledge)
+}
+
 fn note_keyboard_navigation(state: &Weak<ViewState>) {
     if let Some(state) = state.upgrade() {
         BrowserView { state }.keyboard_navigation();
@@ -47,11 +52,13 @@ struct FilterNavigation {
     map: ViewMap,
     query: Rc<RefCell<String>>,
     search_active: Rc<Cell<bool>>,
-    results: Rc<RefCell<Vec<SearchItem>>>,
+    results: Rc<RefCell<Vec<ResultRow>>>,
     selection: gtk::MultiSelection,
     syncing: Rc<Cell<bool>>,
     list: gtk::ListView,
     enter: EnterTarget,
+    mode: FilterModeController,
+    entry: gtk::Entry,
 }
 
 impl FilterNavigation {
@@ -82,9 +89,22 @@ impl FilterNavigation {
     }
 
     fn activate(&self, current: Option<u32>) -> bool {
-        if self.search_active.get() {
+        if result_list_active(&self.search_active, &self.mode) {
             return current.is_some_and(|position| {
-                activate_recursive_search_result(&self.browser, &self.results, position)
+                let close_mode = self.mode.clone();
+                let entry = self.entry.clone();
+                let retag_mode = self.mode.clone();
+                activate_recursive_search_result(
+                    &self.browser,
+                    &self.results,
+                    position,
+                    || close_mode.close(),
+                    move |query| {
+                        entry.set_text(&query);
+                        retag_mode.focus_or_switch(QuerySource::Knowledge);
+                        entry.select_region(0, -1);
+                    },
+                )
             });
         }
         let Some(position) = current else {
@@ -106,7 +126,7 @@ impl FilterNavigation {
         else {
             return Propagation::Stop;
         };
-        let is_recursive = self.search_active.get();
+        let is_recursive = result_list_active(&self.search_active, &self.mode);
         if is_recursive {
             self.syncing.set(true);
         }
@@ -167,7 +187,9 @@ struct ListActivation {
     depth: usize,
     map: ViewMap,
     search_active: Rc<Cell<bool>>,
-    results: Rc<RefCell<Vec<SearchItem>>>,
+    results: Rc<RefCell<Vec<ResultRow>>>,
+    mode: FilterModeController,
+    entry: gtk::Entry,
 }
 
 impl ListActivation {
@@ -175,9 +197,24 @@ impl ListActivation {
         if let Some(state) = self.state.upgrade() {
             state.cancel_click_rename();
         }
-        if self.search_active.get() {
-            activate_recursive_search_result(&self.browser, &self.results, position);
-            return;
+        if result_list_active(&self.search_active, &self.mode) {
+            let close_mode = self.mode.clone();
+            let entry = self.entry.clone();
+            let retag_mode = self.mode.clone();
+            let activated = activate_recursive_search_result(
+                &self.browser,
+                &self.results,
+                position,
+                || close_mode.close(),
+                move |query| {
+                    entry.set_text(&query);
+                    retag_mode.focus_or_switch(QuerySource::Knowledge);
+                    entry.select_region(0, -1);
+                },
+            );
+            if activated {
+                return;
+            }
         }
         if let (Some(state), Some(source_position)) =
             (self.state.upgrade(), self.map.source_position(position))
@@ -209,6 +246,8 @@ impl ViewState {
             syncing: models.syncing_selection.clone(),
             list: list.clone(),
             enter: header.enter_target.clone(),
+            mode: header.filter_mode.clone(),
+            entry: header.filter_entry.clone(),
         };
         keys::on_press(&search_navigation, move |_, press| {
             navigation.pressed(press)
@@ -240,6 +279,7 @@ impl ViewState {
     pub(super) fn connect_list_activation(
         self: &Rc<Self>,
         depth: usize,
+        header: &ColumnHeader,
         models: &ColumnModels,
         list: &gtk::ListView,
     ) {
@@ -250,6 +290,8 @@ impl ViewState {
             map: models.map.clone(),
             search_active: models.recursive_search_active.clone(),
             results: models.search_results.clone(),
+            mode: header.filter_mode.clone(),
+            entry: header.filter_entry.clone(),
         };
         list.connect_activate(move |_, position| activation.activated(position));
     }

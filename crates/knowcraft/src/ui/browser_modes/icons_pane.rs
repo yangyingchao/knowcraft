@@ -90,6 +90,7 @@ pub(super) fn build_icons_pane(inputs: &PaneBuild, options: IconsOptions) -> Pan
         controls.filter_button.clone(),
         inputs,
         &base.model,
+        controls.filter_mode.clone(),
     );
     let (context, sections) = icons_context(inputs, &options, &base.source_index, &filter);
     let type_group_sorter = options
@@ -115,6 +116,7 @@ pub(super) fn build_icons_pane(inputs: &PaneBuild, options: IconsOptions) -> Pan
         sort_direction_button,
         thumbnail,
         content,
+        filter_mode,
         ..
     } = controls;
     let listing = PaneListing {
@@ -131,6 +133,7 @@ pub(super) fn build_icons_pane(inputs: &PaneBuild, options: IconsOptions) -> Pan
     pane.icons = Some(context);
     pane.thumbnail_scale = Some(thumbnail.scale);
     pane.sort_direction_button = Some(sort_direction_button);
+    pane.filter_mode = Some(filter_mode);
     refresh_marquee_targets(&pane);
     pane
 }

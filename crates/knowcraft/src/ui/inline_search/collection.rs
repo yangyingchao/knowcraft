@@ -6,8 +6,11 @@
 use super::{SEARCH_RESULTS_LABEL, SearchPresentation};
 use crate::{
     model::{FileEntry, Location},
-    services::SearchItem,
-    ui::browser::find::{HitRanges, highlight_hit_name},
+    ui::browser::{
+        filter_mode::RowId,
+        filter_rows::ResultRow,
+        find::{HitRanges, highlight_hit_name},
+    },
 };
 use gtk::{gio, glib, prelude::*};
 use std::{
@@ -20,8 +23,8 @@ use std::{
 #[derive(Clone)]
 pub(super) struct CollectionBehavior {
     pub(super) multiple_selection: Rc<Cell<bool>>,
-    pub(super) activate: Rc<dyn Fn(FileEntry)>,
-    pub(super) pointer_click: Rc<dyn Fn(FileEntry, i32)>,
+    pub(super) activate: Rc<dyn Fn(ResultRow)>,
+    pub(super) pointer_click: Rc<dyn Fn(ResultRow, i32)>,
     pub(super) focus_items: Rc<dyn Fn()>,
     pub(super) focus_entry: Rc<dyn Fn() -> bool>,
     pub(super) enter: crate::ui::enter_target::EnterTarget,
@@ -71,7 +74,7 @@ pub(super) struct ResultCollection {
     pub(super) model: gio::ListStore,
     pub(super) sorted: gtk::SortListModel,
     pub(super) sorter: gtk::CustomSorter,
-    pub(super) positions: Rc<RefCell<HashMap<PathBuf, usize>>>,
+    pub(super) positions: Rc<RefCell<HashMap<RowId, usize>>>,
     pub(super) selection: gtk::MultiSelection,
     pub(super) bound: Rc<RefCell<Vec<BoundResult>>>,
     pub(super) anchor: Rc<Cell<Option<u32>>>,
@@ -87,13 +90,8 @@ pub(super) struct ResultCollection {
 }
 
 impl ResultCollection {
-    pub(super) fn item(&self, position: u32) -> Option<SearchItem> {
-        let object = self
-            .sorted
-            .item(position)?
-            .downcast::<glib::BoxedAnyObject>()
-            .ok()?;
-        Some(object.borrow::<SearchItem>().clone())
+    pub(super) fn item(&self, position: u32) -> Option<ResultRow> {
+        row_at(&self.sorted, position)
     }
 
     pub(super) fn visit_bound(&self) -> crate::ui::marquee::ItemVisitor {
@@ -110,7 +108,7 @@ impl ResultCollection {
         })
     }
 
-    pub(super) fn items(&self) -> Vec<SearchItem> {
+    pub(super) fn items(&self) -> Vec<ResultRow> {
         (0..self.sorted.n_items())
             .filter_map(|position| self.item(position))
             .collect()
@@ -215,13 +213,13 @@ impl ResultCollection {
     }
 
     /// Shows `items`, keeping the selection by identity unless the query changed.
-    pub(super) fn update(&self, items: &[SearchItem], recursive: bool, keep_selection: bool) {
+    pub(super) fn update(&self, items: &[ResultRow], recursive: bool, keep_selection: bool) {
         self.reconciling.set(true);
         self.gesture_selection.borrow_mut().take();
         let settled = self.renamed.settle(items);
-        let follow = |path: PathBuf| match &settled {
-            Some(settled) => settled.follow(path),
-            None => path,
+        let follow = |id: RowId| match (&settled, id) {
+            (Some(settled), RowId::Path(path)) => RowId::Path(settled.follow(path)),
+            (_, id) => id,
         };
         let left = settled == Some(super::Settled::Left);
         let kept = if keep_selection {
@@ -229,17 +227,18 @@ impl ResultCollection {
         } else {
             Vec::new()
         };
-        let selected_paths: Vec<_> = kept
+        let selected_ids: HashSet<_> = kept
             .iter()
-            .filter_map(|position| self.item(*position as u32).map(|item| follow(item.path)))
+            .filter_map(|position| self.item(*position as u32))
+            .map(|row| follow(row.id()))
             .collect();
         let selected_slot = kept.first().copied();
-        let anchor_path = self
+        let anchor_id = self
             .anchor
             .get()
             .filter(|_| keep_selection)
             .and_then(|position| self.item(position))
-            .map(|item| follow(item.path));
+            .map(|row| follow(row.id()));
         let focused_widget = self.view.root().and_then(|root| root.focus());
         // Deleting a result refocuses the listing's own row, which the results hide; an
         // unmapped list item cannot take keys, so the results reclaim focus from it.
@@ -252,14 +251,15 @@ impl ResultCollection {
             .as_ref()
             .filter(|_| focused_in_collection)
             .and_then(|focus| self.position_at(focus));
-        let focused_path =
-            focused_slot.and_then(|position| self.item(position).map(|item| follow(item.path)));
+        let focused_id = focused_slot
+            .and_then(|position| self.item(position))
+            .map(|row| follow(row.id()));
 
         self.positions.replace(
             items
                 .iter()
                 .enumerate()
-                .map(|(position, item)| (item.path.clone(), position))
+                .map(|(position, row)| (row.id(), position))
                 .collect(),
         );
         self.replace_items(items);
@@ -267,7 +267,7 @@ impl ResultCollection {
         for position in 0..self.selection.n_items() {
             if self
                 .item(position)
-                .is_some_and(|item| selected_paths.contains(&item.path))
+                .is_some_and(|row| selected_ids.contains(&row.id()))
             {
                 selected.add(position);
             }
@@ -287,13 +287,13 @@ impl ResultCollection {
             &gtk::Bitset::new_range(0, self.selection.n_items()),
         );
         self.gesture_selection.replace(Some(selected.copy()));
-        self.anchor.set(anchor_path.and_then(|path| {
+        self.anchor.set(anchor_id.as_ref().and_then(|id| {
             (0..self.selection.n_items())
-                .find(|position| self.item(*position).is_some_and(|item| item.path == path))
+                .find(|position| self.item(*position).is_some_and(|row| &row.id() == id))
         }));
-        if let Some(position) = focused_path.as_ref().and_then(|path| {
+        if let Some(position) = focused_id.as_ref().and_then(|id| {
             (0..self.selection.n_items())
-                .find(|position| self.item(*position).is_some_and(|item| &item.path == path))
+                .find(|position| self.item(*position).is_some_and(|row| &row.id() == id))
         }) {
             self.restore_focus(position);
         } else if focused_in_collection {
@@ -312,14 +312,14 @@ impl ResultCollection {
     }
 
     /// Edits the model into `items`, keeping the objects of unchanged results.
-    fn replace_items(&self, items: &[SearchItem]) {
-        let wanted: HashSet<_> = items.iter().map(|item| item.path.clone()).collect();
+    fn replace_items(&self, items: &[ResultRow]) {
+        let wanted: HashSet<_> = items.iter().map(ResultRow::id).collect();
         for position in (0..self.model.n_items()).rev() {
             let remove = self
                 .model
                 .item(position)
                 .and_downcast::<glib::BoxedAnyObject>()
-                .is_none_or(|object| !wanted.contains(&object.borrow::<SearchItem>().path));
+                .is_none_or(|object| !wanted.contains(&object.borrow::<ResultRow>().id()));
             if remove {
                 self.model.remove(position);
             }
@@ -331,17 +331,16 @@ impl ResultCollection {
                 .item(position)
                 .and_downcast::<glib::BoxedAnyObject>()
             {
-                let path = object.borrow::<SearchItem>().path.clone();
-                existing.insert(path, object);
+                let id = object.borrow::<ResultRow>().id();
+                existing.insert(id, object);
             }
         }
         for item in items {
-            let unchanged = existing.get(&item.path).is_some_and(|object| {
-                let old = object.borrow::<SearchItem>();
-                old.name == item.name && old.is_directory == item.is_directory
-            });
+            let unchanged = existing
+                .get(&item.id())
+                .is_some_and(|object| same_row(&object.borrow::<ResultRow>(), item));
             if !unchanged {
-                if let Some(object) = existing.remove(&item.path)
+                if let Some(object) = existing.remove(&item.id())
                     && let Some(position) = self.model.find(&object)
                 {
                     self.model.remove(position);
@@ -379,8 +378,10 @@ impl ResultCollection {
             else {
                 continue;
             };
-            if let Some(result) = self.item(item.position()) {
-                highlights.apply(&label, &result.path);
+            if let Some(result) = self.item(item.position())
+                && let Some(path) = result.path()
+            {
+                highlights.apply(&label, path);
             }
         }
     }
@@ -402,8 +403,9 @@ impl ResultCollection {
             if let (Some(result), Some(row)) = (
                 self.item(item.position()),
                 widget.downcast_ref::<gtk::Box>(),
-            ) {
-                crate::ui::browser::set_mark_result_style(row, &Location::local(&result.path));
+            ) && let Some(path) = result.path()
+            {
+                crate::ui::browser::set_mark_result_style(row, &Location::local(path));
             }
             true
         });
@@ -416,17 +418,35 @@ impl ResultCollection {
     }
 }
 
-pub(super) fn collection_entry(
-    model: &impl IsA<gio::ListModel>,
-    position: u32,
-) -> Option<FileEntry> {
+fn row_at(model: &impl IsA<gio::ListModel>, position: u32) -> Option<ResultRow> {
     let object = model
         .item(position)?
         .downcast::<glib::BoxedAnyObject>()
         .ok()?;
-    Some(crate::ui::browser::search_result_entry(
-        &object.borrow::<SearchItem>(),
-    ))
+    Some(object.borrow::<ResultRow>().clone())
+}
+
+pub(super) fn collection_entry(
+    model: &impl IsA<gio::ListModel>,
+    position: u32,
+) -> Option<FileEntry> {
+    crate::ui::browser::result_entry(&row_at(model, position)?)
+}
+
+/// Whether `old` shows the same row as `new`: same identity and display, with
+/// tag rows compared by identity alone.
+fn same_row(old: &ResultRow, new: &ResultRow) -> bool {
+    if old.id() != new.id() {
+        return false;
+    }
+    match (old, new) {
+        (ResultRow::Tag(_), ResultRow::Tag(_)) => true,
+        (ResultRow::File(old), ResultRow::File(new)) => {
+            old.name == new.name && old.is_directory == new.is_directory
+        }
+        (ResultRow::Content(old), ResultRow::Content(new)) => old.title == new.title,
+        _ => false,
+    }
 }
 
 fn install_result_interactions(
@@ -452,6 +472,7 @@ fn install_result_interactions(
     let model_for_release = model.clone();
     let pointer_for_release = pointer_activation.clone();
     let pointer_click = interactions.behavior.pointer_click.clone();
+    let activate_for_release = interactions.behavior.activate.clone();
     crate::ui::pointer::connect_click_release(&click, item, move |gesture, press_count, _, _| {
         if pointer_for_release.activation() != Some(true) || (press_count != 1 && press_count != 2)
         {
@@ -462,12 +483,20 @@ fn install_result_interactions(
         if selection_for_release.selection().size() > 1 {
             return;
         }
-        if let Some(entry) = weak_item
+        let Some(row) = weak_item
             .upgrade()
-            .and_then(|item| collection_entry(&model_for_release, item.position()))
-        {
-            pointer_click(entry, press_count);
+            .and_then(|item| row_at(&model_for_release, item.position()))
+        else {
+            return;
+        };
+        // A tag row has no file to preview or open; only a double-click retags.
+        if matches!(row, ResultRow::Tag(_)) {
+            if press_count == 2 {
+                activate_for_release(row);
+            }
+            return;
         }
+        pointer_click(row, press_count);
     });
     let weak_item = item.downgrade();
     let selection_for_press = selection.clone();
@@ -522,6 +551,12 @@ fn install_result_interactions(
         let item = weak_item.upgrade()?;
         let widget = weak_widget.upgrade()?;
         let position = item.position();
+        if matches!(
+            row_at(&model_for_drag, position),
+            Some(ResultRow::Tag(_)) | None
+        ) {
+            return None;
+        }
         let positions: Vec<_> = if selection_for_drag.is_selected(position) {
             (0..selection_for_drag.n_items())
                 .filter(|position| selection_for_drag.is_selected(*position))
@@ -533,6 +568,9 @@ fn install_result_interactions(
             .into_iter()
             .filter_map(|position| collection_entry(&model_for_drag, position))
             .collect();
+        if entries.is_empty() {
+            return None;
+        }
         source.set_actions(crate::ui::browser::drag_actions_for_modifiers(
             source.current_event_state(),
         ));
@@ -564,7 +602,7 @@ pub(super) fn build_collection(
         } => (ResultKind::Icons { thumbnail_size }, Some(max_columns)),
     };
     let model = gio::ListStore::new::<glib::BoxedAnyObject>();
-    let positions = Rc::new(RefCell::new(HashMap::<PathBuf, usize>::new()));
+    let positions = Rc::new(RefCell::new(HashMap::<RowId, usize>::new()));
     let positions_for_sort = positions.clone();
     let sorter = gtk::CustomSorter::new(move |left, right| {
         let position = |object: &glib::Object| {
@@ -573,7 +611,7 @@ pub(super) fn build_collection(
                 .and_then(|object| {
                     positions_for_sort
                         .borrow()
-                        .get(&object.borrow::<SearchItem>().path)
+                        .get(&object.borrow::<ResultRow>().id())
                         .copied()
                 })
                 .unwrap_or(usize::MAX)
@@ -683,7 +721,7 @@ pub(super) fn build_collection(
         let Some(result) = item
             .item()
             .and_downcast::<glib::BoxedAnyObject>()
-            .map(|object| object.borrow::<SearchItem>().clone())
+            .map(|object| object.borrow::<ResultRow>().clone())
         else {
             return;
         };
@@ -784,8 +822,8 @@ pub(super) fn build_collection(
         if pointer_activation.activation().is_some() {
             return;
         }
-        if let Some(entry) = collection_entry(&sorted_for_activate, position) {
-            activate(entry);
+        if let Some(row) = row_at(&sorted_for_activate, position) {
+            activate(row);
         }
     });
     if let Some(list) = view.downcast_ref::<gtk::ListView>() {
@@ -822,4 +860,42 @@ pub(super) fn build_collection(
         scroll,
         overlay,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{services::SearchItem, ui::browser::filter_rows::TagRow};
+    use std::path::PathBuf;
+
+    fn file(name: &str, is_directory: bool) -> ResultRow {
+        ResultRow::File(SearchItem::for_test(
+            PathBuf::from("/k").join(name),
+            is_directory,
+        ))
+    }
+
+    fn tag(name: &str, documents: usize) -> ResultRow {
+        ResultRow::Tag(TagRow {
+            name: name.into(),
+            documents,
+        })
+    }
+
+    #[test]
+    fn the_same_file_row_keeps_its_object() {
+        assert!(same_row(&file("a.md", false), &file("a.md", false)));
+    }
+
+    #[test]
+    fn a_file_row_whose_name_or_kind_changed_is_rebuilt() {
+        assert!(!same_row(&file("a.md", false), &file("b.md", false)));
+        assert!(!same_row(&file("a.md", false), &file("a.md", true)));
+    }
+
+    #[test]
+    fn tag_rows_compare_by_identity_alone() {
+        assert!(same_row(&tag("yandex", 1), &tag("yandex", 2)));
+        assert!(!same_row(&tag("yandex", 1), &tag("other", 1)));
+    }
 }

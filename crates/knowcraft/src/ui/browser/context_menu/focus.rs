@@ -213,7 +213,7 @@ fn column_search_position(
         .search_results
         .borrow()
         .iter()
-        .position(|item| item.path == path)?;
+        .position(|row| row.path().is_some_and(|p| p.as_path() == path))?;
     Some(position as u32)
 }
 

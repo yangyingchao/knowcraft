@@ -819,10 +819,6 @@ button.appearance-density-snap:focus-visible {
   color: @knowcraft_dim_text;
 }
 
-.search-indexing-spinner {
-  color: @knowcraft_accent;
-}
-
 .search-status {
   color: @knowcraft_dim_text;
   padding: 28px 24px;

@@ -121,14 +121,6 @@ fn assert_operable(control: &gtk::Widget, operable: bool, what: &str) {
     }
 }
 
-fn hidden_search_does_not_open(open: &OpenWindow) {
-    open.content.search_button().emit_clicked();
-    assert!(
-        !open.content.search_button().has_css_class("active"),
-        "hidden Search does not open"
-    );
-}
-
 fn assert_pane_toolbar(open: &OpenWindow, operable: bool) {
     let mut required = vec!["Refresh (F5)"];
     if open.content.browser.view_mode() != BrowserMode::List {
@@ -160,11 +152,6 @@ fn assert_filter_controls(open: &OpenWindow, operable: bool) {
 }
 
 fn assert_controls(open: &OpenWindow, operable: bool) {
-    let search = open.content.search_button();
-    assert_eq!(search.is_visible() && search.is_sensitive(), operable);
-    if !operable {
-        hidden_search_does_not_open(open);
-    }
     if !operable && open.content.browser.view_mode() != BrowserMode::Columns {
         return;
     }

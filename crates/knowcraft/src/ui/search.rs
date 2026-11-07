@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-mod knowledge;
 mod panel;
 mod provider;
 mod results;
@@ -10,8 +9,6 @@ use std::{
     collections::HashMap,
     path::PathBuf,
     rc::Rc,
-    sync::mpsc::{Receiver, TryRecvError},
-    time::Duration,
 };
 
 use gtk::{glib, prelude::*};
@@ -20,15 +17,9 @@ use super::keys::{
     self, KeyPress,
     bindings::{DOWN, ENTER_ANY_SHIFT, ESCAPE_ANY, OPEN_CONTAINING_FOLDER, UP},
 };
-use crate::services::{
-    NavigationHistory, SearchCoverage, SearchEvent, SearchHandle, SearchItem,
-    index_trees_with_exclusions,
-};
+use crate::services::{NavigationHistory, SearchItem};
 use panel::SearchWidgets;
-use provider::HitAction;
 use results::{Entry, render_sections, scroll_row_into_view};
-
-const MAX_RESULT_UPDATES_PER_FRAME: usize = 8;
 
 #[derive(Clone)]
 pub struct SearchDialog {
@@ -38,92 +29,61 @@ pub struct SearchDialog {
 struct SearchState {
     // Keep the shared provider alive when this dialog is hosted without a browser window.
     _themes: Rc<super::theme::ThemeManager>,
-    preferences: Rc<super::preferences::PreferenceManager>,
     layer: gtk::Box,
     field: gtk::Entry,
-    indexing_spinner: gtk::Spinner,
     list: gtk::ListBox,
     scroller: gtk::ScrolledWindow,
     results: gtk::Stack,
     status: gtk::Label,
     truncated_hint: gtk::Box,
     visible_entries: RefCell<Vec<Entry>>,
-    /// 文件名命中（兼容文件搜索读取），供测试与 reveal 复用。
-    visible_results: RefCell<Vec<SearchItem>>,
     positions: Rc<RefCell<HashMap<gtk::ListBoxRow, usize>>>,
     requested_thumbnails: RefCell<std::collections::HashSet<PathBuf>>,
     rendered_query: RefCell<String>,
-    search: RefCell<Option<SearchHandle>>,
     history: RefCell<Option<Rc<NavigationHistory>>>,
-    generation: Cell<u64>,
     interaction_revision: Cell<u64>,
     navigation_started: Cell<bool>,
     reconciling_results: Cell<bool>,
     activate: Rc<dyn Fn(SearchItem)>,
-    open_path: Rc<dyn Fn(PathBuf)>,
     reveal: Rc<dyn Fn(SearchItem)>,
     context_menu: RefCell<Option<gtk::Popover>>,
     dismiss: Rc<dyn Fn()>,
-    /// 文件名 provider 最近一次命中的分段，供与知识段合并渲染。
-    file_section: RefCell<Vec<provider::Section>>,
-    /// 知识 provider 最近一次写回的分段（文档内容 + 标签）。
-    knowledge_sections: RefCell<Vec<provider::Section>>,
-    knowledge: Rc<knowledge::KnowledgeSections>,
-    tag_mode: RefCell<Option<TagMode>>,
     /// Cleared when a result is chosen, so focus follows the browser, not the opener.
     focus_restore: Rc<Cell<bool>>,
-}
-
-/// 标签模式：展示某标签下的文档列表，Esc 退出并重跑原查询。
-struct TagMode {
-    name: String,
-    query: String,
 }
 
 impl SearchDialog {
     pub fn new(
         activate: Rc<dyn Fn(SearchItem)>,
-        open_path: Rc<dyn Fn(PathBuf)>,
         reveal: Rc<dyn Fn(SearchItem)>,
         dismiss: Rc<dyn Fn()>,
     ) -> Self {
         let themes = super::theme::ThemeManager::shared();
-        let preferences = super::preferences::PreferenceManager::shared();
         let widgets = SearchWidgets::build();
         let focus_restore =
             super::modal::remember_persistent_modal_focus(widgets.layer.upcast_ref());
         let panel = widgets.panel;
         let state = Rc::new(SearchState {
             _themes: themes,
-            preferences,
             layer: widgets.layer,
             field: widgets.field,
-            indexing_spinner: widgets.indexing_spinner,
             list: widgets.list,
             scroller: widgets.scroller,
             results: widgets.results,
             status: widgets.status,
             truncated_hint: widgets.truncated_hint,
             visible_entries: RefCell::new(Vec::new()),
-            visible_results: RefCell::new(Vec::new()),
             positions: widgets.positions,
             requested_thumbnails: RefCell::new(std::collections::HashSet::new()),
             rendered_query: RefCell::new(String::new()),
-            search: RefCell::new(None),
             history: RefCell::new(None),
-            generation: Cell::new(0),
             interaction_revision: Cell::new(0),
             navigation_started: Cell::new(false),
             reconciling_results: Cell::new(false),
             activate,
-            open_path,
             reveal,
             context_menu: RefCell::new(None),
             dismiss,
-            file_section: RefCell::new(Vec::new()),
-            knowledge_sections: RefCell::new(Vec::new()),
-            knowledge: Rc::new(knowledge::KnowledgeSections::new()),
-            tag_mode: RefCell::new(None),
             focus_restore,
         });
 
@@ -139,22 +99,7 @@ impl SearchDialog {
         self.state.layer.clone().upcast()
     }
 
-    pub fn show(&self, roots: Vec<PathBuf>, show_hidden: bool) {
-        self.state.generation.set(self.state.generation.get() + 1);
-        let generation = self.state.generation.get();
-        self.state.search.borrow_mut().take();
-        self.state.history.borrow_mut().take();
-        reset_for_search(&self.state, &roots);
-        if roots.is_empty() {
-            show_no_locations(&self.state);
-            return;
-        }
-        start_search(&self.state, roots, show_hidden, generation);
-    }
-
     pub(crate) fn show_history(&self, history: Rc<NavigationHistory>) {
-        self.state.generation.set(self.state.generation.get() + 1);
-        self.state.search.borrow_mut().take();
         self.state.history.replace(Some(history));
         set_field_prompt(&self.state.field, &crate::i18n::tr("Jump to a folder…"));
         crate::ui::accessibility::set_description(
@@ -166,8 +111,6 @@ impl SearchDialog {
         self.state.field.set_text("");
         self.state.status.set_visible(true);
         self.state.truncated_hint.set_visible(false);
-        self.state.indexing_spinner.stop();
-        self.state.indexing_spinner.set_visible(false);
         self.state.layer.set_visible(true);
         super::browser::animate_in(&self.state.layer);
         self.state.field.grab_focus_without_selecting();
@@ -223,9 +166,6 @@ fn handle_key(state: &Rc<SearchState>, press: &KeyPress) -> glib::Propagation {
     record_interaction(state);
     let press = &press.untyped();
     if press.is(ESCAPE_ANY) {
-        if leave_tag_mode(state) {
-            return glib::Propagation::Stop;
-        }
         hide(state);
         return glib::Propagation::Stop;
     }
@@ -331,143 +271,9 @@ fn set_field_prompt(field: &gtk::Entry, prompt: &str) {
     crate::ui::accessibility::set_label(field, prompt);
 }
 
-fn reset_for_search(state: &SearchState, roots: &[PathBuf]) {
-    set_field_prompt(&state.field, &crate::i18n::tr("Search the knowledge base…"));
-    let locations = roots
-        .iter()
-        .map(|root| root.display().to_string())
-        .collect::<Vec<_>>()
-        .join("\n");
-    crate::ui::accessibility::set_description(
-        &state.field,
-        Some(&rust_i18n::t!(
-            "Search locations:\n%{locations}\nRemote shares are not included.",
-            locations = locations
-        )),
-    );
-    state.field.set_sensitive(!roots.is_empty());
-    clear_results(state);
-    state.results.set_visible_child_name("status");
-    state.field.set_text("");
-    state.status.set_visible(true);
-    state
-        .status
-        .set_text(&crate::i18n::tr("Type to search the knowledge base"));
-    state.truncated_hint.set_visible(false);
-    show_indexing(state, true);
-    state.layer.set_visible(true);
-    super::browser::animate_in(&state.layer);
-    state.field.grab_focus_without_selecting();
-}
-
-fn show_no_locations(state: &SearchState) {
-    state
-        .status
-        .set_text(&crate::i18n::tr("No local search locations available."));
-    show_indexing(state, false);
-    state.layer.grab_focus();
-}
-
-fn show_indexing(state: &SearchState, indexing: bool) {
-    if indexing {
-        state.indexing_spinner.set_visible(true);
-        state.indexing_spinner.start();
-    } else {
-        state.indexing_spinner.stop();
-        state.indexing_spinner.set_visible(false);
-    }
-}
-
-fn start_search(state: &Rc<SearchState>, roots: Vec<PathBuf>, show_hidden: bool, generation: u64) {
-    let exclusions = state.preferences.search_exclusions();
-    let limits = state.preferences.search_limits();
-    let (handle, receiver) = index_trees_with_exclusions(roots, show_hidden, exclusions, limits);
-    state.search.replace(Some(handle));
-    let weak = Rc::downgrade(state);
-    let _poll = glib::timeout_add_local(Duration::from_millis(16), move || {
-        let Some(state) = weak.upgrade() else {
-            return glib::ControlFlow::Break;
-        };
-        if !state.layer.is_visible() || state.generation.get() != generation {
-            return glib::ControlFlow::Break;
-        }
-        let Ok(latest) = latest_event(&receiver) else {
-            return glib::ControlFlow::Break;
-        };
-        if let Some(event) = latest {
-            apply_search_event(&state, event);
-        }
-        glib::ControlFlow::Continue
-    });
-}
-
-/// The newest of up to a frame's worth of queued events.
-fn latest_event(receiver: &Receiver<SearchEvent>) -> Result<Option<SearchEvent>, TryRecvError> {
-    let mut latest = None;
-    for _ in 0..MAX_RESULT_UPDATES_PER_FRAME {
-        match receiver.try_recv() {
-            Ok(event) => latest = Some(event),
-            Err(TryRecvError::Empty) => break,
-            Err(TryRecvError::Disconnected) => return Err(TryRecvError::Disconnected),
-        }
-    }
-    Ok(latest)
-}
-
-fn apply_search_event(state: &Rc<SearchState>, event: SearchEvent) {
-    let SearchEvent::Results {
-        query,
-        items,
-        indexing,
-        coverage,
-        ..
-    } = event;
-    if query == state.field.text().trim() && !query.is_empty() {
-        render_results(state, items, indexing, coverage);
-    }
-}
-
-/// 文件名命中的兼容入口：更新文件段、可见项并合并渲染。
-fn render_results(
-    state: &Rc<SearchState>,
-    items: Vec<SearchItem>,
-    indexing: bool,
-    coverage: SearchCoverage,
-) {
-    show_indexing(state, indexing);
-    show_coverage(&state.truncated_hint, coverage);
-    state.visible_results.replace(items.clone());
-    let section = provider::Section::new(
-        "文件名",
-        10,
-        items.into_iter().map(provider::Hit::file).collect(),
-    );
-    state.file_section.replace(vec![section]);
-    render_current(state);
-}
-
-/// 合并文件名段与知识段（文档内容 + 标签）后渲染。
-fn render_current(state: &Rc<SearchState>) {
-    state.visible_results.replace(
-        state
-            .file_section
-            .borrow()
-            .iter()
-            .flat_map(|section| section.hits.iter())
-            .filter_map(|hit| hit.item.clone())
-            .collect(),
-    );
-    let mut sections = state.file_section.borrow().clone();
-    sections.extend(state.knowledge_sections.borrow().iter().cloned());
-    render_sections(state, sections);
-}
-
 fn begin_query(state: &Rc<SearchState>, query: &str) {
     record_interaction(state);
     state.navigation_started.set(false);
-    state.tag_mode.borrow_mut().take();
-    state.file_section.borrow_mut().clear();
-    state.knowledge_sections.borrow_mut().clear();
     if let Some(history) = state.history.borrow().clone() {
         let section = provider::Section::new(
             "历史",
@@ -481,29 +287,10 @@ fn begin_query(state: &Rc<SearchState>, query: &str) {
         render_sections(state, vec![section]);
         return;
     }
-    if query.trim().is_empty() {
-        clear_results(state);
-        state.results.set_visible_child_name("status");
-        state.status.set_text(&crate::i18n::tr(
-            "Type to search the knowledge base\nFuzzy matching · try a name or path fragment",
-        ));
-        return;
-    }
+    // 全局检索已迁到面板过滤栏；没有历史来源时只保留空状态。
+    clear_results(state);
     state.results.set_visible_child_name("status");
-    state.status.set_text(&crate::i18n::tr("Searching…"));
-    if let Some(search) = state.search.borrow().as_ref() {
-        search.query(query);
-    }
-    let deliver = {
-        let state = Rc::downgrade(state);
-        Rc::new(move |sections: Vec<provider::Section>| {
-            if let Some(state) = state.upgrade() {
-                state.knowledge_sections.replace(sections);
-                render_current(&state);
-            }
-        })
-    };
-    state.knowledge.query(query.to_owned(), deliver);
+    state.status.set_text(&crate::i18n::tr("Type to jump to a visited folder"));
 }
 
 fn close_result_menu(state: &SearchState) {
@@ -578,16 +365,12 @@ fn activate_position(state: &Rc<SearchState>, position: i32) {
     let Entry::Hit(hit) = entry else {
         return;
     };
-    match hit.action {
-        HitAction::Open(path) => {
-            skip_focus_restore(state);
-            hide(state);
-            (state.open_path)(path);
-        }
-        HitAction::ShowTag(name) => {
-            show_tag(state, name);
-        }
-    }
+    let Some(item) = hit.item else {
+        return;
+    };
+    skip_focus_restore(state);
+    hide(state);
+    (state.activate)(item);
 }
 
 fn skip_focus_restore(state: &SearchState) {
@@ -600,13 +383,9 @@ fn hide(state: &SearchState) {
 
 fn hide_then(state: &SearchState, after_dismiss: impl FnOnce() + 'static) {
     close_result_menu(state);
-    state.generation.set(state.generation.get() + 1);
     record_interaction(state);
-    state.search.borrow_mut().take();
     clear_results(state);
     state.truncated_hint.set_visible(false);
-    state.indexing_spinner.stop();
-    state.indexing_spinner.set_visible(false);
     if state.layer.has_css_class("dismissing") {
         return;
     }
@@ -636,49 +415,6 @@ fn clear_results(state: &SearchState) {
         state.list.remove(&child);
     }
     state.reconciling_results.set(false);
-}
-
-fn enter_tag_mode(state: &Rc<SearchState>, name: &str) -> bool {
-    let query = state.field.text().to_string();
-    let documents = crate::knowledge::init()
-        .map(|knowledge| knowledge.documents_with_tag(name))
-        .unwrap_or_default();
-    let hits = documents
-        .into_iter()
-        .map(|doc| provider::Hit::content(doc.title, doc.path.clone(), PathBuf::from(&doc.path)))
-        .collect();
-    state.tag_mode.replace(Some(TagMode {
-        name: name.to_owned(),
-        query: query.clone(),
-    }));
-    set_field_prompt(&state.field, &format!("#{name}"));
-    render_sections(
-        state,
-        vec![provider::Section::new(format!("标签：{name}"), 10, hits)],
-    );
-    true
-}
-
-fn leave_tag_mode(state: &Rc<SearchState>) -> bool {
-    let Some(mode) = state.tag_mode.borrow_mut().take() else {
-        return false;
-    };
-    set_field_prompt(&state.field, &crate::i18n::tr("Search the knowledge base…"));
-    state.field.set_text(&mode.query);
-    begin_query(state, &mode.query);
-    true
-}
-
-fn show_tag(state: &Rc<SearchState>, name: String) {
-    enter_tag_mode(state, &name);
-}
-
-/// The hint names why results are partial and, for limit stops, where to raise the limits.
-fn show_coverage(hint: &gtk::Box, coverage: SearchCoverage) {
-    let message = coverage.is_partial().then(|| coverage.message());
-    crate::ui::accessibility::set_description(hint, message.as_deref());
-    hint.set_tooltip_text(message.as_deref());
-    hint.set_visible(message.is_some());
 }
 
 #[cfg(test)]

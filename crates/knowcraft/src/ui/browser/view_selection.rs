@@ -116,7 +116,7 @@ impl BrowserView {
         if let Some(results) = self.filter_target().and_then(|target| target.results()) {
             return results
                 .iter()
-                .map(search_result_entry)
+                .filter_map(collection::result_entry)
                 .filter(keep)
                 .collect();
         }
@@ -144,7 +144,10 @@ impl BrowserView {
             .filter_target()
             .filter(|target| target.results_view().is_some())
         {
-            return target.current_result().as_ref().map(search_result_entry);
+            return target
+                .current_result()
+                .as_ref()
+                .and_then(collection::result_entry);
         }
         self.state.browser.cursor_entry(depth)
     }
@@ -153,10 +156,9 @@ impl BrowserView {
     fn step_to_filter_result(&self, location: &Location, key: Option<i32>) -> Option<bool> {
         let target = self.filter_target()?;
         let results = target.results()?;
-        let Some(position) = results
-            .iter()
-            .position(|item| search_result_entry(item).location == *location)
-        else {
+        let Some(position) = results.iter().position(|row| {
+            collection::result_entry(row).is_some_and(|entry| entry.location == *location)
+        }) else {
             return Some(false);
         };
         let cursor = target.hits().and_then(|hits| hits.cursor);
@@ -253,7 +255,7 @@ impl BrowserView {
                 .search_results
                 .borrow()
                 .get(cursor as usize)
-                .map(search_result_entry);
+                .and_then(collection::result_entry);
         }
         if !column.map.has_query() {
             return None;
@@ -298,12 +300,15 @@ impl BrowserView {
             })?;
         if column.recursive_search_active.get() {
             let results = column.search_results.borrow();
-            return Some(
-                collection::bitset_positions(&column.selection.selection())
-                    .into_iter()
-                    .filter_map(|position| results.get(position as usize).map(search_result_entry))
-                    .collect(),
-            );
+            let mut entries = Vec::new();
+            for position in collection::bitset_positions(&column.selection.selection()) {
+                let row = results.get(position as usize)?;
+                if matches!(row, crate::ui::browser::filter_rows::ResultRow::Tag(_)) {
+                    return None;
+                }
+                entries.push(collection::result_entry(row)?);
+            }
+            return Some(entries);
         }
         if column.map.has_query() {
             let positions = collection::bitset_positions(&column.selection.selection());

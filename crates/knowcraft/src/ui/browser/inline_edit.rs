@@ -177,7 +177,8 @@ impl ViewState {
                 .search_results
                 .borrow()
                 .get(position as usize)
-                .map(|result| Location::local(&result.path));
+                .and_then(|row| row.path())
+                .map(|path| Location::local(path.as_path()));
         }
         let position = column.map.source_position(position)?;
         Some(self.browser.entry_at(depth, position)?.location)
@@ -316,7 +317,7 @@ impl ViewState {
             .search_results
             .borrow()
             .iter()
-            .position(|item| item.path == path)?;
+            .position(|row| row.path().is_some_and(|p| p.as_path() == path))?;
         u32::try_from(position).ok()
     }
 
@@ -618,7 +619,7 @@ impl ViewState {
                     .search_results
                     .borrow()
                     .iter()
-                    .any(|result| result.path == from)
+                    .any(|row| row.path().is_some_and(|p| p.as_path() == from))
             };
             if column.recursive_search_active.get() && listed() {
                 column.renamed_result.expect(from, to);

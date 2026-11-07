@@ -15,8 +15,12 @@ use gtk::{glib, prelude::*};
 use super::{BrowserView, FilterQueryBinding, ViewState, columns::ColumnView};
 use crate::{
     app::VisualKind,
-    services::SearchItem,
-    ui::{browser_modes::BrowserMode, inline_search::InlineSearch},
+    ui::{
+        browser::filter_mode::{FilterModeController, QuerySource},
+        browser::filter_rows::ResultRow,
+        browser_modes::BrowserMode,
+        inline_search::InlineSearch,
+    },
 };
 
 #[derive(Default)]
@@ -125,6 +129,7 @@ pub(super) enum Target {
         entry: gtk::Entry,
         button: gtk::ToggleButton,
         search: InlineSearch,
+        mode: FilterModeController,
     },
 }
 
@@ -133,6 +138,13 @@ impl Target {
         match self {
             Self::Column(column) => &column.filter_entry,
             Self::Pane { entry, .. } => entry,
+        }
+    }
+
+    fn mode(&self) -> &FilterModeController {
+        match self {
+            Self::Column(column) => &column.filter_mode,
+            Self::Pane { mode, .. } => mode,
         }
     }
 
@@ -171,6 +183,12 @@ impl Target {
         let rescoped = self.with_binding(|binding| binding.force_recursive(forced));
         if forced && rescoped.is_none() {
             return false;
+        }
+        // A programmatic apply is a file filter; an open knowledge source would
+        // send the text to the knowledge base. Closing clears the field, so the
+        // write below still runs instead of short-circuiting on equal text.
+        if self.mode().source() == Some(QuerySource::Knowledge) {
+            self.mode().close();
         }
         if self.entry().text() != query {
             set_filter_text(self, query);
@@ -226,7 +244,7 @@ impl Target {
         }
     }
 
-    pub(super) fn results(&self) -> Option<Vec<SearchItem>> {
+    pub(super) fn results(&self) -> Option<Vec<ResultRow>> {
         match self {
             Self::Column(column) => column
                 .recursive_search_active
@@ -236,7 +254,7 @@ impl Target {
         }
     }
 
-    pub(super) fn current_result(&self) -> Option<SearchItem> {
+    pub(super) fn current_result(&self) -> Option<ResultRow> {
         match self {
             Self::Column(column) => {
                 if !column.recursive_search_active.get() {
@@ -293,7 +311,7 @@ pub(super) fn column_filter_focus(
         return Some(FilterFocus::Entry);
     }
     (within(column.list.upcast_ref())
-        && column.filter_button.is_active()
+        && (column.filter_mode.is_open() || column.filter_button.is_active())
         && (column.recursive_search_active.get() || column.map.has_query()))
     .then_some(FilterFocus::Results)
 }
@@ -369,18 +387,25 @@ fn filter_status(
         return None;
     }
     let results = target.results().unwrap_or_default();
-    let folders = results.iter().filter(|item| item.is_directory).count();
+    let tags = results
+        .iter()
+        .filter(|row| matches!(row, ResultRow::Tag(_)))
+        .count();
+    let folders = results
+        .iter()
+        .filter(|row| matches!(row, ResultRow::File(item) if item.is_directory))
+        .count();
     let current = search
         .then(|| current_hit(target, &query, &results, cursor_hit))
         .flatten()
-        .and_then(|item| Some(item.path.strip_prefix(root?).ok()?.to_path_buf()));
+        .and_then(|row| Some(row.path()?.strip_prefix(root?).ok()?.to_path_buf()));
     Some(FilterStatus {
         query: query.to_string(),
         search,
         current,
         displayed: target.results_view().is_some()
             && !(results.is_empty() && target.awaiting_results()),
-        files: results.len() - folders,
+        files: results.len() - folders - tags,
         folders,
         visual: None,
     })
@@ -393,9 +418,9 @@ fn filter_status(
 fn current_hit(
     target: &Target,
     query: &str,
-    results: &[SearchItem],
+    results: &[ResultRow],
     cursor_hit: &RefCell<Option<(String, PathBuf)>>,
-) -> Option<SearchItem> {
+) -> Option<ResultRow> {
     let focused = target.results_view().is_some_and(|view| {
         view.root()
             .and_then(|root| root.focus())
@@ -403,14 +428,23 @@ fn current_hit(
     });
     if focused {
         let hit = target.current_result();
-        cursor_hit.replace(hit.as_ref().map(|hit| (query.to_owned(), hit.path.clone())));
+        cursor_hit.replace(
+            hit.as_ref()
+                .and_then(|hit| hit.path().cloned())
+                .map(|path| (query.to_owned(), path)),
+        );
         return hit;
     }
     let kept = cursor_hit
         .borrow()
         .as_ref()
         .filter(|(kept_query, _)| kept_query == query)
-        .and_then(|(_, path)| results.iter().find(|item| item.path == *path).cloned());
+        .and_then(|(_, path)| {
+            results
+                .iter()
+                .find(|row| row.path().is_some_and(|p| p == path))
+                .cloned()
+        });
     kept.or_else(|| target.current_result())
 }
 
@@ -419,6 +453,11 @@ pub(super) fn filter_shows_query(target: &Target) -> bool {
 }
 
 pub(super) fn set_filter_text(target: &Target, query: &str) {
+    // Programmatic writes are file filtering. Leave an open knowledge search
+    // first so the text drives the directory filter, not the knowledge base.
+    if target.mode().source() == Some(QuerySource::Knowledge) {
+        target.mode().close();
+    }
     if query.is_empty() {
         // Closing a funnel a footer filter keeps hidden clears nothing; the text is
         // cleared below.
@@ -450,10 +489,11 @@ impl ViewState {
         Some(
             panes
                 .active_filter()
-                .map(|(entry, button, search)| Target::Pane {
+                .map(|(entry, button, search, mode)| Target::Pane {
                     entry,
                     button,
                     search,
+                    mode,
                 }),
         )
     }
@@ -492,10 +532,11 @@ impl ViewState {
             .mode_views
             .borrow()
             .filter_at(depth)
-            .map(|(entry, button, search)| Target::Pane {
+            .map(|(entry, button, search, mode)| Target::Pane {
                 entry,
                 button,
                 search,
+                mode,
             });
         if !target.is_some_and(|target| self.focus_results_on_cursor(&target)) {
             self.mode_views.borrow().focus_visible_pane(depth);
@@ -515,6 +556,15 @@ impl ViewState {
 impl BrowserView {
     pub(super) fn filter_target(&self) -> Option<Target> {
         self.state.filter_target()
+    }
+
+    /// Opens the current pane's filter field on `source`; `false` without a target pane.
+    pub(in crate::ui) fn begin_filter_search(&self, source: QuerySource) -> bool {
+        let Some(target) = self.state.filter_target() else {
+            return false;
+        };
+        target.mode().focus_or_switch(source);
+        true
     }
 
     pub(in crate::ui) fn filter_focus(&self) -> Option<FilterFocus> {
@@ -655,7 +705,12 @@ impl BrowserView {
             .columns
             .borrow()
             .iter()
-            .filter(|column| !column.filter_button.is_active())
+            .filter(|column| {
+                !column.filter_button.is_active()
+                    // A column open on the knowledge source is not a leftover
+                    // filter; its text is the live query.
+                    && column.filter_mode.source() != Some(QuerySource::Knowledge)
+            })
             .map(|column| column.filter_entry.clone())
             .collect();
         let panes = self.state.mode_views.borrow().hidden_filter_entries();
@@ -740,7 +795,7 @@ impl BrowserView {
             .and_then(|target| target.results())
             .unwrap_or_default()
             .into_iter()
-            .map(|item| item.name)
+            .map(|row| row.title().to_owned())
             .collect()
     }
 

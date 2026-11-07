@@ -70,7 +70,7 @@ pub(super) use density::DensityScale;
 pub(crate) use density::browser_density_custom_css;
 pub use density::{BrowserDensity, FrameDensity};
 use drag_drop::{install_folder_peek, install_list_drag_drop};
-pub(crate) use filter::filter_controls;
+pub(crate) use filter::{FilterControls, filter_controls};
 use focus::{collection_keeps_cursor, focus_bound_cursor, focus_collection_item};
 pub(super) use icons_controls::disable_scale_long_press_zoom;
 use icons_pane::{DEFAULT_ICONS_THUMBNAIL_SIZE, configure_icons_density};

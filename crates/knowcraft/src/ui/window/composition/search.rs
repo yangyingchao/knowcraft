@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use std::{cell::RefCell, path::PathBuf, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use gtk::prelude::*;
 
@@ -9,37 +9,29 @@ use crate::{
     model::{EntryKind, FileEntry, Location, MetadataValue},
     services::{NavigationHistory, SearchItem},
     ui::{
-        browser::BrowserView, preferences::PreferenceManager, preview::PreviewDrawer,
+        browser::{BrowserView, filter_mode::QuerySource},
+        preview::PreviewDrawer,
         search::SearchDialog,
     },
 };
 
 use super::WindowContent;
 
-pub(super) fn install(
-    window: &gtk::ApplicationWindow,
-    content: &WindowContent,
-    preferences: &Rc<PreferenceManager>,
-) {
+pub(super) fn install(window: &gtk::ApplicationWindow, content: &WindowContent) {
     let controller = content.browser.browser();
     let history = NavigationHistory::shared();
     install_history_recorder(&controller, &history);
     let preview = content.preview.clone();
-    let search_preferences = preferences.clone();
     let activated_browser = content.browser.downgrade();
     let activate = Rc::new(move |item| {
         if let Some(browser) = activated_browser.upgrade() {
-            activate_result(&browser, &preview, &search_preferences, item);
+            activate_result(&browser, &preview, item);
         }
     });
     let dismissed_root = content.blurred_root.downgrade();
-    let dismissed_button = content.header.search.downgrade();
     let dismiss = Rc::new(move || {
         if let Some(root) = dismissed_root.upgrade() {
             root.set_blurred(false);
-        }
-        if let Some(button) = dismissed_button.upgrade() {
-            button.remove_css_class("active");
         }
     });
     let browser = content.browser.downgrade();
@@ -50,59 +42,21 @@ pub(super) fn install(
             browser.reveal_location(Location::local(item.path));
         }
     });
-    // 正文 / 标签命中只有路径，直接打开：目录导航，文件进预览或直接打开。
-    let open_browser = content.browser.downgrade();
-    let open_preview = content.preview.clone();
-    let open_preferences = preferences.clone();
-    let open_path = Rc::new(move |path: PathBuf| {
-        let Some(browser) = open_browser.upgrade() else {
-            return;
-        };
-        let location = Location::local(path.clone());
-        if open_preferences.search_open_files_directly() {
-            browser.browser().open_location(location.clone());
-        } else {
-            open_preview.show(
-                FileEntry {
-                    location: location.clone(),
-                    native_name: path.file_name().unwrap_or_default().to_os_string(),
-                    thumbnail_path: None,
-                    display_name: path
-                        .file_name()
-                        .map(|name| name.to_string_lossy().into_owned())
-                        .unwrap_or_default(),
-                    kind: EntryKind::File,
-                    size: MetadataValue::Unknown,
-                    modified_unix_seconds: MetadataValue::Unknown,
-                    recent_unix_seconds: MetadataValue::Unknown,
-                    is_hidden: false,
-                    mode: MetadataValue::Unknown,
-                    image_dimensions: MetadataValue::Unknown,
-                    child_count: MetadataValue::Unknown,
-                    duration_seconds: MetadataValue::Unknown,
-                    listable: MetadataValue::Unknown,
-                    recent_uri: None,
-                },
-                browser.browser().active_depth(),
-            );
-        }
-        browser.reveal_location(location);
-    });
-    let dialog = SearchDialog::new(activate, open_path, reveal, dismiss);
+    let dialog = SearchDialog::new(activate, reveal, dismiss);
     content.overlay.add_overlay(&dialog.widget());
-    let toggle = toggle_handler(dialog.clone(), content, preferences);
-    let clicked_search = toggle.clone();
-    content.header.search.connect_clicked(move |_| {
-        clicked_search();
-    });
     let own_layer = dialog.widget();
+    let search_browser = content.browser.downgrade();
     super::add_guarded_window_action(
         window,
         &content.actions,
         "search",
         &content.browser,
-        Some(own_layer.clone()),
-        move || toggle(),
+        None,
+        move || {
+            if let Some(browser) = search_browser.upgrade() {
+                browser.begin_filter_search(QuerySource::Knowledge);
+            }
+        },
     );
 
     let jump = folder_jump_handler(dialog, content, history);
@@ -156,56 +110,26 @@ fn install_history_recorder(controller: &Rc<Browser>, history: &Rc<NavigationHis
     });
 }
 
-fn toggle_handler(
-    dialog: SearchDialog,
-    content: &WindowContent,
-    preferences: &Rc<PreferenceManager>,
-) -> Rc<dyn Fn()> {
-    let button = content.header.search.downgrade();
-    let root = content.blurred_root.downgrade();
-    let preferences = preferences.clone();
-    Rc::new(move || {
-        let (Some(button), Some(root)) = (button.upgrade(), root.upgrade()) else {
-            return;
-        };
-        if dialog.is_visible() {
-            dialog.hide();
-            return;
-        }
-        let roots = crate::knowledge::search_roots();
-        button.add_css_class("active");
-        root.set_blurred(true);
-        dialog.show(roots, preferences.sort_preferences().show_hidden);
-    })
-}
-
 fn folder_jump_handler(
     dialog: SearchDialog,
     content: &WindowContent,
     history: Rc<NavigationHistory>,
 ) -> Rc<dyn Fn()> {
-    let button = content.header.search.downgrade();
     let root = content.blurred_root.downgrade();
     Rc::new(move || {
-        let (Some(button), Some(root)) = (button.upgrade(), root.upgrade()) else {
+        let Some(root) = root.upgrade() else {
             return;
         };
         if dialog.is_visible() {
             dialog.hide();
             return;
         }
-        button.remove_css_class("active");
         root.set_blurred(true);
         dialog.show_history(history.clone());
     })
 }
 
-fn activate_result(
-    browser: &BrowserView,
-    preview: &PreviewDrawer,
-    preferences: &PreferenceManager,
-    item: SearchItem,
-) {
+fn activate_result(browser: &BrowserView, preview: &PreviewDrawer, item: SearchItem) {
     let controller = browser.browser();
     let location = Location::local(item.path.clone());
     if item.is_directory {
@@ -214,29 +138,25 @@ fn activate_result(
         return;
     }
     // The drawer turns on before the reveal, so the revealed selection re-targets it.
-    if preferences.search_open_files_directly() {
-        controller.open_location(location.clone());
-    } else {
-        preview.show(
-            FileEntry {
-                location: location.clone(),
-                native_name: item.path.file_name().unwrap_or_default().to_os_string(),
-                thumbnail_path: None,
-                display_name: item.name,
-                kind: EntryKind::File,
-                size: MetadataValue::Unknown,
-                modified_unix_seconds: MetadataValue::Unknown,
-                recent_unix_seconds: MetadataValue::Unknown,
-                is_hidden: false,
-                mode: MetadataValue::Unknown,
-                image_dimensions: MetadataValue::Unknown,
-                child_count: MetadataValue::Unknown,
-                duration_seconds: MetadataValue::Unknown,
-                listable: MetadataValue::Unknown,
-                recent_uri: None,
-            },
-            controller.active_depth(),
-        );
-    }
+    preview.show(
+        FileEntry {
+            location: location.clone(),
+            native_name: item.path.file_name().unwrap_or_default().to_os_string(),
+            thumbnail_path: None,
+            display_name: item.name,
+            kind: EntryKind::File,
+            size: MetadataValue::Unknown,
+            modified_unix_seconds: MetadataValue::Unknown,
+            recent_unix_seconds: MetadataValue::Unknown,
+            is_hidden: false,
+            mode: MetadataValue::Unknown,
+            image_dimensions: MetadataValue::Unknown,
+            child_count: MetadataValue::Unknown,
+            duration_seconds: MetadataValue::Unknown,
+            listable: MetadataValue::Unknown,
+            recent_uri: None,
+        },
+        controller.active_depth(),
+    );
     browser.reveal_location(location);
 }

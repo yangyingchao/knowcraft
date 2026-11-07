@@ -18,7 +18,6 @@ impl Default for Preferences {
             render_documents_by_default: true,
             hardware_accelerated_video_previews: None,
             video_preview_backend: default_video_preview_backend(),
-            search_open_files_directly: false,
             search_exclusions: Vec::new(),
             search_time_limit: default_search_time_limit(),
             search_entry_limit: default_search_entry_limit(),

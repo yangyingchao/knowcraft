@@ -8,13 +8,16 @@ use gtk::prelude::*;
 
 use super::{
     MAX_ICONS_THUMBNAIL_SIZE, MIN_ICONS_THUMBNAIL_SIZE,
-    filter::filter_controls,
+    filter::{FilterControls, filter_controls},
     pane_header::{ContentActions, list_navigation},
 };
 use crate::{
     app::Browser,
     model::Location,
-    ui::{browser, preferences::PreferenceManager},
+    ui::{
+        browser::{self, filter_mode::FilterModeController},
+        preferences::PreferenceManager,
+    },
 };
 
 pub(super) struct IconsControls {
@@ -24,6 +27,7 @@ pub(super) struct IconsControls {
     pub(super) filter_entry: gtk::Entry,
     pub(super) filter_revealer: gtk::Revealer,
     pub(super) filter_button: gtk::ToggleButton,
+    pub(super) filter_mode: FilterModeController,
     pub(super) thumbnail: ThumbnailSizeMenu,
     pub(super) content: ContentActions,
 }
@@ -44,8 +48,18 @@ pub(super) fn icons_controls(
     actions.append(&sort_direction_button);
     actions.append(&browser::column_sort_menu(browser, depth));
 
-    let (filter_entry, filter_revealer, filter_button) = filter_controls("Filter icons (%{keys})");
+    let FilterControls {
+        entry: filter_entry,
+        revealer: filter_revealer,
+        filter_button,
+        search_button,
+        mode: filter_mode,
+    } = filter_controls(
+        "Filter icons (%{keys})",
+        "Search the knowledge base (%{keys})",
+    );
     actions.append(&filter_button);
+    actions.append(&search_button);
     IconsControls {
         sort_direction_button,
         leading,
@@ -53,6 +67,7 @@ pub(super) fn icons_controls(
         filter_entry,
         filter_revealer,
         filter_button,
+        filter_mode,
         thumbnail,
         content,
     }

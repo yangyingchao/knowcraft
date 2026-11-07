@@ -315,12 +315,6 @@ fn append_browsing_options(content: &gtk::Box, manager: &Rc<PreferenceManager>) 
             read: PreferenceManager::filter_include_subfolders,
             write: PreferenceManager::set_filter_include_subfolders,
         },
-        PreferenceSwitch {
-            title: "Open search results directly",
-            description: "Launch files from search instead of showing the quick preview.",
-            read: PreferenceManager::search_open_files_directly,
-            write: PreferenceManager::set_search_open_files_directly,
-        },
     ] {
         append_preference_switch(&search, manager, switch);
     }

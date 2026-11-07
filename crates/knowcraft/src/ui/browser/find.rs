@@ -308,7 +308,7 @@ impl BrowserView {
                     (None, false) => step - 1,
                     (None, true) => len - step,
                 })
-                .find(|&index| !match_ranges(&results[index].name, query).is_empty());
+                .find(|&index| !match_ranges(results[index].title(), query).is_empty());
             let Some(index) = found else {
                 return false;
             };

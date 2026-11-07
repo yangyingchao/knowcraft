@@ -7,6 +7,7 @@ use std::{
 
 use super::{Renamed, RenamedResult, Settled};
 use crate::services::SearchItem;
+use crate::ui::browser::filter_rows::ResultRow;
 
 /// What an update makes of the pending rename.
 #[derive(Clone, Copy)]
@@ -22,10 +23,10 @@ type Update = (&'static [&'static str], Outcome);
 const FROM: &str = "/work/c.json";
 const TO: &str = "/work/0.md";
 
-fn results(names: &[&str]) -> Vec<SearchItem> {
+fn results(names: &[&str]) -> Vec<ResultRow> {
     names
         .iter()
-        .map(|name| SearchItem::for_test(Path::new("/work").join(name), false))
+        .map(|name| ResultRow::File(SearchItem::for_test(Path::new("/work").join(name), false)))
         .collect()
 }
 
@@ -100,10 +101,15 @@ fn pruning_moves_the_renamed_result_to_its_new_path_and_drops_other_missing_ones
         .iter()
         .map(|name| Path::new("/work").join(name))
         .collect();
-    let listed = |items: Vec<SearchItem>| {
+    let listed = |items: Vec<ResultRow>| {
         items
             .into_iter()
-            .map(|item| (item.name, item.path))
+            .map(|row| {
+                (
+                    row.title().to_owned(),
+                    row.path().cloned().unwrap_or_default(),
+                )
+            })
             .collect::<Vec<_>>()
     };
     let pending = RenamedResult::default();
@@ -123,8 +129,8 @@ fn pruning_moves_the_renamed_result_to_its_new_path_and_drops_other_missing_ones
     );
     assert_eq!(
         listed(
-            pending.prune(results(&["d.txt", "c.json", "a.csv"]), &gone, |item| !item
-                .name
+            pending.prune(results(&["d.txt", "c.json", "a.csv"]), &gone, |row| !row
+                .title()
                 .starts_with('0'))
         ),
         [("d.txt".to_owned(), PathBuf::from("/work/d.txt"))],

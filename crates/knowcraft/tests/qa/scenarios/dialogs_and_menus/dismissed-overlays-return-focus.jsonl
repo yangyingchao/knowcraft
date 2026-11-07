@@ -1,4 +1,4 @@
-{"scenario":"dismissed-overlays-return-focus","modes":["columns"],"layout":"us","quality":{"impact":3,"coverage":4,"criticality":4,"diagnostic":4,"score":49,"note":"Settings, search, jump-to-folder, Compress and delete-confirmation backdrop dismissals return focus to the entry; dialog Escape: modal-dialog-blocks-window-shortcuts"}}
+{"scenario":"dismissed-overlays-return-focus","modes":["columns"],"layout":"us","quality":{"impact":3,"coverage":4,"criticality":4,"diagnostic":4,"score":49,"note":"Settings, the pane knowledge search field, jump-to-folder, Compress and delete-confirmation backdrop dismissals return focus to the listing; dialog Escape: modal-dialog-blocks-window-shortcuts"}}
 {"select_with_keyboard":"todo.txt"}
 {"key":"ctrl+comma"}
 {"wait":{"present":{"role":"button","name":"Close settings"}},"message":"Ctrl+, to open Settings"}
@@ -11,10 +11,10 @@
 {"key":"ctrl+2"}
 {"wait":{"all":[{"view_mode":"Icons"},{"focused":"readme.md"}]},"message":"the switch to Icons to keep focus on 'readme.md'"}
 {"key":"ctrl+k"}
-{"wait":{"field":{"name":"Search files and folders…"}},"message":"Ctrl+K to open the search palette with its field focused and named for search"}
-{"key":"ctrl+k"}
-{"wait":{"editable_fields":0},"message":"Ctrl+K again to close the command palette"}
-{"wait":{"focused":"readme.md"},"message":"focus to return to 'readme.md' after Ctrl+K closed the palette in Icons"}
+{"wait":{"field":{}},"message":"Ctrl+K to focus the pane's knowledge search field"}
+{"key":"Escape"}
+{"wait":{"editable_fields":0},"message":"Escape to close the pane's knowledge search field"}
+{"wait":{"focused":"readme.md"},"message":"focus to return to 'readme.md' after Escape closed the pane search in Icons"}
 {"key":"Right"}
 {"wait":{"focused":"todo.txt"},"message":"Right to move the returned focus to 'todo.txt'"}
 {"key":"ctrl+3"}

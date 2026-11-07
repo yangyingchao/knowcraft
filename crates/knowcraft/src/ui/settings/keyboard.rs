@@ -1050,7 +1050,7 @@ const NAMES: &[(Command, &str)] = &[
     (DELETE_PERMANENTLY, "Permanently delete selected items"),
     (COPY_PATH, "Copy path"),
     (PIN, "Pin a folder"),
-    (SEARCH, "Open global search"),
+    (SEARCH, "Search the knowledge base in this pane"),
     (LOCATION, "Edit the location"),
     (REFRESH, "Refresh"),
     (HIDDEN_FILES, "Show or hide hidden files"),
@@ -1078,7 +1078,7 @@ const NAMES: &[(Command, &str)] = &[
     (ARROW_SCOPE, "Keep arrows in the file list on or off"),
     (
         OPEN_CONTAINING_FOLDER,
-        "Open containing folder (global search)",
+        "Open containing folder (folder jump)",
     ),
     (CHOOSE_FOLDER, "Choose a folder, as Accept does"),
     (REFERENCE_CATEGORIES, "Focus the reference categories"),

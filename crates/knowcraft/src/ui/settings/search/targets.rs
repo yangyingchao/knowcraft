@@ -123,12 +123,6 @@ pub(super) const TARGETS: &[Target] = &[
         aliases: "filter search recursive nested directories",
     },
     Target {
-        id: "search-results",
-        page: "general",
-        title: "Open search results directly",
-        aliases: "launch files quick preview",
-    },
-    Target {
         id: "search-time-limit",
         page: "general",
         title: "Search time limit",

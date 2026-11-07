@@ -7,12 +7,20 @@ use std::{
     rc::{Rc, Weak},
 };
 
+use gtk::prelude::*;
+
 use super::{ClickActivation, ClickCount, pane::PaneBuild};
 use crate::{
     app::Browser,
     model::FileEntry,
     ui::{
-        browser::{self, paths::is_trash_location},
+        browser::{
+            self, activate_row,
+            filter_mode::{FilterModeController, QuerySource},
+            filter_rows::ResultRow,
+            paths::is_trash_location,
+            result_entry,
+        },
         inline_search::{SearchCollectionOptions, SearchPresentation},
     },
 };
@@ -55,7 +63,10 @@ struct SearchClick {
 }
 
 impl SearchClick {
-    fn pointer_click(&self, entry: FileEntry, presses: i32) {
+    fn pointer_click(&self, row: ResultRow, presses: i32) {
+        let Some(entry) = result_entry(&row) else {
+            return;
+        };
         let Some(browser) = self.browser.upgrade() else {
             return;
         };
@@ -90,30 +101,47 @@ fn open_on_repeat(browser: &Rc<Browser>, entry: FileEntry, files: ClickCount) {
     }
 }
 
-fn open_search_entry(browser: &Weak<Browser>, entry: FileEntry) {
-    let Some(browser) = browser.upgrade() else {
-        return;
-    };
-    if entry.is_directory() {
-        browser.navigate(entry.location);
-    } else {
-        browser.open_location(entry.location);
-    }
+fn activate_search_row(
+    browser: &Weak<Browser>,
+    row: &ResultRow,
+    mode: &FilterModeController,
+    entry: &gtk::Entry,
+) {
+    let close_mode = mode.clone();
+    let retag_mode = mode.clone();
+    let retag_entry = entry.clone();
+    activate_row(
+        browser,
+        row,
+        move || close_mode.close(),
+        move |query| {
+            retag_entry.set_text(&query);
+            retag_mode.focus_or_switch(QuerySource::Knowledge);
+            retag_entry.select_region(0, -1);
+        },
+    );
 }
 
 pub(super) fn search_collection_options(
     presentation: SearchPresentation,
     inputs: &PaneBuild,
+    mode: &FilterModeController,
+    entry: &gtk::Entry,
 ) -> SearchCollectionOptions {
     let weak_browser = inputs.weak_browser();
-    let activate = Rc::new(move |entry: FileEntry| open_search_entry(&weak_browser, entry));
+    let activate_browser = weak_browser.clone();
+    let activate_mode = mode.clone();
+    let activate_entry = entry.clone();
+    let activate = Rc::new(move |row: ResultRow| {
+        activate_search_row(&activate_browser, &row, &activate_mode, &activate_entry);
+    });
     let click = SearchClick {
         browser: inputs.weak_browser(),
         previews: inputs.click.previews.clone(),
         activation: inputs.click.activation.clone(),
     };
-    let pointer_click = Rc::new(move |entry: FileEntry, presses: i32| {
-        click.pointer_click(entry, presses);
+    let pointer_click = Rc::new(move |row: ResultRow, presses: i32| {
+        click.pointer_click(row, presses);
     });
     let focus_state = inputs.search_context_state.clone();
     let focus_items = Rc::new(move || {

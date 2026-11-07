@@ -4,7 +4,8 @@
 
 use super::{BoundRow, ColumnHits, PendingPointerActivation};
 use crate::model::FileEntry;
-use crate::services::SearchItem;
+use crate::ui::browser::filter_mode::{FilterModeController, QuerySource};
+use crate::ui::browser::filter_rows::ResultRow;
 use crate::ui::browser::{ViewState, collection::ViewMap};
 use crate::ui::enter_target::EnterTarget;
 use gtk::{glib, prelude::*};
@@ -30,9 +31,11 @@ pub(super) struct RowSources<'a> {
     pub(super) map: &'a ViewMap,
     pub(super) selection: &'a gtk::MultiSelection,
     pub(super) recursive_search_active: &'a Rc<Cell<bool>>,
-    pub(super) search_results: &'a Rc<RefCell<Vec<SearchItem>>>,
+    pub(super) search_results: &'a Rc<RefCell<Vec<ResultRow>>>,
     pub(super) hits: &'a Rc<RefCell<ColumnHits>>,
     pub(super) enter_target: &'a EnterTarget,
+    pub(super) mode: &'a FilterModeController,
+    pub(super) entry: &'a gtk::Entry,
 }
 
 /// The column state every row's gestures read.
@@ -42,15 +45,30 @@ struct RowContext {
     map: ViewMap,
     selection: gtk::MultiSelection,
     search_active: Rc<Cell<bool>>,
-    search_results: Rc<RefCell<Vec<SearchItem>>>,
+    search_results: Rc<RefCell<Vec<ResultRow>>>,
+    mode: FilterModeController,
+    entry: gtk::Entry,
 }
 
 impl RowContext {
+    fn result_list_active(&self) -> bool {
+        self.search_active.get() || self.mode.source() == Some(QuerySource::Knowledge)
+    }
+
+    /// A knowledge field can be open while an empty result list leaves the
+    /// directory listing in place; only a real hit takes over activation.
+    fn result_at(&self, position: u32) -> bool {
+        self.search_results
+            .borrow()
+            .get(position as usize)
+            .is_some()
+    }
+
     fn search_entry(&self, position: u32) -> Option<FileEntry> {
         self.search_results
             .borrow()
             .get(position as usize)
-            .map(crate::ui::browser::search_result_entry)
+            .and_then(crate::ui::browser::collection::result_entry)
     }
 
     /// The entry at a view position, from the search hits or the column's listing.
@@ -93,6 +111,8 @@ pub(super) fn column_rows(state: &Rc<ViewState>, sources: &RowSources<'_>) -> Co
         selection: sources.selection.clone(),
         search_active: sources.recursive_search_active.clone(),
         search_results: sources.search_results.clone(),
+        mode: sources.mode.clone(),
+        entry: sources.entry.clone(),
     });
     let rows_for_setup = bound_rows.clone();
     let setup_context = context.clone();

@@ -3,10 +3,10 @@
 //! A column's list models and the selection it mirrors into the browser.
 
 use super::super::ColumnHits;
-use crate::services::SearchItem;
 use crate::ui::browser::ViewState;
 use crate::ui::browser::collection::{ViewMap, apply_selection_plan, bitset_positions};
 use crate::ui::browser::entry::{entry_filter, entry_model_value};
+use crate::ui::browser::filter_rows::ResultRow;
 use crate::ui::entry_list_model::EntryListModel;
 use crate::ui::search_session::SearchSession;
 use gtk::prelude::*;
@@ -25,7 +25,7 @@ pub(super) struct ColumnModels {
     pub(super) recursive_search_active: Rc<Cell<bool>>,
     pub(super) hits: Rc<RefCell<ColumnHits>>,
     pub(super) syncing_selection: Rc<Cell<bool>>,
-    pub(super) search_results: Rc<RefCell<Vec<SearchItem>>>,
+    pub(super) search_results: Rc<RefCell<Vec<ResultRow>>>,
     pub(super) search_session: SearchSession,
     pub(super) search_model: gtk::StringList,
     pub(super) renamed_result: crate::ui::inline_search::RenamedResult,

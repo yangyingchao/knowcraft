@@ -88,7 +88,7 @@ impl WindowContent {
         window: &gtk::ApplicationWindow,
         preferences: &Rc<PreferenceManager>,
     ) {
-        search::install(window, self, preferences);
+        search::install(window, self);
         install_browser_actions(window, &self.actions, &self.browser, preferences);
         settings::install(window, self, preferences);
         let click_browser = self.browser.clone();
@@ -123,11 +123,6 @@ impl WindowContent {
             },
         );
         self.key_controllers.borrow_mut().extend(controllers);
-    }
-
-    #[cfg(test)]
-    pub(super) fn search_button(&self) -> &gtk::Button {
-        &self.header.search
     }
 
     #[cfg(test)]

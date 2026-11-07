@@ -10,7 +10,7 @@
 use std::{
     cell::{Cell, RefCell},
     path::{Path, PathBuf},
-    rc::Rc,
+    rc::{Rc, Weak},
 };
 
 use gtk::{glib, prelude::*};
@@ -21,8 +21,21 @@ use super::keys::{
 };
 use crate::{
     app::Browser,
+    knowledge,
     model::{FileEntry, Location},
     services::SearchItem,
+    ui::{
+        browser::{
+            filter_mode::{FilterModeController, QuerySource, RowId},
+            filter_rows::{
+                ContentRow, MergeLimits, ResultRow, TagRow, content_display_name, merge_rows,
+            },
+            find::HitRanges,
+            knowledge_query::{KnowledgeHits, KnowledgeQuery},
+            result_entry,
+        },
+        search_session::SearchScope,
+    },
 };
 
 mod collection;
@@ -50,8 +63,8 @@ pub(super) enum SearchPresentation {
 pub(super) struct SearchCollectionOptions {
     pub(super) presentation: SearchPresentation,
     pub(super) multiple_selection: Rc<Cell<bool>>,
-    pub(super) activate: Rc<dyn Fn(FileEntry)>,
-    pub(super) pointer_click: Rc<dyn Fn(FileEntry, i32)>,
+    pub(super) activate: Rc<dyn Fn(ResultRow)>,
+    pub(super) pointer_click: Rc<dyn Fn(ResultRow, i32)>,
     pub(super) selection_changed: SearchSelectionChanged,
     pub(super) focus_items: Rc<dyn Fn()>,
     /// Runs after the displayed results (or the return to the directory) change.
@@ -60,11 +73,53 @@ pub(super) struct SearchCollectionOptions {
 
 enum Publication {
     Results {
-        items: Vec<SearchItem>,
+        items: Vec<ResultRow>,
         recursive: bool,
         keep_selection: bool,
     },
     Directory,
+}
+
+/// The parts of one knowledge query, filled by its file-name and knowledge deliveries.
+#[derive(Default)]
+struct KnowledgeParts {
+    generation: u64,
+    names: Vec<SearchItem>,
+    tags: Vec<TagRow>,
+    content: Vec<ContentRow>,
+    hits_received: bool,
+}
+
+impl KnowledgeParts {
+    /// Starts a new query and drops anything an older one may still deliver.
+    fn clear(&mut self) {
+        self.generation = self.generation.wrapping_add(1);
+        self.names.clear();
+        self.tags.clear();
+        self.content.clear();
+        self.hits_received = false;
+    }
+
+    /// Stores a delivery for `generation`; any other generation is dropped.
+    fn accept(
+        &mut self,
+        generation: u64,
+        names: Option<Vec<SearchItem>>,
+        hits: Option<KnowledgeHits>,
+    ) -> bool {
+        if self.generation != generation {
+            return false;
+        }
+        if let Some(names) = names {
+            self.names = names;
+        }
+        if let Some(hits) = hits {
+            self.content = hits.content;
+            self.tags = hits.tags;
+            self.hits_received = true;
+        }
+        true
+    }
 }
 
 struct State {
@@ -74,6 +129,8 @@ struct State {
     collection: ResultCollection,
     enter: super::enter_target::EnterTarget,
     session: super::search_session::SearchSession,
+    knowledge: KnowledgeQuery,
+    parts: Rc<RefCell<KnowledgeParts>>,
     query_binding: RefCell<Option<super::browser::FilterQueryBinding>>,
     updating: Cell<bool>,
     publishing: Cell<bool>,
@@ -83,7 +140,7 @@ struct State {
     detached: Cell<bool>,
     recursive: Cell<bool>,
     context_menu_trigger: RefCell<Option<super::browser::ContextMenuTrigger>>,
-    activate: Rc<dyn Fn(FileEntry)>,
+    activate: Rc<dyn Fn(ResultRow)>,
     selection_callbacks: RefCell<Vec<SearchSelectionChanged>>,
     results_changed: Rc<dyn Fn()>,
 }
@@ -142,10 +199,10 @@ impl State {
     }
 
     fn activate(&self, position: u32) -> bool {
-        let Some(entry) = collection_entry(&self.collection.sorted, position) else {
+        let Some(row) = self.collection.item(position) else {
             return false;
         };
-        (self.activate)(entry);
+        (self.activate)(row);
         true
     }
 }
@@ -282,7 +339,7 @@ impl InlineSearch {
             .collection
             .items()
             .iter()
-            .position(|item| item.path == path)? as u32;
+            .position(|row| row.path().is_some_and(|p| p == &path))? as u32;
         Some(state.collection.edit_widgets(position)?.into())
     }
 
@@ -299,10 +356,12 @@ impl InlineSearch {
             .items()
             .iter()
             .enumerate()
-            .filter(|(_, item)| {
-                let location = Location::local(&item.path);
-                location == *old_location
-                    || new_location.is_some_and(|new_location| location == *new_location)
+            .filter(|(_, row)| {
+                row.path().is_some_and(|path| {
+                    let location = Location::local(path);
+                    location == *old_location
+                        || new_location.is_some_and(|new_location| location == *new_location)
+                })
             })
             .filter_map(|(position, _)| state.collection.rename_label(position as u32))
             .collect()
@@ -314,7 +373,12 @@ impl InlineSearch {
         let Some(state) = self.showing_results() else {
             return;
         };
-        if state.collection.positions.borrow().contains_key(from) {
+        if state
+            .collection
+            .positions
+            .borrow()
+            .contains_key(&RowId::file(from))
+        {
             state.collection.renamed.expect(from, to);
         }
     }
@@ -377,7 +441,7 @@ impl InlineSearch {
             .collection
             .items()
             .iter()
-            .position(|item| item.path == path)
+            .position(|row| row.path().is_some_and(|p| p == path))
         else {
             return false;
         };
@@ -411,9 +475,8 @@ impl InlineSearch {
         let items = state
             .collection
             .items()
-            .iter()
-            .filter(|item| browser.allows_entry(&super::browser::search_result_entry(item)))
-            .cloned()
+            .into_iter()
+            .filter(|row| result_entry(row).is_none_or(|entry| browser.allows_entry(&entry)))
             .collect();
         update_results(state, items, state.recursive.get(), true);
         if let Some(entry) = state.entry.upgrade() {
@@ -432,7 +495,7 @@ impl InlineSearch {
             .collection
             .items()
             .into_iter()
-            .map(|item| item.path)
+            .filter_map(|row| row.path().cloned())
             .collect();
         let weak = Rc::downgrade(state);
         let browser = Rc::downgrade(browser);
@@ -441,13 +504,21 @@ impl InlineSearch {
                 return;
             };
             let items = state.collection.items();
-            if !items.iter().any(|item| gone.contains(&item.path)) {
+            if !items
+                .iter()
+                .any(|row| row.path().is_some_and(|path| gone.contains(path)))
+            {
                 return;
             }
             let show_hidden = browser.preferences().show_hidden;
-            let pruned = state.collection.renamed.prune(items, &gone, |item| {
-                (show_hidden || !item.name.starts_with('.'))
-                    && browser.allows_entry(&super::browser::search_result_entry(item))
+            let pruned = state.collection.renamed.prune(items, &gone, |row| {
+                let visible = row.path().is_none_or(|path| {
+                    show_hidden
+                        || path
+                            .file_name()
+                            .is_none_or(|name| !name.to_string_lossy().starts_with('.'))
+                });
+                visible && result_entry(row).is_none_or(|entry| browser.allows_entry(&entry))
             });
             if pruned.is_empty() {
                 state.status.set_text(&crate::i18n::tr("No matching files"));
@@ -470,6 +541,8 @@ impl InlineSearch {
             state.pending_update.take();
             state.query_binding.take();
             state.session.cancel();
+            state.knowledge.cancel();
+            state.parts.borrow_mut().clear();
             state.updating.set(true);
             state.collection.clear();
             super::browser::detach_collection_view(&state.collection.view);
@@ -515,11 +588,11 @@ impl InlineSearch {
             .map(apply)
     }
 
-    pub(in crate::ui) fn results(&self) -> Option<Vec<SearchItem>> {
+    pub(in crate::ui) fn results(&self) -> Option<Vec<ResultRow>> {
         Some(self.showing_results()?.collection.items())
     }
 
-    pub(in crate::ui) fn current_result(&self) -> Option<SearchItem> {
+    pub(in crate::ui) fn current_result(&self) -> Option<ResultRow> {
         let collection = &self.showing_results()?.collection;
         collection.item(collection.current_position()?)
     }
@@ -589,6 +662,8 @@ impl InlineSearch {
 
 fn show_directory_listing(state: &State) {
     state.session.cancel();
+    state.knowledge.cancel();
+    state.parts.borrow_mut().clear();
     state.enter.clear();
     if state.updating.get() || state.publishing.get() {
         state.pending_update.replace(Some(Publication::Directory));
@@ -637,6 +712,7 @@ pub(super) fn wrap(
     root: impl Fn() -> Option<PathBuf> + 'static,
     browser: &Rc<Browser>,
     options: SearchCollectionOptions,
+    mode: FilterModeController,
 ) -> InlineSearch {
     let root = Rc::new(root);
     let Some(initial_root) = root() else {
@@ -697,6 +773,8 @@ pub(super) fn wrap(
         collection,
         enter,
         session: super::search_session::SearchSession::default(),
+        knowledge: KnowledgeQuery::default(),
+        parts: Rc::new(RefCell::new(KnowledgeParts::default())),
         query_binding: RefCell::new(None),
         updating: Cell::new(false),
         publishing: Cell::new(false),
@@ -806,9 +884,11 @@ pub(super) fn wrap(
         marquee: Some(marquee),
     };
     let query_state = state.clone();
+    let query_mode = mode.clone();
     let binding =
         super::browser::bind_filter_query(entry, &state.session, move |text, scope, restart| {
-            let is_recursive = scope.recursive();
+            let knowledge_mode = query_mode.source() == Some(QuerySource::Knowledge);
+            let is_recursive = knowledge_mode || scope.recursive();
             let state = &query_state;
             state.recursive.set(is_recursive);
             recursive.set(is_recursive);
@@ -817,20 +897,17 @@ pub(super) fn wrap(
                 show_directory_listing(state);
                 return;
             }
+            if knowledge_mode {
+                begin_search(state, restart);
+                search_knowledge(state, &text, query, &weak_browser);
+                return;
+            }
+            state.knowledge.cancel();
+            state.parts.borrow_mut().clear();
             let Some(root) = root() else {
                 return;
             };
-            state.stack.set_visible_child_name("search");
-            if restart {
-                // As in Columns, a restarted query drops the previous query's hits.
-                state.enter.restart();
-                update_results(state, Vec::new(), is_recursive, false);
-            }
-            if state.collection.sorted.n_items() == 0 {
-                state.status.set_text(&crate::i18n::tr("Searching…"));
-                state.set_empty_state(true);
-                state.status.set_visible(true);
-            }
+            begin_search(state, restart);
             let (show_hidden, within) = weak_browser.upgrade().map_or((false, None), |browser| {
                 (browser.preferences().show_hidden, browser.confined_to())
             });
@@ -851,7 +928,7 @@ pub(super) fn wrap(
                     let (Some(state), Some(browser)) = (weak.upgrade(), browser.upgrade()) else {
                         return;
                     };
-                    let items = eligible_results(
+                    let names = eligible_results(
                         &browser,
                         &state.session,
                         &batch.query,
@@ -859,7 +936,7 @@ pub(super) fn wrap(
                         batch.has_more,
                         batch.candidates,
                     );
-                    let is_empty = items.is_empty();
+                    let is_empty = names.is_empty();
                     state.set_empty_state(is_empty);
                     state
                         .status
@@ -872,20 +949,142 @@ pub(super) fn wrap(
                         crate::i18n::tr("No matching files")
                     });
                     state.collection.highlights.borrow_mut().hits = if scope.fuzzy() {
-                        super::browser::find::search_hit_ranges(&batch.query, &search_root, &items)
+                        super::browser::find::search_hit_ranges(&batch.query, &search_root, &names)
                     } else {
                         Default::default()
                     };
+                    let items = names.into_iter().map(ResultRow::File).collect();
                     let keep_selection = !state.enter.show_query(&batch.query);
                     update_results(&state, items, state.recursive.get(), keep_selection);
                 }),
             );
         });
+    // A source switch must re-run the text under the new source; the entry's
+    // `changed` signal never fires for a toggle.
+    let requery = binding.clone();
+    mode.set_listener(Rc::new(move |_| requery.requery()));
     state.query_binding.replace(Some(binding));
     search
 }
 
-fn update_results(state: &State, items: Vec<SearchItem>, recursive: bool, keep_selection: bool) {
+/// Enters the results presentation for a new query.
+fn begin_search(state: &State, restart: bool) {
+    state.stack.set_visible_child_name("search");
+    if restart {
+        // As in Columns, a restarted query drops the previous query's hits.
+        state.enter.restart();
+        update_results(state, Vec::new(), state.recursive.get(), false);
+    }
+    if state.collection.sorted.n_items() == 0 {
+        state.status.set_text(&crate::i18n::tr("Searching…"));
+        state.set_empty_state(true);
+        state.status.set_visible(true);
+    }
+}
+
+/// Searches the knowledge base: file names under `data_dir`, plus content and tags.
+fn search_knowledge(state: &Rc<State>, text: &str, query: &str, browser: &Weak<Browser>) {
+    // Every knowledge query is a new generation: a late delivery from the
+    // previous text must not be accepted even when `restart` is false.
+    state.parts.borrow_mut().clear();
+    let generation = state.parts.borrow().generation;
+    if let Some(root) = knowledge::search_roots().into_iter().next() {
+        let weak = Rc::downgrade(state);
+        let browser = browser.clone();
+        let parts = state.parts.clone();
+        state.session.update(
+            super::search_session::SearchInput {
+                root,
+                show_hidden: true,
+                scope: SearchScope::Subfolders,
+                refused: Default::default(),
+                within: None,
+            },
+            query,
+            false,
+            Rc::new(move |batch| {
+                let (Some(state), Some(browser)) = (weak.upgrade(), browser.upgrade()) else {
+                    return;
+                };
+                let names = eligible_results(
+                    &browser,
+                    &state.session,
+                    &batch.query,
+                    batch.items,
+                    batch.has_more,
+                    batch.candidates,
+                );
+                let accepted = parts.borrow_mut().accept(generation, Some(names), None);
+                if accepted {
+                    publish_knowledge(&state, &batch.query, generation);
+                }
+            }),
+        );
+    } else {
+        state.session.cancel();
+    }
+    let weak = Rc::downgrade(state);
+    let parts = state.parts.clone();
+    let query = query.to_owned();
+    state.knowledge.query(
+        text.to_owned(),
+        Rc::new(move |hits| {
+            let Some(state) = weak.upgrade() else {
+                return;
+            };
+            let accepted = parts.borrow_mut().accept(generation, None, Some(hits));
+            if accepted {
+                publish_knowledge(&state, &query, generation);
+            }
+        }),
+    );
+}
+
+/// Merges the parts of `generation` into the result list.
+fn publish_knowledge(state: &State, query: &str, generation: u64) {
+    let (names, tags, content, hits_received) = {
+        let parts = state.parts.borrow();
+        if parts.generation != generation {
+            return;
+        }
+        (
+            parts.names.clone(),
+            parts.tags.clone(),
+            parts.content.clone(),
+            parts.hits_received,
+        )
+    };
+    let content: Vec<ContentRow> = content
+        .into_iter()
+        .map(|mut row| {
+            let title = knowledge::init().and_then(|knowledge| knowledge.display_title(&row.path));
+            row.title = content_display_name(&row.path, title.as_deref());
+            row
+        })
+        .collect();
+    let ranges: HitRanges = knowledge::search_roots()
+        .into_iter()
+        .next()
+        .map_or_else(HitRanges::new, |root| {
+            super::browser::find::search_hit_ranges(query, &root, &names)
+        });
+    let rows = merge_rows(names, tags, content, MergeLimits::default());
+    let empty = rows.is_empty();
+    state.set_empty_state(empty);
+    state.status.set_visible(empty);
+    if empty {
+        state.status.set_text(&if hits_received {
+            crate::i18n::tr("No matching files or folders")
+        } else {
+            crate::i18n::tr("Searching…")
+        });
+    }
+    state.collection.highlights.borrow_mut().hits = ranges;
+    let keep_selection = !state.enter.show_query(query);
+    update_results(state, rows, true, keep_selection);
+}
+
+fn update_results(state: &State, items: Vec<ResultRow>, recursive: bool, keep_selection: bool) {
     if state.detached.get() {
         return;
     }

@@ -11,7 +11,10 @@ use super::{
 use crate::{
     model::FileEntry,
     ui::{
-        browser::{self, ActivePaneFilter, FilterFocus},
+        browser::{
+            self, ActivePaneFilter, FilterFocus, FilterQueryBinding,
+            filter_mode::{FilterModeController, QuerySource},
+        },
         inline_search::InlineSearch,
     },
 };
@@ -24,7 +27,14 @@ impl ModeViews {
             .chain(self.list_pane.iter())
             .filter(|pane| pane.depth == depth)
         {
-            if let Some(field) = pane.filter_entry.as_ref() {
+            if let Some(mode) = pane
+                .filter_mode
+                .as_ref()
+                .filter(|mode| mode.source() == Some(QuerySource::Knowledge))
+            {
+                // Closing the knowledge source already clears the shared field.
+                mode.close();
+            } else if let Some(field) = pane.filter_entry.as_ref() {
                 field.set_text("");
             }
         }
@@ -97,23 +107,24 @@ impl ModeViews {
         true
     }
 
-    /// The active pane's filter field, its funnel toggle, and the results that
-    /// replace its listing while the field has text.
+    /// The active pane's filter field, its funnel toggle, its results while the
+    /// field has text, and the controller owning the field's query source.
     pub(in crate::ui) fn active_filter(
         &self,
-    ) -> Option<(gtk::Entry, gtk::ToggleButton, InlineSearch)> {
+    ) -> Option<(gtk::Entry, gtk::ToggleButton, InlineSearch, FilterModeController)> {
         self.filter_at(self.browser.active_depth()?)
     }
 
     pub(in crate::ui) fn filter_at(
         &self,
         depth: usize,
-    ) -> Option<(gtk::Entry, gtk::ToggleButton, InlineSearch)> {
+    ) -> Option<(gtk::Entry, gtk::ToggleButton, InlineSearch, FilterModeController)> {
         let pane = self.panes_at(depth).into_iter().next()?;
         Some((
             pane.filter_entry.clone()?,
             pane.filter_button.clone()?,
             pane.search.clone(),
+            pane.filter_mode.clone()?,
         ))
     }
 
@@ -133,6 +144,13 @@ impl ModeViews {
                 pane.filter_button
                     .as_ref()
                     .is_some_and(|button| !button.is_active())
+            })
+            // A field open on the knowledge source also has its funnel off, but
+            // its text is the live query, not a leftover filter.
+            .filter(|pane| {
+                pane.filter_mode
+                    .as_ref()
+                    .is_none_or(|mode| mode.source() != Some(QuerySource::Knowledge))
             })
             .filter_map(|pane| pane.filter_entry.clone())
             .filter(|entry| !entry.text().is_empty())
@@ -156,6 +174,11 @@ impl ModeViews {
                 .filter_button
                 .as_ref()
                 .is_some_and(|button| button.is_active()),
+            source: pane
+                .filter_mode
+                .as_ref()
+                .and_then(|mode| mode.source())
+                .unwrap_or(QuerySource::Files),
         }
     }
 
@@ -170,9 +193,16 @@ impl ModeViews {
         else {
             return;
         };
-        browser::restore_filter_controls(button, entry, filter);
-        if !pane.search.replaces_listing() {
+        if let Some(mode) = pane.filter_mode.as_ref() {
+            mode.restore(Some(filter.source), filter.revealed, &filter.query);
+        } else {
+            browser::restore_filter_controls(button, entry, filter);
+        }
+        if filter.source == QuerySource::Files && !pane.search.replaces_listing() {
             browser::notify_filter_query(&pane.filter, &pane.filter_query, filter.query.clone());
+        }
+        if filter.source == QuerySource::Knowledge && !filter.query.trim().is_empty() {
+            pane.search.with_query_binding(FilterQueryBinding::requery);
         }
         if filter.query.trim().is_empty() {
             pane.search.show_directory_listing();
@@ -190,7 +220,9 @@ impl ModeViews {
         else {
             return false;
         };
-        if let Some(button) = pane.filter_button.as_ref() {
+        if let Some(mode) = pane.filter_mode.as_ref() {
+            mode.close();
+        } else if let Some(button) = pane.filter_button.as_ref() {
             button.set_active(false);
         }
         self.pane_navigation.borrow_mut().filter_dismissed();

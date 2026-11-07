@@ -4,11 +4,13 @@
 
 use crate::model::Location;
 use crate::ui::browser::ViewState;
+use crate::ui::browser::filter_mode::FilterModeController;
 use crate::ui::browser::pane_header::{
     column_sort_direction_toggle, column_sort_menu, empty_trash_button, leftovers_button,
     pane_new_folder_button, pane_refresh_button,
 };
 use crate::ui::browser::paths::is_trash_root;
+use crate::ui::browser_modes::{FilterControls, filter_controls};
 use crate::ui::enter_target::EnterTarget;
 use gtk::prelude::*;
 use std::rc::Rc;
@@ -26,6 +28,7 @@ pub(super) struct ColumnHeader {
     pub(super) filter_entry: gtk::Entry,
     pub(super) filter_revealer: gtk::Revealer,
     pub(super) filter_button: gtk::ToggleButton,
+    pub(super) filter_mode: FilterModeController,
     pub(super) enter_target: EnterTarget,
 }
 
@@ -128,8 +131,16 @@ impl ViewState {
         header_actions.append(&sort_direction_button);
         header_actions.append(&column_sort_menu(&self.browser, depth));
 
-        let (filter_entry, filter_revealer, filter_button) =
-            crate::ui::browser_modes::filter_controls("Filter this pane (%{keys})");
+        let FilterControls {
+            entry: filter_entry,
+            revealer: filter_revealer,
+            filter_button,
+            search_button,
+            mode: filter_mode,
+        } = filter_controls(
+            "Filter this pane (%{keys})",
+            "Search the knowledge base (%{keys})",
+        );
         let enter_target = EnterTarget::new(&filter_entry);
         let weak_self = Rc::downgrade(self);
         filter_button.connect_toggled(move |button| {
@@ -140,6 +151,7 @@ impl ViewState {
             }
         });
         header_actions.append(&filter_button);
+        header_actions.append(&search_button);
         if depth > 0 {
             header_actions.append(&close_pane_button(self, depth));
         }
@@ -158,6 +170,7 @@ impl ViewState {
             filter_entry,
             filter_revealer,
             filter_button,
+            filter_mode,
             enter_target,
         }
     }

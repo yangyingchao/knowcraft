@@ -7,7 +7,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::services::SearchItem;
+use crate::ui::browser::filter_rows::ResultRow;
 
 /// A rename of a filter result that the results follow to its new path, so the
 /// selection and focus a results update keeps by path stay on the renamed item
@@ -66,6 +66,18 @@ impl Settled {
     }
 }
 
+/// Rewrites the path of a row the pending rename followed.
+fn rename_row(row: ResultRow, path: PathBuf) -> ResultRow {
+    match row {
+        ResultRow::File(item) => ResultRow::File(item.renamed(path)),
+        ResultRow::Content(mut content) => {
+            content.path = path;
+            ResultRow::Content(content)
+        }
+        ResultRow::Tag(tag) => ResultRow::Tag(tag),
+    }
+}
+
 impl RenamedResult {
     /// Expects the result at `from` to be renamed to `to`, or with `None` to move to
     /// another folder.
@@ -98,23 +110,45 @@ impl RenamedResult {
     /// item moved to another folder is dropped like any missing result.
     pub(in crate::ui) fn prune(
         &self,
-        items: Vec<SearchItem>,
+        items: Vec<ResultRow>,
         gone: &HashSet<PathBuf>,
-        show: impl Fn(&SearchItem) -> bool,
-    ) -> Vec<SearchItem> {
+        show: impl Fn(&ResultRow) -> bool,
+    ) -> Vec<ResultRow> {
+        self.prune_items(
+            items,
+            |row| row.path().map(PathBuf::as_path),
+            rename_row,
+            gone,
+            show,
+        )
+    }
+
+    /// [`Self::prune`] for any item with an optional path: items without a path,
+    /// such as tags, are never missing.
+    pub(in crate::ui) fn prune_items<T>(
+        &self,
+        items: Vec<T>,
+        path_of: impl Fn(&T) -> Option<&Path>,
+        rename: impl Fn(T, PathBuf) -> T,
+        gone: &HashSet<PathBuf>,
+        show: impl Fn(&T) -> bool,
+    ) -> Vec<T> {
         let pending = self.0.borrow();
         items
             .into_iter()
             .filter_map(|item| {
-                if !gone.contains(&item.path) {
+                let Some(path) = path_of(&item) else {
+                    return Some(item);
+                };
+                if !gone.contains(path) {
                     return Some(item);
                 }
                 let to = pending
                     .as_ref()
-                    .filter(|pending| pending.from == item.path)?
+                    .filter(|pending| pending.from == path)?
                     .to
                     .clone()?;
-                Some(item.renamed(to)).filter(&show)
+                Some(rename(item, to)).filter(&show)
             })
             .collect()
     }
@@ -123,17 +157,25 @@ impl RenamedResult {
     /// the move that took the item out of them. Results that still list the old
     /// path keep the rename waiting; results that list neither path end a rename
     /// in place too: the new name no longer matches the query or is hidden.
-    pub(in crate::ui) fn settle(&self, items: &[SearchItem]) -> Option<Settled> {
+    pub(in crate::ui) fn settle(&self, items: &[ResultRow]) -> Option<Settled> {
+        self.settle_paths(|path| {
+            items
+                .iter()
+                .any(|row| row.path().is_some_and(|p| p == path))
+        })
+    }
+
+    /// [`Self::settle`] against whether the listed paths include `path`.
+    pub(in crate::ui) fn settle_paths(&self, listed: impl Fn(&Path) -> bool) -> Option<Settled> {
         let pending = self.0.borrow().clone()?;
-        let listed = |path: &Path| items.iter().any(|item| item.path == path);
-        if let Some(to) = pending.to.as_ref().filter(|to| listed(to)) {
+        if let Some(to) = pending.to.as_ref().filter(|to| listed(to.as_path())) {
             self.0.take();
             return Some(Settled::Followed(Renamed {
                 from: pending.from,
                 to: to.clone(),
             }));
         }
-        if listed(&pending.from) {
+        if listed(pending.from.as_path()) {
             return None;
         }
         self.0.take();

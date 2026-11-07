@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-//! 搜索结果的分段渲染：文件名 / 标签 / 正文 provider 统一为 `Entry` 列表，
-//! 分段标题与命中行混合，按 provider 优先级排序后增量更新。
+//! 文件夹跳转结果的分段渲染：命中统一为 `Entry` 列表，
+//! 分段标题与命中行混合，按优先级排序后增量更新。
 
 use std::{
     collections::{HashMap, HashSet, VecDeque},
@@ -35,10 +35,10 @@ impl Entry {
     fn id(&self) -> String {
         match self {
             Entry::Header(label) => format!("header:{label}"),
-            Entry::Hit(hit) => match &hit.action {
-                provider::HitAction::Open(path) => format!("path:{}", path.display()),
-                provider::HitAction::ShowTag(name) => format!("tag:{name}"),
-            },
+            Entry::Hit(hit) => {
+                let provider::HitAction::Open(path) = &hit.action;
+                format!("path:{}", path.display())
+            }
         }
     }
 }
@@ -47,10 +47,10 @@ impl Entry {
 fn hit_path(entry: &Entry) -> Option<PathBuf> {
     match entry {
         Entry::Header(_) => None,
-        Entry::Hit(hit) => match &hit.action {
-            provider::HitAction::Open(path) => Some(path.clone()),
-            provider::HitAction::ShowTag(_) => None,
-        },
+        Entry::Hit(hit) => {
+            let provider::HitAction::Open(path) = &hit.action;
+            Some(path.clone())
+        }
     }
 }
 

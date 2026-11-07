@@ -23,7 +23,6 @@
     "folder_peeking": false,
     "single_click_previews": false,
     "columns_mirror_selection": true,
-    "search_open_files_directly": false,
     "type_to_search": true,
     "filter_include_subfolders": true,
     "show_keybinding_hints": true,

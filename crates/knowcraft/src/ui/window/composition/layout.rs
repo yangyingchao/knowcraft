@@ -31,7 +31,6 @@ pub(super) struct Header {
     pub(super) new_tab: gtk::Button,
     pub(super) content: gtk::Box,
     pub(super) sidebar_toggle: SidebarToggle,
-    pub(super) search: gtk::Button,
     pub(super) settings: gtk::Button,
     #[cfg(test)]
     pub(super) minimize: gtk::Button,
@@ -70,10 +69,6 @@ impl Header {
         }
         let location = browser.location_widget();
         location.set_hexpand(true);
-        let search = header_action(icons::SEARCH, "");
-        let search_keys = crate::ui::keys::Keys::One(crate::ui::keys::bindings::SEARCH.shown());
-        crate::ui::shortcut_reference::follow_tooltip(&search, "Search (%{keys})", search_keys);
-        crate::ui::shortcut_reference::follow_label(&search, "Search (%{keys})", search_keys);
         let appearance =
             build_appearance_menu(browser, &browser.browser(), preferences.clone());
         let settings_label = crate::i18n::tr("Settings");
@@ -131,7 +126,6 @@ impl Header {
         );
         crate::ui::accessibility::set_label(&new_tab, &crate::i18n::tr("New tab"));
         actions.append(&new_tab);
-        actions.append(&search);
         actions.append(&appearance);
         actions.append(&settings);
         actions.append(&minimize);
@@ -148,7 +142,6 @@ impl Header {
             widget,
             content,
             sidebar_toggle,
-            search,
             settings,
             #[cfg(test)]
             minimize,

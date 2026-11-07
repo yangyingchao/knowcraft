@@ -144,15 +144,18 @@ impl BrowserView {
     /// Opens the folder holding the hit under the cursor with that item
     /// selected, ending the search. Returns `false` without a hit.
     pub(in crate::ui) fn reveal_listing_search_hit(&self) -> bool {
-        let Some(hit) = self
+        let Some(row) = self
             .search_target()
             .and_then(|target| target.current_result())
         else {
             return false;
         };
+        let Some(hit) = crate::ui::browser::collection::result_entry(&row) else {
+            return false;
+        };
         self.forget_listing_search();
         self.keyboard_navigation();
-        self.reveal_location(Location::local(hit.path));
+        self.reveal_location(hit.location);
         true
     }
 

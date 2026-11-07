@@ -1331,7 +1331,7 @@ impl ViewState {
                         .search_results
                         .borrow()
                         .get(item.position() as usize)
-                        .map(super::search_result_entry)
+                        .and_then(super::collection::result_entry)
                 } else {
                     column
                         .map

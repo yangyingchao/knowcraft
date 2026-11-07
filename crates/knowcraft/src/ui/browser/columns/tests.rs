@@ -448,7 +448,7 @@ fn hit_names(view: &BrowserView) -> std::collections::BTreeSet<String> {
                     .search_results
                     .borrow()
                     .iter()
-                    .map(|item| item.name.clone())
+                    .map(|row| row.title().to_owned())
                     .collect()
             })
             .unwrap_or_default();
@@ -460,7 +460,7 @@ fn hit_names(view: &BrowserView) -> std::collections::BTreeSet<String> {
         .iter()
         .filter_map(|search| search.results())
         .flatten()
-        .map(|item| item.name)
+        .map(|row| row.title().to_owned())
         .collect()
 }
 

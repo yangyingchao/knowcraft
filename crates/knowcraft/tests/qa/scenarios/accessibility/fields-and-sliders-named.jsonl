@@ -6,8 +6,14 @@
 {"key":"Escape"}
 {"wait":{"editable_fields":0},"message":"the field to close"}
 {"key":"ctrl+k"}
-{"wait":{"field":{}},"message":"Ctrl+K to open the search palette"}
-{"wait":{"present":{"role":"text","name":"Search files and folders…"}},"message":"the search palette field is unnamed"}
+{"wait":{"field":{}},"message":"Ctrl+K to focus the pane's knowledge search field"}
+{"wait":{"present":{"role":"text","name":"Filter this pane (Ctrl+F)"}},"message":"the pane's knowledge search field is unnamed","modes":["columns"]}
+{"wait":{"present":{"role":"text","name":"Filter icons (Ctrl+F)"}},"message":"the pane's knowledge search field is unnamed","modes":["icons"]}
+{"key":"Escape"}
+{"wait":{"editable_fields":0},"message":"the field to close"}
+{"key":"ctrl+shift+k"}
+{"wait":{"field":{}},"message":"Ctrl+Shift+K to open the jump-to-folder field"}
+{"wait":{"present":{"role":"text","name":"Jump to a folder…"}},"message":"the jump-to-folder field is unnamed"}
 {"key":"Escape"}
 {"wait":{"editable_fields":0},"message":"the field to close"}
 {"key":"F1"}
