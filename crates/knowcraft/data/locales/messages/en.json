@@ -342,7 +342,7 @@
   "Could not write the download: %{error}": "Could not write the download: %{error}",
   "Could not write the symlink target “%{path}”: %{error}": "Could not write the symlink target “%{path}”: %{error}",
   "Could not write udiskie configuration: %{error}": "Could not write udiskie configuration: %{error}",
-  "Couldn't check for updates: %{value1} · <a href=\"https://github.com/lgse/knowcraft/releases/latest\">View releases on GitHub</a>": "Couldn't check for updates: %{value1} · <a href=\"https://github.com/lgse/knowcraft/releases/latest\">View releases on GitHub</a>",
+  "Couldn't check for updates: %{value1} · <a href=\"https://github.com/yangyingchao/knowcraft/releases/latest\">View releases on GitHub</a>": "Couldn't check for updates: %{value1} · <a href=\"https://github.com/yangyingchao/knowcraft/releases/latest\">View releases on GitHub</a>",
   "Couldn't install update": "Couldn't install update",
   "Couldn't install update: %{message}": "Couldn't install update: %{message}",
   "Couldn't load releases: %{message}": "Couldn't load releases: %{message}",

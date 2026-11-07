@@ -15,7 +15,7 @@ pub(crate) fn gio_file_for_location(location: &Location) -> gio::File {
 /// the file is genuinely on a local filesystem. A mounted GVfs backend (SMB,
 /// SFTP, ...) can still return a `.path()` via its FUSE mirror even though the
 /// file isn't native; using that path would leak the mirror's opaque
-/// `/run/user/$UID/gvfs/...` location instead of the clean URI (lgse/knowcraft#5).
+/// `/run/user/$UID/gvfs/...` location instead of the clean URI (yangyingchao/knowcraft#5).
 /// GIO URIs keep GLib's normalized percent-encoding (`trash:///caf%E9.txt` is not decoded), so
 /// names that are not valid UTF-8 round-trip. Returns `None` only for a genuinely malformed URI,
 /// such as an invalid `%` escape.

@@ -93,7 +93,7 @@ fn mount_error_is_host_key_rejection(error: &glib::Error) -> bool {
 /// A user-initiated cancel (the GTK credential dialog's Cancel button, or a
 /// backend that already reported the failure to the operation itself) should
 /// quietly return to the prior state rather than surface an alarming error,
-/// per lgse/knowcraft#20's "cancelling authentication returns to the prior
+/// per yangyingchao/knowcraft#20's "cancelling authentication returns to the prior
 /// committed location" requirement.
 pub(super) fn mount_failure_message(location: &Location, error: &glib::Error) -> Option<String> {
     if mount_error_is_cancelled(error) || mount_error_is_unauthorized(location, error) {

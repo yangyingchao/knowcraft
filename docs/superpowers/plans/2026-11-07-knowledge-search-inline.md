@@ -1,6 +1,6 @@
 # 知识库搜索内联到列内过滤区 实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 把 Ctrl+K 的知识库搜索并入列内 filter 输入行，搜索与过滤共用列表、导航与打开行为，只有数据来源不同。
 
@@ -9,6 +9,14 @@
 **Tech Stack:** Rust 2024、GTK4（gtk-rs）、tantivy（core 侧只读）、SQLite。
 
 **Spec:** `docs/superpowers/specs/2026-11-07-knowledge-search-inline-design.md`
+
+**状态：** 已实施（2026-11-07），实现提交 `a5c8705`。QA 场景已更新，但 QA 套件未在固定容器内运行，Task 18 Step 3 保持未勾选。
+
+**实施偏差：**
+- Task 7 未采用 `SourceWrite` 枚举，改为在既有 `set_filter_text` 入口按来源关闭知识模式。
+- Task 12/13 的 List/Icons 知识查询合并在同一轮完成；`PaneFilter` 已持有控制器。
+- 移除 `toggle_file_preview`、`leave_or_close_preview`、`close_preview` 三个无调用方函数。
+- 搜索结果的拖拽、剪贴板、重命名与索引徽标对标签行一律跳过。
 
 ---
 
@@ -50,7 +58,7 @@
 - Modify: `crates/knowcraft/src/ui/browser.rs`（或 `ui/browser/mod.rs`，按现有模块声明位置）
 - Test: 同文件 `#[cfg(test)] mod tests`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[cfg(test)]
@@ -71,12 +79,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cargo test -p knowcraft --bin knowcraft row_id --no-run`
 Expected: 编译失败，`RowId` 未定义
 
-- [ ] **Step 3: 实现类型**
+- [x] **Step 3: 实现类型**
 
 ```rust
 // SPDX-License-Identifier: MIT
@@ -115,7 +123,7 @@ impl RowId {
 }
 ```
 
-- [ ] **Step 4: 在模块树中声明**
+- [x] **Step 4: 在模块树中声明**
 
 在 `crates/knowcraft/src/ui/browser.rs` 的模块声明处加入：
 
@@ -123,7 +131,7 @@ impl RowId {
 pub(in crate::ui) mod filter_mode;
 ```
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run: `cargo test -p knowcraft --bin knowcraft row_id`
 Expected: 2 passed
@@ -137,7 +145,7 @@ Expected: 2 passed
 - Modify: `crates/knowcraft/src/ui/browser.rs`
 - Test: 同文件 `#[cfg(test)] mod tests`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[cfg(test)]
@@ -196,12 +204,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cargo test -p knowcraft --bin knowcraft merge_rows --no-run`
 Expected: 编译失败，`merge_rows` 未定义
 
-- [ ] **Step 3: 实现行类型与合并**
+- [x] **Step 3: 实现行类型与合并**
 
 ```rust
 // SPDX-License-Identifier: MIT
@@ -302,13 +310,13 @@ pub(in crate::ui) fn merge_rows(
 }
 ```
 
-- [ ] **Step 4: 声明模块**
+- [x] **Step 4: 声明模块**
 
 ```rust
 pub(in crate::ui) mod filter_rows;
 ```
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run: `cargo test -p knowcraft --bin knowcraft merge_rows`
 Expected: 3 passed
@@ -322,7 +330,7 @@ Expected: 3 passed
 - Modify: `crates/knowcraft/src/ui/browser.rs`
 - Test: 同文件 `#[cfg(test)] mod tests`（只测纯逻辑：generation 递增与 `tags:` 跳过判断）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[cfg(test)]
@@ -346,12 +354,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cargo test -p knowcraft --bin knowcraft skips_tag_provider --no-run`
 Expected: 编译失败
 
-- [ ] **Step 3: 实现查询与取消**
+- [x] **Step 3: 实现查询与取消**
 
 ```rust
 // SPDX-License-Identifier: MIT
@@ -465,13 +473,13 @@ pub(in crate::ui) fn skips_tag_provider(text: &str) -> bool {
 }
 ```
 
-- [ ] **Step 4: 声明模块**
+- [x] **Step 4: 声明模块**
 
 ```rust
 pub(in crate::ui) mod knowledge_query;
 ```
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run: `cargo test -p knowcraft --bin knowcraft knowledge_query`
 Expected: 2 passed
@@ -485,7 +493,7 @@ Expected: 2 passed
 - Modify: `crates/knowcraft/src/knowledge.rs`
 - Test: `crates/knowcraft/src/ui/browser/filter_rows.rs` 与 `crates/knowcraft/src/knowledge/tests.rs`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 在 `filter_rows.rs`：
 
@@ -516,12 +524,12 @@ fn content_rows_reuse_display_title_rules() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cargo test -p knowcraft --bin knowcraft content_rows --no-run`
 Expected: 编译失败，`content_display_name` 未定义
 
-- [ ] **Step 3: 实现显示名**
+- [x] **Step 3: 实现显示名**
 
 在 `filter_rows.rs`：
 
@@ -546,7 +554,7 @@ pub(in crate::ui) fn content_display_name(
 
 在行渲染处调用 `content_display_name(path, &row.title, knowledge.display_title(path).as_deref())`。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cargo test -p knowcraft --bin knowcraft content_rows`
 Expected: 2 passed
@@ -562,7 +570,7 @@ Expected: 2 passed
 - Modify: `crates/knowcraft/src/ui/browser_modes/filter.rs`
 - Test: `filter_mode.rs` 纯逻辑测试
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[test]
@@ -581,12 +589,12 @@ fn clicking_the_active_source_closes() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cargo test -p knowcraft --bin knowcraft mode_state --no-run`
 Expected: 编译失败
 
-- [ ] **Step 3: 实现状态机与控制器**
+- [x] **Step 3: 实现状态机与控制器**
 
 ```rust
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -695,7 +703,7 @@ impl FilterModeController {
 }
 ```
 
-- [ ] **Step 4: `filter_controls` 返回四元组**
+- [x] **Step 4: `filter_controls` 返回四元组**
 
 ```rust
 pub(crate) fn filter_controls(
@@ -709,7 +717,7 @@ pub(crate) fn filter_controls(
 三处调用方改为解构四元组，暂时忽略 `search_button`（`let (_entry, _revealer, _filter, _search) = ...`），
 后续 Task 10 接入。
 
-- [ ] **Step 5: 运行测试与编译**
+- [x] **Step 5: 运行测试与编译**
 
 Run: `cargo test -p knowcraft --bin knowcraft mode_state && cargo check -p knowcraft`
 Expected: 2 passed，编译通过
@@ -724,7 +732,7 @@ Expected: 2 passed，编译通过
 - Modify: `crates/knowcraft/src/ui/browser/collection.rs`（`restore_filter_controls`）
 - Test: `filter_session.rs` 或 `listing_filter.rs` 的现有测试模块
 
-- [ ] **Step 1: 扩展结构**
+- [x] **Step 1: 扩展结构**
 
 ```rust
 #[derive(Clone, Debug, Default)]
@@ -735,7 +743,7 @@ pub(crate) struct ActivePaneFilter {
 }
 ```
 
-- [ ] **Step 2: 捕获与恢复**
+- [x] **Step 2: 捕获与恢复**
 
 ```rust
 // filter_session.rs capture_active_filter
@@ -752,7 +760,7 @@ if let Some(mode) = pane.mode.as_ref() {
 browser::restore_filter_controls(button, entry, filter);
 ```
 
-- [ ] **Step 3: 恢复顺序与测试**
+- [x] **Step 3: 恢复顺序与测试**
 
 恢复顺序固定为「来源 → 文本 → 查询」。补测试：
 
@@ -769,7 +777,7 @@ fn a_knowledge_filter_survives_capture_and_restore() {
 }
 ```
 
-- [ ] **Step 4: 运行测试**
+- [x] **Step 4: 运行测试**
 
 Run: `cargo test -p knowcraft --bin knowcraft knowledge_filter_survives`
 Expected: 1 passed
@@ -784,7 +792,7 @@ Expected: 1 passed
 - Modify: `crates/knowcraft/src/ui/browser/collection.rs`
 - Test: `listing_filter.rs` 测试模块
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[test]
@@ -803,7 +811,7 @@ fn a_restored_filter_keeps_its_source() {
 }
 ```
 
-- [ ] **Step 2: 实现统一入口**
+- [x] **Step 2: 实现统一入口**
 
 ```rust
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -841,7 +849,7 @@ pub(in crate::ui) fn set_filter_text(
 }
 ```
 
-- [ ] **Step 3: 替换全部直接 `set_text`**
+- [x] **Step 3: 替换全部直接 `set_text`**
 
 逐一替换 `listing_filter.rs`、`view_filter.rs`、`collection.rs` 中的
 `entry.set_text(...)`，使用 `set_filter_text(..., SourceWrite::X)`，覆盖：
@@ -852,7 +860,7 @@ pub(in crate::ui) fn set_filter_text(
 - `show_filter_with_query`
 - type-to-search
 
-- [ ] **Step 4: 运行测试与编译**
+- [x] **Step 4: 运行测试与编译**
 
 Run: `cargo test -p knowcraft --bin knowcraft source_for_text_write && cargo check -p knowcraft`
 Expected: 2 passed，编译通过
@@ -865,7 +873,7 @@ Expected: 2 passed，编译通过
 - Modify: `crates/knowcraft/src/ui/browser/columns/search.rs`
 - Test: 同文件测试模块
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```rust
 #[test]
@@ -880,7 +888,7 @@ fn a_tag_row_keeps_its_own_selection_key() {
 }
 ```
 
-- [ ] **Step 2: 改签名**
+- [x] **Step 2: 改签名**
 
 ```rust
 pub(super) struct ResultLists {
@@ -894,7 +902,7 @@ pub(super) struct ResultLists {
 type RowsByKey = HashMap<RowId, VecDeque<(ResultRow, gtk::ListBoxRow)>>;
 ```
 
-- [ ] **Step 3: 改 `update` / `selected_paths` / `splice`**
+- [x] **Step 3: 改 `update` / `selected_paths` / `splice`**
 
 ```rust
 fn selected_ids(&self) -> HashSet<RowId> {
@@ -935,7 +943,7 @@ fn splice(&self, rows: &[ResultRow]) {
 }
 ```
 
-- [ ] **Step 4: 重命名跟随只处理路径行**
+- [x] **Step 4: 重命名跟随只处理路径行**
 
 ```rust
 fn renamed_position(
@@ -955,7 +963,7 @@ fn renamed_position(
 }
 ```
 
-- [ ] **Step 5: 运行测试与编译**
+- [x] **Step 5: 运行测试与编译**
 
 Run: `cargo test -p knowcraft --bin knowcraft a_tag_row_keeps_its_own_selection_key && cargo check -p knowcraft`
 Expected: 1 passed，编译通过（此时其余调用方会报错，下一任务修复）
@@ -974,7 +982,7 @@ Expected: 1 passed，编译通过（此时其余调用方会报错，下一任�
 - Modify: `crates/knowcraft/src/ui/browser/inline_edit.rs`
 - Test: `columns/tests.rs` 现有搜索用例
 
-- [ ] **Step 1: 行绑定**
+- [x] **Step 1: 行绑定**
 
 `bind.rs` 的 `search_entry(position)` 改为：
 
@@ -987,7 +995,7 @@ fn search_row(&self, position: u32) -> Option<ResultRow> {
 `File` → 现有 `search_result_entry`；`Content` → 构造 `FileEntry`（path、display_name 用
 `content_display_name`、kind 按扩展名）；`Tag` → 不绑定文件图标，使用标签图标与 `#name`。
 
-- [ ] **Step 2: 选中相关**
+- [x] **Step 2: 选中相关**
 
 ```rust
 // view_selection.rs
@@ -1007,14 +1015,14 @@ pub(crate) fn selected_search_results(&self, depth: usize) -> Option<Vec<FileEnt
 
 `Target::current_result` 与 `selection_is_empty` 同样按变体处理。
 
-- [ ] **Step 3: 拖拽、剪贴板、重命名**
+- [x] **Step 3: 拖拽、剪贴板、重命名**
 
 - 拖拽：`drag.rs` 只收集 `File` / `Content`，`Tag` 不启动拖动
 - 剪贴板：只复制 `File` / `Content` 的路径
 - 重命名：`inline_edit.rs` 只对 `File` 开放
 - `prune_missing_search_results`：只检查 `RowId::Path`
 
-- [ ] **Step 4: 运行现有列搜索测试**
+- [x] **Step 4: 运行现有列搜索测试**
 
 Run: `cargo test -p knowcraft --bin knowcraft search_hits_leave_only_once --no-run && cargo check -p knowcraft`
 Expected: 编译通过；测试代码保留（当前环境帧时钟限制）
@@ -1029,7 +1037,7 @@ Expected: 编译通过；测试代码保留（当前环境帧时钟限制）
 - Modify: `crates/knowcraft/src/ui/window/composition/layout.rs`
 - Modify: `crates/knowcraft/src/ui/window/composition/tabs.rs`
 
-- [ ] **Step 1: 定义目标列解析**
+- [x] **Step 1: 定义目标列解析**
 
 ```rust
 /// Ctrl+K / Ctrl+F 的目标：焦点列优先，否则活动列；都没有则不动作。
@@ -1040,7 +1048,7 @@ pub(in crate::ui) fn filter_target_depth(state: &ViewState) -> Option<usize> {
 }
 ```
 
-- [ ] **Step 2: action 接线**
+- [x] **Step 2: action 接线**
 
 ```rust
 // composition/search.rs
@@ -1072,7 +1080,7 @@ pub(in crate::ui) fn begin_filter_search(&self, source: QuerySource) {
 }
 ```
 
-- [ ] **Step 3: 删除 header 按钮**
+- [x] **Step 3: 删除 header 按钮**
 
 ```rust
 // composition/layout.rs
@@ -1080,7 +1088,7 @@ pub(in crate::ui) fn begin_filter_search(&self, source: QuerySource) {
 // `Header.search` 字段及所有引用；new_tab 之后直接是 appearance。
 ```
 
-- [ ] **Step 4: 编译**
+- [x] **Step 4: 编译**
 
 Run: `cargo check -p knowcraft`
 Expected: 编译通过
@@ -1094,7 +1102,7 @@ Expected: 编译通过
 - Modify: `crates/knowcraft/src/ui/browser/columns/append/keys.rs`
 - Test: `collection.rs` 或 `columns/tests.rs`
 
-- [ ] **Step 1: 写失败测试（纯逻辑）**
+- [x] **Step 1: 写失败测试（纯逻辑）**
 
 ```rust
 #[test]
@@ -1113,7 +1121,7 @@ fn a_directory_row_closes_the_search() {
 }
 ```
 
-- [ ] **Step 2: 实现激活分支**
+- [x] **Step 2: 实现激活分支**
 
 ```rust
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1161,13 +1169,13 @@ pub(crate) fn activate_row(
 }
 ```
 
-- [ ] **Step 3: 接入 Enter 与列内快捷键**
+- [x] **Step 3: 接入 Enter 与列内快捷键**
 
 `keys.rs` 与 `collection.rs` 调用 `activate_row`，传入：
 - `close_search`：`FilterModeController::close` + 清空结果
 - `retag`：`entry.set_text(query)` + `mode.apply(Knowledge)` + 触发查询
 
-- [ ] **Step 4: 运行测试与编译**
+- [x] **Step 4: 运行测试与编译**
 
 Run: `cargo test -p knowcraft --bin knowcraft activation_for && cargo check -p knowcraft`
 Expected: 2 passed
@@ -1183,7 +1191,7 @@ Expected: 2 passed
 - Modify: `crates/knowcraft/src/ui/inline_search/presentation.rs`
 - Test: `inline_search` 现有测试
 
-- [ ] **Step 1: 改元素类型**
+- [x] **Step 1: 改元素类型**
 
 ```rust
 let model = gio::ListStore::new::<glib::BoxedAnyObject>();
@@ -1206,7 +1214,7 @@ let sorter = gtk::CustomSorter::new(move |left, right| {
 
 `positions` 改为 `HashMap<RowId, usize>`。
 
-- [ ] **Step 2: 行工厂按变体渲染**
+- [x] **Step 2: 行工厂按变体渲染**
 
 ```rust
 presentation.bind(&kind, item, &row, &root, recursive, &highlights);
@@ -1214,12 +1222,12 @@ presentation.bind(&kind, item, &row, &root, recursive, &highlights);
 
 `File`：现有文件行；`Content`：标题 + snippet；`Tag`：标签图标 + `#name`。
 
-- [ ] **Step 3: 拖拽与激活按变体**
+- [x] **Step 3: 拖拽与激活按变体**
 
 `collection_entry` 只返回 `File` / `Content` 的 `FileEntry`；`Tag` 不参与拖动。
 激活走 Task 11 的 `activate_row`。
 
-- [ ] **Step 4: 编译**
+- [x] **Step 4: 编译**
 
 Run: `cargo check -p knowcraft`
 Expected: 编译通过
@@ -1233,7 +1241,7 @@ Expected: 编译通过
 - Modify: `crates/knowcraft/src/ui/browser_modes/{list_pane,icons_controls}.rs`
 - Test: `browser_modes` 现有测试
 
-- [ ] **Step 1: `PaneFilter` 持有控制器**
+- [x] **Step 1: `PaneFilter` 持有控制器**
 
 ```rust
 pub(in crate::ui) struct PaneFilter {
@@ -1244,12 +1252,12 @@ pub(in crate::ui) struct PaneFilter {
 }
 ```
 
-- [ ] **Step 2: 查询分派**
+- [x] **Step 2: 查询分派**
 
 `PaneFilter` 的查询回调读取 `mode.source()`：Files 走现有 `FilterListModel` 过滤；
 Knowledge 走 `KnowledgeQuery` + `SearchSession`（root=data_dir），结果写入 `ResultCollection`。
 
-- [ ] **Step 3: 编译**
+- [x] **Step 3: 编译**
 
 Run: `cargo check -p knowcraft`
 Expected: 编译通过
@@ -1263,7 +1271,7 @@ Expected: 编译通过
 - Modify: `crates/knowcraft/src/ui/icons_cell.rs`
 - Test: `inline_search` 现有测试
 
-- [ ] **Step 1: 标签行渲染**
+- [x] **Step 1: 标签行渲染**
 
 ```rust
 // Rows
@@ -1273,11 +1281,11 @@ origin.set_text(&crate::i18n::t!("%{count} 篇文档", count = tag.documents));
 name.set_text(Some(&format!("#{}", tag.name)));
 ```
 
-- [ ] **Step 2: 文件类行的第二行**
+- [x] **Step 2: 文件类行的第二行**
 
 `Content` 行显示 snippet；`File` 行显示相对路径。
 
-- [ ] **Step 3: 编译与测试**
+- [x] **Step 3: 编译与测试**
 
 Run: `cargo check -p knowcraft`
 Expected: 编译通过
@@ -1294,18 +1302,18 @@ Expected: 编译通过
 - Delete: `crates/knowcraft/src/ui/search/knowledge.rs`
 - Modify: `crates/knowcraft/src/ui/search/tests.rs`
 
-- [ ] **Step 1: 删除搜索分支**
+- [x] **Step 1: 删除搜索分支**
 
 删除 `SearchDialog::show`、`start_search`、`apply_search_event`、`render_results`、
 `render_current`、`file_section`、`knowledge_sections`、`visible_results`、`tag_mode`、
 `show_coverage` 的搜索调用。
 
-- [ ] **Step 2: 保留 history**
+- [x] **Step 2: 保留 history**
 
 保留 `show_history`、`begin_query` 的 history 分支、`results::render_sections`、
 `provider::Hit::file`、`Entry`、`reconcile_entries`、右键 reveal。
 
-- [ ] **Step 3: 删除文件与类型**
+- [x] **Step 3: 删除文件与类型**
 
 ```bash
 git rm crates/knowcraft/src/ui/search/knowledge.rs
@@ -1313,7 +1321,7 @@ git rm crates/knowcraft/src/ui/search/knowledge.rs
 
 删除 `Hit::content`、`Hit::tag`、`IconRole::Tag`、`HitAction::ShowTag`。
 
-- [ ] **Step 4: 编译与测试**
+- [x] **Step 4: 编译与测试**
 
 Run: `cargo check -p knowcraft --tests && rg "visible_results" crates/knowcraft/src`
 Expected: 编译通过，无残留
@@ -1330,7 +1338,7 @@ Expected: 编译通过，无残留
 - Modify: `crates/knowcraft/src/ui/window/keyboard.rs`
 - Modify: `crates/knowcraft/src/ui/window/composition/tabs.rs`
 
-- [ ] **Step 1: 删除偏好的引用**
+- [x] **Step 1: 删除偏好的引用**
 
 `search_open_files_directly` 字段、设置项、测试与 i18n 键一并删除：
 
@@ -1338,12 +1346,12 @@ Expected: 编译通过，无残留
 rg "search_open_files_directly"
 ```
 
-- [ ] **Step 2: 更新快捷键文案**
+- [x] **Step 2: 更新快捷键文案**
 
 `shortcut_reference.rs` 的「Open global search」改为「Search knowledge base in this pane」；
 `jump-folder` 文案保持。
 
-- [ ] **Step 3: 编译**
+- [x] **Step 3: 编译**
 
 Run: `cargo check -p knowcraft --tests`
 Expected: 编译通过
@@ -1358,7 +1366,7 @@ Expected: 编译通过
 - Modify: `data/locales/messages/zh-CN.json`
 - Modify: `data/locales/messages/en.json`
 
-- [ ] **Step 1: 增加键**
+- [x] **Step 1: 增加键**
 
 ```json
 "Search the knowledge base…": "搜索知识库…",
@@ -1368,7 +1376,7 @@ Expected: 编译通过
 
 英文对照写入 `en.json`，保持键序一致。
 
-- [ ] **Step 2: 删除旧键**
+- [x] **Step 2: 删除旧键**
 
 删除 `Type to search the knowledge base\nFuzzy matching · try a name or path fragment`
 等只服务 overlay 搜索的键，确认无引用：
@@ -1377,7 +1385,7 @@ Expected: 编译通过
 rg "Fuzzy matching"
 ```
 
-- [ ] **Step 3: 编译**
+- [x] **Step 3: 编译**
 
 Run: `cargo check -p knowcraft`
 Expected: 编译通过
@@ -1392,12 +1400,12 @@ Expected: 编译通过
 - Modify: `crates/knowcraft/tests/qa/scenarios/dialogs_and_menus/{dismissed-overlays-return-focus,modal-dialog-blocks-window-shortcuts}.jsonl`
 - Modify: `crates/knowcraft/tests/qa/scenarios/inline_renaming/window-accelerators-leave-rename.jsonl`
 
-- [ ] **Step 1: 改写等待条件**
+- [x] **Step 1: 改写等待条件**
 
 `global-search-*` 从「等待中央 overlay 字段」改为「等待列内 filter 字段与结果行」。
 `global-search-finds-file-under-home` 改为「全库文件名命中」，删除 home 搜索断言。
 
-- [ ] **Step 2: 更新无障碍名称**
+- [x] **Step 2: 更新无障碍名称**
 
 `toolbar-controls-named` 删除对 header `Search (Ctrl+K)` 按钮的等待。
 
@@ -1414,12 +1422,12 @@ Expected: 场景通过（需固定容器环境）
 - Create: `docs/adr/0005-knowledge-search-inline.md`
 - Modify: `docs/superpowers/specs/2026-11-03-knowcraft-search-dispatch-design.md`
 
-- [ ] **Step 1: 写 ADR**
+- [x] **Step 1: 写 ADR**
 
 记录：为什么把搜索从 overlay 搬到列内、为什么保留跳转 overlay、为什么内容行不进入
 `SearchItem`、为什么标签行不参与拖拽与重命名。
 
-- [ ] **Step 2: 标注旧设计**
+- [x] **Step 2: 标注旧设计**
 
 在 `2026-11-03-knowcraft-search-dispatch-design.md` 顶部加：
 
@@ -1427,7 +1435,7 @@ Expected: 场景通过（需固定容器环境）
 > 已被 `2026-11-07-knowledge-search-inline-design.md` 与 ADR 0005 取代。
 ```
 
-- [ ] **Step 3: 最终验证**
+- [x] **Step 3: 最终验证**
 
 Run:
 

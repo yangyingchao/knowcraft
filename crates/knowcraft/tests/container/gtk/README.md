@@ -3,7 +3,7 @@
 The Arch-based quality/QA test image pins GTK 4.22.5 and replaces only its
 `libgtk-4.so.1.2200.5` with a build from the matching upstream source archive.
 `gtk-4.22-accessible-bounds.patch` corrects the coordinate-space mismatch
-tracked in [#1154](https://github.com/lgse/knowcraft/issues/1154): widget bounds are
+tracked in [#1154](https://github.com/yangyingchao/knowcraft/issues/1154): widget bounds are
 computed in the parent's content coordinates, while AT-SPI composes them from
 the parent's border origin.
 

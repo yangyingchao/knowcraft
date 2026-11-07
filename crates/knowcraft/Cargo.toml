@@ -5,7 +5,7 @@ edition = "2024"
 description = "A fast, keyboard-first file manager for Linux"
 authors = ["LGSE Ltd."]
 license = "MIT"
-repository = "https://github.com/LGSE/knowcraft"
+repository = "https://github.com/yangyingchao/knowcraft"
 keywords = ["file-manager", "gtk4", "linux", "wayland"]
 categories = ["filesystem", "gui"]
 

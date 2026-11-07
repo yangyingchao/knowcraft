@@ -6,9 +6,9 @@
 
 **Navigate every layer.** A fast, keyboard-first file manager for modern Linux desktops.
 
-[![CI](https://github.com/lgse/knowcraft/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/lgse/knowcraft/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/lgse/knowcraft?display_name=tag&sort=semver)](https://github.com/lgse/knowcraft/releases/latest)
-[![License: MIT](https://img.shields.io/github/license/lgse/knowcraft)](LICENSE)
+[![CI](https://github.com/yangyingchao/knowcraft/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/yangyingchao/knowcraft/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/yangyingchao/knowcraft?display_name=tag&sort=semver)](https://github.com/yangyingchao/knowcraft/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/yangyingchao/knowcraft)](LICENSE)
 [![Linux](https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black)](#technical-specifications)
 
 <picture>
@@ -71,14 +71,14 @@ Arch Linux and Omarchy are the primary supported environments. Current binaries 
 Build from source with Nix on `x86_64-linux` or `aarch64-linux`:
 
 ```bash
-nix run github:lgse/knowcraft
-nix profile add github:lgse/knowcraft
+nix run github:yangyingchao/knowcraft
+nix profile add github:yangyingchao/knowcraft
 ```
 
 For NixOS or Home Manager, add a flake input:
 
 ```nix
-inputs.knowcraft.url = "github:lgse/knowcraft";
+inputs.knowcraft.url = "github:yangyingchao/knowcraft";
 ```
 
 ```nix
@@ -159,7 +159,7 @@ when `udiskie` is installed. Choose **Customize installation** to deselect any o
 them. Only options supported by your system are offered:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lgse/knowcraft/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/yangyingchao/knowcraft/main/install.sh | bash
 ```
 
 Use the arrow keys and Enter to choose a setup; Space toggles custom options.
@@ -188,12 +188,12 @@ release assets. To run the installer that shipped with the latest release instea
 of the copy on `main`:
 
 ```bash
-curl -fsSLO https://github.com/lgse/knowcraft/releases/latest/download/install.sh
-curl -fsSLO https://github.com/lgse/knowcraft/releases/latest/download/install.sh.sha256
+curl -fsSLO https://github.com/yangyingchao/knowcraft/releases/latest/download/install.sh
+curl -fsSLO https://github.com/yangyingchao/knowcraft/releases/latest/download/install.sh.sha256
 sha256sum --check install.sh.sha256 && bash install.sh
 ```
 
-With GitHub CLI, `gh attestation verify install.sh --repo lgse/knowcraft` confirms
+With GitHub CLI, `gh attestation verify install.sh --repo yangyingchao/knowcraft` confirms
 the script was built by the release workflow.
 
 For an unattended Arch or Omarchy installation, pass `--non-interactive`. This
@@ -201,7 +201,7 @@ installs the dependencies, the binary, and every integration the system supports
 without prompting. Decline individual integrations with `--without-*` flags:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lgse/knowcraft/main/install.sh \
+curl -fsSL https://raw.githubusercontent.com/yangyingchao/knowcraft/main/install.sh \
   | bash -s -- --non-interactive \
       --without-smb \
       --without-file-chooser
@@ -231,12 +231,12 @@ Use this option to have a coding agent install and verify the latest release arc
 Give this prompt to a coding agent with terminal access:
 
 ```text
-Install the latest stable Knowcraft release from https://github.com/lgse/knowcraft safely.
+Install the latest stable Knowcraft release from https://github.com/yangyingchao/knowcraft safely.
 
 Before changing anything:
 1. Confirm this is a glibc-based Linux system with a graphical GTK4 environment.
 2. Detect whether the machine is x86_64 or aarch64 and select only the matching
-   *-unknown-linux-gnu archive from the canonical lgse/knowcraft GitHub release.
+   *-unknown-linux-gnu archive from the canonical yangyingchao/knowcraft GitHub release.
 3. Show me the runtime packages you need and ask before using sudo or changing
    my default file-manager association.
 
@@ -318,7 +318,7 @@ From the [latest release](https://github.com/lgse/knowcraft/releases/latest), do
 ```bash
 cd ~/Downloads
 archive="knowcraft-<version>-${target}.tar.gz"
-key=$(curl -fsSL https://raw.githubusercontent.com/lgse/knowcraft/main/data/update-keys.json | grep -o '[0-9a-f]\{64\}' | head -1)
+key=$(curl -fsSL https://raw.githubusercontent.com/yangyingchao/knowcraft/main/data/update-keys.json | grep -o '[0-9a-f]\{64\}' | head -1)
 printf '302a300506032b6570032100%s' "$key" | tr a-f A-F | basenc --base16 -d > release-key.der
 { printf 'knowcraft-update-manifest-v1\0'; cat knowcraft-update-manifest.json; } > signed-message
 grep -o '"signature":"[0-9a-f]*"' knowcraft-update-manifest.signatures.json | head -1 | cut -d'"' -f4 | tr a-f A-F | basenc --base16 -d > signature
@@ -331,7 +331,7 @@ The signature must verify, and the printed size and SHA-256 must equal the signe
 `size` and `sha256`. During a key rotation the signatures file lists one entry per
 key; pick the one whose `key_id` is the SHA-256 of your key's raw bytes. The
 `.sha256` files and GitHub build-provenance attestations are still published for
-packagers, and `gh attestation verify "$archive" --repo lgse/knowcraft` remains an
+packagers, and `gh attestation verify "$archive" --repo yangyingchao/knowcraft` remains an
 optional extra check, but neither replaces the signed manifest.
 
 Every verification you run must succeed. Extract the archive, install the binary,
@@ -864,8 +864,8 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Dee
 
 ## Contributors
 
-<a href="https://github.com/lgse/knowcraft/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=lgse/knowcraft" alt="Avatars of Knowcraft contributors linked to the contributors graph">
+<a href="https://github.com/yangyingchao/knowcraft/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=yangyingchao/knowcraft" alt="Avatars of Knowcraft contributors linked to the contributors graph">
 </a>
 
 This image is generated from GitHub contribution data so new contributors appear without a manual README update. Thank you to everyone who reports issues, improves the documentation, tests releases, and contributes code.

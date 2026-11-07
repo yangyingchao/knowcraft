@@ -342,7 +342,7 @@
   "Could not write the download: %{error}": "无法写入下载的文件：%{error}",
   "Could not write the symlink target “%{path}”: %{error}": "无法写入符号链接目标“%{path}”：%{error}",
   "Could not write udiskie configuration: %{error}": "无法写入 udiskie 配置：%{error}",
-  "Couldn't check for updates: %{value1} · <a href=\"https://github.com/lgse/knowcraft/releases/latest\">View releases on GitHub</a>": "无法检查更新：%{value1} · <a href=\"https://github.com/lgse/knowcraft/releases/latest\">在 GitHub 上查看发布版本</a>",
+  "Couldn't check for updates: %{value1} · <a href=\"https://github.com/yangyingchao/knowcraft/releases/latest\">View releases on GitHub</a>": "无法检查更新：%{value1} · <a href=\"https://github.com/yangyingchao/knowcraft/releases/latest\">在 GitHub 上查看发布版本</a>",
   "Couldn't install update": "无法安装更新",
   "Couldn't install update: %{message}": "无法安装更新：%{message}",
   "Couldn't load releases: %{message}": "无法加载版本：%{message}",

@@ -10,6 +10,13 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-02-knowcraft-design.md`（工作区未提交，计划以 spec 为准）
 
+**状态：** 部分完成（截至 2026-11-07）。
+
+- Task 1-9、11 已落地（workspace/core、store、workflow、tags、annotations、extract、index、watcher、capture、CLI）。
+- Task 10 AI 模块未实现（`crates/knowcraft-core/src/ai.rs` 不存在，模型保留 `ai_summary` 字段）。
+- Task 12 HTTP server 与 Task 13 MCP server 未实现，当前 workspace 只含 core、GUI、CLI 三个成员。
+- 下方勾选按任务整体补记，未逐步骤复验；Task 10、12、13 保持未勾选。
+
 ## Global Constraints
 
 以下约束来自 spec，所有任务隐含遵守：
@@ -40,7 +47,7 @@
 **Interfaces:**
 - Produces: `Error`（enum 变体 `Store/Index/Extract/Network/Ai/Capture/Workflow/Io`，实现 `Display + std::error::Error`）；`Config`（`data_dir`、`ai: {api_base, api_key, model}`、`http_token`，`Config::load()`）
 
-- [ ] **Step 1: 写根 workspace 与 core crate 清单**
+- [x] **Step 1: 写根 workspace 与 core crate 清单**
 
 `Cargo.toml`：
 ```toml
@@ -64,7 +71,7 @@ toml = "0.8"
 dirs = "5"
 ```
 
-- [ ] **Step 2: 写失败测试**
+- [x] **Step 2: 写失败测试**
 
 `crates/knowcraft-core/tests/bootstrap.rs`：
 ```rust
@@ -83,12 +90,12 @@ fn config_defaults_to_knowledge_dir() {
 }
 ```
 
-- [ ] **Step 3: 运行测试确认失败**
+- [x] **Step 3: 运行测试确认失败**
 
 Run: `cargo test -p knowcraft-core`
 Expected: 编译失败（`error.rs`/`config.rs` 不存在）
 
-- [ ] **Step 4: 实现错误类型与配置**
+- [x] **Step 4: 实现错误类型与配置**
 
 `crates/knowcraft-core/src/error.rs`：
 ```rust
@@ -179,12 +186,12 @@ pub mod config;
 pub mod error;
 ```
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run: `cargo test -p knowcraft-core`
 Expected: 2 passed（config 默认路径测试在 Linux 下 `ends_with("Knowledge")` 通过）
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add Cargo.toml crates/knowcraft-core/
@@ -202,11 +209,11 @@ git commit -m "chore: 脚手架 knowcraft workspace 与 core 错误/配置类型
 **Interfaces:**
 - Produces: 决策记录——`pdfcraft`/`wordcraft` 采用 crate 引用或源码入库；许可证核实结论；extract 实现方式定案
 
-- [ ] **Step 1: 核实许可证与仓库**
+- [x] **Step 1: 核实许可证与仓库**
 
 核实 pdfcraft/wordcraft 官方仓库许可证（须 MIT/Apache 2.0，禁止 crates.io 同名无关 GPL `pdfcraft`）。将结论写入 `docs/notes/m0-probe.md`。
 
-- [ ] **Step 2: 尝试 git subtree 引入源码**
+- [x] **Step 2: 尝试 git subtree 引入源码**
 
 ```bash
 git subtree add --prefix crates/vendor/pdfcraft <pdfcraft-repo-url> main --squash
@@ -215,22 +222,22 @@ git subtree add --prefix crates/vendor/wordcraft <wordcraft-repo-url> main --squ
 
 若仓库过大或依赖过重导致编译失败，记录阻塞点与可选方案（如仅引入所需子 crate 源码）。
 
-- [ ] **Step 3: 编译探针**
+- [x] **Step 3: 编译探针**
 
 ```bash
 cargo build -p knowcraft-core
 ```
 Expected: 探针 crate 编译通过（或记录具体失败原因与解决步骤）
 
-- [ ] **Step 4: 验证 API 覆盖**
+- [x] **Step 4: 验证 API 覆盖**
 
 确认 pdfcraft 提供文本提取/渲染所需 API、wordcraft 提供 docx 解析/生成 API。将可用的函数签名记录到 `docs/notes/m0-probe.md`。
 
-- [ ] **Step 5: 定案并更新 extract 计划**
+- [x] **Step 5: 定案并更新 extract 计划**
 
 依据探针结果，在 Task 6 执行时确定：PDF 提取用 pdfcraft 源码 API；docx 提取用 zip+XML 直读（`zip` crate 解压 + 解析 `word/document.xml`，不依赖 wordcraft）。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add docs/notes/m0-probe.md Cargo.toml crates/vendor/
@@ -250,7 +257,7 @@ git commit -m "feat: M0 探针验证 pdfcraft/wordcraft 源码可嵌入性"
 - Consumes: `Error`、`Config::data_dir`（Task 1）
 - Produces: `struct Document { id, path, doc_type, title, source_url, size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status }`；`struct Annotation { id, document_id, page, bbox, color, note_text, created_at, selection }`；`struct Note { id, document_id, annotation_id, title, content, created_at, updated_at }`；`Store::open(data_dir) -> Result<Store>`；`Store::insert_document(&self, d: &Document) -> Result<i64>`；`Store::get_document(&self, id: i64) -> Result<Option<Document>>`；`Store::update_path(&self, id: i64, new_path: &str) -> Result<()>`；`Store::insert_annotation / get_annotations(document_id) / insert_note / get_notes(document_id)`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `crates/knowcraft-core/tests/store.rs`：
 ```rust
@@ -284,12 +291,12 @@ fn schema_has_lifecycle_and_index_status_columns() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cargo test -p knowcraft-core --test store`
 Expected: 编译失败（`store.rs`/`model.rs` 不存在）
 
-- [ ] **Step 3: 实现 model 与 store**
+- [x] **Step 3: 实现 model 与 store**
 
 `crates/knowcraft-core/src/model.rs`：
 ```rust
@@ -423,12 +430,12 @@ fn now() -> String {
 
 补充 `impl From<rusqlite::Error> for Error`（在 `error.rs` 增加 `Store` 转换分支）。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cargo test -p knowcraft-core --test store`
 Expected: 2 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/knowcraft-core/src/model.rs crates/knowcraft-core/src/store.rs crates/knowcraft-core/tests/store.rs
@@ -447,7 +454,7 @@ git commit -m "feat: store 模块实现 SQLite schema 与 CRUD"
 - Consumes: `Store`、`Document`（Task 3）
 - Produces: `Workflow::new(store, data_dir) -> Result<Workflow>`；`Workflow::add_to_inbox(&self, src: &Path) -> Result<Document>`（复制/移动文件到 `inbox/`，计算 checksum，去重检查）；`Workflow::dispatch(&self, doc_id: i64, category: &str) -> Result<Document>`（移动 `inbox/ → library/<category>/`，事务内更新 path 与 lifecycle=archived）；`Workflow::list_inbox(&self) -> Result<Vec<Document>>`；`Workflow::list_library(&self) -> Result<Vec<Document>>`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `crates/knowcraft-core/tests/workflow.rs`：
 ```rust
@@ -489,12 +496,12 @@ fn duplicate_checksum_rejected() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cargo test -p knowcraft-core --test workflow`
 Expected: 编译失败（`workflow.rs` 不存在）
 
-- [ ] **Step 3: 实现 workflow**
+- [x] **Step 3: 实现 workflow**
 
 `crates/knowcraft-core/src/workflow.rs`（要点）：
 ```rust
@@ -572,12 +579,12 @@ fn now() -> String { /* 同 Task 3 */ }
 
 补充 `Store::find_by_checksum`、`Store::set_lifecycle`、`Store::list_by_lifecycle`（按 Task 3 相同模式实现）。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cargo test -p knowcraft-core --test workflow`
 Expected: 2 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/knowcraft-core/src/workflow.rs crates/knowcraft-core/tests/workflow.rs crates/knowcraft-core/src/store.rs
@@ -597,7 +604,7 @@ git commit -m "feat: workflow 模块实现 inbox 与 dispatch 状态转换"
 - Consumes: `Store`、`Annotation`（Task 3）
 - Produces: `Tags::new(store)`：`add(document_id, name) -> Result<()>`、`list_for(document_id) -> Result<Vec<String>>`、`list_all() -> Result<Vec<String>>`；`Annotations::new(store)`：`create(document_id, page, bbox, color, selection) -> Result<i64>`、`list(document_id) -> Result<Vec<Annotation>>`、`delete(id) -> Result<()>`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `crates/knowcraft-core/tests/tags_annotations.rs`：
 ```rust
@@ -628,12 +635,12 @@ fn tag_and_annotate_document() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cargo test -p knowcraft-core --test tags_annotations`
 Expected: 编译失败（模块不存在）
 
-- [ ] **Step 3: 实现 tags 与 annotations**
+- [x] **Step 3: 实现 tags 与 annotations**
 
 `crates/knowcraft-core/src/tags.rs`：
 ```rust
@@ -696,12 +703,12 @@ impl Annotations {
 fn now() -> String { /* 同 Task 3 */ }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cargo test -p knowcraft-core --test tags_annotations`
 Expected: 1 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/knowcraft-core/src/tags.rs crates/knowcraft-core/src/annotations.rs crates/knowcraft-core/tests/tags_annotations.rs
@@ -721,7 +728,7 @@ git commit -m "feat: tags 与 annotations 模块实现"
 - Consumes: M0 探针结果（Task 2）：PDF 提取经 pdfcraft 源码 API；docx 提取 zip+XML 直读
 - Produces: `pub trait TextExtractor { fn extract(&self, path: &Path) -> Result<String>; }`；`fn extract_text(path: &Path) -> Result<String>`（按扩展名分派：md/org/txt 直读、docx zip+XML、pdf 调 pdfcraft、html 简易剥离、image 返回空串）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `crates/knowcraft-core/tests/extract.rs`：
 ```rust
@@ -750,12 +757,12 @@ fn extract_docx_via_zip_xml() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cargo test -p knowcraft-core --test extract`
 Expected: 编译失败（`extract.rs` 不存在；zip 依赖未加）
 
-- [ ] **Step 3: 实现 extract**
+- [x] **Step 3: 实现 extract**
 
 `crates/knowcraft-core/src/extract.rs`（要点，依赖 `zip = "0.6"`）：
 ```rust
@@ -806,12 +813,12 @@ fn extract_pdf(path: &Path) -> Result<String> {
 
 说明：`extract_pdf` 的具体调用在 Task 2 探针完成后写入（探针记录 pdfcraft 文本提取 API 签名）。若探针显示 pdfcraft 文本 API 不可用，降级方案为以 `pdfcraft` 源码内其他 crate 实现或 poppler-glib 绑定，仍属库嵌入，不采用 CLI。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cargo test -p knowcraft-core --test extract`
 Expected: 2 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/knowcraft-core/src/extract.rs crates/knowcraft-core/tests/extract.rs crates/knowcraft-core/tests/fixtures/
@@ -830,7 +837,7 @@ git commit -m "feat: extract 模块实现文本提取"
 - Consumes: `extract_text`（Task 6）、`Document`（Task 3）
 - Produces: `Index::open(data_dir) -> Result<Index>`；`Index::index_document(&self, doc: &Document) -> Result<()>`；`Index::remove(&self, doc_id: i64) -> Result<()>`；`Index::search(&self, query: &str) -> Result<Vec<IndexHit>>`；`struct IndexHit { document_id: i64, path: String, title: String, snippet: String }`；`Index::rebuild(&self, docs: &[Document]) -> Result<()>`（索引重建任务用）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `crates/knowcraft-core/tests/index.rs`：
 ```rust
@@ -860,12 +867,12 @@ fn remove_and_rebuild() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cargo test -p knowcraft-core --test index`
 Expected: 编译失败（`index.rs` 不存在；tantivy 依赖未加）
 
-- [ ] **Step 3: 实现 index（含中文分词验证）**
+- [x] **Step 3: 实现 index（含中文分词验证）**
 
 依赖添加：`tantivy = "0.22"`（或 M0 验证后的稳定版本）。
 
@@ -937,12 +944,12 @@ impl Index {
 
 中文分词：M0 验证 `jieba-rs` 与 `tantivy` tokenizer 集成（或选用 `icu`/`lindera`），定案后替换 content 字段 tokenizer；验证用例即上方"知识管理"搜索测试。若 M0 未完成，Task 7 的 search 测试先以英文/ASCII 词验证通过，中文用例标注依赖分词定案。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cargo test -p knowcraft-core --test index`
 Expected: 2 passed（中文用例待分词定案后启用；英文用例通过）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/knowcraft-core/src/index.rs crates/knowcraft-core/tests/index.rs crates/knowcraft-core/Cargo.toml
@@ -961,7 +968,7 @@ git commit -m "feat: index 模块实现 tantivy 封装与搜索"
 - Consumes: `Index`（Task 7）、`Workflow`（Task 4）、`Store`（Task 3）
 - Produces: `Watcher::spawn(data_dir, store, index) -> Result<()>`（后台线程监听 `inbox/` 与 `library/`，事件去抖 500ms，新增文件调用 `add_to_inbox` 或索引重建，移动事件按 `document_id` 更新 path，删除事件清理索引与孤儿记录）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `crates/knowcraft-core/tests/watcher.rs`（以 temp 目录 + 手动触发处理函数测核心逻辑，避免真监听竞态）：
 ```rust
@@ -981,12 +988,12 @@ fn handle_delete_event_removes_index_entry() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cargo test -p knowcraft-core --test watcher`
 Expected: 编译失败（`watcher.rs` 不存在）
 
-- [ ] **Step 3: 实现 watcher**
+- [x] **Step 3: 实现 watcher**
 
 `crates/knowcraft-core/src/watcher.rs`（要点，依赖 `notify = "6"`）：
 ```rust
@@ -1037,12 +1044,12 @@ fn path_of(ev: &NEvent) -> String {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cargo test -p knowcraft-core --test watcher`
 Expected: 2 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/knowcraft-core/src/watcher.rs crates/knowcraft-core/tests/watcher.rs crates/knowcraft-core/Cargo.toml
@@ -1062,7 +1069,7 @@ git commit -m "feat: watcher 模块实现文件监听与增量索引"
 - Consumes: `Store`、`Workflow::add_to_inbox` 或直接落 `captures/`（Task 4）
 - Produces: `Capture::new(store, data_dir) -> Result<Capture>`；`Capture::fetch(&self, url: &str) -> Result<Document>`（禁止内网/本机地址；抓 HTML → readability 提取正文 → 存 `captures/<title>.md` + 图片附件到 `captures/attachments/` → 登记 DOCUMENT(source_url, doc_type=md) → 返回文档）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `crates/knowcraft-core/tests/capture.rs`：
 ```rust
@@ -1086,12 +1093,12 @@ fn parses_local_html_to_markdown() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cargo test -p knowcraft-core --test capture`
 Expected: 编译失败（`capture.rs` 不存在）
 
-- [ ] **Step 3: 实现 capture**
+- [x] **Step 3: 实现 capture**
 
 `crates/knowcraft-core/src/capture.rs`（要点，依赖 `reqwest = { version = "0.12", features = ["blocking"] }`、`url`、`scraper` 或 readability 等价）：
 ```rust
@@ -1146,12 +1153,12 @@ fn is_private(u: &url::Url) -> bool {
 // extract_article / sanitize / now 为辅助函数
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cargo test -p knowcraft-core --test capture`
 Expected: 2 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/knowcraft-core/src/capture.rs crates/knowcraft-core/tests/capture.rs crates/knowcraft-core/tests/fixtures/page.html
@@ -1285,7 +1292,7 @@ git commit -m "feat: ai 模块实现 OpenAI 兼容客户端"
 - Consumes: core 全部公开 API（Task 1-10）
 - Produces: 二进制 `knowcraft`，子命令：`search <query>`、`add <path|url>`、`dispatch <id> <category>`、`capture <url>`、`summarize <id>`、`status`；退出码非零表示失败；`status` 输出数据目录、索引文档数、inbox 计数
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `crates/knowcraft-cli/tests/cli.rs`（assert_cmd）：
 ```rust
@@ -1322,12 +1329,12 @@ fn search_without_index_returns_clean_error() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cargo test -p knowcraft-cli`
 Expected: 编译失败（crate 不存在）
 
-- [ ] **Step 3: 实现 CLI**
+- [x] **Step 3: 实现 CLI**
 
 `crates/knowcraft-cli/Cargo.toml`：
 ```toml
@@ -1409,12 +1416,12 @@ fn main() -> anyhow::Result<()> {
 
 说明：`Store` 与 `Workflow` 的构造在 CLI 场景直接复用；若 `Workflow::new` 需要 `Store` 所有权而 `store` 仍需用于其他命令，调整 `Store` 为 `Clone`（rusqlite `Connection` 包 `Arc`）或命令各自打开 Store。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cargo test -p knowcraft-cli`
 Expected: 2 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/knowcraft-cli/

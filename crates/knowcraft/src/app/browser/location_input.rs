@@ -106,7 +106,7 @@ fn virtual_root(input: &str) -> Option<&'static str> {
 
 /// UNC paths (`\\host\share`, bare `//host/share`) and SCP-style addresses
 /// (`user@host:path`) are deliberately not accepted as location-bar shorthand
-/// (see lgse/knowcraft#20) so a proper URI (`smb://`, `sftp://`, ...) is always
+/// (see yangyingchao/knowcraft#20) so a proper URI (`smb://`, `sftp://`, ...) is always
 /// preserved verbatim rather than being guessed at. Report a clear message
 /// instead of silently treating either as a relative local path.
 pub(super) fn unsupported_shorthand_message(input: &str) -> Option<&'static str> {
