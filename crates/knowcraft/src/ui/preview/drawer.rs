@@ -487,6 +487,32 @@ fn connect_tags_bar(state: &Rc<PreviewState>) {
             }),
         );
     });
+    let weak = Rc::downgrade(state);
+    state.tags_bar.connect_remove(move |tag| {
+        let Some(state) = weak.upgrade() else {
+            return;
+        };
+        let Some(entry) = state.current.borrow().clone() else {
+            return;
+        };
+        let Some(path) = entry.location.native_path().map(PathBuf::from) else {
+            return;
+        };
+        let on_removed = Rc::downgrade(&state);
+        tags_bar::remove_tag(
+            state.tags_bar.widget().upcast_ref(),
+            path,
+            tag.to_owned(),
+            Rc::new(move || {
+                if let Some(state) = on_removed.upgrade() {
+                    let entry = state.current.borrow().clone();
+                    if let Some(entry) = entry {
+                        state.update_tags(&entry);
+                    }
+                }
+            }),
+        );
+    });
 }
 
 fn bind_text_wrap(wrap: &gtk::ToggleButton, state: &Rc<PreviewState>) {

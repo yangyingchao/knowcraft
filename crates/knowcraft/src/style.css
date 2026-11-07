@@ -7647,7 +7647,28 @@ popover.settings-action-library > contents {
   border: 1px solid alpha(@knowcraft_border, 0.4);
   border-radius: 4px;
   color: @knowcraft_text;
-  padding: 2px 8px;
+  padding: 2px 6px 2px 8px;
+}
+
+.preview-tag-chip > .preview-tag-remove {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  min-height: 0;
+  min-width: 0;
+  opacity: 0;
+  padding: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.preview-tag-chip:hover > .preview-tag-remove,
+.preview-tag-chip:focus-within > .preview-tag-remove {
+  opacity: 1;
+}
+
+.preview-tag-chip > .preview-tag-remove:hover {
+  background: alpha(@knowcraft_danger, 0.2);
+  border-radius: 3px;
 }
 
 /* Search-index status on file rows: pending, indexing, indexed, failed. */

@@ -285,6 +285,17 @@ impl Knowledge {
             .map_err(|error| error.to_string())
     }
 
+    /// 从文档移除标签；标签无剩余引用时一并清理。返回删除的关联数。
+    pub(crate) fn remove_tag(&self, path: &Path, name: &str) -> Result<usize, String> {
+        let path_text = path.to_string_lossy();
+        let Some(doc) = self.store.find_by_path(&path_text).unwrap_or_default() else {
+            return Err("文档不在知识库中".to_owned());
+        };
+        self.tags
+            .remove(doc.id, name)
+            .map_err(|error| error.to_string())
+    }
+
     /// 未归档判定：文件位于 `inbox/` 内。dispatch 会把文档移出 inbox，
     /// 因此不在 inbox 的文件一律视为已归档（或尚未导入知识库）。
     pub(crate) fn is_pending(&self, path: &Path) -> bool {

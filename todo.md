@@ -4,4 +4,4 @@
   - cli: add subcommand: remove - calls core to delete file.
   - gui: call core api.
 
-
+3. capture: gui interface.

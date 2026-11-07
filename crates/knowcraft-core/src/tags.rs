@@ -1,4 +1,4 @@
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 
 use crate::error::Result;
 use crate::model::Document;
@@ -36,6 +36,36 @@ impl Tags {
         )?;
         tx.commit()?;
         Ok(())
+    }
+
+    /// 从文档移除标签。没有剩余文档引用时一并删除标签本身。
+    /// 返回实际删除的关联数；标签不存在或文档没有该标签时为 0。
+    pub fn remove(&self, document_id: i64, name: &str) -> Result<usize> {
+        let mut conn = self.store.lock();
+        let tx = conn.transaction()?;
+        let tag_id: Option<i64> = tx
+            .query_row(
+                "SELECT id FROM tags WHERE name = ?1",
+                params![name],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let Some(tag_id) = tag_id else {
+            return Ok(0);
+        };
+        let removed = tx.execute(
+            "DELETE FROM document_tags WHERE document_id = ?1 AND tag_id = ?2",
+            params![document_id, tag_id],
+        )?;
+        if removed > 0 {
+            tx.execute(
+                "DELETE FROM tags WHERE id = ?1 \
+                 AND NOT EXISTS (SELECT 1 FROM document_tags WHERE tag_id = ?1)",
+                params![tag_id],
+            )?;
+        }
+        tx.commit()?;
+        Ok(removed)
     }
 
     pub fn list_for(&self, document_id: i64) -> Result<Vec<String>> {

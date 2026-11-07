@@ -12,6 +12,7 @@ use clap::{Parser, Subcommand};
 use knowcraft_core::index::Index;
 use knowcraft_core::indexer::Indexer;
 use knowcraft_core::pdf_annotations::PdfAnnotations;
+use knowcraft_core::tags::Tags;
 use knowcraft_core::workflow::Workflow;
 use knowcraft_core::write_lock::WriteLock;
 
@@ -28,6 +29,12 @@ enum AnnotationsCmd {
     List { id: i64 },
     /// 扫描全部 PDF，把文件中的注释同步进数据库
     Sync,
+}
+
+#[derive(Subcommand)]
+enum TagsCmd {
+    /// 从文档移除标签；标签无剩余引用时一并清理
+    Remove { id: i64, tag: String },
 }
 
 #[derive(Subcommand)]
@@ -53,6 +60,11 @@ enum Cmd {
     Annotations {
         #[command(subcommand)]
         cmd: AnnotationsCmd,
+    },
+    /// 文档标签：移除
+    Tags {
+        #[command(subcommand)]
+        cmd: TagsCmd,
     },
     /// 归档文件：--category 保留路径，--record 写入 UUID 存储
     Archive {
@@ -182,6 +194,12 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
+        Cmd::Tags { cmd } => match cmd {
+            TagsCmd::Remove { id, tag } => {
+                let removed = Tags::new(store.clone()).remove(id, &tag)?;
+                println!("removed: {removed}");
+            }
+        },
         Cmd::Archive {
             paths,
             category,

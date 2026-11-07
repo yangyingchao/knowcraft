@@ -181,7 +181,7 @@ fn upgrade_reports_migration() {
     );
     let text = String::from_utf8_lossy(&out.stdout);
     assert!(text.contains("from=0"), "{text}");
-    assert!(text.contains("to=2"), "{text}");
+    assert!(text.contains("to=3"), "{text}");
 }
 
 fn run_cli(dir: &std::path::Path, args: &[&str]) -> std::process::Output {
@@ -190,6 +190,42 @@ fn run_cli(dir: &std::path::Path, args: &[&str]) -> std::process::Output {
         .args(args)
         .output()
         .unwrap()
+}
+
+#[test]
+fn tags_remove_unlinks_the_document_tag_and_is_idempotent() {
+    let dir = data_dir("tags-remove");
+    let src = dir.join("tagged.md");
+    std::fs::write(&src, "tagged").unwrap();
+    let add = run_cli(&dir, &["add", src.to_str().unwrap()]);
+    assert!(
+        add.status.success(),
+        "add failed: {}",
+        String::from_utf8_lossy(&add.stderr)
+    );
+    let id: i64 = String::from_utf8_lossy(&add.stdout)
+        .split_whitespace()
+        .find_map(|word| word.strip_prefix("id="))
+        .and_then(|value| value.parse().ok())
+        .expect("add prints an id");
+    {
+        let store = knowcraft_core::store::Store::open(&dir).unwrap();
+        knowcraft_core::tags::Tags::new(store)
+            .add(id, "rust")
+            .unwrap();
+    }
+
+    let out = run_cli(&dir, &["tags", "remove", &id.to_string(), "rust"]);
+    assert!(
+        out.status.success(),
+        "tags remove failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "removed: 1");
+
+    let again = run_cli(&dir, &["tags", "remove", &id.to_string(), "rust"]);
+    assert!(again.status.success());
+    assert_eq!(String::from_utf8_lossy(&again.stdout).trim(), "removed: 0");
 }
 
 #[test]

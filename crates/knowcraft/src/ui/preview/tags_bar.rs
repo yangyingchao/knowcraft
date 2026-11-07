@@ -3,6 +3,7 @@
 //! 预览区右侧的标签栏：展示当前知识库文档的标签并提供添加入口。
 //! 文档不在知识库中时整体隐藏。
 
+use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::Duration;
@@ -13,20 +14,21 @@ use crate::ui::controls::modal_layout;
 use crate::ui::keys::{self, bindings::ESCAPE_ANY};
 use crate::ui::modal::{ModalHost, dismiss_modal_layer, modal_layer, remember_modal_focus};
 
-/// 垂直标签条；标题行右侧的「+」弹出添加对话框。
+/// 垂直标签条；标题行右侧的「+」弹出添加对话框，chip 悬停时显示删除叉号。
 #[derive(Clone, Default)]
 pub(super) struct TagsBar {
     widget: gtk::Box,
     chips: gtk::Box,
     add_button: gtk::Button,
+    remove_handler: Rc<RefCell<Option<Rc<dyn Fn(&str)>>>>,
 }
 
 /// 标签栏宽度；长标签截断显示，悬停看全文。
 const TAGS_BAR_WIDTH: i32 = 150;
 
-/// chip 文本的最大字符数；配合省略号钳制自然宽度（`set_size_request`
-/// 只是下限，撑不住内容，13px 字号下 9 个中文字符加内边距约 150px）。
-const TAG_CHIP_MAX_CHARS: i32 = 9;
+/// chip 文本的最大字符数；叉号占用部分宽度，13px 字号下 8 个中文字符
+/// 加内边距与叉号仍能放进 `TAGS_BAR_WIDTH`。
+const TAG_CHIP_MAX_CHARS: i32 = 8;
 
 impl TagsBar {
     pub(super) fn new() -> Self {
@@ -68,6 +70,7 @@ impl TagsBar {
             widget,
             chips,
             add_button,
+            remove_handler: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -85,6 +88,11 @@ impl TagsBar {
         });
     }
 
+    /// chip 上的叉号回调；参数是标签名。
+    pub(super) fn connect_remove(&self, handler: impl Fn(&str) + 'static) {
+        self.remove_handler.replace(Some(Rc::new(handler)));
+    }
+
     /// Replaces the shown chips; a document outside the knowledge base (`None`)
     /// hides the whole bar, while a known document always keeps the add entry.
     pub(super) fn set_tags(&self, tags: Option<&[String]>) {
@@ -96,12 +104,35 @@ impl TagsBar {
             self.chips.remove(&child);
         }
         for tag in tags {
-            let chip = gtk::Label::new(Some(tag));
+            let chip = gtk::Box::new(gtk::Orientation::Horizontal, 4);
             chip.add_css_class("preview-tag-chip");
-            chip.set_xalign(0.0);
-            chip.set_ellipsize(gtk::pango::EllipsizeMode::End);
-            chip.set_max_width_chars(TAG_CHIP_MAX_CHARS);
             chip.set_tooltip_text(Some(tag));
+
+            let label = gtk::Label::new(Some(tag));
+            label.set_xalign(0.0);
+            label.set_ellipsize(gtk::pango::EllipsizeMode::End);
+            label.set_max_width_chars(TAG_CHIP_MAX_CHARS);
+            label.set_hexpand(true);
+
+            let remove = gtk::Button::new();
+            remove.add_css_class("preview-tag-remove");
+            remove.set_child(Some(&crate::assets::primary_icon(
+                crate::assets::icons::X,
+                10,
+            )));
+            let remove_label = crate::i18n::tr("Remove tag");
+            remove.set_tooltip_text(Some(&remove_label));
+            crate::ui::accessibility::set_own_label(&remove, &remove_label);
+            let handler = self.remove_handler.clone();
+            let name = tag.clone();
+            remove.connect_clicked(move |_| {
+                if let Some(handler) = handler.borrow().as_ref() {
+                    handler(&name);
+                }
+            });
+
+            chip.append(&label);
+            chip.append(&remove);
             self.chips.append(&chip);
         }
         self.widget.set_visible(true);
@@ -238,6 +269,51 @@ pub(super) fn show_add_tag_modal(parent: &gtk::Widget, path: PathBuf, on_added: 
     });
 }
 
+/// 后台移除当前文档的标签；成功后经 `on_removed` 在主线程刷新标签栏。
+pub(super) fn remove_tag(
+    parent: &gtk::Widget,
+    path: PathBuf,
+    name: String,
+    on_removed: Rc<dyn Fn()>,
+) {
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<usize, String>>();
+    std::thread::spawn(move || {
+        let result = crate::knowledge::init()
+            .ok_or_else(|| "知识库不可用".to_owned())
+            .and_then(|knowledge| knowledge.remove_tag(&path, &name));
+        let _ = sender.send(result);
+    });
+    let weak_parent = parent.downgrade();
+    glib::timeout_add_local(Duration::from_millis(50), move || {
+        match receiver.try_recv() {
+            Ok(Ok(_)) => {
+                on_removed();
+                glib::ControlFlow::Break
+            }
+            Ok(Err(message)) => {
+                if let Some(parent) = weak_parent.upgrade() {
+                    show_remove_error(&parent, &message);
+                }
+                glib::ControlFlow::Break
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => glib::ControlFlow::Break,
+        }
+    });
+}
+
+fn show_remove_error(parent: &gtk::Widget, message: &str) {
+    let Some(window) = parent.root().and_downcast::<gtk::Window>() else {
+        tracing::warn!(%message, "tag removal failed");
+        return;
+    };
+    let dialog = gtk::AlertDialog::builder()
+        .message(crate::i18n::tr("Unable to remove the tag"))
+        .detail(message)
+        .build();
+    dialog.show(Some(&window));
+}
+
 /// 用既有标签做输入补全。
 #[expect(
     deprecated,
@@ -256,4 +332,38 @@ fn attach_tag_completions(entry: &gtk::Entry) {
     completion.set_text_column(0);
     completion.set_inline_completion(true);
     entry.set_completion(Some(&completion));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support::gtk_test;
+
+    #[test]
+    fn chips_offer_a_remove_button_per_tag() {
+        gtk_test(
+            "ui::preview::tags_bar::tests::chips_offer_a_remove_button_per_tag",
+            || {
+                let bar = TagsBar::new();
+                let removed = Rc::new(RefCell::new(Vec::<String>::new()));
+                let sink = removed.clone();
+                bar.connect_remove(move |name| sink.borrow_mut().push(name.to_owned()));
+                bar.set_tags(Some(&["alpha".to_owned(), "beta".to_owned()]));
+
+                let mut buttons = Vec::new();
+                let mut child = bar.chips.first_child();
+                while let Some(chip) = child {
+                    let button = chip
+                        .last_child()
+                        .and_downcast::<gtk::Button>()
+                        .expect("each chip ends with its remove button");
+                    buttons.push(button);
+                    child = chip.next_sibling();
+                }
+                assert_eq!(buttons.len(), 2);
+                buttons[0].emit_clicked();
+                assert_eq!(*removed.borrow(), vec!["alpha".to_owned()]);
+            },
+        );
+    }
 }

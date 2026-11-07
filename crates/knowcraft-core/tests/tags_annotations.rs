@@ -79,6 +79,33 @@ fn adding_same_tag_twice_is_idempotent() {
 }
 
 #[test]
+fn removing_a_tag_unlinks_it_and_drops_the_orphan() {
+    let dir = std::env::temp_dir().join(format!("kc-ta-remove-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Store::open(&dir).unwrap();
+    let tags = Tags::new(store.clone());
+    let first = store.insert_document(&doc("first.pdf")).unwrap();
+    let second = store.insert_document(&doc("second.pdf")).unwrap();
+    tags.add(first, "shared").unwrap();
+    tags.add(second, "shared").unwrap();
+    tags.add(first, "solo").unwrap();
+
+    assert_eq!(tags.remove(first, "solo").unwrap(), 1);
+    assert_eq!(tags.list_for(first).unwrap(), vec!["shared".to_string()]);
+    assert!(!tags.list_all().unwrap().contains(&"solo".to_string()));
+
+    assert_eq!(tags.remove(first, "shared").unwrap(), 1);
+    assert_eq!(tags.list_for(second).unwrap(), vec!["shared".to_string()]);
+    assert_eq!(tags.list_all().unwrap(), vec!["shared".to_string()]);
+
+    assert_eq!(tags.remove(second, "shared").unwrap(), 1);
+    assert!(tags.list_all().unwrap().is_empty());
+
+    assert_eq!(tags.remove(first, "shared").unwrap(), 0);
+    assert_eq!(tags.remove(first, "missing").unwrap(), 0);
+}
+
+#[test]
 fn tags_search_reports_document_counts_and_lists_documents() {
     let dir = std::env::temp_dir().join(format!("kc-ta-search-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
