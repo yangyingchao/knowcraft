@@ -3,6 +3,14 @@
 use super::*;
 
 impl PreviewState {
+    /// 当前预览文件对应的知识库文档 id；未注册时返回 `None`。
+    pub(super) fn current_document_id(&self) -> Option<i64> {
+        let current = self.current.borrow();
+        let path = current.as_ref()?.location.native_path()?;
+        let knowledge = crate::knowledge::init()?;
+        knowledge.document_by_path(path).map(|document| document.id)
+    }
+
     pub(super) fn render_document_preview(
         self: &Rc<Self>,
         source: PendingSourcePreview,
@@ -56,6 +64,17 @@ impl PreviewState {
             }
             return;
         }
+        let previous = self.document_view.get();
+        if previous != view {
+            match previous {
+                DocumentView::Rendered => {
+                    if let Some(state) = preview.rendered_state.borrow().as_ref() {
+                        state.cancel_annotation_interaction();
+                    }
+                }
+                DocumentView::Source => self.source_preview.cancel_annotation_interaction(),
+            }
+        }
         let name = document_view_name(view);
         if preview.stack.child_by_name(name).is_none() {
             let child = match view {
@@ -80,6 +99,12 @@ impl PreviewState {
                             .as_ref()
                             .and_then(|entry| entry.location.native_path().map(ToOwned::to_owned)),
                     );
+                    let controller = super::super::annotation::AnnotationController::new(
+                        self.current_document_id(),
+                        "rendered",
+                        state.space(),
+                    );
+                    state.set_annotations(controller);
                     preview.rendered_state.replace(Some(state));
                     view.upcast()
                 }),
@@ -90,6 +115,16 @@ impl PreviewState {
             preview.stack.add_named(&child, Some(name));
         }
         preview.stack.set_visible_child_name(name);
+        if previous != view {
+            match view {
+                DocumentView::Rendered => {
+                    if let Some(state) = preview.rendered_state.borrow().as_ref() {
+                        state.reload_annotations();
+                    }
+                }
+                DocumentView::Source => self.source_preview.reload_annotations(),
+            }
+        }
         self.document_view.set(view);
         self.update_document_view_action();
         drop(preview_guard);

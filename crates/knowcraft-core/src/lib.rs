@@ -14,6 +14,7 @@ pub mod pdf_geometry;
 pub mod search;
 pub mod store;
 pub mod tags;
+pub mod text_annotations;
 pub mod trash;
 pub mod util;
 pub mod watcher;

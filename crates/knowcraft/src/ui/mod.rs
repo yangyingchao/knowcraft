@@ -2,6 +2,7 @@
 
 mod accessibility;
 mod actions;
+mod annotation;
 mod blur;
 mod browser;
 mod browser_modes;

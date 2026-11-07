@@ -9,6 +9,28 @@ use crate::ui::theme::{PINNED_GTK_THEME, ThemeManager, azure_tokens};
 use gtk::prelude::*;
 
 #[test]
+fn base_theme_import_names_a_resource_gtk_bundles() {
+    gtk_test(
+        "ui::theme::tests::live::base_theme_import_names_a_resource_gtk_bundles",
+        || {
+            for dark in [false, true] {
+                let import = super::super::gtk_settings::base_theme_import(dark);
+                let path = import
+                    .split("resource://")
+                    .nth(1)
+                    .and_then(|rest| rest.split('"').next())
+                    .expect("the import should carry a resource URL");
+                assert!(
+                    gtk::gio::resources_get_info(path, gtk::gio::ResourceLookupFlags::NONE)
+                        .is_ok(),
+                    "{path} must exist in the running GTK resources"
+                );
+            }
+        },
+    );
+}
+
+#[test]
 fn applied_icon_colors_are_canonical_and_render_visible_strokes() {
     gtk_test(
         "ui::theme::tests::live::applied_icon_colors_are_canonical_and_render_visible_strokes",

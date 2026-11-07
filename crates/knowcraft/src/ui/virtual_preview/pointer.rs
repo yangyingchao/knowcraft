@@ -104,6 +104,12 @@ impl PointerSelection {
         self.drag_claimed.set(false);
         list.grab_focus();
         let point = point_at(&list, state, x, y).unwrap_or(SelectionPoint { unit: 0, offset: 0 });
+        if let Some((annotation, rect)) = state.annotation_at(&list, x, y) {
+            state.selection.set(None);
+            update_all_bound_selection(state);
+            state.open_annotation_menu(annotation, rect);
+            return;
+        }
         state.selection.set(Some(selection::clicked_selection(
             &state.units,
             state.selection.get(),
@@ -127,7 +133,9 @@ impl PointerSelection {
             && has_web_scheme(uri)
         {
             open_web_link(uri, &list);
+            return;
         }
+        self.state.settle_selection();
     }
 
     fn drag_begin(&self, (x, y): (f64, f64)) {
@@ -189,6 +197,7 @@ impl PointerSelection {
             list.primary_clipboard().set_text(&text);
         }
         self.state.dragging.set(false);
+        self.state.settle_selection();
     }
 
     fn drag_cancel(&self) {

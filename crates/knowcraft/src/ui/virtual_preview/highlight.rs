@@ -11,6 +11,25 @@ pub(super) fn update_all_bound_selection(state: &VirtualPreviewState) {
     }
 }
 
+pub(super) fn update_bound_annotations(state: &VirtualPreviewState, index: usize) {
+    let Some(unit) = state.units.get(index) else {
+        return;
+    };
+    let ranges = state
+        .annotations
+        .borrow()
+        .as_ref()
+        .map(|controller| controller.unit_ranges(index, unit.selection_len()))
+        .unwrap_or_default();
+    let bound = state.bound.borrow();
+    let Some(bound) = bound.get(&index) else {
+        return;
+    };
+    if let Some(view) = bound.view.upgrade() {
+        view.set_annotation_ranges(ranges);
+    }
+}
+
 pub(super) fn update_bound_selection(state: &VirtualPreviewState, index: usize) {
     let Some(unit) = state.units.get(index) else {
         return;

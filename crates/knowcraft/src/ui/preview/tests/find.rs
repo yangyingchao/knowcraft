@@ -30,7 +30,8 @@ fn source_find_tracks_incremental_text_and_resets_for_another_file() {
                     .source_preview
                     .virtual_state
                     .borrow()
-                    .is_none()
+                    .as_ref()
+                    .is_some_and(|state| state.list().is_none())
             );
             preview.state.find_button.emit_clicked();
             preview.state.find.entry.set_text("éclair");

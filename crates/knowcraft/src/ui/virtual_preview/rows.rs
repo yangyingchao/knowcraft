@@ -5,7 +5,7 @@ use std::rc::Rc;
 use gtk::prelude::*;
 
 use super::code_copy::code_copy_button;
-use super::highlight::update_bound_selection;
+use super::highlight::{update_bound_annotations, update_bound_selection};
 use super::hit_test::set_link_hover;
 use super::line_numbers;
 use super::source::source_line_numbers;
@@ -60,6 +60,7 @@ pub(super) fn materialize_row(
     bound.materialized = true;
     state.bound.borrow_mut().insert(index, bound);
     update_bound_selection(state, index);
+    update_bound_annotations(state, index);
     if let Some(hovered) = state.hovered.get().filter(|(unit, _)| *unit == index) {
         set_link_hover(state, hovered, true);
     }

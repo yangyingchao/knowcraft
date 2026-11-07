@@ -234,14 +234,16 @@ impl PreviewState {
         if let Some(state) = self.rendered_text.borrow().as_ref() {
             return state.can_find().then(|| Target::Document(state.clone()));
         }
-        if let Some(state) = self.source_preview.virtual_state.borrow().as_ref() {
-            return Some(Target::Document(state.clone()));
+        if let Some(state) = self.source_preview.virtual_state.borrow().as_ref()
+            && let Some(list) = state.list()
+        {
+            return Some(Target::Document(list));
         }
         self.source_preview
             .scroll
             .borrow()
             .as_ref()
-            .map(|_| Target::Source(self.source_preview.view.clone()))
+            .map(|_| Target::Source(self.source_preview.view.clone().upcast()))
     }
 
     pub(super) fn refresh_find(self: &Rc<Self>) {

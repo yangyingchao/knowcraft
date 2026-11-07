@@ -122,7 +122,7 @@ impl PreviewState {
         );
         self.content.append(&view);
         self.text_view
-            .replace(Some(self.source_preview.view.clone()));
+            .replace(Some(self.source_preview.view.clone().upcast()));
         self.text_scroll
             .replace(self.source_preview.scroll.borrow().clone());
         self.wrap

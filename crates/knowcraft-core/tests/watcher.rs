@@ -69,6 +69,9 @@ fn handle_delete_event_removes_index_entry() {
         author: "Knowcraft".into(),
         created_at: "now".into(),
         updated_at: "now".into(),
+        view: String::new(),
+        range_start: None,
+        range_end: None,
     };
     store.insert_annotation(&annotation).unwrap();
 

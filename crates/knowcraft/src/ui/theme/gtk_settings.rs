@@ -57,9 +57,29 @@ pub(super) fn apply_base_variant(dark: bool) {
     }
 }
 
+/// GTK 4.20 renamed the bundled Theme variants to `Default-dark.css` and
+/// `Default-light.css`; older releases only ship `gtk.css` and `gtk-dark.css`.
+/// Probe the resource set so the import always names a file that exists.
 pub(super) fn base_theme_import(dark: bool) -> String {
-    let variant = if dark { "gtk-dark.css" } else { "gtk.css" };
+    let candidates: &[&str] = if dark {
+        &["Default-dark.css", "gtk-dark.css"]
+    } else {
+        &["Default-light.css", "gtk.css"]
+    };
+    let variant = candidates
+        .iter()
+        .copied()
+        .find(|variant| theme_resource_exists(variant))
+        .unwrap_or(candidates[0]);
     format!("@import url(\"resource:///org/gtk/libgtk/theme/{BASE_THEME}/{variant}\");")
+}
+
+fn theme_resource_exists(variant: &str) -> bool {
+    gtk::gio::resources_get_info(
+        &format!("/org/gtk/libgtk/theme/{BASE_THEME}/{variant}"),
+        gtk::gio::ResourceLookupFlags::NONE,
+    )
+    .is_ok()
 }
 
 /// Skips properties this GTK lacks.

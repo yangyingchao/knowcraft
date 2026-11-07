@@ -22,6 +22,7 @@ use knowcraft_core::{
     pdf_annotations::PdfAnnotations,
     store::Store,
     tags::{TagHit, Tags},
+    text_annotations::TextAnnotations,
     trash::Trash,
     workflow::Workflow,
     write_lock::WriteLock,
@@ -64,7 +65,7 @@ fn with_active_index<T>(update: impl FnOnce(&mut HashMap<PathBuf, ()>) -> T) -> 
     update(active.get_or_insert_with(HashMap::new))
 }
 
-fn index_guard() -> MutexGuard<'static, ()> {
+pub(crate) fn index_guard() -> MutexGuard<'static, ()> {
     INDEX_LOCK.lock().unwrap_or_else(|error| error.into_inner())
 }
 
@@ -182,6 +183,15 @@ impl Knowledge {
         PdfAnnotations::new(
             self.store.clone(),
             self.data_dir.clone(),
+            self.write_lock.clone(),
+        )
+    }
+
+    /// 预览文本标注句柄；只写数据库，不触碰源文件。
+    pub(crate) fn text_annotations(&self) -> TextAnnotations {
+        TextAnnotations::new(
+            self.store.clone(),
+            Indexer::new(self.store.clone(), self.index.clone()),
             self.write_lock.clone(),
         )
     }

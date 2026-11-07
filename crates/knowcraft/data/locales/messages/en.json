@@ -1138,5 +1138,10 @@
   "Press the new key for “%{action}”": "Press the new key for “%{action}”",
   "%{escape} cancels, and %{backspace} removes every key of this action.": "%{escape} cancels, and %{backspace} removes every key of this action.",
   "“%{group}” has no key, so this action cannot run.": "“%{group}” has no key, so this action cannot run.",
-  "Custom action %{number}": "Custom action %{number}"
+  "Custom action %{number}": "Custom action %{number}",
+  "Change color": "Change color",
+  "Adjust range": "Adjust range",
+  "Delete stale annotations": "Delete stale annotations",
+  "Some annotations no longer match this document": "Some annotations no longer match this document",
+  "Select text to annotate": "Select text to annotate"
 }

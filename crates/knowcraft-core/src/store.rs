@@ -6,7 +6,7 @@ use crate::error::{Error, Result};
 use crate::model::{Annotation, Document, Note};
 
 /// 当前数据库 schema 版本，随 `PRAGMA user_version` 持久化。
-const SCHEMA_VERSION: i32 = 2;
+const SCHEMA_VERSION: i32 = 3;
 
 /// 迁移结果，供 CLI 升级等场景展示回填数量。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,7 +60,10 @@ impl Store {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 document_id INTEGER NOT NULL REFERENCES documents(id),
                 page INTEGER, bbox TEXT, color TEXT, note_text TEXT,
-                created_at TEXT, selection TEXT
+                created_at TEXT, selection TEXT,
+                view TEXT NOT NULL DEFAULT '',
+                range_start INTEGER,
+                range_end INTEGER
             );
             CREATE TABLE IF NOT EXISTS notes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -464,14 +467,16 @@ impl Store {
         };
         conn.execute(
             "INSERT INTO annotations (document_id, nm, page, kind, quads, anchor_x, anchor_y, \
-             color, note_text, selection, author, created_at, updated_at) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13) \
+             color, note_text, selection, author, created_at, updated_at, view, range_start, \
+             range_end) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16) \
              ON CONFLICT(document_id, nm) DO UPDATE SET \
              page = excluded.page, kind = excluded.kind, quads = excluded.quads, \
              anchor_x = excluded.anchor_x, anchor_y = excluded.anchor_y, \
              color = excluded.color, note_text = excluded.note_text, \
              selection = excluded.selection, author = excluded.author, \
-             updated_at = excluded.updated_at",
+             updated_at = excluded.updated_at, view = excluded.view, \
+             range_start = excluded.range_start, range_end = excluded.range_end",
             params![
                 a.document_id,
                 nm,
@@ -485,7 +490,10 @@ impl Store {
                 a.selection,
                 a.author,
                 a.created_at,
-                a.updated_at
+                a.updated_at,
+                a.view,
+                a.range_start,
+                a.range_end
             ],
         )?;
         let id = conn.query_row(
@@ -514,28 +522,47 @@ impl Store {
         let conn = self.lock();
         let mut stmt = conn.prepare(
             "SELECT id, document_id, nm, page, kind, quads, anchor_x, anchor_y, color, \
-             note_text, selection, author, created_at, updated_at \
+             note_text, selection, author, created_at, updated_at, view, range_start, range_end \
              FROM annotations WHERE document_id = ?1 ORDER BY page, id",
         )?;
-        let rows = stmt.query_map(params![document_id], |r| {
-            Ok(Annotation {
-                id: r.get(0)?,
-                document_id: r.get(1)?,
-                nm: r.get(2)?,
-                page: r.get(3)?,
-                kind: r.get(4)?,
-                quads: r.get(5)?,
-                anchor_x: r.get(6)?,
-                anchor_y: r.get(7)?,
-                color: r.get(8)?,
-                note_text: r.get(9)?,
-                selection: r.get(10)?,
-                author: r.get(11)?,
-                created_at: r.get(12)?,
-                updated_at: r.get(13)?,
-            })
-        })?;
+        let rows = stmt.query_map(params![document_id], read_annotation)?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// 只取 PDF 注释（`view = ''`），供 PDF 缓存同步与 CLI 使用。
+    pub fn pdf_annotations_for(&self, document_id: i64) -> Result<Vec<Annotation>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, document_id, nm, page, kind, quads, anchor_x, anchor_y, color, \
+             note_text, selection, author, created_at, updated_at, view, range_start, range_end \
+             FROM annotations WHERE document_id = ?1 AND view = '' ORDER BY page, id",
+        )?;
+        let rows = stmt.query_map(params![document_id], read_annotation)?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// 只取指定视图的预览文本标注，按范围起点排序。
+    pub fn text_annotations_for(&self, document_id: i64, view: &str) -> Result<Vec<Annotation>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, document_id, nm, page, kind, quads, anchor_x, anchor_y, color, \
+             note_text, selection, author, created_at, updated_at, view, range_start, range_end \
+             FROM annotations WHERE document_id = ?1 AND view = ?2 ORDER BY range_start, id",
+        )?;
+        let rows = stmt.query_map(params![document_id, view], read_annotation)?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// 按 `(document_id, nm)` 取单条注释。
+    pub fn annotation_by_nm(&self, document_id: i64, nm: &str) -> Result<Option<Annotation>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, document_id, nm, page, kind, quads, anchor_x, anchor_y, color, \
+             note_text, selection, author, created_at, updated_at, view, range_start, range_end \
+             FROM annotations WHERE document_id = ?1 AND nm = ?2",
+        )?;
+        let mut rows = stmt.query_map(params![document_id, nm], read_annotation)?;
+        Ok(rows.next().transpose()?)
     }
 
     /// `get_annotations` 的别名，供索引组装等新代码使用。
@@ -587,6 +614,28 @@ pub(crate) fn now() -> String {
         .unwrap_or_default()
 }
 
+fn read_annotation(row: &rusqlite::Row<'_>) -> rusqlite::Result<Annotation> {
+    Ok(Annotation {
+        id: row.get(0)?,
+        document_id: row.get(1)?,
+        nm: row.get(2)?,
+        page: row.get(3)?,
+        kind: row.get(4)?,
+        quads: row.get(5)?,
+        anchor_x: row.get(6)?,
+        anchor_y: row.get(7)?,
+        color: row.get(8)?,
+        note_text: row.get(9)?,
+        selection: row.get(10)?,
+        author: row.get(11)?,
+        created_at: row.get(12)?,
+        updated_at: row.get(13)?,
+        view: row.get(14)?,
+        range_start: row.get(15)?,
+        range_end: row.get(16)?,
+    })
+}
+
 fn read_document(row: &rusqlite::Row<'_>) -> rusqlite::Result<Document> {
     Ok(Document {
         id: row.get(0)?,
@@ -632,6 +681,9 @@ fn ensure_annotation_columns(conn: &Connection) -> Result<()> {
     ensure_column(conn, "annotations", "anchor_y", "REAL")?;
     ensure_column(conn, "annotations", "author", "TEXT NOT NULL DEFAULT 'Knowcraft'")?;
     ensure_column(conn, "annotations", "updated_at", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_column(conn, "annotations", "view", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_column(conn, "annotations", "range_start", "INTEGER")?;
+    ensure_column(conn, "annotations", "range_end", "INTEGER")?;
     conn.execute(
         "UPDATE annotations SET nm = 'legacy-' || id WHERE nm = ''",
         [],
@@ -643,6 +695,11 @@ fn ensure_annotation_columns(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_annotations_document_nm \
          ON annotations(document_id, nm)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_annotations_document_view \
+         ON annotations(document_id, view, range_start)",
         [],
     )?;
     Ok(())

@@ -3,10 +3,12 @@
 //! `Index` 只做 tantivy 读写，不知道 `Store`。所有需要注释内容的入口经这里组装，
 //! 避免返回不含注释的正文覆盖已有索引。
 
+use std::path::Path;
+
 use crate::{
     error::Result,
     index::Index,
-    model::Document,
+    model::{Annotation, Document},
     store::Store,
 };
 
@@ -22,15 +24,33 @@ impl Indexer {
 
     /// 正文加全部非空便签文字。`selection` 不进入索引。
     pub fn content(store: &Store, document: &Document) -> Result<String> {
-        let mut content =
-            crate::extract::extract_text(std::path::Path::new(&document.path)).unwrap_or_default();
-        for annotation in store.annotations_for(document.id)? {
-            if let Some(note) = annotation.note_text.filter(|note| !note.is_empty()) {
+        let base =
+            crate::extract::extract_text(Path::new(&document.path)).unwrap_or_default();
+        let annotations = store.annotations_for(document.id)?;
+        Ok(Self::compose_content(&base, &annotations))
+    }
+
+    /// 把正文与注释的便签文字拼接为索引内容。`selection` 不进入索引。
+    pub fn compose_content(base: &str, annotations: &[Annotation]) -> String {
+        let mut content = base.to_owned();
+        for annotation in annotations {
+            if let Some(note) = annotation.note_text.as_ref().filter(|note| !note.is_empty()) {
                 content.push('\n');
-                content.push_str(&note);
+                content.push_str(note);
             }
         }
-        Ok(content)
+        content
+    }
+
+    /// 标注变更后的重建：提取失败返回错误且不写索引，保留旧索引。
+    pub fn reindex_after_annotation(&self, document_id: i64) -> Result<()> {
+        let Some(document) = self.store.get_document(document_id)? else {
+            return Ok(());
+        };
+        let base = crate::extract::extract_text(Path::new(&document.path))?;
+        let annotations = self.store.annotations_for(document.id)?;
+        let content = Self::compose_content(&base, &annotations);
+        self.index.index_document_with_content(&document, &content)
     }
 
     pub fn index_document(&self, document: &Document) -> Result<()> {
@@ -49,7 +69,7 @@ impl Indexer {
         let documents = self.store.list_documents()?;
         let mut indexed = 0;
         for document in &documents {
-            if crate::util::is_hidden_path(std::path::Path::new(&document.path)) {
+            if crate::util::is_hidden_path(Path::new(&document.path)) {
                 continue;
             }
             self.index_document(document)?;

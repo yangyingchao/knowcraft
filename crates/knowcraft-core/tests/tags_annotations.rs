@@ -51,6 +51,9 @@ fn tag_and_annotate_document() {
         author: "Knowcraft".into(),
         created_at: "now".into(),
         updated_at: "now".into(),
+        view: String::new(),
+        range_start: None,
+        range_end: None,
     };
     let ann_id = anns.create(&annotation).unwrap();
     let list = anns.list(doc_id).unwrap();

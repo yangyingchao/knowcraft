@@ -1138,5 +1138,10 @@
   "Press the new key for “%{action}”": "按下“%{action}”的新按键",
   "%{escape} cancels, and %{backspace} removes every key of this action.": "按 %{escape} 取消，按 %{backspace} 移除此操作的所有按键。",
   "“%{group}” has no key, so this action cannot run.": "“%{group}”没有按键，因此无法执行此操作。",
-  "Custom action %{number}": "自定义操作 %{number}"
+  "Custom action %{number}": "自定义操作 %{number}",
+  "Change color": "更改颜色",
+  "Adjust range": "调整范围",
+  "Delete stale annotations": "删除失效标注",
+  "Some annotations no longer match this document": "部分标注已不再匹配本文档",
+  "Select text to annotate": "选中文本以添加标注"
 }

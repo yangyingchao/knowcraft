@@ -36,6 +36,12 @@ pub struct Annotation {
     pub author: String,
     pub created_at: String,
     pub updated_at: String,
+    /// 空串表示 PDF 注释；`rendered` / `source` 表示预览文本标注。
+    pub view: String,
+    /// 预览文本标注的规范文本字符偏移起点；PDF 注释为 `None`。
+    pub range_start: Option<i64>,
+    /// 预览文本标注的字符偏移终点，开区间；PDF 注释为 `None`。
+    pub range_end: Option<i64>,
 }
 
 #[derive(Debug, Clone)]

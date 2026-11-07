@@ -9,7 +9,7 @@ use super::selection::{self, Motion};
 use super::{DocumentSelection, SelectionPoint, VirtualPreviewState};
 use crate::ui::keys::{
     self, KeyPress, Match,
-    bindings::{COPY, DOWN, END_KEY, HOME_KEY, LEFT, RIGHT, SELECT_ALL, UP},
+    bindings::{COPY, DOWN, END_KEY, ESCAPE, HOME_KEY, LEFT, RIGHT, SELECT_ALL, UP},
 };
 
 pub(super) fn install_keyboard_selection(list: &gtk::ListView, state: Rc<VirtualPreviewState>) {
@@ -19,6 +19,11 @@ pub(super) fn install_keyboard_selection(list: &gtk::ListView, state: Rc<Virtual
         let Some(list) = weak_list.upgrade() else {
             return glib::Propagation::Proceed;
         };
+        if press.is(ESCAPE) {
+            state.cancel_adjust();
+            state.hide_toolbar();
+            return glib::Propagation::Stop;
+        }
         if press.is(SELECT_ALL) {
             let Some(last) = state.units.len().checked_sub(1) else {
                 return glib::Propagation::Stop;

@@ -17,6 +17,16 @@ pub(super) struct DocumentCodeBlock {
     pub last: bool,
 }
 
+/// 行内标注范围，偏移为该视图缓冲区的字符偏移。
+#[derive(Clone, Debug)]
+pub(super) struct AnnotationRange {
+    pub start: i32,
+    pub end: i32,
+    pub kind: String,
+    pub color: gtk::gdk::RGBA,
+    pub note_marker: bool,
+}
+
 mod imp {
     use super::*;
 
@@ -27,6 +37,7 @@ mod imp {
         pub code_border: RefCell<Option<gtk::gdk::RGBA>>,
         pub selection: RefCell<Option<gtk::gdk::RGBA>>,
         pub selection_range: Cell<Option<(i32, i32)>>,
+        pub(super) annotation_ranges: RefCell<Vec<AnnotationRange>>,
     }
 
     #[glib::object_subclass]
@@ -44,6 +55,7 @@ mod imp {
         fn snapshot_layer(&self, layer: gtk::TextViewLayer, snapshot: gtk::Snapshot) {
             if layer == gtk::TextViewLayer::BelowText {
                 self.snapshot_code_blocks(&snapshot);
+                self.snapshot_annotations(&snapshot);
                 self.snapshot_selection(&snapshot);
             }
             self.parent_snapshot_layer(layer, snapshot);
@@ -103,6 +115,71 @@ mod imp {
                 snapshot.append_color(&fill, &bounds);
                 snapshot.pop();
                 snapshot.append_border(&outline, &[1.0; 4], &[border; 4]);
+            }
+        }
+
+        fn snapshot_annotations(&self, snapshot: &gtk::Snapshot) {
+            let view = self.obj();
+            let buffer = view.buffer();
+            let ranges = self.annotation_ranges.borrow();
+            if ranges.is_empty() {
+                return;
+            }
+            let visible = view.visible_rect();
+            let visible_bottom = visible.y() + visible.height();
+            for range in ranges.iter() {
+                if range.start >= range.end {
+                    continue;
+                }
+                // 小文件路径分块插入时，尚未载入的标注不能画在缓冲区末尾。
+                if range.start > buffer.char_count() {
+                    continue;
+                }
+                let start = buffer.iter_at_offset(range.start.min(buffer.char_count()));
+                let end = buffer.iter_at_offset(range.end.min(buffer.char_count()));
+                let mut line_start = if view.iter_location(&start).y() < visible.y() {
+                    view.line_at_y(visible.y()).0
+                } else {
+                    start
+                };
+                view.backward_display_line_start(&mut line_start);
+                let mut marker_at = None;
+                while line_start.offset() < end.offset() {
+                    let mut line_end = line_start;
+                    view.forward_display_line_end(&mut line_end);
+                    let segment_start =
+                        buffer.iter_at_offset(line_start.offset().max(start.offset()));
+                    let segment_end = buffer.iter_at_offset(line_end.offset().min(end.offset()));
+                    if segment_start.offset() < segment_end.offset() {
+                        let from = view.iter_location(&segment_start);
+                        let to = view.iter_location(&segment_end);
+                        if from.y() > visible_bottom {
+                            break;
+                        }
+                        if let Some([x, y, width, height]) = selection_span_bounds(
+                            from.x(),
+                            to.x(),
+                            from.y(),
+                            from.height(),
+                        ) {
+                            paint_annotation(snapshot, range, x, y, width, height);
+                            if segment_end.offset() == end.offset() {
+                                marker_at = Some((to.x(), y, height));
+                            }
+                        }
+                    }
+                    let previous = line_start.offset();
+                    if !view.forward_display_line(&mut line_start)
+                        || line_start.offset() <= previous
+                    {
+                        break;
+                    }
+                }
+                if range.note_marker
+                    && let Some((x, y, height)) = marker_at
+                {
+                    paint_note_marker(snapshot, &range.color, x as f32, y, height);
+                }
             }
         }
 
@@ -189,6 +266,11 @@ impl DocumentTextView {
         }
     }
 
+    pub(super) fn set_annotation_ranges(&self, ranges: Vec<AnnotationRange>) {
+        self.imp().annotation_ranges.replace(ranges);
+        self.queue_draw();
+    }
+
     pub(super) fn set_colors(
         &self,
         fill: gtk::gdk::RGBA,
@@ -200,6 +282,55 @@ impl DocumentTextView {
         self.imp().selection.replace(Some(selection));
         self.queue_draw();
     }
+}
+
+fn paint_annotation(
+    snapshot: &gtk::Snapshot,
+    range: &AnnotationRange,
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+) {
+    let faded = faded_color(&range.color);
+    match range.kind.as_str() {
+        "underline" => {
+            snapshot.append_color(&faded, &gtk::graphene::Rect::new(x, y, width, height));
+            snapshot.append_color(
+                &range.color,
+                &gtk::graphene::Rect::new(x, y + height - 2.0, width, 2.0),
+            );
+        }
+        "strikeout" => {
+            snapshot.append_color(
+                &range.color,
+                &gtk::graphene::Rect::new(x, y + height / 2.0 - 1.0, width, 2.0),
+            );
+        }
+        _ => {
+            snapshot.append_color(&faded, &gtk::graphene::Rect::new(x, y, width, height));
+        }
+    }
+}
+
+fn faded_color(color: &gtk::gdk::RGBA) -> gtk::gdk::RGBA {
+    gtk::gdk::RGBA::new(color.red(), color.green(), color.blue(), 0.35)
+}
+
+fn paint_note_marker(
+    snapshot: &gtk::Snapshot,
+    color: &gtk::gdk::RGBA,
+    x: f32,
+    y: f32,
+    height: f32,
+) {
+    let size = 6.0;
+    let rect = gtk::graphene::Rect::new(x + 2.0, y + (height - size) / 2.0, size, size);
+    let radius = gtk::graphene::Size::new(size / 2.0, size / 2.0);
+    let rounded = gtk::gsk::RoundedRect::new(rect, radius, radius, radius, radius);
+    snapshot.push_rounded_clip(&rounded);
+    snapshot.append_color(color, &rect);
+    snapshot.pop();
 }
 
 fn selection_span_bounds(start_x: i32, end_x: i32, y: i32, height: i32) -> Option<[f32; 4]> {
@@ -232,4 +363,32 @@ pub(super) struct CodeRange {
     end: i32,
     first: bool,
     last: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support::gtk_test;
+
+    #[test]
+    fn annotation_ranges_are_replaced_on_each_bind() {
+        gtk_test(
+            "ui::document_view::tests::annotation_ranges_are_replaced_on_each_bind",
+            || {
+                let buffer = gtk::TextBuffer::new(None);
+                buffer.set_text("alpha");
+                let view = DocumentTextView::new(&buffer, Vec::new());
+                view.set_annotation_ranges(vec![AnnotationRange {
+                    start: 0,
+                    end: 5,
+                    kind: "highlight".to_owned(),
+                    color: gtk::gdk::RGBA::new(1.0, 0.8, 0.0, 0.35),
+                    note_marker: false,
+                }]);
+                assert_eq!(view.imp().annotation_ranges.borrow().len(), 1);
+                view.set_annotation_ranges(Vec::new());
+                assert!(view.imp().annotation_ranges.borrow().is_empty());
+            },
+        );
+    }
 }

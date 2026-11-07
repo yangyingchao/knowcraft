@@ -21,6 +21,7 @@ mod rows;
 mod scrollbar;
 mod selection;
 mod source;
+mod space;
 mod table_cell;
 mod tags;
 mod text_view;
@@ -41,6 +42,7 @@ use rows::{align_document_row, apply_source_view_wrap, document_wrap_mode};
 #[cfg(test)]
 use rows::{bind_document_row, bind_source_row};
 pub(super) use selection::match_ranges;
+pub(super) use space::SelectionSpace;
 #[cfg(test)]
 use source::source_line_numbers;
 use source::source_units;
@@ -169,6 +171,7 @@ impl BoundRow {
 
 pub(super) struct VirtualPreviewState {
     units: Rc<Vec<PreviewUnit>>,
+    space: Rc<SelectionSpace>,
     list: glib::WeakRef<gtk::ListView>,
     tables: RefCell<HashMap<usize, Rc<super::table_view::TableState>>>,
     wrapped: Cell<bool>,
@@ -181,6 +184,10 @@ pub(super) struct VirtualPreviewState {
     hovered: Cell<Option<(usize, usize)>>,
     pressed_link: RefCell<Option<String>>,
     media_cache: Rc<super::document_media::MediaCache>,
+    annotations: RefCell<Option<Rc<super::annotation::AnnotationController>>>,
+    toolbar: RefCell<Option<super::annotation::AnnotationToolbar>>,
+    notice: glib::WeakRef<gtk::Box>,
+    stale_notice: RefCell<Option<gtk::Box>>,
 }
 
 pub(super) fn rendered_document(
@@ -260,11 +267,12 @@ fn virtual_preview(
     install_keyboard_selection(&list, state.clone());
 
     let container = notice_container(&warnings);
+    state.notice.set(Some(&container));
     container.append(&scrollbar::wrap(&scroll, &state));
     (container, state)
 }
 
-fn notice_container(warnings: &[String]) -> gtk::Box {
+pub(super) fn notice_container(warnings: &[String]) -> gtk::Box {
     let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
     container.set_vexpand(true);
     for warning in warnings {
@@ -334,8 +342,11 @@ impl VirtualPreviewState {
         wrapped: bool,
         document_path: Option<std::path::PathBuf>,
     ) -> Rc<Self> {
+        let units = Rc::new(units);
+        let space = Rc::new(SelectionSpace::from_units(&units));
         Rc::new(Self {
-            units: Rc::new(units),
+            units,
+            space,
             list: glib::WeakRef::new(),
             tables: RefCell::new(HashMap::new()),
             wrapped: Cell::new(wrapped),
@@ -348,6 +359,10 @@ impl VirtualPreviewState {
             hovered: Cell::new(None),
             pressed_link: RefCell::new(None),
             media_cache: super::document_media::MediaCache::new(document_path),
+            annotations: RefCell::new(None),
+            toolbar: RefCell::new(None),
+            notice: glib::WeakRef::new(),
+            stale_notice: RefCell::new(None),
         })
     }
 
@@ -355,6 +370,266 @@ impl VirtualPreviewState {
         self.units
             .iter()
             .any(|unit| !unit.display_text().is_empty())
+    }
+
+    pub(super) fn space(&self) -> Rc<SelectionSpace> {
+        self.space.clone()
+    }
+
+    pub(super) fn has_annotations(&self) -> bool {
+        self.annotations.borrow().is_some()
+    }
+
+    /// 绑定标注状态，安装创建工具条与刷新回调。
+    pub(super) fn set_annotations(
+        self: &Rc<Self>,
+        controller: Rc<super::annotation::AnnotationController>,
+    ) {
+        let weak_state = Rc::downgrade(self);
+        controller.set_on_update(Rc::new(move || {
+            if let Some(state) = weak_state.upgrade() {
+                state.refresh_annotations();
+            }
+        }));
+        let weak_state = Rc::downgrade(self);
+        controller.set_on_error(Rc::new(move |message| {
+            if let Some(state) = weak_state.upgrade()
+                && let Some(list) = state.list.upgrade()
+            {
+                super::annotation::show_write_error(list.upcast_ref(), message);
+            }
+        }));
+
+        let weak_state = Rc::downgrade(self);
+        let on_action = Rc::new(move |action| {
+            if let Some(state) = weak_state.upgrade() {
+                state.create_annotation(action);
+            }
+        });
+        let weak_state = Rc::downgrade(self);
+        let on_copy = Rc::new(move || {
+            if let Some(state) = weak_state.upgrade() {
+                state.copy_selection();
+            }
+        });
+        self.toolbar.replace(Some(
+            super::annotation::AnnotationToolbar::new(on_action, on_copy),
+        ));
+        self.annotations.replace(Some(controller));
+        self.refresh_annotations();
+    }
+
+    fn refresh_annotations(self: &Rc<Self>) {
+        let indices = self.bound.borrow().keys().copied().collect::<Vec<_>>();
+        for index in indices {
+            highlight::update_bound_annotations(self, index);
+        }
+        self.update_stale_notice();
+    }
+
+    fn update_stale_notice(self: &Rc<Self>) {
+        let Some(notice) = self.notice.upgrade() else {
+            return;
+        };
+        let Some(controller) = self.annotations.borrow().clone() else {
+            return;
+        };
+        super::annotation::update_stale_notice(&notice, &self.stale_notice, &controller);
+    }
+
+    fn create_annotation(self: &Rc<Self>, action: super::annotation::AnnotationToolbarAction) {
+        let Some(controller) = self.annotations.borrow().clone() else {
+            return;
+        };
+        let Some(selection) = self.selection.get() else {
+            return;
+        };
+        let Some(range) = self.space.selection_range(selection) else {
+            return;
+        };
+        self.hide_toolbar();
+        if action == super::annotation::AnnotationToolbarAction::Note {
+            let Some(list) = self.list.upgrade() else {
+                return;
+            };
+            let controller_for_note = controller.clone();
+            super::annotation::prompt_note(
+                list.upcast_ref(),
+                "",
+                Rc::new(move |note| controller_for_note.create("note", range, note)),
+            );
+        } else {
+            controller.create(action.kind(), range, String::new());
+        }
+        self.selection.set(None);
+        highlight::update_all_bound_selection(self);
+    }
+
+    fn copy_selection(&self) {
+        let Some(text) = highlight::selection_text(self) else {
+            return;
+        };
+        if let Some(list) = self.list.upgrade() {
+            list.primary_clipboard().set_text(&text);
+        }
+    }
+
+    pub(super) fn hide_toolbar(&self) {
+        if let Some(toolbar) = self.toolbar.borrow().as_ref() {
+            toolbar.hide();
+        }
+    }
+
+    /// 切换视图或文件时取消重选模式并收起工具条。
+    pub(super) fn cancel_annotation_interaction(&self) {
+        self.cancel_adjust();
+        self.hide_toolbar();
+    }
+
+    /// 切换回本视图时重新读取标注集合。
+    pub(super) fn reload_annotations(&self) {
+        if let Some(controller) = self.annotations.borrow().clone() {
+            controller.reload();
+        }
+    }
+
+    /// 选区稳定后：重选模式直接覆盖原范围，否则弹出创建工具条。
+    pub(super) fn settle_selection(self: &Rc<Self>) {
+        let Some(controller) = self.annotations.borrow().clone() else {
+            return;
+        };
+        if controller.document_id().is_none() {
+            controller.cancel_adjust();
+            self.hide_toolbar();
+            return;
+        }
+        let Some(selection) = self.selection.get().filter(|selection| !selection.is_empty()) else {
+            controller.cancel_adjust();
+            self.hide_toolbar();
+            return;
+        };
+        let Some(range) = self.space.selection_range(selection) else {
+            controller.cancel_adjust();
+            return;
+        };
+        if controller.pending().is_some() {
+            controller.commit_adjust(range);
+            self.selection.set(None);
+            highlight::update_all_bound_selection(self);
+            self.hide_toolbar();
+            return;
+        }
+        let Some(rect) = self.selection_anchor_rect(selection) else {
+            return;
+        };
+        let Some(list) = self.list.upgrade() else {
+            return;
+        };
+        if let Some(toolbar) = self.toolbar.borrow().as_ref() {
+            toolbar.show(list.upcast_ref(), rect);
+        }
+    }
+
+    pub(super) fn cancel_adjust(&self) {
+        if let Some(controller) = self.annotations.borrow().as_ref() {
+            controller.cancel_adjust();
+        }
+    }
+
+    fn selection_anchor_rect(&self, selection: DocumentSelection) -> Option<(f64, f64, f64, f64)> {
+        let (start, _) = selection.normalized();
+        self.point_anchor_rect(start)
+    }
+
+    fn point_anchor_rect(&self, point: SelectionPoint) -> Option<(f64, f64, f64, f64)> {
+        let list = self.list.upgrade()?;
+        let bound = self.bound.borrow();
+        let row = bound.get(&point.unit)?;
+        let view = row.view.upgrade()?;
+        let bounds = view.compute_bounds(&list)?;
+        let buffer = view.buffer();
+        let iter = buffer.iter_at_offset(
+            i32::try_from(point.offset)
+                .unwrap_or(i32::MAX)
+                .min(buffer.char_count()),
+        );
+        let location = view.iter_location(&iter);
+        Some((
+            f64::from(bounds.x()) + f64::from(location.x()),
+            f64::from(bounds.y()) + f64::from(location.y()),
+            f64::from(location.width().max(1)),
+            f64::from(location.height().max(1)),
+        ))
+    }
+
+    /// 点按位置命中的标注与用于锚定菜单的矩形。
+    pub(super) fn annotation_at(
+        &self,
+        list: &gtk::ListView,
+        x: f64,
+        y: f64,
+    ) -> Option<(knowcraft_core::model::Annotation, (f64, f64, f64, f64))> {
+        let controller = self.annotations.borrow().clone()?;
+        let point = point_at(list, self, x, y)?;
+        let offset = self.space.global(point.unit, point.offset);
+        let annotation = controller.hit(offset)?;
+        let rect = self.point_anchor_rect(point)?;
+        Some((annotation, rect))
+    }
+
+    pub(super) fn open_annotation_menu(
+        self: &Rc<Self>,
+        annotation: knowcraft_core::model::Annotation,
+        rect: (f64, f64, f64, f64),
+    ) {
+        let Some(controller) = self.annotations.borrow().clone() else {
+            return;
+        };
+        let Some(list) = self.list.upgrade() else {
+            return;
+        };
+        let nm = annotation.nm.clone();
+        let initial = annotation.note_text.clone().unwrap_or_default();
+        let on_edit: Rc<dyn Fn()> = Rc::new({
+            let nm = nm.clone();
+            let controller = controller.clone();
+            let list = list.clone();
+            move || {
+                let nm = nm.clone();
+                let controller = controller.clone();
+                super::annotation::prompt_note(
+                    list.upcast_ref(),
+                    &initial,
+                    Rc::new(move |text| controller.update_note(&nm, &text)),
+                );
+            }
+        });
+        let on_color: Rc<dyn Fn(&'static str)> = Rc::new({
+            let nm = nm.clone();
+            let controller = controller.clone();
+            move |color| controller.update_color(&nm, color)
+        });
+        let on_adjust: Rc<dyn Fn()> = Rc::new({
+            let nm = nm.clone();
+            let controller = controller.clone();
+            move || controller.begin_adjust(&nm)
+        });
+        let on_delete: Rc<dyn Fn()> = Rc::new({
+            let nm = nm.clone();
+            let controller = controller.clone();
+            move || controller.delete(&nm)
+        });
+        super::annotation::annotation_menu(
+            list.upcast_ref(),
+            rect,
+            super::annotation::AnnotationCapabilities::TEXT,
+            super::annotation::AnnotationMenuCallbacks {
+                edit: on_edit,
+                color: on_color,
+                adjust: on_adjust,
+                delete: on_delete,
+            },
+        );
     }
 
     pub(super) fn find_matches(&self, query: &str) -> Vec<TextMatch> {

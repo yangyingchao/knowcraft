@@ -126,9 +126,8 @@ impl PdfAnnotations {
 
         let mut record = self
             .store
-            .annotations_for(document_id)?
-            .into_iter()
-            .find(|a| a.nm == nm)
+            .annotation_by_nm(document_id, nm)?
+            .filter(|a| a.view.is_empty())
             .ok_or_else(|| Error::Pdf(format!("annotation {nm} not cached")))?;
         record.note_text = Some(text.to_owned());
         record.updated_at = store::now();
@@ -137,7 +136,7 @@ impl PdfAnnotations {
     }
 
     pub fn list(&self, document_id: i64) -> Result<Vec<Annotation>> {
-        self.store.annotations_for(document_id)
+        self.store.pdf_annotations_for(document_id)
     }
 
     pub fn delete(&self, document_id: i64, nm: &str) -> Result<()> {
@@ -197,6 +196,9 @@ impl PdfAnnotations {
                 author: summary.author.clone().unwrap_or_else(|| "Knowcraft".into()),
                 created_at: store::now(),
                 updated_at: store::now(),
+                view: String::new(),
+                range_start: None,
+                range_end: None,
             };
             if kind == AnnotationKind::Note {
                 record.anchor_x = Some(f64::from(summary.rect[0] + summary.rect[2]) / 2.0);
@@ -204,7 +206,7 @@ impl PdfAnnotations {
             }
             if let Some(cached) = self
                 .store
-                .annotations_for(document_id)?
+                .pdf_annotations_for(document_id)?
                 .into_iter()
                 .find(|cached| cached.nm == nm)
             {
@@ -216,7 +218,7 @@ impl PdfAnnotations {
             imported += 1;
         }
 
-        for cached in self.store.annotations_for(document_id)? {
+        for cached in self.store.pdf_annotations_for(document_id)? {
             if !seen.contains(&cached.nm) {
                 self.store.delete_annotation_by_nm(document_id, &cached.nm)?;
             }
@@ -252,6 +254,9 @@ impl PdfAnnotations {
             author: "Knowcraft".into(),
             created_at: now.clone(),
             updated_at: now,
+            view: String::new(),
+            range_start: None,
+            range_end: None,
         }
     }
 }

@@ -5,7 +5,8 @@ use std::{rc::Rc, sync::Arc};
 use gtk::prelude::*;
 
 use super::{
-    DocumentSelection, PreviewUnit, SelectionPoint, SourceUnit, VirtualPreviewState,
+    DocumentSelection, PreviewUnit, SelectionPoint, SelectionSpace, SourceUnit,
+    VirtualPreviewState,
     bind_document_row, bind_source_row, bounded_text_prefix, code_block_copy_text,
     document_tag_table, drag_threshold_crossed, local_selection, matching_link, plain_text_view,
     rendered_document, selection_text, set_table_cell, source_document, source_line_numbers,
@@ -355,12 +356,17 @@ fn cross_row_selection_copies_full_middle_units_from_the_model() {
         list: Default::default(),
         tables: Default::default(),
         media_cache: crate::ui::document_media::MediaCache::new(None),
+        space: Rc::new(SelectionSpace::from_units(&units)),
         units,
         wrapped: std::cell::Cell::new(false),
         selection: std::cell::Cell::new(Some(DocumentSelection {
             anchor: SelectionPoint { unit: 0, offset: 6 },
             focus: SelectionPoint { unit: 2, offset: 4 },
         })),
+        annotations: std::cell::RefCell::new(None),
+        toolbar: std::cell::RefCell::new(None),
+        notice: Default::default(),
+        stale_notice: std::cell::RefCell::new(None),
         bound: std::cell::RefCell::default(),
         dragging: std::cell::Cell::new(false),
         press: std::cell::Cell::new((0.0, 0.0)),
@@ -426,6 +432,7 @@ fn selection_does_not_invent_newlines_between_line_chunks() {
     let units = Rc::new(vec![source("abcd", "abcd"), source("ef", "ef\n")]);
     let state = VirtualPreviewState {
         list: Default::default(),
+        space: Rc::new(SelectionSpace::from_units(&units)),
         units,
         wrapped: std::cell::Cell::new(false),
         selection: std::cell::Cell::new(Some(DocumentSelection {
@@ -434,6 +441,10 @@ fn selection_does_not_invent_newlines_between_line_chunks() {
         })),
         tables: Default::default(),
         media_cache: crate::ui::document_media::MediaCache::new(None),
+        annotations: std::cell::RefCell::new(None),
+        toolbar: std::cell::RefCell::new(None),
+        notice: Default::default(),
+        stale_notice: std::cell::RefCell::new(None),
         bound: std::cell::RefCell::default(),
         dragging: std::cell::Cell::new(false),
         press: std::cell::Cell::new((0.0, 0.0)),
@@ -522,6 +533,7 @@ fn table_selection_is_atomic_and_copies_tsv() {
     })]);
     let state = VirtualPreviewState {
         list: Default::default(),
+        space: Rc::new(SelectionSpace::from_units(&units)),
         units,
         wrapped: std::cell::Cell::new(false),
         selection: std::cell::Cell::new(Some(DocumentSelection {
@@ -530,6 +542,10 @@ fn table_selection_is_atomic_and_copies_tsv() {
         })),
         tables: Default::default(),
         media_cache: crate::ui::document_media::MediaCache::new(None),
+        annotations: std::cell::RefCell::new(None),
+        toolbar: std::cell::RefCell::new(None),
+        notice: Default::default(),
+        stale_notice: std::cell::RefCell::new(None),
         bound: std::cell::RefCell::default(),
         dragging: std::cell::Cell::new(false),
         press: std::cell::Cell::new((0.0, 0.0)),

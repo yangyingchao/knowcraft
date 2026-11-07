@@ -37,6 +37,9 @@ fn annotation(document_id: i64, nm: &str, note: &str) -> Annotation {
         author: "Knowcraft".into(),
         created_at: "now".into(),
         updated_at: "now".into(),
+        view: String::new(),
+        range_start: None,
+        range_end: None,
     }
 }
 
