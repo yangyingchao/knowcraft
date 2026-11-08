@@ -12,7 +12,7 @@ mod tokenizer;
 use std::path::Path;
 
 use tantivy::collector::TopDocs;
-use tantivy::query::{BooleanQuery, MoreLikeThisQuery, Occur, QueryParser, TermSetQuery};
+use tantivy::query::{AllQuery, BooleanQuery, MoreLikeThisQuery, Occur, QueryParser, TermSetQuery};
 use tantivy::schema::{
     IndexRecordOption, OwnedValue, Schema, TextFieldIndexing, TextOptions, Value, INDEXED, STORED,
 };
@@ -48,6 +48,13 @@ pub struct SimilarHit {
     pub path: String,
     pub title: String,
     pub score: f32,
+}
+
+/// 索引中一条记录的快照，用于对账时枚举索引侧内容。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexEntry {
+    pub document_id: i64,
+    pub path: String,
 }
 
 /// tantivy 索引句柄。
@@ -103,7 +110,7 @@ impl Index {
         let mut writer: IndexWriter = self.index.writer(50_000_000)?;
         let id_field = self.index.schema().get_field(DOCUMENT_ID)?;
         writer.delete_term(Term::from_field_i64(id_field, doc.id));
-        self.add_document(&mut writer, doc, content.to_owned())?;
+        self.add_document(&mut writer, doc, content)?;
         writer.commit()?;
         Ok(())
     }
@@ -122,7 +129,7 @@ impl Index {
             }
             writer.delete_term(Term::from_field_i64(id_field, doc.id));
             let content = crate::extract::extract_text(Path::new(&doc.path)).unwrap_or_default();
-            self.add_document(&mut writer, doc, content)?;
+            self.add_document(&mut writer, doc, &content)?;
         }
         writer.commit()?;
         Ok(())
@@ -133,6 +140,64 @@ impl Index {
         let field = self.index.schema().get_field(DOCUMENT_ID)?;
         let mut writer: IndexWriter = self.index.writer(50_000_000)?;
         writer.delete_term(Term::from_field_i64(field, doc_id));
+        writer.commit()?;
+        Ok(())
+    }
+
+    /// 索引中存活记录数，用于搜索超取时确定上界。
+    pub fn num_docs(&self) -> Result<usize> {
+        let reader = self.index.reader()?;
+        Ok(reader.searcher().num_docs() as usize)
+    }
+
+    /// 枚举索引中的全部存活记录。
+    ///
+    /// 逐条读取存储字段后立即丢弃，峰值内存为单条文档；对账属于维护操作，
+    /// 允许承担这一读取成本。
+    pub fn entries(&self) -> Result<Vec<IndexEntry>> {
+        let reader = self.index.reader()?;
+        let searcher = reader.searcher();
+        let total = searcher.num_docs() as usize;
+        if total == 0 {
+            return Ok(Vec::new());
+        }
+        let top = searcher.search(&AllQuery, &TopDocs::with_limit(total))?;
+        let mut entries = Vec::with_capacity(top.len());
+        for (_score, addr) in top {
+            let retrieved = searcher.doc::<TantivyDocument>(addr)?;
+            entries.push(IndexEntry {
+                document_id: self.stored_i64(&retrieved, DOCUMENT_ID),
+                path: self.stored_text(&retrieved, PATH),
+            });
+        }
+        Ok(entries)
+    }
+
+    /// 清空索引并写入给定文档，单次提交。
+    pub fn replace_all(&self, docs: &[(Document, String)]) -> Result<()> {
+        let mut writer: IndexWriter = self.index.writer(50_000_000)?;
+        writer.delete_all_documents()?;
+        for (doc, content) in docs {
+            self.add_document(&mut writer, doc, content)?;
+        }
+        writer.commit()?;
+        Ok(())
+    }
+
+    /// 一次提交内删除指定 id，再写入给定文档（同 id 先删后加）。
+    pub fn apply(&self, remove_ids: &[i64], docs: &[(Document, String)]) -> Result<()> {
+        if remove_ids.is_empty() && docs.is_empty() {
+            return Ok(());
+        }
+        let mut writer: IndexWriter = self.index.writer(50_000_000)?;
+        let id_field = self.index.schema().get_field(DOCUMENT_ID)?;
+        for id in remove_ids {
+            writer.delete_term(Term::from_field_i64(id_field, *id));
+        }
+        for (doc, content) in docs {
+            writer.delete_term(Term::from_field_i64(id_field, doc.id));
+            self.add_document(&mut writer, doc, content)?;
+        }
         writer.commit()?;
         Ok(())
     }
@@ -281,22 +346,18 @@ impl Index {
 
     /// 清空后按给定文档批量重建索引。
     pub fn rebuild(&self, docs: &[Document]) -> Result<()> {
-        let mut writer: IndexWriter = self.index.writer(50_000_000)?;
-        writer.delete_all_documents()?;
-        for doc in docs {
-            let content = crate::extract::extract_text(Path::new(&doc.path)).unwrap_or_default();
-            self.add_document(&mut writer, doc, content)?;
-        }
-        writer.commit()?;
-        Ok(())
+        let entries: Vec<(Document, String)> = docs
+            .iter()
+            .map(|doc| {
+                let content =
+                    crate::extract::extract_text(Path::new(&doc.path)).unwrap_or_default();
+                (doc.clone(), content)
+            })
+            .collect();
+        self.replace_all(&entries)
     }
 
-    fn add_document(
-        &self,
-        writer: &mut IndexWriter,
-        doc: &Document,
-        content: String,
-    ) -> Result<()> {
+    fn add_document(&self, writer: &mut IndexWriter, doc: &Document, content: &str) -> Result<()> {
         let schema = self.index.schema();
         let document_id = schema.get_field(DOCUMENT_ID)?;
         let path = schema.get_field(PATH)?;
@@ -306,7 +367,7 @@ impl Index {
             document_id => doc.id,
             path => doc.path.clone(),
             title => doc.title.clone(),
-            content_field => content,
+            content_field => content.to_owned(),
         ))?;
         Ok(())
     }

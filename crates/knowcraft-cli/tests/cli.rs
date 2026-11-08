@@ -185,6 +185,8 @@ fn cleanup_removes_missing_file_entries() {
     assert!(cleanup.status.success());
     let text = String::from_utf8_lossy(&cleanup.stdout);
     assert!(text.contains("removed=1"), "{text}");
+    assert!(text.contains("index_removed=0"), "{text}");
+    assert!(text.contains("reindexed=0"), "{text}");
 }
 
 #[test]

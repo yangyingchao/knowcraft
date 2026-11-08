@@ -1,4 +1,5 @@
 use rusqlite::{params, Connection};
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -445,6 +446,57 @@ impl Store {
         )?;
         let rows = stmt.query_map([], read_document)?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// 按 id 批量取文档，供搜索自愈等批量场景使用。不存在的 id 不出现在结果中。
+    pub fn documents_by_ids(&self, ids: &[i64]) -> Result<HashMap<i64, Document>> {
+        let mut documents = HashMap::new();
+        let conn = self.lock();
+        for chunk in ids.chunks(500) {
+            let placeholders = vec!["?"; chunk.len()].join(", ");
+            let sql = format!(
+                "SELECT id, uuid, storage, original_name, path, doc_type, title, source_url, \
+                 size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status \
+                 FROM documents WHERE id IN ({placeholders})"
+            );
+            let mut stmt = conn.prepare(&sql)?;
+            let values: Vec<rusqlite::types::Value> = chunk
+                .iter()
+                .map(|id| rusqlite::types::Value::Integer(*id))
+                .collect();
+            let rows = stmt.query_map(rusqlite::params_from_iter(values), read_document)?;
+            for row in rows {
+                let document = row?;
+                documents.insert(document.id, document);
+            }
+        }
+        Ok(documents)
+    }
+
+    /// 按 path 批量取文档。不存在的 path 不出现在结果中。
+    pub fn documents_by_paths(&self, paths: &[String]) -> Result<HashMap<String, Document>> {
+        let mut documents = HashMap::new();
+        let conn = self.lock();
+        for chunk in paths.chunks(500) {
+            let placeholders = vec!["?"; chunk.len()].join(", ");
+            let sql = format!(
+                "SELECT id, uuid, storage, original_name, path, doc_type, title, source_url, \
+                 size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status \
+                 FROM documents WHERE path IN ({placeholders})"
+            );
+            let mut stmt = conn.prepare(&sql)?;
+            let values: Vec<rusqlite::types::Value> = chunk
+                .iter()
+                .cloned()
+                .map(rusqlite::types::Value::Text)
+                .collect();
+            let rows = stmt.query_map(rusqlite::params_from_iter(values), read_document)?;
+            for row in rows {
+                let document = row?;
+                documents.insert(document.path.clone(), document);
+            }
+        }
+        Ok(documents)
     }
 
     /// 某标签下的全部文档，按标题排序。

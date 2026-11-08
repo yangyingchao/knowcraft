@@ -98,3 +98,82 @@ fn deleting_an_annotation_removes_its_hits() {
     indexer.reindex_document(document_id).unwrap();
     assert!(index.search("神经网络", 10).unwrap().is_empty());
 }
+
+#[test]
+fn rebuild_clears_stale_entries_and_skips_trashed_and_hidden() {
+    let dir = temp_dir("rebuild");
+    let store = Store::open(&dir).unwrap();
+    let index = Index::open(&dir).unwrap();
+    let indexer = Indexer::new(store.clone(), index.clone());
+
+    let visible = dir.join("visible.md");
+    std::fs::write(&visible, "visible needle").unwrap();
+    store
+        .insert_document(&document(&visible.to_string_lossy(), "visible"))
+        .unwrap();
+
+    let trashed_path = dir.join("trashed.md");
+    std::fs::write(&trashed_path, "trashed needle").unwrap();
+    let mut trashed = document(&trashed_path.to_string_lossy(), "trashed");
+    trashed.lifecycle = "trashed".into();
+    store.insert_document(&trashed).unwrap();
+
+    let hidden_dir = dir.join(".hidden");
+    std::fs::create_dir_all(&hidden_dir).unwrap();
+    let hidden_path = hidden_dir.join("hidden.md");
+    std::fs::write(&hidden_path, "hidden needle").unwrap();
+    store
+        .insert_document(&document(&hidden_path.to_string_lossy(), "hidden"))
+        .unwrap();
+
+    // 先写入一条数据库已不存在的孤儿条目。
+    let mut orphan = document(&visible.to_string_lossy(), "orphan");
+    orphan.id = 99;
+    index.index_document(&orphan).unwrap();
+    assert_eq!(index.num_docs().unwrap(), 1);
+
+    let indexed = indexer.rebuild().unwrap();
+    assert_eq!(indexed, 1, "只应重建可见且未回收的文档");
+    assert_eq!(index.num_docs().unwrap(), 1, "重建应清空遗留孤儿");
+    let hits = index.search("needle", 10).unwrap();
+    assert_eq!(hits.len(), 1);
+    assert!(hits.iter().all(|hit| hit.document_id != 99));
+}
+
+#[test]
+fn reconcile_keeps_valid_entries_without_rebuilding() {
+    let dir = temp_dir("reconcile");
+    let store = Store::open(&dir).unwrap();
+    let path = dir.join("valid.md");
+    std::fs::write(&path, "valid needle").unwrap();
+    let document_id = store
+        .insert_document(&document(&path.to_string_lossy(), "valid"))
+        .unwrap();
+    let index = Index::open(&dir).unwrap();
+    let indexer = Indexer::new(store.clone(), index.clone());
+    indexer.reindex_document(document_id).unwrap();
+
+    let report = indexer.reconcile().unwrap();
+    assert_eq!(report.index_removed, 0);
+    assert_eq!(report.reindexed, 0);
+    assert_eq!(index.search("needle", 10).unwrap().len(), 1);
+}
+
+#[test]
+fn reconcile_removes_entries_whose_database_row_is_trashed() {
+    let dir = temp_dir("reconcile-trashed");
+    let store = Store::open(&dir).unwrap();
+    let path = dir.join("paper.md");
+    std::fs::write(&path, "paper needle").unwrap();
+    let document_id = store
+        .insert_document(&document(&path.to_string_lossy(), "paper"))
+        .unwrap();
+    let index = Index::open(&dir).unwrap();
+    let indexer = Indexer::new(store.clone(), index.clone());
+    indexer.reindex_document(document_id).unwrap();
+
+    store.set_lifecycle(document_id, "trashed").unwrap();
+    let report = indexer.reconcile().unwrap();
+    assert_eq!(report.index_removed, 1);
+    assert!(index.search("needle", 10).unwrap().is_empty());
+}

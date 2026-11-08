@@ -11,6 +11,7 @@ use std::collections::HashSet;
 use crate::{
     error::Result,
     index::{Index, IndexHit},
+    indexer::is_indexable,
     store::Store,
 };
 
@@ -80,7 +81,87 @@ pub fn search(
         return filtered_documents(store, &parsed, limit);
     }
     let allowed = allowed_ids(store, &parsed)?;
-    index.search_filtered(&parsed.full_text, allowed.as_ref(), limit)
+    search_with_healing(store, index, &parsed.full_text, allowed.as_ref(), limit)
+}
+
+/// 全文检索并在返回前用数据库校正结果。
+///
+/// 索引中的 `document_id` 与 `path` 是写入时的快照，可能在数据库删除记录或
+/// 路径被新 id 复用后过期。这里按 id 回查数据库，查不到再按 path 回查；两者
+/// 都没有则丢弃，最终按数据库 id 去重。索引命中可能因此变少，所以按需超取
+/// 后再截断到 `limit`。
+fn search_with_healing(
+    store: &Store,
+    index: &Index,
+    text: &str,
+    allowed: Option<&HashSet<i64>>,
+    limit: usize,
+) -> Result<Vec<IndexHit>> {
+    if limit == 0 {
+        return Ok(Vec::new());
+    }
+    let index_docs = index.num_docs()?;
+    if index_docs == 0 {
+        return Ok(Vec::new());
+    }
+    let mut take = limit.saturating_mul(2).max(limit).min(index_docs);
+    loop {
+        let raw = index.search_filtered(text, allowed, take)?;
+        let more = raw.len() >= take && take < index_docs;
+        let healed = heal_hits(store, raw, limit)?;
+        if healed.len() >= limit || !more {
+            return Ok(healed);
+        }
+        take = take.saturating_mul(2).min(index_docs);
+    }
+}
+
+/// 用数据库校正单批索引命中，并截断到 `limit`。
+fn heal_hits(store: &Store, hits: Vec<IndexHit>, limit: usize) -> Result<Vec<IndexHit>> {
+    if hits.is_empty() {
+        return Ok(Vec::new());
+    }
+    let ids: Vec<i64> = hits.iter().map(|hit| hit.document_id).collect();
+    let by_id = store.documents_by_ids(&ids)?;
+    let paths: Vec<String> = hits
+        .iter()
+        .filter(|hit| !by_id.contains_key(&hit.document_id))
+        .map(|hit| hit.path.clone())
+        .collect();
+    let by_path = if paths.is_empty() {
+        Default::default()
+    } else {
+        store.documents_by_paths(&paths)?
+    };
+
+    let mut seen = HashSet::new();
+    let mut healed = Vec::with_capacity(limit.min(hits.len()));
+    for hit in hits {
+        let resolved = match by_id.get(&hit.document_id) {
+            Some(document) if is_indexable(document) => Some((document.id, document.path.clone())),
+            Some(_) => None,
+            None => by_path
+                .get(&hit.path)
+                .filter(|document| is_indexable(document))
+                .map(|document| (document.id, document.path.clone())),
+        };
+        let Some((document_id, path)) = resolved else {
+            continue;
+        };
+        if !seen.insert(document_id) {
+            continue;
+        }
+        healed.push(IndexHit {
+            document_id,
+            path,
+            title: hit.title,
+            snippet: hit.snippet,
+        });
+        if healed.len() >= limit {
+            break;
+        }
+    }
+    Ok(healed)
 }
 
 /// 无全文词时由 store 直接回答，不要求索引已建立。

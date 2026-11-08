@@ -153,13 +153,7 @@ fn main() -> anyhow::Result<()> {
                 .into_iter()
                 .map(|hit| SearchHit {
                     id: hit.document_id,
-                    // 索引中的 path 可能落后于 dispatch 等只改数据库的操作。
-                    path: store
-                        .get_document(hit.document_id)
-                        .ok()
-                        .flatten()
-                        .map(|doc| doc.path)
-                        .unwrap_or(hit.path),
+                    path: hit.path,
                     title: hit.title,
                     snippet: hit.snippet,
                     tags: tags.remove(&hit.document_id).unwrap_or_default(),
@@ -252,8 +246,8 @@ fn main() -> anyhow::Result<()> {
                 println!();
             }
             println!(
-                "cleanup: scanned={} removed={}",
-                report.scanned, report.removed
+                "cleanup: scanned={} removed={} index_removed={} reindexed={}",
+                report.scanned, report.removed, report.index_removed, report.reindexed
             );
         }
         Cmd::Annotations { cmd } => {

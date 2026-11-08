@@ -88,6 +88,27 @@ fn remove_and_rebuild() {
 }
 
 #[test]
+fn entries_list_live_records_only() {
+    let dir = test_dir("entries");
+    let index = Index::open(&dir).unwrap();
+    let docs = vec![
+        make_doc(1, &dir, "a.md", "md", "alpha"),
+        make_doc(2, &dir, "b.md", "md", "beta"),
+    ];
+    index.rebuild(&docs).unwrap();
+    let mut entries = index.entries().unwrap();
+    entries.sort_by_key(|entry| entry.document_id);
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0].document_id, 1);
+    assert_eq!(entries[0].path, docs[0].path);
+
+    index.remove(1).unwrap();
+    let entries = index.entries().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].document_id, 2);
+}
+
+#[test]
 fn search_finds_chinese_words_through_jieba() {
     let dir = test_dir("jieba");
     let index = Index::open(&dir).unwrap();

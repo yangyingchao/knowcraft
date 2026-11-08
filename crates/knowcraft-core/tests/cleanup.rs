@@ -173,3 +173,56 @@ fn cleanup_with_all_live_files_removes_nothing() {
     assert_eq!(report.scanned, 2);
     assert_eq!(store.list_documents().unwrap().len(), 2);
 }
+
+#[test]
+fn cleanup_removes_orphaned_index_entries() {
+    let dir = test_dir("orphan");
+    let store = Store::open(&dir).unwrap();
+    let index = Index::open(&dir).unwrap();
+
+    let live = store
+        .insert_document(&make_doc(1, &dir, "live.md", "md", "live needle"))
+        .unwrap();
+    index
+        .index_document(&store.get_document(live).unwrap().unwrap())
+        .unwrap();
+
+    // 索引中存在数据库已无对应行的条目。
+    let mut orphan = make_doc(99, &dir, "orphan.md", "md", "orphan needle");
+    orphan.id = 99;
+    index.index_document(&orphan).unwrap();
+    assert_eq!(index.search("needle", 10).unwrap().len(), 2);
+
+    let report = cleanup_documents(&store, &index, |_| {}).unwrap();
+    assert_eq!(report.removed, 0, "文件都在，数据库不应删除任何行");
+    assert_eq!(report.index_removed, 1, "孤儿索引条目应被移除");
+    assert_eq!(
+        index.search("needle", 10).unwrap().len(),
+        1,
+        "清理后只剩数据库中的有效条目"
+    );
+}
+
+#[test]
+fn cleanup_reindexes_an_entry_whose_path_moved_to_a_new_id() {
+    let dir = test_dir("path-reuse");
+    let store = Store::open(&dir).unwrap();
+    let index = Index::open(&dir).unwrap();
+
+    let live = store
+        .insert_document(&make_doc(1, &dir, "live.md", "md", "reuse needle"))
+        .unwrap();
+    // 索引里只有旧 id 的条目，路径已指向数据库中的新 id。
+    let mut stale = store.get_document(live).unwrap().unwrap();
+    stale.id = 99;
+    index.index_document(&stale).unwrap();
+
+    let report = cleanup_documents(&store, &index, |_| {}).unwrap();
+    assert_eq!(report.removed, 0);
+    assert_eq!(report.index_removed, 1, "旧 id 条目应移除");
+    assert_eq!(report.reindexed, 1, "同一路径的有效记录应按新 id 重建");
+
+    let hits = index.search("needle", 10).unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].document_id, live);
+}

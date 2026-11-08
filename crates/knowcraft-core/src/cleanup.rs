@@ -2,8 +2,9 @@
 //! 清理数据库中的失效条目。
 //!
 //! 遍历数据库全部文档，检查对应文件是否仍存在；文件已被外部删除的文档
-//! 连同其关联子表行与索引条目一并移除。GUI 与 CLI 均调用本模块，通过
-//! [`CleanupProgress`] 回调汇报进度。
+//! 连同其关联子表行与索引条目一并移除。删除完成后对索引做单向对账，
+//! 清掉历史遗留的孤儿条目并为路径复用条目补建索引。GUI 与 CLI 均调用本
+//! 模块，通过 [`CleanupProgress`] 回调汇报进度。
 //!
 //! 存在性判定做了批量优化，避免逐个文件 stat：文件所属目录整体缺失时，
 //! 该目录下所有记录直接判定失效，不再对每个文件逐一查盘；目录存在性结果
@@ -14,6 +15,7 @@ use std::path::{Path, PathBuf};
 
 use crate::error::Result;
 use crate::index::Index;
+use crate::indexer::Indexer;
 use crate::store::Store;
 
 /// 单次扫描中的进度快照，供调用方（GUI 进度条、CLI 输出）展示。
@@ -34,6 +36,10 @@ pub struct CleanupReport {
     pub scanned: usize,
     /// 删除的失效条目数。
     pub removed: usize,
+    /// 对账时从索引移除的孤儿条目数。
+    pub index_removed: usize,
+    /// 对账时因路径复用而重建的条目数。
+    pub reindexed: usize,
 }
 
 /// 扫描并清理数据库中文件已不存在的文档。
@@ -56,17 +62,13 @@ pub fn cleanup_documents(
         .collect();
     let total = docs.len();
     let mut processed = 0usize;
-    let mut removed = 0;
+    let mut removed_ids: Vec<i64> = Vec::new();
     let mut last_pct = 0usize;
     let mut dir_cache: HashMap<PathBuf, bool> = HashMap::new();
     for doc in docs {
         let live = file_is_live(Path::new(&doc.path), &mut dir_cache);
         if !live {
-            store.delete_document(doc.id)?;
-            // 未索引条目删除对 tantivy 无害；已索引条目同步移除，避免遗留
-            // 指向已删除文档的搜索命中。
-            index.remove(doc.id)?;
-            removed += 1;
+            removed_ids.push(doc.id);
         }
         processed += 1;
         // 千分比粒度回调：每跨一个千分点（约 0.1%）触发一次。
@@ -78,15 +80,25 @@ pub fn cleanup_documents(
                 on_progress(&CleanupProgress {
                     scanned: processed,
                     total,
-                    removed,
+                    removed: removed_ids.len(),
                 });
                 last_pct = pct;
             }
         }
     }
+    // 先移除索引，再删数据库行：中断时留下“有记录无索引”，可由重建恢复；
+    // 顺序相反会留下指向已删除记录的索引孤儿。
+    index.apply(&removed_ids, &[])?;
+    for id in &removed_ids {
+        store.delete_document(*id)?;
+    }
+    // 单向对账清掉历史遗留的索引孤儿，并为路径复用条目补建索引。
+    let reconcile = Indexer::new(store.clone(), index.clone()).reconcile()?;
     Ok(CleanupReport {
         scanned: total,
-        removed,
+        removed: removed_ids.len(),
+        index_removed: reconcile.index_removed,
+        reindexed: reconcile.reindexed,
     })
 }
 

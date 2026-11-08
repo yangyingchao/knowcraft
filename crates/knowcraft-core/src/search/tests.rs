@@ -127,6 +127,73 @@ fn full_text_and_filter_intersect() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+#[test]
+fn search_drops_index_entries_missing_from_the_database() {
+    let dir = scratch_dir("heal-orphan");
+    let store = Store::open(&dir).expect("store");
+    let mut live = document(&dir, "live.md", "md", "pending");
+    let live_id = store.insert_document(&live).expect("insert live");
+    live.id = live_id;
+    let index = Index::open(&dir).expect("index");
+    let mut orphan = document(&dir, "orphan.md", "md", "pending");
+    orphan.id = 99;
+    index.index_document(&orphan).expect("index orphan");
+    index.index_document(&live).expect("index live");
+
+    let hits = search(&store, &index, "content", 10).expect("search");
+    assert_eq!(ids(&hits), vec![live_id]);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn search_remaps_and_deduplicates_path_reuse() {
+    let dir = scratch_dir("heal-remap");
+    let store = Store::open(&dir).expect("store");
+    let mut live = document(&dir, "live.md", "md", "pending");
+    let live_id = store.insert_document(&live).expect("insert live");
+    live.id = live_id;
+    let index = Index::open(&dir).expect("index");
+    let mut stale = live.clone();
+    stale.id = 99;
+    index.index_document(&stale).expect("index stale");
+    index.index_document(&live).expect("index live");
+
+    let hits = search(&store, &index, "content", 10).expect("search");
+    assert_eq!(ids(&hits), vec![live_id], "同一路径的旧 id 应收敛到新 id");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn search_oversamples_when_top_hits_are_orphans() {
+    let dir = scratch_dir("heal-oversample");
+    let store = Store::open(&dir).expect("store");
+    let mut live = document(&dir, "live.md", "md", "pending");
+    std::fs::write(dir.join("live.md"), "needle").expect("fixture");
+    let live_id = store.insert_document(&live).expect("insert live");
+    live.id = live_id;
+    let index = Index::open(&dir).expect("index");
+    index.index_document(&live).expect("index live");
+    for i in 0..4 {
+        let name = format!("orphan-{i}.md");
+        let path = dir.join(&name);
+        std::fs::write(&path, "needle needle needle needle").expect("fixture");
+        let mut orphan = document(&dir, &name, "md", "pending");
+        orphan.id = 90 + i;
+        index.index_document(&orphan).expect("index orphan");
+    }
+
+    let hits = search(&store, &index, "needle", 1).expect("search");
+    assert_eq!(
+        ids(&hits),
+        vec![live_id],
+        "孤儿命中占满首批时应继续超取直到找到有效记录"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 fn ids(hits: &[IndexHit]) -> Vec<i64> {
     let mut ids: Vec<i64> = hits.iter().map(|hit| hit.document_id).collect();
     ids.sort_unstable();
