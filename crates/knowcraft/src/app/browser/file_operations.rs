@@ -15,7 +15,7 @@ use crate::{
 
 use super::operation_start::OperationDestination;
 use super::undo::{UndoEntry, push_pending_undo, retarget_created_undo};
-use super::{Browser, BrowserEvent};
+use super::{Browser, BrowserEvent, knowledge_sync};
 
 impl Browser {
     pub fn rename(
@@ -183,6 +183,7 @@ impl Browser {
         // still moved the item, but records no undo and leaves the view alone.
         if !self.is_current_operation(request_id) {
             if !new_item {
+                knowledge_sync::move_path(original, current);
                 self.publish_relocation(original, current);
             }
             return;
@@ -197,6 +198,7 @@ impl Browser {
         }
         if new_item {
             retarget_created_undo(original, outermost.clone());
+            knowledge_sync::create(current);
             return;
         }
         let record = MoveRecord {
@@ -213,6 +215,7 @@ impl Browser {
         } else {
             UndoEntry::Move(vec![record])
         });
+        knowledge_sync::move_path(original, current);
         self.publish_relocation(original, current);
         if let (Some(from), Some(to)) = (original.native_path(), current.native_path()) {
             crate::services::refresh_search_indexes_for_rename(from, to);

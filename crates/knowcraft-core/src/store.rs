@@ -412,6 +412,125 @@ impl Store {
         Ok(())
     }
 
+    /// 把单条记录迁移到新路径，并按需更新原名、存储方式与生命周期。
+    ///
+    /// `path` 必改；其余三个字段仅在传入 `Some` 时更新，未给出的保持原值。
+    pub fn relocate(
+        &self,
+        id: i64,
+        new_path: &str,
+        original_name: Option<&str>,
+        storage: Option<&str>,
+        lifecycle: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "UPDATE documents SET path = ?1,
+                 original_name = COALESCE(?2, original_name),
+                 storage = COALESCE(?3, storage),
+                 lifecycle = COALESCE(?4, lifecycle),
+                 updated_at = ?5
+             WHERE id = ?6",
+            params![new_path, original_name, storage, lifecycle, now(), id],
+        )?;
+        Ok(())
+    }
+
+    /// 把 `old_prefix` 下的记录整体迁移到 `new_prefix`，保留子目录层级。
+    ///
+    /// 迁移前先清理 `new_prefix` 下不属于本次搬迁的孤儿记录（含子表），
+    /// 否则改写后的路径可能与既有记录触发 `path` 的 UNIQUE 约束冲突。
+    /// 返回提交前在同一事务内读到的更新后文档。
+    pub fn rebase_paths(&self, old_prefix: &Path, new_prefix: &Path) -> Result<Vec<Document>> {
+        if old_prefix.as_os_str().is_empty()
+            || new_prefix.as_os_str().is_empty()
+            || old_prefix == new_prefix
+        {
+            return Ok(Vec::new());
+        }
+        let old_scope = trailing_separator(old_prefix);
+        let new_scope = trailing_separator(new_prefix);
+        let mut conn = self.lock();
+        let tx = conn.transaction()?;
+        // 位于目标前缀下的记录都属搬迁之外的孤儿，先删子表再删父表。
+        let orphan_ids = {
+            let mut stmt = tx.prepare(
+                "SELECT id FROM documents WHERE substr(path, 1, length(?1)) = ?1",
+            )?;
+            let rows = stmt.query_map(params![new_scope], |r| r.get::<_, i64>(0))?;
+            rows.collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        for id in orphan_ids {
+            delete_document_cascade(&tx, id)?;
+        }
+        // 直接查候选而不调用 documents_under，避免事务内再次取锁造成自死锁。
+        let candidates = {
+            let mut stmt = tx.prepare(
+                "SELECT id, uuid, storage, original_name, path, doc_type, title, source_url, \
+                   size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status \
+                 FROM documents WHERE substr(path, 1, length(?1)) = ?1",
+            )?;
+            let rows = stmt.query_map(params![old_scope], read_document)?;
+            rows.collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        let stamp = now();
+        let mut updated_ids = Vec::with_capacity(candidates.len());
+        for doc in candidates {
+            // 按相对路径拼接，不用字符串 replace，保留子目录层级。
+            let rel = match Path::new(&doc.path).strip_prefix(old_prefix) {
+                Ok(rel) => rel,
+                Err(_) => continue,
+            };
+            let new_path = new_prefix.join(rel).to_string_lossy().into_owned();
+            tx.execute(
+                "UPDATE documents SET path = ?1, updated_at = ?2 WHERE id = ?3",
+                params![new_path, stamp, doc.id],
+            )?;
+            updated_ids.push(doc.id);
+        }
+        // 提交前在同一事务内读取更新后的行，复用 read_document 构造结果。
+        let mut docs = Vec::with_capacity(updated_ids.len());
+        {
+            let mut stmt = tx.prepare(
+                "SELECT id, uuid, storage, original_name, path, doc_type, title, source_url, \
+                   size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status \
+                 FROM documents WHERE id = ?1",
+            )?;
+            for id in updated_ids {
+                docs.push(stmt.query_row(params![id], read_document)?);
+            }
+        }
+        tx.commit()?;
+        Ok(docs)
+    }
+
+    /// 把记录移入回收站：改路径并把生命周期置为 `trashed`。
+    pub fn trash_document(&self, id: i64, new_path: &str) -> Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "UPDATE documents SET path = ?1, lifecycle = 'trashed', updated_at = ?2 WHERE id = ?3",
+            params![new_path, now(), id],
+        )?;
+        Ok(())
+    }
+
+    /// 从回收站还原记录：改路径、存储方式与生命周期。
+    pub fn restore_document(
+        &self,
+        id: i64,
+        new_path: &str,
+        storage: &str,
+        lifecycle: &str,
+    ) -> Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "UPDATE documents SET path = ?1, storage = ?2, lifecycle = ?3, updated_at = ?4 \
+             WHERE id = ?5",
+            params![new_path, storage, lifecycle, now(), id],
+        )?;
+        Ok(())
+    }
+
     pub fn set_lifecycle(&self, id: i64, lifecycle: &str) -> Result<()> {
         let conn = self.lock();
         conn.execute(
@@ -664,6 +783,33 @@ impl Store {
             })
         })?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+}
+
+/// 删除文档及其关联子表行，供已持有写锁的事务内调用。
+///
+/// 与 `Store::delete_document` 顺序一致：先子表后父表，满足外键约束。
+fn delete_document_cascade(conn: &Connection, id: i64) -> Result<()> {
+    conn.execute(
+        "DELETE FROM document_tags WHERE document_id = ?1",
+        params![id],
+    )?;
+    conn.execute("DELETE FROM notes WHERE document_id = ?1", params![id])?;
+    conn.execute(
+        "DELETE FROM annotations WHERE document_id = ?1",
+        params![id],
+    )?;
+    conn.execute("DELETE FROM documents WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+/// 给目录路径补上分隔符，供 SQL 前缀匹配使用。
+fn trailing_separator(path: &Path) -> String {
+    let text = path.to_string_lossy();
+    if text.ends_with(std::path::MAIN_SEPARATOR) {
+        text.into_owned()
+    } else {
+        format!("{text}{}", std::path::MAIN_SEPARATOR)
     }
 }
 

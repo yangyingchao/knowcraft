@@ -110,7 +110,10 @@ pub(super) fn start(
                             location,
                         });
                     } else {
-                        emit(OperationEvent::Created { request_id: id });
+                        emit(OperationEvent::Created {
+                            request_id: id,
+                            location: location.clone(),
+                        });
                     }
                 }
                 // Retry only a collision from atomic creation, never a preflight exists() check.

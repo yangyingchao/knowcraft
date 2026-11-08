@@ -147,6 +147,7 @@ pub(super) fn restore(request: RestoreRequest, emit: Rc<dyn Fn(OperationEvent)>)
                         restored_locations.push(source(&entry));
                         emit(OperationEvent::ItemRestored {
                             request_id: request.id,
+                            from: Some(source(&entry)),
                             location: destination.clone(),
                             identity,
                         });

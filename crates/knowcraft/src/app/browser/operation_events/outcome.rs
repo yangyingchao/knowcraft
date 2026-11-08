@@ -13,6 +13,7 @@ use crate::{
     },
 };
 
+use super::super::knowledge_sync;
 use super::{
     Browser, BrowserEvent, OperationCompletion, OperationContext, UndoEntry, push_pending_undo,
 };
@@ -103,6 +104,7 @@ impl Browser {
     }
 
     fn publish_deletion_outcome(self: &Rc<Self>, mut outcome: Outcome<'_>, event: OperationEvent) {
+        let permanent = outcome.completion.deletion_permanent;
         match event {
             OperationEvent::CompletedWithErrors {
                 deleted_locations,
@@ -111,6 +113,9 @@ impl Browser {
                 message,
                 ..
             } => {
+                if permanent {
+                    knowledge_sync::remove(&deleted_locations);
+                }
                 self.remove_deleted_locations(&deleted_locations, outcome.rescanning);
                 self.refresh_unmonitored_restore_locations(outcome.context, &outcome.completion);
                 self.refresh_retryable_parents(&retryable_locations);
@@ -122,6 +127,9 @@ impl Browser {
                 });
             }
             OperationEvent::Deleted { locations, .. } => {
+                if permanent {
+                    knowledge_sync::remove(&locations);
+                }
                 self.remove_deleted_locations(&locations, outcome.rescanning);
             }
             _ => {}
@@ -213,12 +221,16 @@ impl Browser {
                 });
             }
             OperationEvent::EntryCreated { location, .. } => {
+                knowledge_sync::create(&location);
                 if !outcome.completion.undoing {
                     push_pending_undo(UndoEntry::Copy(vec![location.clone()]));
                 }
                 if self.validation_generation.get() == context.navigation_generation {
                     self.emit(BrowserEvent::EntryCreated { location });
                 }
+            }
+            OperationEvent::Created { location, .. } => {
+                knowledge_sync::create(&location);
             }
             _ => {}
         }

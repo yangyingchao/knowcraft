@@ -21,8 +21,8 @@ use replay::finish_claimed_replay;
 
 use super::{
     Browser, BrowserEvent, MergeUndoState, UndoEntry, completed_replay_items, finish_replay,
-    mark_replay_item_completed, move_records, moved_target, push_pending_redo, push_pending_undo,
-    push_regenerated_undo, retain_merge_records,
+    knowledge_sync, mark_replay_item_completed, move_records, moved_target, push_pending_redo,
+    push_pending_undo, push_regenerated_undo, retain_merge_records,
 };
 
 /// The items a transfer moved, where each landed, and its report.
@@ -297,8 +297,16 @@ impl Browser {
                 deleted_locations, ..
             } => self.publish_removals(changes, deleted_locations),
             OperationEvent::ItemRestored {
-                location, identity, ..
-            } => self.publish_restoration(changes, location, Some(*identity)),
+                location,
+                identity,
+                from,
+                ..
+            } => {
+                if let Some(from) = from {
+                    knowledge_sync::move_path(from, location);
+                }
+                self.publish_restoration(changes, location, Some(*identity))
+            }
             OperationEvent::RestoreProgress {
                 restored_location: Some(location),
                 ..
@@ -448,6 +456,7 @@ impl Browser {
             return;
         };
         let created = self.created_locations.take();
+        knowledge_sync::copy(&created);
         let moved_to = self.moved_items.take();
         if let OperationEvent::Pasted { locations, .. } = event {
             completion.reveal_locations = if moving {
@@ -493,7 +502,7 @@ fn operation_event_id(event: &OperationEvent) -> OperationRequestId {
     match event {
         OperationEvent::Renamed { request_id }
         | OperationEvent::EntryPlaced { request_id, .. }
-        | OperationEvent::Created { request_id }
+        | OperationEvent::Created { request_id, .. }
         | OperationEvent::EntryCreated { request_id, .. }
         | OperationEvent::Pasted { request_id, .. }
         | OperationEvent::ItemMoved { request_id, .. }

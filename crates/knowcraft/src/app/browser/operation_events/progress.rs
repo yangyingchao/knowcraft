@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use crate::{model::Location, services::OperationEvent};
 
+use super::super::knowledge_sync;
 use super::{Browser, BrowserEvent, UndoEntry, mark_replay_item_completed};
 
 fn flushes_visible_changes(event: &OperationEvent) -> bool {
@@ -43,6 +44,9 @@ impl Browser {
                 placed,
                 ..
             } => {
+                let mut targets = created.clone();
+                targets.extend(placed.keys().cloned());
+                knowledge_sync::copy(&targets);
                 self.merged_undo.borrow_mut().merged(
                     source.clone(),
                     created.clone(),

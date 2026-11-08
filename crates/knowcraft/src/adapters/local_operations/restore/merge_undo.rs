@@ -297,6 +297,7 @@ impl MergeUndo {
         }
         (self.emit)(OperationEvent::ItemRestored {
             request_id,
+            from: None,
             location: location.clone(),
             identity,
         });

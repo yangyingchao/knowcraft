@@ -10,7 +10,7 @@ use crate::services::{
     LoadHandle, OperationEvent, OperationRequestId, ReplacedOriginal, TransferReport,
 };
 
-use super::super::push_background_undo;
+use super::super::{knowledge_sync, push_background_undo};
 use super::{
     Browser, BrowserEvent, MergeUndoState, OperationCompletion, OperationContext, UndoEntry,
     replaced_archive_undo,
@@ -165,10 +165,14 @@ impl Browser {
                 overwritten,
                 placed,
                 ..
-            } => job
-                .merged
-                .borrow_mut()
-                .merged(source, created, overwritten, placed),
+            } => {
+                let mut targets = created.clone();
+                targets.extend(placed.keys().cloned());
+                knowledge_sync::copy(&targets);
+                job.merged
+                    .borrow_mut()
+                    .merged(source, created, overwritten, placed)
+            }
             OperationEvent::ItemsReported { report, .. } => {
                 job.merged.borrow_mut().rename(&report.renamed);
                 job.report.borrow_mut().extend(report);
@@ -209,6 +213,8 @@ impl Browser {
                 let trashed = context.location_changes.trashed.take();
                 completion.record_trash_undo(&event, &trashed, push_background_undo);
                 if job.copying {
+                    let created = job.created.borrow().clone();
+                    knowledge_sync::copy(&created);
                     completion.record_transfer_undo(
                         (&[], &HashMap::new(), &TransferReport::default()),
                         job.created.take(),
@@ -237,6 +243,9 @@ impl Browser {
                         emit(BrowserEvent::TransferCompleted);
                     }
                     OperationEvent::Deleted { locations, .. } => {
+                        if completion.deletion_permanent {
+                            knowledge_sync::remove(&locations);
+                        }
                         self.refresh_unmonitored_operation_locations(context, None);
                         self.remove_deleted_locations(&locations, &[]);
                         emit(BrowserEvent::DeletionFinished { succeeded: true });
@@ -248,6 +257,9 @@ impl Browser {
                         message,
                         ..
                     } => {
+                        if completion.deletion_permanent {
+                            knowledge_sync::remove(&deleted_locations);
+                        }
                         self.refresh_unmonitored_operation_locations(context, None);
                         self.remove_deleted_locations(&deleted_locations, &[]);
                         let parents: std::collections::HashSet<_> = retryable_locations

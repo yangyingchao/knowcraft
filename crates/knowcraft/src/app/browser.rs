@@ -31,6 +31,7 @@ mod deferred;
 mod directory_changes;
 mod folder_sorts;
 mod freshness;
+mod knowledge_sync;
 mod leftovers;
 mod loading;
 mod navigation_lifecycle;

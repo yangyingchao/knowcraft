@@ -16,6 +16,7 @@ use std::{
 use knowcraft_core::{
     archive::Archive,
     config::Config,
+    fileops::FileOps,
     index::{Index, IndexHit},
     indexer::Indexer,
     model::{Annotation, Document},
@@ -97,6 +98,8 @@ pub(crate) struct Knowledge {
     tags: Tags,
     trash: Trash,
     archive: Archive,
+    /// 统一文件操作门面，文件层动作与记录/索引维护委托给 core。
+    fileops: FileOps,
     /// 与 PDF 注释写回共享的进程内与跨进程写锁。
     write_lock: Arc<WriteLock>,
 }
@@ -141,6 +144,9 @@ impl Knowledge {
         let trash = Trash::new(data_dir.clone());
         let archive = Archive::new(data_dir.clone()).map_err(|error| error.to_string())?;
         let write_lock = Arc::new(WriteLock::new(&data_dir));
+        let fileops =
+            FileOps::new(store.clone(), index.clone(), data_dir.clone(), write_lock.clone())
+                .map_err(|error| error.to_string())?;
         Ok(Self {
             data_dir,
             store,
@@ -149,6 +155,7 @@ impl Knowledge {
             tags,
             trash,
             archive,
+            fileops,
             write_lock,
         })
     }
@@ -239,25 +246,13 @@ impl Knowledge {
             .map_err(|error| error.to_string())
     }
 
-    /// 删除知识库内的文件：已登记文档保留记录并标记 trashed；未登记文件直接
-    /// 移入回收站。供 GUI 的删除链路调用。
+    /// 删除知识库内的文件：委托 core 的 `FileOps`，已登记文档保留记录并标记
+    /// trashed，未登记文件直接移入回收站。供 GUI 的删除链路调用。
     pub(crate) fn delete_path(&self, path: &Path) -> Result<(), String> {
-        let path_text = path.to_string_lossy();
-        let doc = self
-            .store
-            .find_by_path(&path_text)
-            .map_err(|error| error.to_string())?;
-        match doc {
-            Some(doc) => self
-                .trash
-                .delete_document(&self.store, &self.index, &doc.uuid)
-                .map_err(|error| error.to_string()),
-            None => self
-                .trash
-                .move_path_to_trash(path)
-                .map(|_| ())
-                .map_err(|error| error.to_string()),
-        }
+        self.fileops
+            .delete(path)
+            .map(|_| ())
+            .map_err(|error| error.to_string())
     }
 
     /// 文档的标签；`None` 表示路径不在知识库中。
@@ -402,60 +397,50 @@ impl Knowledge {
 
     /// 文件或目录移动/改名后同步记录与索引。`from`/`to` 为原生路径。
     pub(crate) fn relocate_path(&self, from: &Path, to: &Path) -> Result<usize, String> {
-        if from == to {
-            return Ok(0);
-        }
-        let from_text = from.to_string_lossy();
-        if let Some(doc) = self
-            .store
-            .find_by_path(&from_text)
-            .map_err(|error| error.to_string())?
-        {
-            self.relocate_document(&doc, to)
-                .map_err(|error| error.to_string())?;
-            return Ok(1);
-        }
-        // 目录改名/移动：按旧前缀批量改写其下记录。
-        let docs = self.documents_under(from);
-        let mut moved = 0;
-        for doc in docs {
-            let old = Path::new(&doc.path);
-            let Ok(relative) = old.strip_prefix(from) else {
-                continue;
-            };
-            let target = to.join(relative);
-            match self.relocate_document(&doc, &target) {
-                Ok(()) => moved += 1,
-                Err(error) => tracing::warn!(%error, path = %doc.path, "relocate failed"),
-            }
-        }
+        let _guard = index_guard();
+        let report = self
+            .fileops
+            .record_move(from, to)
+            .map_err(|error| error.to_string())?;
         clear_title_cache();
-        Ok(moved)
+        with_status_cache(|cache| {
+            cache.retain(|path, _| !path.starts_with(from));
+            cache.insert(to.to_path_buf(), "indexed".to_owned());
+        });
+        Ok(report.docs)
     }
 
-    fn relocate_document(&self, doc: &Document, target: &Path) -> Result<(), String> {
+    /// 复制完成后登记目标路径：文件直接登记，目录由 core 递归扫描。
+    pub(crate) fn record_copy(
+        &self,
+        targets: &[PathBuf],
+    ) -> Result<knowcraft_core::fileops::CopyReport, String> {
         let _guard = index_guard();
-        self.store
-            .update_path(doc.id, &target.to_string_lossy())
+        let report = self
+            .fileops
+            .record_copy(targets)
             .map_err(|error| error.to_string())?;
-        if let Some(name) = target.file_name() {
-            let _ = self
-                .store
-                .update_original_name(doc.id, &name.to_string_lossy());
-        }
-        let updated = self
-            .store
-            .get_document(doc.id)
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| "document missing after relocate".to_owned())?;
-        self.index
-            .reindex_document(&updated)
+        clear_title_cache();
+        Ok(report)
+    }
+
+    /// 文件层新建完成后按落点登记；目录返回 `None`，不产生记录。
+    pub(crate) fn record_create(&self, path: &Path) -> Result<Option<Document>, String> {
+        let _guard = index_guard();
+        let created = self
+            .fileops
+            .record_create(path)
             .map_err(|error| error.to_string())?;
-        with_status_cache(|cache| {
-            cache.remove(Path::new(&doc.path));
-            cache.insert(target.to_path_buf(), "indexed".to_owned());
-        });
-        Ok(())
+        clear_title_cache();
+        Ok(created)
+    }
+
+    /// 永久删除完成后删除记录并移出索引；已标记 trashed 的记录保留。
+    pub(crate) fn record_remove(&self, path: &Path) -> Result<(), String> {
+        let _guard = index_guard();
+        self.fileops
+            .record_remove(path)
+            .map_err(|error| error.to_string())
     }
 
     /// 文件列表显示的标题：优先数据库 `title`；空白、`Untitled` 等占位值，或与文件名
@@ -820,6 +805,7 @@ pub(crate) fn spawn_warm_index() {
         knowledge.data_dir.clone(),
         knowledge.store.clone(),
         knowledge.index.clone(),
+        knowledge.write_lock.clone(),
     ) {
         tracing::warn!(%error, "could not start the file watcher");
     }

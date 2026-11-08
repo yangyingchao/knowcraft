@@ -409,6 +409,7 @@ fn superseded_operations_still_report_each_location_they_changed() {
                 vec![
                     OperationEvent::ItemRestored {
                         request_id,
+                        from: None,
                         location: item.clone(),
                         identity,
                     },

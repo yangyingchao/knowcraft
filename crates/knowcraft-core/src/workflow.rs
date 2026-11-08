@@ -33,7 +33,7 @@ impl Workflow {
         Ok(wf)
     }
 
-    fn checksum(&self, path: &Path) -> Result<String> {
+    pub(crate) fn checksum(&self, path: &Path) -> Result<String> {
         use sha2::{Digest, Sha256};
         let bytes = std::fs::read(path)?;
         let digest = Sha256::digest(bytes);
@@ -50,12 +50,20 @@ impl Workflow {
             .ok_or_else(|| Error::Workflow("no file name".into()))?;
         let target = self.data_dir.join("inbox").join(fname);
         self.copy_cloned(src, &target)?;
-        self.register_document(&target, sum)
+        self.register_document(&target, sum, "pending", "linked")
     }
 
-    /// 把已拷贝到 `path` 的文件登记为 pending 文档；add_to_inbox 与
-    /// 目录导入共用。
-    fn register_document(&self, path: &Path, checksum: String) -> Result<Document> {
+    /// 把已拷贝到 `path` 的文件登记为文档；add_to_inbox 与目录导入共用。
+    ///
+    /// `lifecycle` 与 `storage` 由调用方指定；`index_status` 固定为
+    /// pending，等待索引接入。
+    pub(crate) fn register_document(
+        &self,
+        path: &Path,
+        checksum: String,
+        lifecycle: &str,
+        storage: &str,
+    ) -> Result<Document> {
         let fname = path
             .file_name()
             .ok_or_else(|| Error::Workflow("no file name".into()))?;
@@ -63,7 +71,7 @@ impl Workflow {
         let doc = Document {
             id: 0,
             uuid: uuid::Uuid::new_v4().to_string(),
-            storage: "linked".to_string(),
+            storage: storage.to_string(),
             original_name: original_name.clone(),
             path: path.to_string_lossy().into_owned(),
             doc_type: detect_type(fname),
@@ -74,7 +82,7 @@ impl Workflow {
             updated_at: now(),
             checksum,
             ai_summary: None,
-            lifecycle: "pending".into(),
+            lifecycle: lifecycle.into(),
             index_status: "pending".into(),
         };
         let id = self.store.insert_document(&doc)?;
@@ -114,7 +122,7 @@ impl Workflow {
                 std::fs::create_dir_all(parent)?;
             }
             self.copy_cloned(&file, &target)?;
-            self.register_document(&target, sum)?;
+            self.register_document(&target, sum, "pending", "linked")?;
             report.imported += 1;
         }
         Ok(report)
@@ -123,7 +131,7 @@ impl Workflow {
     /// 拷贝文件并尽量使用文件系统 COW：先 reflink（零拷贝克隆），
     /// 失败降级到 `copy_file_range` 分块，再降级到普通拷贝。
     /// 保留源权限位，时间戳与所有权用默认。
-    fn copy_cloned(&self, src: &Path, target: &Path) -> Result<()> {
+    pub(crate) fn copy_cloned(&self, src: &Path, target: &Path) -> Result<()> {
         let source = File::open(src)?;
         let mode = fstat(source.as_fd())
             .map_err(|error| Error::Io(io_error(error)))?
@@ -148,54 +156,28 @@ impl Workflow {
         Ok(())
     }
 
-    /// 登记直接出现在 inbox/ 内的新文件：不做拷贝，checksum 去重。
+    /// 登记直接出现在 inbox/ 内的新文件：不做拷贝，也不做 checksum
+    /// 去重，以路径为身份。
     pub fn register_inbox_file(&self, path: &Path) -> Result<Document> {
-        self.register_created(path, "pending", "linked")
+        let sum = self.checksum(path)?;
+        self.register_document(path, sum, "pending", "linked")
     }
 
     /// 登记直接出现在 library/ 内的新文件：归档态，供检索索引。
+    /// 不做 checksum 去重，以路径为身份。
     pub fn register_library_file(&self, path: &Path) -> Result<Document> {
-        self.register_created(path, "archived", "linked")
+        let sum = self.checksum(path)?;
+        self.register_document(path, sum, "archived", "linked")
     }
 
     /// 登记直接出现在 archived/ 内的新文件：`storage = archived`，归档态。
+    /// 不做 checksum 去重，以路径为身份。
     ///
     /// archived 文件名为 UUID，`title` 仍从内容提取；`original_name` 对存量
     /// 文档不覆盖，仅在确实新建（库内无该路径）时取当前文件名。
     pub fn register_archived_file(&self, path: &Path) -> Result<Document> {
-        self.register_created(path, "archived", "archived")
-    }
-
-    fn register_created(&self, path: &Path, lifecycle: &str, storage: &str) -> Result<Document> {
         let sum = self.checksum(path)?;
-        if self.store.find_by_checksum(&sum)?.is_some() {
-            return Err(Error::Workflow("duplicate document".into()));
-        }
-        let fname = path
-            .file_name()
-            .ok_or_else(|| Error::Workflow("no file name".into()))?;
-        let original_name = fname.to_string_lossy().into_owned();
-        let doc = Document {
-            id: 0,
-            uuid: uuid::Uuid::new_v4().to_string(),
-            storage: storage.to_string(),
-            original_name: original_name.clone(),
-            path: path.to_string_lossy().into_owned(),
-            doc_type: detect_type(fname),
-            title: crate::extract::extract_title(path).unwrap_or(original_name),
-            source_url: None,
-            size: std::fs::metadata(path)?.len() as i64,
-            created_at: now(),
-            updated_at: now(),
-            checksum: sum,
-            ai_summary: None,
-            lifecycle: lifecycle.into(),
-            index_status: "pending".into(),
-        };
-        let id = self.store.insert_document(&doc)?;
-        self.store
-            .get_document(id)?
-            .ok_or_else(|| Error::Store("missing".into()))
+        self.register_document(path, sum, "archived", "archived")
     }
 
     pub fn dispatch(&self, doc_id: i64, category: &str) -> Result<Document> {

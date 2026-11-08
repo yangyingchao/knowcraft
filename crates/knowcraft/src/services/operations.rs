@@ -581,6 +581,8 @@ pub enum OperationEvent {
     },
     Created {
         request_id: OperationRequestId,
+        /// 新条目最终落点，供知识层登记使用。
+        location: Location,
     },
     EntryCreated {
         request_id: OperationRequestId,
@@ -610,6 +612,10 @@ pub enum OperationEvent {
     },
     ItemRestored {
         request_id: OperationRequestId,
+        /// The Trash source (`.trash/files/<name>`) the item came from;
+        /// `None` for a merge undo, whose source record was never moved into
+        /// Trash.
+        from: Option<Location>,
         location: Location,
         identity: ItemIdentity,
     },

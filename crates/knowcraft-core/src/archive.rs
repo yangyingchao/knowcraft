@@ -196,7 +196,7 @@ impl Archive {
 
     /// 移动文件：同设备 `rename`；仅跨设备（EXDEV）时回退 copy + remove，
     /// 其他 `rename` 错误直接返回。
-    fn move_file(&self, src: &Path, target: &Path) -> Result<()> {
+    pub(crate) fn move_file(&self, src: &Path, target: &Path) -> Result<()> {
         match std::fs::rename(src, target) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::CrossesDevices => {

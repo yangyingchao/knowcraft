@@ -1,20 +1,22 @@
-//! 文件系统监听：后台线程监听 `inbox/` 与 `library/`，事件去抖后增量同步索引。
+//! 文件系统监听：后台线程监听五个受管目录，事件去抖后增量同步索引。
 //!
 //! 四类逻辑事件 [`FileEvent`] 由 notify 6 原生事件分类而来（见 [`classify`]）。
+//! `Created`/`Removed`/`Moved` 分支委托 [`FileOps`] 完成记录与索引维护，watcher
+//! 只负责事件分类、去抖与合并；`Modified` 仍由 watcher 自行处理（文本重索引、
+//! PDF 注释吸收）。
+//!
 //! 核心处理集中在 [`Watcher::handle`]，该方法幂等，可脱离监听线程直接调用，
 //! 测试以手动构造事件的方式覆盖，规避真实监听的时序竞态。
 //!
-//! 同进程写操作抑制自反馈：当前 watcher 未接入 GUI 前不追踪本进程发起过的
-//! 移动，也不区分事件来源。它依赖受管位置契约与 [`Watcher::handle`] 的幂等性
-//! 保证安全——同进程写操作（Archive/Trash/move）先更新数据库，watcher 随后看到
-//! 的 Moved 事件在 `find_by_path(from)` 处失配，退化为目标路径的 Created/去重，
-//! 不会产生重复记录或误删。跨进程（外部工具）移动则按 `handle_moved` 的受管
-//! 位置规则兜底。接入 GUI 时若需更严格的抑制，应在此层补充进程内写入追踪，
-//! 而非引入跨进程锁。
+//! 写锁由外部共享：`Watcher::new` 用同一 [`WriteLock`] 实例构造 `FileOps`，
+//! `handle` 本身不持锁，需要写记录时由 `FileOps` 各自取锁，避免同一线程重入。
+//! 同进程写操作（Archive/Trash/move）先更新数据库，watcher 随后看到的 Moved
+//! 事件在 `record_move` 内按 `from` 失配，退化为目标路径的 `record_create`，
+//! 不会产生重复记录或误删。
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::Duration;
 
@@ -22,13 +24,13 @@ use notify::event::{ModifyKind, RenameMode};
 use notify::{Event as NEvent, EventKind, RecursiveMode, Watcher as NotifyWatcher};
 
 use crate::error::{Error, Result};
+use crate::fileops::FileOps;
 use crate::index::Index;
 use crate::indexer::Indexer;
-use crate::pdf_annotations::PdfAnnotations;
-use crate::write_lock::WriteLock;
 use crate::model::Document;
+use crate::pdf_annotations::PdfAnnotations;
 use crate::store::Store;
-use crate::workflow::Workflow;
+use crate::write_lock::WriteLock;
 
 /// 去抖窗口：窗口内同一路径的事件合并为最后一个。
 const DEBOUNCE_MS: u64 = 500;
@@ -47,27 +49,42 @@ pub enum FileEvent {
 pub struct Watcher {
     store: Store,
     index: Index,
-    workflow: Workflow,
+    fileops: FileOps,
     data_dir: PathBuf,
-    write_lock: std::sync::Arc<WriteLock>,
+    write_lock: Arc<WriteLock>,
 }
 
 impl Watcher {
-    pub fn new(store: Store, index: Index, workflow: Workflow, data_dir: PathBuf) -> Watcher {
-        let write_lock = std::sync::Arc::new(WriteLock::new(&data_dir));
-        Watcher {
+    pub fn new(
+        store: Store,
+        index: Index,
+        data_dir: PathBuf,
+        lock: Arc<WriteLock>,
+    ) -> Result<Watcher> {
+        let fileops = FileOps::new(
+            store.clone(),
+            index.clone(),
+            data_dir.clone(),
+            lock.clone(),
+        )?;
+        Ok(Watcher {
             store,
             index,
-            workflow,
+            fileops,
             data_dir,
-            write_lock,
-        }
+            write_lock: lock,
+        })
     }
 
     /// 启动后台监听线程。知识目录不存在时先创建再监听。
     ///
-    /// 传入的 `store`/`index` 副本随线程持有；线程同时构造自己的 [`Workflow`]。
-    pub fn spawn(data_dir: PathBuf, store: Store, index: Index) -> Result<()> {
+    /// 传入的 `store`/`index`/写锁随线程持有；线程内用同一写锁构造 [`Watcher`]。
+    pub fn spawn(
+        data_dir: PathBuf,
+        store: Store,
+        index: Index,
+        lock: Arc<WriteLock>,
+    ) -> Result<()> {
         let mut managed = Vec::new();
         for sub in ["inbox", "library", "notes", "captures", "archived"] {
             let dir = data_dir.join(sub);
@@ -85,12 +102,16 @@ impl Watcher {
             watcher.watch(dir, RecursiveMode::Recursive)?;
         }
 
-        let thread_workflow = Workflow::new(store.clone(), data_dir.clone())?;
-        let mut dispatcher = Watcher::new(store, index, thread_workflow, data_dir);
-
         thread::spawn(move || {
             // watcher 句柄必须存活到线程结束，故在线程内消费。
             let _watcher = watcher;
+            let mut dispatcher = match Watcher::new(store, index, data_dir, lock) {
+                Ok(dispatcher) => dispatcher,
+                Err(error) => {
+                    eprintln!("watcher init error: {error}");
+                    return;
+                }
+            };
             dispatcher.run(rx);
         });
         Ok(())
@@ -206,38 +227,17 @@ impl Watcher {
     /// 处理单个逻辑事件。所有分支幂等：重复触发不产生重复条目或 panic。
     pub fn handle(&self, ev: FileEvent) -> Result<()> {
         match ev {
-            FileEvent::Created(path) => self.handle_created(path),
-            FileEvent::Modified(path) => self.handle_modified(path),
-            FileEvent::Removed(path) => self.handle_removed(path),
-            FileEvent::Moved { from, to } => self.handle_moved(from, to),
-        }
-    }
-
-    fn handle_created(&self, path: PathBuf) -> Result<()> {
-        if !path.is_file() {
-            return Ok(());
-        }
-        match self.location(&path) {
-            Location::Inbox => self.index_new(self.workflow.register_inbox_file(&path)),
-            Location::Library | Location::Notes | Location::Captures => {
-                self.index_new(self.workflow.register_library_file(&path))
+            FileEvent::Created(path) => {
+                self.fileops.record_create(&path)?;
+                Ok(())
             }
-            Location::Archived => self.index_new(self.workflow.register_archived_file(&path)),
-            Location::Trash | Location::Other => Ok(()),
+            FileEvent::Modified(path) => self.handle_modified(path),
+            FileEvent::Removed(path) => self.fileops.record_remove(&path),
+            FileEvent::Moved { from, to } => {
+                self.fileops.record_move(&from, &to)?;
+                Ok(())
+            }
         }
-    }
-
-    /// 登记成功后写索引并标记 indexed；checksum 去重命中时静默忽略。
-    fn index_new(&self, doc: Result<Document>) -> Result<()> {
-        let doc = match doc {
-            Ok(doc) => doc,
-            Err(Error::Workflow(_)) => return Ok(()),
-            Err(e) => return Err(e),
-        };
-        let content = Indexer::content(&self.store, &doc)?;
-        self.index.index_document_with_content(&doc, &content)?;
-        self.store.set_index_status(doc.id, "indexed")?;
-        Ok(())
     }
 
     fn handle_modified(&self, path: PathBuf) -> Result<()> {
@@ -276,109 +276,6 @@ impl Watcher {
         let content = Indexer::content(&self.store, &updated)?;
         self.index.index_document_with_content(&updated, &content)?;
         Ok(())
-    }
-
-    fn handle_removed(&self, path: PathBuf) -> Result<()> {
-        let Some(doc) = self.store.find_by_path(&path_string(&path))? else {
-            return Ok(());
-        };
-        // 已进入回收站（lifecycle = trashed）的记录保留，供按 UUID 恢复；
-        // 其余按移出受管目录处理，删除记录与索引。
-        if doc.lifecycle == "trashed" {
-            return Ok(());
-        }
-        self.index.remove(doc.id)?;
-        self.store.delete_document(doc.id)?;
-        Ok(())
-    }
-
-    fn handle_moved(&self, from: PathBuf, to: PathBuf) -> Result<()> {
-        let Some(doc) = self.store.find_by_path(&path_string(&from))? else {
-            // rename 只捕获到目标端：按目标路径的新建处理。
-            return self.handle_created(to);
-        };
-        if self.location(&to).is_managed() {
-            // 受管目录之间移动：只更新 path 与 original_name，不删记录。
-            self.store.update_path(doc.id, &path_string(&to))?;
-            if self.location(&to) == Location::Archived {
-                // 直接移入 archived/ 时补齐归档语义，与 Archive::archive_record 一致。
-                self.store.update_storage(doc.id, "archived")?;
-                self.store.set_lifecycle(doc.id, "archived")?;
-            }
-            // linked 文档移动到 linked 目录时随改名同步 original_name；
-            // 移到 archived/（文件名为 UUID）则不覆盖，保持数据库已有值。
-            if doc.storage == "linked" && self.location(&to) != Location::Archived {
-                if let Some(name) = to.file_name() {
-                    self.store
-                        .update_original_name(doc.id, &name.to_string_lossy())?;
-                }
-            }
-            let updated = self
-                .store
-                .get_document(doc.id)?
-                .ok_or_else(|| Error::Store("missing".into()))?;
-            let content = Indexer::content(&self.store, &updated)?;
-            self.index.index_document_with_content(&updated, &content)?;
-            return Ok(());
-        }
-        // 移出受管目录（to 为 Trash 或 Other）：删除记录与索引，
-        // 但 lifecycle = trashed 的记录保留。
-        if doc.lifecycle == "trashed" {
-            return Ok(());
-        }
-        self.index.remove(doc.id)?;
-        self.store.delete_document(doc.id)?;
-        Ok(())
-    }
-
-    fn location(&self, path: &Path) -> Location {
-        let inbox = self.data_dir.join("inbox");
-        let library = self.data_dir.join("library");
-        let notes = self.data_dir.join("notes");
-        let captures = self.data_dir.join("captures");
-        let archived = self.data_dir.join("archived");
-        let trash = self.data_dir.join(".trash");
-        if path.starts_with(&inbox) {
-            Location::Inbox
-        } else if path.starts_with(&library) {
-            Location::Library
-        } else if path.starts_with(&notes) {
-            Location::Notes
-        } else if path.starts_with(&captures) {
-            Location::Captures
-        } else if path.starts_with(&archived) {
-            Location::Archived
-        } else if path.starts_with(&trash) {
-            Location::Trash
-        } else {
-            Location::Other
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum Location {
-    Inbox,
-    Library,
-    Notes,
-    Captures,
-    Archived,
-    Trash,
-    Other,
-}
-
-impl Location {
-    /// 是否受管位置：`inbox/library/notes/captures/archived` 属于知识库，
-    /// 其内的移动只更新记录，不删除；`Trash` 与 `Other` 在库外。
-    fn is_managed(&self) -> bool {
-        matches!(
-            self,
-            Location::Inbox
-                | Location::Library
-                | Location::Notes
-                | Location::Captures
-                | Location::Archived
-        )
     }
 }
 

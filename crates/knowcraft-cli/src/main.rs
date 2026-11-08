@@ -9,9 +9,11 @@ use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
 
+use knowcraft_core::fileops::{FileOps, Imported};
 use knowcraft_core::index::Index;
 use knowcraft_core::indexer::Indexer;
 use knowcraft_core::pdf_annotations::PdfAnnotations;
+use knowcraft_core::store::Store;
 use knowcraft_core::tags::Tags;
 use knowcraft_core::workflow::Workflow;
 use knowcraft_core::write_lock::WriteLock;
@@ -70,6 +72,21 @@ enum Cmd {
     Index,
     /// 导入文件或目录到 inbox
     Add { path: PathBuf },
+    /// 在库内新建空文件或目录并登记
+    Create {
+        path: PathBuf,
+        /// 创建目录
+        #[arg(long)]
+        dir: bool,
+    },
+    /// 在库内复制文件或目录，副本登记为独立文档
+    Copy { src: PathBuf, dst: PathBuf },
+    /// 在库内移动或改名文件/目录
+    Move { src: PathBuf, dst: PathBuf },
+    /// 把库内文件或目录移入回收站
+    Delete { path: PathBuf },
+    /// 按 uuid 从回收站恢复
+    Restore { uuid: String },
     /// 将文档归入 library 下的分类目录
     Dispatch { id: i64, category: String },
     /// 抓取网页入库到 captures
@@ -189,16 +206,52 @@ fn main() -> anyhow::Result<()> {
             println!("indexed: {}", indexer.rebuild()?);
         }
         Cmd::Add { path } => {
-            if path.is_dir() {
-                let report = wf.import_directory(&path)?;
-                println!(
+            let ops = file_ops(&store, &cfg.data_dir)?;
+            match ops.import(&absolute(path)?)? {
+                Imported::Directory(report) => println!(
                     "imported: {} skipped_existing={} skipped_duplicate={}",
                     report.imported, report.skipped_existing, report.skipped_duplicate
-                );
-            } else {
-                let doc = wf.add_to_inbox(&path)?;
-                println!("added: id={} path={}", doc.id, doc.path);
+                ),
+                Imported::File(doc) => println!("added: id={} path={}", doc.id, doc.path),
             }
+        }
+        Cmd::Create { path, dir } => {
+            let ops = file_ops(&store, &cfg.data_dir)?;
+            let abs = absolute(path)?;
+            let created = ops.create(&abs, dir)?;
+            let id = created.map_or_else(|| "-".to_string(), |doc| doc.id.to_string());
+            println!("created: path={} id={id}", abs.display());
+        }
+        Cmd::Copy { src, dst } => {
+            let ops = file_ops(&store, &cfg.data_dir)?;
+            let report = ops.copy(&absolute(src)?, &absolute(dst)?)?;
+            println!(
+                "copied: files={} registered={}",
+                report.files, report.registered
+            );
+        }
+        Cmd::Move { src, dst } => {
+            let ops = file_ops(&store, &cfg.data_dir)?;
+            let report = ops.move_path(&absolute(src)?, &absolute(dst)?)?;
+            println!(
+                "moved: docs={} index_failed={}",
+                report.docs, report.index_failed
+            );
+        }
+        Cmd::Delete { path } => {
+            let ops = file_ops(&store, &cfg.data_dir)?;
+            let abs = absolute(path)?;
+            let report = ops.delete(&abs)?;
+            if let [uuid] = report.uuids.as_slice() {
+                println!("trashed: path={} uuid={uuid}", abs.display());
+            } else {
+                println!("trashed: path={} count={}", abs.display(), report.trashed);
+            }
+        }
+        Cmd::Restore { uuid } => {
+            let ops = file_ops(&store, &cfg.data_dir)?;
+            let doc = ops.restore(&uuid)?;
+            println!("restored: path={}", doc.path);
         }
         Cmd::Dispatch { id, category } => {
             let doc = wf.dispatch(id, &category)?;
@@ -332,4 +385,21 @@ fn indexed_documents(
     let mut docs = store.list_by_lifecycle("pending")?;
     docs.extend(store.list_by_lifecycle("archived")?);
     Ok(docs)
+}
+
+/// 把相对路径按当前工作目录换算为绝对路径；绝对路径原样返回。
+fn absolute(path: PathBuf) -> anyhow::Result<PathBuf> {
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        Ok(std::env::current_dir()?.join(path))
+    }
+}
+
+/// 构造绑定到 `data_dir` 的 `FileOps`：索引、写锁与存储均由调用方共享。
+fn file_ops(store: &Store, data_dir: &std::path::Path) -> anyhow::Result<FileOps> {
+    let index = Index::open(data_dir)?;
+    let lock = Arc::new(WriteLock::new(data_dir));
+    FileOps::new(store.clone(), index, data_dir.to_path_buf(), lock)
+        .map_err(Into::into)
 }

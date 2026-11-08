@@ -1,10 +1,11 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use knowcraft_core::index::Index;
 use knowcraft_core::model::Annotation;
 use knowcraft_core::store::Store;
 use knowcraft_core::watcher::{FileEvent, Watcher};
-use knowcraft_core::workflow::Workflow;
+use knowcraft_core::write_lock::WriteLock;
 
 fn path_str(path: &std::path::Path) -> String {
     path.to_string_lossy().into_owned()
@@ -15,8 +16,8 @@ fn setup(suffix: &str) -> (Watcher, Store, Index, PathBuf) {
     let _ = std::fs::remove_dir_all(&dir);
     let store = Store::open(&dir).unwrap();
     let index = Index::open(&dir).unwrap();
-    let workflow = Workflow::new(store.clone(), dir.clone()).unwrap();
-    let watcher = Watcher::new(store.clone(), index.clone(), workflow, dir.clone());
+    let lock = Arc::new(WriteLock::new(&dir));
+    let watcher = Watcher::new(store.clone(), index.clone(), dir.clone(), lock).unwrap();
     (watcher, store, index, dir)
 }
 
@@ -218,7 +219,8 @@ fn spawn_returns_ok_and_watches_existing_dirs() {
     let _ = std::fs::remove_dir_all(&dir);
     let store = Store::open(&dir).unwrap();
     let index = Index::open(&dir).unwrap();
-    Watcher::spawn(dir.clone(), store, index).unwrap();
+    let lock = Arc::new(WriteLock::new(&dir));
+    Watcher::spawn(dir.clone(), store, index, lock).unwrap();
 }
 
 #[test]
@@ -339,12 +341,13 @@ fn move_out_of_managed_dir_deletes_record() {
 
 mod pdf_sync {
     use std::path::PathBuf;
+    use std::sync::Arc;
 
     use knowcraft_core::index::Index;
     use knowcraft_core::pdf_annot_file::PdfFile;
     use knowcraft_core::store::Store;
     use knowcraft_core::watcher::{FileEvent, Watcher};
-    use knowcraft_core::workflow::Workflow;
+    use knowcraft_core::write_lock::WriteLock;
     use pdfcraft_annot::{Markup, Meta, NewAnnotation, Shape, Style};
 
     fn minimal_pdf() -> Vec<u8> {
@@ -387,8 +390,8 @@ mod pdf_sync {
 
         let store = Store::open(&dir).unwrap();
         let index = Index::open(&dir).unwrap();
-        let workflow = Workflow::new(store.clone(), dir.clone()).unwrap();
-        let watcher = Watcher::new(store.clone(), index.clone(), workflow, dir.clone());
+        let lock = Arc::new(WriteLock::new(&dir));
+        let watcher = Watcher::new(store.clone(), index.clone(), dir.clone(), lock).unwrap();
         (dir, path, store, index, watcher)
     }
 

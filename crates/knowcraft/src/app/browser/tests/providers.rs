@@ -54,7 +54,11 @@ fn created_event(
     unique_name: bool,
 ) -> OperationEvent {
     if !unique_name {
-        return OperationEvent::Created { request_id };
+        let child = crate::adapters::gio_file_for_location(parent).child(name);
+        return OperationEvent::Created {
+            request_id,
+            location: crate::adapters::location_for_file(&child).expect("created location"),
+        };
     }
     let child = crate::adapters::gio_file_for_location(parent).child(name);
     OperationEvent::EntryCreated {

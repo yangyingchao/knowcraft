@@ -498,3 +498,115 @@ fn search_jsonl_emits_one_object_per_line() {
     let conflict = run_cli(&dir, &["search", "--json", "--jsonl", "needle"]);
     assert!(!conflict.status.success());
 }
+
+#[test]
+fn file_ops_create_copy_move_delete_restore_chain() {
+    let dir = data_dir("fileops-chain");
+    let created = dir.join("inbox").join("note.md");
+    let out = run_cli(&dir, &["create", created.to_str().unwrap()]);
+    assert!(
+        out.status.success(),
+        "create failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("created:"), "{text}");
+    assert!(text.contains("id="), "{text}");
+    assert!(created.exists());
+
+    let copy = dir.join("inbox").join("note-copy.md");
+    let out = run_cli(
+        &dir,
+        &["copy", created.to_str().unwrap(), copy.to_str().unwrap()],
+    );
+    assert!(
+        out.status.success(),
+        "copy failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout).trim(),
+        "copied: files=1 registered=1"
+    );
+    assert!(copy.exists());
+
+    let moved = dir.join("inbox").join("note-renamed.md");
+    let out = run_cli(&dir, &["move", copy.to_str().unwrap(), moved.to_str().unwrap()]);
+    assert!(
+        out.status.success(),
+        "move failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("moved: docs=1"), "{text}");
+    assert!(moved.exists());
+    assert!(!copy.exists());
+
+    let out = run_cli(&dir, &["delete", moved.to_str().unwrap()]);
+    assert!(
+        out.status.success(),
+        "delete failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    let uuid = text
+        .split_whitespace()
+        .find_map(|word| word.strip_prefix("uuid="))
+        .expect("delete prints the trashed uuid");
+    assert!(!moved.exists());
+
+    let out = run_cli(&dir, &["restore", uuid]);
+    assert!(
+        out.status.success(),
+        "restore failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(String::from_utf8_lossy(&out.stdout).contains("restored:"));
+    assert!(moved.exists());
+}
+
+#[test]
+fn create_outside_data_dir_fails() {
+    let dir = data_dir("fileops-outside");
+    let outside = std::env::temp_dir().join(format!("kc-cli-outside-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&outside);
+    std::fs::create_dir_all(&outside).unwrap();
+    let target = outside.join("x.md");
+
+    let out = run_cli(&dir, &["create", target.to_str().unwrap()]);
+    assert!(
+        !out.status.success(),
+        "create outside the data dir must fail"
+    );
+    assert!(!target.exists());
+}
+
+#[test]
+fn restore_unknown_uuid_fails() {
+    let dir = data_dir("fileops-restore-missing");
+    let out = run_cli(&dir, &["restore", "00000000-0000-0000-0000-000000000000"]);
+    assert!(!out.status.success(), "restoring an unknown uuid must fail");
+}
+
+#[test]
+fn move_onto_existing_target_fails() {
+    let dir = data_dir("fileops-move-exists");
+    let first = dir.join("inbox").join("first.md");
+    let second = dir.join("inbox").join("second.md");
+    for path in [&first, &second] {
+        let out = run_cli(&dir, &["create", path.to_str().unwrap()]);
+        assert!(
+            out.status.success(),
+            "create failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    let out = run_cli(&dir, &["move", first.to_str().unwrap(), second.to_str().unwrap()]);
+    assert!(
+        !out.status.success(),
+        "moving onto an existing target must fail"
+    );
+    assert!(first.exists());
+    assert!(second.exists());
+}
