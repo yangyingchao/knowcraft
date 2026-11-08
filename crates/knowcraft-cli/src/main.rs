@@ -23,6 +23,19 @@ struct Cli {
     cmd: Cmd,
 }
 
+/// `--limit` 允许的最大值；再大只会让 tantivy 一次性分配巨量内存。
+const MAX_LIMIT: i64 = 10_000;
+
+/// `search --json` 的输出契约；字段顺序即 JSON 键序。
+#[derive(serde::Serialize)]
+struct SearchHit {
+    id: i64,
+    path: String,
+    title: String,
+    snippet: String,
+    tags: Vec<String>,
+}
+
 #[derive(Subcommand)]
 enum AnnotationsCmd {
     /// 列出某文档的注释：nm page kind note
@@ -41,7 +54,18 @@ enum TagsCmd {
 enum Cmd {
     /// 全文搜索，返回命中的文档 id 与路径。
     /// 支持前缀：name: 文件名子串、kind: 文档类型、tags: 标签（空格分隔为 AND）
-    Search { query: String },
+    Search {
+        query: String,
+        /// 输出 JSON 数组，供脚本与 Emacs 消费
+        #[arg(long, conflicts_with = "jsonl")]
+        json: bool,
+        /// 每行输出一个 JSON 对象，适合流式消费
+        #[arg(long, conflicts_with = "json")]
+        jsonl: bool,
+        /// 结果上限；0 与 -1 表示全部
+        #[arg(long, default_value_t = 50, allow_negative_numbers = true)]
+        limit: i64,
+    },
     /// 重建搜索索引；搜索本身只读，不触发重建
     Index,
     /// 导入文件或目录到 inbox
@@ -51,7 +75,11 @@ enum Cmd {
     /// 抓取网页入库到 captures
     Capture { url: String },
     /// 查看数据目录、索引文档数与 inbox 计数
-    Status,
+    Status {
+        /// 输出 JSON 对象，供脚本与 Emacs 消费
+        #[arg(long)]
+        json: bool,
+    },
     /// 清理数据库中文件已不存在的失效条目
     Cleanup,
     /// 迁移数据库 schema 并报告回填数量
@@ -81,6 +109,14 @@ enum Cmd {
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    if let Cmd::Search { limit, .. } = &cli.cmd {
+        if *limit < -1 {
+            anyhow::bail!("--limit must be 0, -1, or a positive number");
+        }
+        if *limit > MAX_LIMIT {
+            anyhow::bail!("--limit must be at most {MAX_LIMIT}");
+        }
+    }
     let cfg = knowcraft_core::config::Config::load()?;
     if matches!(&cli.cmd, Cmd::Upgrade) {
         let (_, report) = knowcraft_core::store::Store::open_with_report(&cfg.data_dir)?;
@@ -94,14 +130,56 @@ fn main() -> anyhow::Result<()> {
     let wf = Workflow::new(store.clone(), cfg.data_dir.clone())?;
     match cli.cmd {
         Cmd::Upgrade => {} // 上面已提前返回
-        Cmd::Search { query } => {
+        Cmd::Search {
+            query,
+            json,
+            jsonl,
+            limit,
+        } => {
             let index = Index::open(&cfg.data_dir)?;
-            let hits = knowcraft_core::search::search(&store, &index, &query, 50)?;
-            if hits.is_empty() && indexed_documents(&store)?.is_empty() {
+            let limit = if limit == 0 || limit == -1 {
+                store.count_documents()?
+            } else {
+                limit as usize
+            };
+            let hits = knowcraft_core::search::search(&store, &index, &query, limit)?;
+            // JSON 与 JSONL 模式把空库视为“没有命中”；文本模式保留原有报错。
+            if !json && !jsonl && hits.is_empty() && indexed_documents(&store)?.is_empty() {
                 anyhow::bail!("no documents indexed yet; add files first");
             }
-            for hit in hits {
-                println!("{} {}", hit.document_id, hit.path);
+            let ids: Vec<i64> = hits.iter().map(|hit| hit.document_id).collect();
+            let mut tags = Tags::new(store.clone()).list_for_many(&ids)?;
+            let hits: Vec<SearchHit> = hits
+                .into_iter()
+                .map(|hit| SearchHit {
+                    id: hit.document_id,
+                    // 索引中的 path 可能落后于 dispatch 等只改数据库的操作。
+                    path: store
+                        .get_document(hit.document_id)
+                        .ok()
+                        .flatten()
+                        .map(|doc| doc.path)
+                        .unwrap_or(hit.path),
+                    title: hit.title,
+                    snippet: hit.snippet,
+                    tags: tags.remove(&hit.document_id).unwrap_or_default(),
+                })
+                .collect();
+            if json {
+                let mut output = serde_json::to_vec(&hits)?;
+                output.push(b'\n');
+                std::io::Write::write_all(&mut std::io::stdout().lock(), &output)?;
+            } else if jsonl {
+                let mut output = Vec::new();
+                for hit in &hits {
+                    output.extend_from_slice(&serde_json::to_vec(hit)?);
+                    output.push(b'\n');
+                }
+                std::io::Write::write_all(&mut std::io::stdout().lock(), &output)?;
+            } else {
+                for hit in &hits {
+                    println!("{} {}", hit.id, hit.path);
+                }
             }
         }
         Cmd::Index => {
@@ -137,12 +215,23 @@ fn main() -> anyhow::Result<()> {
             let doc = cap.fetch(&url)?;
             println!("captured: id={} title={}", doc.id, doc.title);
         }
-        Cmd::Status => {
+        Cmd::Status { json } => {
             let inbox = wf.list_inbox()?;
             let docs = indexed_documents(&store)?;
-            println!("data_dir: {}", cfg.data_dir.display());
-            println!("indexed: {}", docs.len());
-            println!("inbox: {}", inbox.len());
+            if json {
+                let payload = serde_json::json!({
+                    "data_dir": cfg.data_dir.display().to_string(),
+                    "indexed": docs.len(),
+                    "inbox": inbox.len(),
+                });
+                let mut output = serde_json::to_vec(&payload)?;
+                output.push(b'\n');
+                std::io::Write::write_all(&mut std::io::stdout().lock(), &output)?;
+            } else {
+                println!("data_dir: {}", cfg.data_dir.display());
+                println!("indexed: {}", docs.len());
+                println!("inbox: {}", inbox.len());
+            }
         }
         Cmd::Cleanup => {
             use std::io::{IsTerminal, Write};

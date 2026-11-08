@@ -429,6 +429,14 @@ impl Store {
         Ok(rows.collect::<std::result::Result<_, _>>()?)
     }
 
+    /// 文档总数。用作搜索“取全部”时的安全上界，不加载文档行。
+    pub fn count_documents(&self) -> Result<usize> {
+        let conn = self.lock();
+        let count: i64 =
+            conn.query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))?;
+        Ok(count.max(0) as usize)
+    }
+
     /// 全部文档，供清理、备份等需要遍历整个库的场景使用。
     pub fn list_documents(&self) -> Result<Vec<Document>> {
         let conn = self.lock();

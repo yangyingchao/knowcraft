@@ -1,4 +1,6 @@
-use rusqlite::{params, OptionalExtension};
+use std::collections::HashMap;
+
+use rusqlite::{params, params_from_iter, OptionalExtension};
 
 use crate::error::Result;
 use crate::model::Document;
@@ -76,6 +78,36 @@ impl Tags {
         ))?;
         let rows = stmt.query_map(params![document_id], |r| r.get::<_, String>(0))?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// 批量取多个文档的标签，返回 `document_id -> 标签列表` 映射。
+    /// 结果顺序与 [`Self::list_for`] 一致（BINARY collation 升序）；
+    /// 没有标签的文档不会出现在映射中。
+    pub fn list_for_many(&self, document_ids: &[i64]) -> Result<HashMap<i64, Vec<String>>> {
+        let mut map: HashMap<i64, Vec<String>> = HashMap::new();
+        if document_ids.is_empty() {
+            return Ok(map);
+        }
+        let conn = self.store.lock();
+        // SQLite 的绑定变量上限通常为 999，按 500 分批留出余量。
+        for chunk in document_ids.chunks(500) {
+            let placeholders = vec!["?"; chunk.len()].join(", ");
+            let sql = format!(
+                "SELECT dt.document_id, t.name FROM tags t \
+                 JOIN document_tags dt ON dt.tag_id = t.id \
+                 WHERE dt.document_id IN ({placeholders}) \
+                 ORDER BY dt.document_id, t.name"
+            );
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map(params_from_iter(chunk), |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            })?;
+            for row in rows {
+                let (document_id, name) = row?;
+                map.entry(document_id).or_default().push(name);
+            }
+        }
+        Ok(map)
     }
 
     /// 标签搜索命中：名称与文档数。

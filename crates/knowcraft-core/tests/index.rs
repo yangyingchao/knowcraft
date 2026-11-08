@@ -48,6 +48,15 @@ fn index_and_search_english() {
 }
 
 #[test]
+fn zero_limit_returns_no_hits_instead_of_panicking() {
+    let dir = test_dir("idx-zero-limit");
+    let index = Index::open(&dir).unwrap();
+    let doc = make_doc(1, &dir, "note.md", "md", "zero limit needle");
+    index.index_document(&doc).unwrap();
+    assert!(index.search("needle", 0).unwrap().is_empty());
+}
+
+#[test]
 fn index_skips_hidden_paths() {
     let dir = test_dir("hidden");
     let index = Index::open(&dir).unwrap();

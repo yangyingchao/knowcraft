@@ -2970,6 +2970,8 @@ dependencies = [
  "anyhow",
  "clap",
  "knowcraft-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

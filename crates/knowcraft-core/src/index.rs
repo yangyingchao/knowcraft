@@ -161,6 +161,10 @@ impl Index {
         query: &dyn tantivy::query::Query,
         limit: usize,
     ) -> Result<Vec<IndexHit>> {
+        // tantivy 的 TopDocs 要求 limit >= 1；0 在此语义上表示不返回结果。
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
         let reader = self.index.reader()?;
         let searcher = reader.searcher();
         let schema = self.index.schema();

@@ -106,6 +106,40 @@ fn removing_a_tag_unlinks_it_and_drops_the_orphan() {
 }
 
 #[test]
+fn list_for_many_matches_list_for_and_skips_untagged_documents() {
+    let dir = std::env::temp_dir().join(format!("kc-ta-many-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Store::open(&dir).unwrap();
+    let tags = Tags::new(store.clone());
+    let first = store.insert_document(&doc("many-first.pdf")).unwrap();
+    let second = store.insert_document(&doc("many-second.pdf")).unwrap();
+    let third = store.insert_document(&doc("many-third.pdf")).unwrap();
+    tags.add(first, "zeta").unwrap();
+    tags.add(first, "alpha").unwrap();
+    tags.add(second, "beta").unwrap();
+
+    let many = tags.list_for_many(&[first, second, third]).unwrap();
+    assert_eq!(
+        many.get(&first).unwrap(),
+        &vec!["alpha".to_string(), "zeta".to_string()]
+    );
+    assert_eq!(many.get(&second).unwrap(), &vec!["beta".to_string()]);
+    assert!(many.get(&third).is_none());
+    assert_eq!(many.get(&first).unwrap(), &tags.list_for(first).unwrap());
+}
+
+#[test]
+fn count_documents_matches_inserted_rows() {
+    let dir = std::env::temp_dir().join(format!("kc-ta-count-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Store::open(&dir).unwrap();
+    assert_eq!(store.count_documents().unwrap(), 0);
+    store.insert_document(&doc("count-a.pdf")).unwrap();
+    store.insert_document(&doc("count-b.pdf")).unwrap();
+    assert_eq!(store.count_documents().unwrap(), 2);
+}
+
+#[test]
 fn tags_search_reports_document_counts_and_lists_documents() {
     let dir = std::env::temp_dir().join(format!("kc-ta-search-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
