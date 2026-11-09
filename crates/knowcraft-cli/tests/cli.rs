@@ -610,3 +610,45 @@ fn move_onto_existing_target_fails() {
     assert!(first.exists());
     assert!(second.exists());
 }
+
+#[test]
+fn ls_lists_files_and_directories() {
+    let data = data_dir("ls-data");
+    let work = data_dir("ls-work");
+    std::fs::write(work.join("a.md"), "x").unwrap();
+    std::fs::create_dir(work.join("sub")).unwrap();
+
+    let out = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+        .env("KNOWCRAFT_DATA_DIR", &data)
+        .current_dir(&work)
+        .arg("ls")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "ls failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "a.md: a.md [unregistered]\nsub: sub\n"
+    );
+
+    let out = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+        .env("KNOWCRAFT_DATA_DIR", &data)
+        .current_dir(&work)
+        .args(["ls", "--json"])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "ls --json failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let value: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(value[0]["path"], "a.md");
+    assert_eq!(value[0]["title"], "a.md");
+    assert_eq!(value[0]["registered"], false);
+    assert_eq!(value[1]["path"], "sub");
+    assert!(value[1].get("registered").is_none());
+}

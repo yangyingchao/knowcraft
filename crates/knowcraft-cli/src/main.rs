@@ -70,6 +70,17 @@ enum Cmd {
     },
     /// 重建搜索索引；搜索本身只读，不触发重建
     Index,
+    /// 列出目录条目：已登记文档显示库内标题，未登记文件加标记
+    Ls {
+        /// 目录；省略时使用当前工作目录
+        dir: Option<PathBuf>,
+        /// 输出 JSON 数组，供脚本与 Emacs 消费
+        #[arg(long, conflicts_with = "jsonl")]
+        json: bool,
+        /// 每行输出一个 JSON 对象，适合流式消费
+        #[arg(long, conflicts_with = "json")]
+        jsonl: bool,
+    },
     /// 导入文件或目录到 inbox
     Add { path: PathBuf },
     /// 在库内新建空文件或目录并登记
@@ -212,6 +223,13 @@ fn main() -> anyhow::Result<()> {
                     println!("{} {}", hit.id, hit.path);
                 }
             }
+        }
+        Cmd::Ls { dir, json, jsonl } => {
+            let cwd = std::env::current_dir()?;
+            let directory = absolute(dir.unwrap_or_else(|| PathBuf::from(".")))?;
+            let entries = knowcraft_core::listing::list_directory(&store, &directory)?;
+            let output = render_ls(&entries, &cwd, json, jsonl)?;
+            std::io::Write::write_all(&mut std::io::stdout().lock(), &output)?;
         }
         Cmd::Index => {
             let lock = Arc::new(WriteLock::new(&cfg.data_dir));
@@ -473,6 +491,63 @@ fn run_sendto(plugin: &str, paths: &[PathBuf]) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// `ls` 的 JSON 行；目录不写 `registered`。
+#[derive(serde::Serialize)]
+struct LsEntry {
+    path: String,
+    title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    registered: Option<bool>,
+}
+
+fn render_ls(
+    entries: &[knowcraft_core::listing::DirectoryEntry],
+    cwd: &std::path::Path,
+    json: bool,
+    jsonl: bool,
+) -> anyhow::Result<Vec<u8>> {
+    let rows: Vec<LsEntry> = entries
+        .iter()
+        .map(|entry| LsEntry {
+            path: relative_path(&entry.path, cwd),
+            title: entry.title.clone(),
+            registered: entry.registered,
+        })
+        .collect();
+    if json {
+        let mut output = serde_json::to_vec(&rows)?;
+        output.push(b'\n');
+        return Ok(output);
+    }
+    if jsonl {
+        let mut output = Vec::new();
+        for row in &rows {
+            output.extend_from_slice(&serde_json::to_vec(row)?);
+            output.push(b'\n');
+        }
+        return Ok(output);
+    }
+    let mut output = String::new();
+    for row in &rows {
+        output.push_str(&row.path);
+        output.push_str(": ");
+        output.push_str(&row.title);
+        if row.registered == Some(false) {
+            output.push_str(" [unregistered]");
+        }
+        output.push('\n');
+    }
+    Ok(output.into_bytes())
+}
+
+/// 相对 shell CWD 的路径；不在 CWD 下时保留绝对路径。
+fn relative_path(path: &std::path::Path, cwd: &std::path::Path) -> String {
+    path.strip_prefix(cwd)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .into_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -519,5 +594,74 @@ mod tests {
         assert!(lines.is_empty());
         let json = render_provider_list(&[], true).expect("render");
         assert_eq!(json, b"[]\n");
+    }
+
+    fn ls_entries() -> Vec<knowcraft_core::listing::DirectoryEntry> {
+        vec![
+            knowcraft_core::listing::DirectoryEntry {
+                path: PathBuf::from("/work/notes/a.md"),
+                title: "Alpha".into(),
+                registered: Some(true),
+            },
+            knowcraft_core::listing::DirectoryEntry {
+                path: PathBuf::from("/work/notes/b.md"),
+                title: "b.md".into(),
+                registered: Some(false),
+            },
+            knowcraft_core::listing::DirectoryEntry {
+                path: PathBuf::from("/work/notes/sub"),
+                title: "sub".into(),
+                registered: None,
+            },
+        ]
+    }
+
+    #[test]
+    fn renders_ls_as_relative_lines() {
+        let output = render_ls(
+            &ls_entries(),
+            std::path::Path::new("/work"),
+            false,
+            false,
+        )
+        .expect("render");
+        assert_eq!(
+            String::from_utf8(output).expect("utf8"),
+            "notes/a.md: Alpha\nnotes/b.md: b.md [unregistered]\nnotes/sub: sub\n"
+        );
+    }
+
+    #[test]
+    fn renders_ls_as_json_and_jsonl() {
+        let json = render_ls(&ls_entries(), std::path::Path::new("/work"), true, false)
+            .expect("render");
+        let value: serde_json::Value = serde_json::from_slice(&json).expect("json");
+        assert_eq!(value[0]["path"], "notes/a.md");
+        assert_eq!(value[0]["registered"], true);
+        assert!(value[2].get("registered").is_none());
+
+        let lines = render_ls(&ls_entries(), std::path::Path::new("/work"), false, true)
+            .expect("render");
+        let text = String::from_utf8(lines).expect("utf8");
+        assert_eq!(text.lines().count(), 3);
+        assert!(
+            text.lines()
+                .all(|line| serde_json::from_str::<serde_json::Value>(line).is_ok())
+        );
+    }
+
+    #[test]
+    fn ls_paths_outside_cwd_stay_absolute() {
+        let entries = vec![knowcraft_core::listing::DirectoryEntry {
+            path: PathBuf::from("/elsewhere/a.md"),
+            title: "a.md".into(),
+            registered: Some(false),
+        }];
+        let output = render_ls(&entries, std::path::Path::new("/work"), false, false)
+            .expect("render");
+        assert_eq!(
+            String::from_utf8(output).expect("utf8"),
+            "/elsewhere/a.md: a.md [unregistered]\n"
+        );
     }
 }

@@ -1,9 +1,14 @@
-1. delete file
+- delete file
   - core: provid api: remove file or dir, either to trash, or delete compeletey.
     * database neends to be updated properly...
   - cli: add subcommand: remove - calls core to delete file.
   - gui: call core api.
 
-3. capture:
+- capture:
    - gui interface.
-   - local files.
+
+
+- cli:
+  - ls: list files in current directory,
+    * plan format: file: title
+    * json/jsonl: {"path":"real_path", "title": "real_title"}

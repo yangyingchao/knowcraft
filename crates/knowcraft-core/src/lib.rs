@@ -9,6 +9,7 @@ pub mod file_providers;
 pub mod fileops;
 pub mod index;
 pub mod indexer;
+pub mod listing;
 pub mod location;
 pub mod model;
 pub mod pdf_annot_file;
