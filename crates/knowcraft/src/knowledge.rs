@@ -597,6 +597,24 @@ impl Knowledge {
         outcome
     }
 
+    /// 抓取网页为 Markdown 文档存入 captures，返回登记的文档。
+    pub(crate) fn capture_url(&self, url: &str) -> Result<Document, String> {
+        let capture =
+            knowcraft_core::capture::Capture::new(self.store.clone(), self.data_dir.clone())
+                .map_err(|error| error.to_string())?;
+        capture.fetch(url).map_err(|error| error.to_string())
+    }
+
+    /// 清理数据库中文件已不存在的失效条目，进度经 `on_progress` 回报。
+    pub(crate) fn cleanup_database(
+        &self,
+        on_progress: impl FnMut(&knowcraft_core::cleanup::CleanupProgress),
+    ) -> Result<knowcraft_core::cleanup::CleanupReport, String> {
+        let _guard = index_guard();
+        knowcraft_core::cleanup::cleanup_documents(&self.store, &self.index, on_progress)
+            .map_err(|error| error.to_string())
+    }
+
     /// Suggests library categories for `path` by content similarity.
     ///
     /// Returns an empty list when the document has no usable text or the index

@@ -1502,5 +1502,16 @@
   "xdg-desktop-portal isn't available, so Knowcraft can't provide file dialogs to other apps.": "xdg-desktop-portal isn't available, so Knowcraft can't provide file dialogs to other apps.",
   "your package manager": "your package manager",
   "{paths} is for whole-selection actions; use {path} for a per-item action": "{paths} is for whole-selection actions; use {path} for a per-item action",
-  "{path} is for per-item actions; use {paths} for a whole selection": "{path} is for per-item actions; use {paths} for a whole selection"
+  "{path} is for per-item actions; use {paths} for a whole selection": "{path} is for per-item actions; use {paths} for a whole selection",
+  "Capture URL": "Capture URL",
+  "Captured %{title}": "Captured %{title}",
+  "Capture": "Capture",
+  "Clean up database": "Clean up database",
+  "Clean up": "Clean up",
+  "Cleaning %{done}/%{total} (removed %{removed})": "Cleaning %{done}/%{total} (removed %{removed})",
+  "Database is already clean": "Database is already clean",
+  "Enter a URL to capture": "Enter a URL to capture",
+  "Removed %{count} stale entries": "Removed %{count} stale entries",
+  "Remove database entries whose files no longer exist.": "Remove database entries whose files no longer exist.",
+  "The knowledge base is unavailable": "The knowledge base is unavailable"
 }

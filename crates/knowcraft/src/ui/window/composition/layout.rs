@@ -31,6 +31,8 @@ pub(super) struct Header {
     pub(super) new_tab: gtk::Button,
     pub(super) content: gtk::Box,
     pub(super) sidebar_toggle: SidebarToggle,
+    pub(super) capture: gtk::Button,
+    pub(super) cleanup: gtk::Button,
     pub(super) settings: gtk::Button,
     #[cfg(test)]
     pub(super) minimize: gtk::Button,
@@ -74,6 +76,12 @@ impl Header {
         let settings_label = crate::i18n::tr("Settings");
         let settings = header_action(icons::SETTINGS, &settings_label);
         crate::ui::accessibility::set_label(&settings, &settings_label);
+        let capture_label = crate::i18n::tr("Capture URL");
+        let capture = header_action(icons::GLOBE, &capture_label);
+        crate::ui::accessibility::set_label(&capture, &capture_label);
+        let cleanup_label = crate::i18n::tr("Clean up database");
+        let cleanup = header_action(icons::SHREDDER, &cleanup_label);
+        crate::ui::accessibility::set_label(&cleanup, &cleanup_label);
         let minimize_label = crate::i18n::tr("Minimize window");
         let minimize = header_action(icons::MINUS, &minimize_label);
         crate::ui::accessibility::set_label(&minimize, &minimize_label);
@@ -127,6 +135,8 @@ impl Header {
         crate::ui::accessibility::set_label(&new_tab, &crate::i18n::tr("New tab"));
         actions.append(&new_tab);
         actions.append(&appearance);
+        actions.append(&capture);
+        actions.append(&cleanup);
         actions.append(&settings);
         actions.append(&minimize);
         actions.append(&maximize);
@@ -142,6 +152,8 @@ impl Header {
             widget,
             content,
             sidebar_toggle,
+            capture,
+            cleanup,
             settings,
             #[cfg(test)]
             minimize,

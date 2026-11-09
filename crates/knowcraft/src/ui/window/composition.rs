@@ -11,6 +11,7 @@ use crate::ui::{
 use super::{SidebarView, TypeToSearch, keyboard};
 
 mod input;
+mod knowledge_actions;
 mod layout;
 mod search;
 mod settings;
@@ -90,6 +91,7 @@ impl WindowContent {
     ) {
         search::install(window, self);
         install_browser_actions(window, &self.actions, &self.browser, preferences);
+        knowledge_actions::install(window, self);
         settings::install(window, self, preferences);
         let click_browser = self.browser.clone();
         let click = gtk::GestureClick::new();

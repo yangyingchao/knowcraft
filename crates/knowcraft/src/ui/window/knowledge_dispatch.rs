@@ -531,5 +531,206 @@ fn append_category_row(list: &gtk::ListBox, category: &str, sample: Option<&str>
     list.append(&row);
 }
 
+/// 弹出输入框抓取网页到 captures；后台执行，完成后反馈并刷新。
+pub(crate) fn present_capture_dialog(
+    parent: &gtk::Window,
+    refresh: Rc<dyn Fn()>,
+    feedback: Rc<dyn Fn(&str)>,
+) {
+    let window = gtk::Window::builder()
+        .modal(true)
+        .transient_for(parent)
+        .title(tr("Capture URL"))
+        .default_width(480)
+        .build();
+    let outer = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    outer.set_margin_top(12);
+    outer.set_margin_bottom(12);
+    outer.set_margin_start(12);
+    outer.set_margin_end(12);
+    let entry = gtk::Entry::builder()
+        .placeholder_text(tr("Enter a URL to capture"))
+        .build();
+    outer.append(&entry);
+    let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    buttons.set_halign(gtk::Align::End);
+    let cancel = gtk::Button::with_label(&tr("Cancel"));
+    let capture = gtk::Button::with_label(&tr("Capture"));
+    capture.add_css_class("suggested-action");
+    buttons.append(&cancel);
+    buttons.append(&capture);
+    outer.append(&buttons);
+    window.set_child(Some(&outer));
+
+    let submit = {
+        let window = window.clone();
+        let entry = entry.clone();
+        let refresh = refresh.clone();
+        let feedback = feedback.clone();
+        Rc::new(move || {
+            let url = entry.text().trim().to_owned();
+            if url.is_empty() {
+                return;
+            }
+            window.close();
+            run_capture(url, refresh.clone(), feedback.clone());
+        })
+    };
+    {
+        let submit = submit.clone();
+        capture.connect_clicked(move |_| submit());
+    }
+    {
+        let submit = submit.clone();
+        entry.connect_activate(move |_| submit());
+    }
+    let cancel_window = window.clone();
+    cancel.connect_clicked(move |_| cancel_window.close());
+    let escape_window = window.clone();
+    crate::ui::modal::close_on_escape(&window, move || escape_window.close());
+    window.present();
+    entry.grab_focus();
+}
+
+fn run_capture(url: String, refresh: Rc<dyn Fn()>, feedback: Rc<dyn Fn(&str)>) {
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<String, String>>();
+    std::thread::spawn(move || {
+        let result = crate::knowledge::init()
+            .ok_or_else(|| tr("The knowledge base is unavailable"))
+            .and_then(|knowledge| {
+                knowledge
+                    .capture_url(&url)
+                    .map(|doc| rust_i18n::t!("Captured %{title}", title = doc.title).into_owned())
+            });
+        let _ = sender.send(result);
+    });
+    poll_result(receiver, refresh, feedback);
+}
+
+/// 弹出确认后清理数据库失效条目，后台执行并在状态栏显示进度。
+pub(crate) fn present_cleanup_dialog(
+    parent: &gtk::Window,
+    refresh: Rc<dyn Fn()>,
+    feedback: Rc<dyn Fn(&str)>,
+    overlay: gtk::Overlay,
+) {
+    let window = gtk::Window::builder()
+        .modal(true)
+        .transient_for(parent)
+        .title(tr("Clean up database"))
+        .default_width(420)
+        .build();
+    let outer = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    outer.set_margin_top(16);
+    outer.set_margin_bottom(16);
+    outer.set_margin_start(16);
+    outer.set_margin_end(16);
+    let message = gtk::Label::new(Some(&tr(
+        "Remove database entries whose files no longer exist.",
+    )));
+    message.set_wrap(true);
+    message.set_xalign(0.0);
+    outer.append(&message);
+    let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    buttons.set_halign(gtk::Align::End);
+    let cancel = gtk::Button::with_label(&tr("Cancel"));
+    let clean = gtk::Button::with_label(&tr("Clean up"));
+    clean.add_css_class("destructive-action");
+    buttons.append(&cancel);
+    buttons.append(&clean);
+    outer.append(&buttons);
+    window.set_child(Some(&outer));
+
+    {
+        let window = window.clone();
+        let refresh = refresh.clone();
+        let feedback = feedback.clone();
+        let overlay = overlay.clone();
+        clean.connect_clicked(move |_| {
+            window.close();
+            run_cleanup(refresh.clone(), feedback.clone(), overlay.clone());
+        });
+    }
+    let cancel_window = window.clone();
+    cancel.connect_clicked(move |_| cancel_window.close());
+    let escape_window = window.clone();
+    crate::ui::modal::close_on_escape(&window, move || escape_window.close());
+    window.present();
+}
+
+enum CleanupEvent {
+    Progress {
+        scanned: usize,
+        total: usize,
+        removed: usize,
+    },
+    Finished(Result<String, String>),
+}
+
+fn run_cleanup(refresh: Rc<dyn Fn()>, feedback: Rc<dyn Fn(&str)>, overlay: gtk::Overlay) {
+    let (sender, receiver) = std::sync::mpsc::channel::<CleanupEvent>();
+    std::thread::spawn(move || {
+        let result = crate::knowledge::init()
+            .ok_or_else(|| tr("The knowledge base is unavailable"))
+            .and_then(|knowledge| {
+                knowledge
+                    .cleanup_database(|progress| {
+                        let _ = sender.send(CleanupEvent::Progress {
+                            scanned: progress.scanned,
+                            total: progress.total,
+                            removed: progress.removed,
+                        });
+                    })
+                    .map(|report| cleanup_message(report.removed))
+            });
+        let _ = sender.send(CleanupEvent::Finished(result));
+    });
+    poll_cleanup(receiver, refresh, feedback, overlay);
+}
+
+fn cleanup_message(removed: usize) -> String {
+    if removed == 0 {
+        tr("Database is already clean")
+    } else {
+        rust_i18n::t!("Removed %{count} stale entries", count = removed).into_owned()
+    }
+}
+
+fn poll_cleanup(
+    receiver: std::sync::mpsc::Receiver<CleanupEvent>,
+    refresh: Rc<dyn Fn()>,
+    feedback: Rc<dyn Fn(&str)>,
+    overlay: gtk::Overlay,
+) {
+    glib::timeout_add_local(Duration::from_millis(50), move || loop {
+        match receiver.try_recv() {
+            Ok(CleanupEvent::Progress {
+                scanned,
+                total,
+                removed,
+            }) => {
+                let text = rust_i18n::t!(
+                    "Cleaning %{done}/%{total} (removed %{removed})",
+                    done = scanned,
+                    total = total,
+                    removed = removed
+                )
+                .into_owned();
+                crate::ui::notice::show_status(&overlay, &text, Duration::from_secs(10));
+            }
+            Ok(CleanupEvent::Finished(result)) => {
+                match result {
+                    Ok(message) => feedback(&message),
+                    Err(error) => feedback(&error),
+                }
+                refresh();
+                return glib::ControlFlow::Break;
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => return glib::ControlFlow::Continue,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => return glib::ControlFlow::Break,
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests;

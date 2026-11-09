@@ -1502,5 +1502,16 @@
   "xdg-desktop-portal isn't available, so Knowcraft can't provide file dialogs to other apps.": "xdg-desktop-portal 不可用，Knowcraft 无法为其他应用提供文件对话框。",
   "your package manager": "包管理器",
   "{paths} is for whole-selection actions; use {path} for a per-item action": "{paths} 仅适用于“全部所选项目”方式的操作；“逐项”方式请使用 {path}",
-  "{path} is for per-item actions; use {paths} for a whole selection": "{path} 仅适用于“逐项”方式的操作；“全部所选项目”方式请使用 {paths}"
+  "{path} is for per-item actions; use {paths} for a whole selection": "{path} 仅适用于“逐项”方式的操作；“全部所选项目”方式请使用 {paths}",
+  "Capture URL": "抓取网页",
+  "Captured %{title}": "已抓取 %{title}",
+  "Capture": "抓取",
+  "Clean up database": "清理数据库",
+  "Clean up": "清理",
+  "Cleaning %{done}/%{total} (removed %{removed})": "正在清理 %{done}/%{total}（已移除 %{removed}）",
+  "Database is already clean": "数据库无需清理",
+  "Enter a URL to capture": "输入要抓取的网址",
+  "Removed %{count} stale entries": "已移除 %{count} 条失效条目",
+  "Remove database entries whose files no longer exist.": "移除数据库中文件已不存在的条目。",
+  "The knowledge base is unavailable": "知识库不可用"
 }
