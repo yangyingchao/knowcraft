@@ -121,26 +121,6 @@ impl SidebarDropFeedback {
         }
     }
 
-    pub(super) fn reorder(&self, row: &gtk::Widget, after: bool) {
-        let class = if after {
-            "reorder-after"
-        } else {
-            "reorder-before"
-        };
-        if is_gap(row) {
-            self.pin(row);
-            return;
-        }
-        let gap = if after {
-            row.next_sibling()
-        } else {
-            row.prev_sibling()
-        };
-        if let Some(gap) = gap.filter(is_gap) {
-            self.show(row, &gap, "eligible", Some(class));
-        }
-    }
-
     fn show(
         &self,
         owner: &gtk::Widget,

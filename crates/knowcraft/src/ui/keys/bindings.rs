@@ -9,21 +9,14 @@ use super::{Binding, Command, Digits};
 /// catalog tests. The F1 reference shows `listed` constants and leaves
 /// `unlisted` ones out.
 ///
-/// A `Command` names its id, and `trigger(Group)` or `step(Group)` for a
-/// chord key or `structural` for a key read through aliases. `= binding` binds
-/// one key and `=> [first, second]` alternates, primary first. A single
-/// command that follows another names it with `after`.
+/// A `Command` names its id, and `structural` for a key read through aliases.
+/// `= binding` binds one key and `=> [first, second]` alternates, primary
+/// first. A single command that follows another names it with `after`.
 macro_rules! catalog {
     (@after) => { None };
     (@after $prefix:path) => { Some($prefix) };
 
     (@kind) => { $crate::ui::keys::command::Kind::Single };
-    (@kind trigger($group:ident)) => {
-        $crate::ui::keys::command::Kind::Trigger($crate::ui::keys::command::Group::$group)
-    };
-    (@kind step($group:ident)) => {
-        $crate::ui::keys::command::Kind::Step($crate::ui::keys::command::Group::$group)
-    };
     (@kind structural) => { $crate::ui::keys::command::Kind::Structural };
 
     (@define [$($attr:tt)*] $name:ident Binding [$($ignored:tt)*] = $value:expr) => {

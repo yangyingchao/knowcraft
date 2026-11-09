@@ -3,14 +3,12 @@
 use std::{
     ffi::OsStr,
     io,
-    os::unix::{ffi::OsStrExt as _, fs::PermissionsExt},
+    os::unix::ffi::OsStrExt as _,
     path::{Path, PathBuf},
     sync::OnceLock,
 };
 
 use serde::Deserialize;
-
-use crate::services::Channel;
 
 const MARKER_RELATIVE_PATH: &str = "share/knowcraft/install-source.toml";
 
@@ -27,13 +25,6 @@ pub enum InstallSource {
 pub struct ManagedInstall {
     manager: Option<String>,
     package: Option<String>,
-    channel: Option<String>,
-    update_command: Option<String>,
-    #[serde(default)]
-    aur_helpers: Vec<String>,
-    alternate_package: Option<String>,
-    #[serde(skip)]
-    installed_aur_helper: OnceLock<Option<String>>,
 }
 
 static DETECTED: OnceLock<InstallSource> = OnceLock::new();
@@ -86,10 +77,6 @@ impl InstallSource {
             Self::Managed(managed) => Some(managed),
         }
     }
-
-    pub fn is_managed(&self) -> bool {
-        self.managed().is_some()
-    }
 }
 
 impl ManagedInstall {
@@ -101,14 +88,6 @@ impl ManagedInstall {
 
     pub fn package(&self) -> Option<&str> {
         self.package.as_deref()
-    }
-
-    pub fn channel(&self) -> Option<&str> {
-        self.channel.as_deref()
-    }
-
-    pub fn alternate_package(&self) -> Option<&str> {
-        self.alternate_package.as_deref()
     }
 
     pub fn ownership_summary(&self) -> String {
@@ -125,79 +104,6 @@ impl ManagedInstall {
         }
     }
 
-    pub fn update_instruction(&self) -> String {
-        self.update_instruction_with(|helper| self.is_installed_aur_helper(helper))
-    }
-
-    pub(crate) fn aur_update_target(&self) -> Option<(&str, &str)> {
-        self.aur_update_target_with(|helper| self.is_installed_aur_helper(helper))
-    }
-
-    pub(crate) fn find_installed_aur_helper(&self) {
-        self.installed_aur_helper.get_or_init(|| {
-            self.aur_helpers
-                .iter()
-                .find(|helper| on_path(helper))
-                .cloned()
-        });
-    }
-
-    fn is_installed_aur_helper(&self, helper: &str) -> bool {
-        self.installed_aur_helper.get().and_then(Option::as_deref) == Some(helper)
-    }
-
-    fn aur_update_target_with(&self, available: impl Fn(&str) -> bool) -> Option<(&str, &str)> {
-        let package = self.package()?;
-        let helper = self.aur_helpers.iter().find(|helper| available(helper))?;
-        Some((helper, package))
-    }
-
-    fn update_instruction_with(&self, available: impl Fn(&str) -> bool + Copy) -> String {
-        if let Some(command) = self.update_command.as_deref() {
-            return rust_i18n::t!("Update Knowcraft with: %{command}", command = command)
-                .into_owned();
-        }
-        if let Some((helper, package)) = self.aur_update_target_with(available) {
-            return rust_i18n::t!(
-                "Update Knowcraft with: %{command}",
-                command = format!("{helper} -Syu {package}")
-            )
-            .into_owned();
-        }
-        if let (Some(helper), Some(package)) = (self.aur_helpers.first(), self.package()) {
-            return rust_i18n::t!(
-                "Update Knowcraft with an AUR helper, for example: %{command}",
-                command = format!("{helper} -Syu {package}")
-            )
-            .into_owned();
-        }
-        rust_i18n::t!(
-            "Update Knowcraft through %{manager}.",
-            manager = self.manager()
-        )
-        .into_owned()
-    }
-
-    pub fn tracked_channel(&self) -> Option<Channel> {
-        match self.channel()? {
-            "stable" => Some(Channel::Stable),
-            "rc" | "preview" => Some(Channel::Preview),
-            "nightly" => Some(Channel::Nightly),
-            _ => None,
-        }
-    }
-
-    pub fn alternate_instruction(&self) -> Option<String> {
-        let alternate = self.alternate_package()?;
-        Some(
-            rust_i18n::t!(
-                "Other release channels are published as %{package}.",
-                package = alternate
-            )
-            .into_owned(),
-        )
-    }
-
     fn normalized(self) -> Self {
         fn present(value: Option<String>) -> Option<String> {
             value.filter(|value| !value.trim().is_empty())
@@ -206,15 +112,6 @@ impl ManagedInstall {
         Self {
             manager: present(self.manager),
             package: present(self.package),
-            channel: present(self.channel),
-            update_command: present(self.update_command),
-            aur_helpers: self
-                .aur_helpers
-                .into_iter()
-                .filter(|helper| !helper.trim().is_empty())
-                .collect(),
-            alternate_package: present(self.alternate_package),
-            installed_aur_helper: self.installed_aur_helper,
         }
     }
 }
@@ -246,31 +143,8 @@ fn marker_path() -> Option<PathBuf> {
         .filter(|path| path.is_file())
 }
 
-fn on_path(program: &str) -> bool {
-    crate::util::ui_thread::assert_off();
-    let Some(path) = std::env::var_os("PATH") else {
-        return false;
-    };
-    std::env::split_paths(&path).any(|directory| {
-        directory
-            .join(program)
-            .metadata()
-            .is_ok_and(|metadata| metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
-    })
-}
-
 fn marker_path_for_executable(executable: &Path) -> Option<PathBuf> {
     Some(executable.parent()?.parent()?.join(MARKER_RELATIVE_PATH))
-}
-
-pub(crate) fn ensure_self_managed(source: &InstallSource) -> Result<(), String> {
-    match source.managed() {
-        None => Ok(()),
-        Some(managed) => Err(crate::i18n::join_sentences(
-            &managed.ownership_summary(),
-            &managed.update_instruction(),
-        )),
-    }
 }
 
 #[cfg(test)]

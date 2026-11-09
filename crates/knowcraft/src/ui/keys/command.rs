@@ -29,36 +29,9 @@ impl Map {
     }
 }
 
-/// A fixed chord group. Its trigger and steps rebind; the group does not.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Group {
-    Go,
-    CopyAs,
-    Sort,
-    Actions,
-    Tabs,
-}
-
-impl Group {
-    /// The trigger's id and the prefix of each step's id.
-    #[cfg(test)]
-    pub(crate) const fn id(self) -> &'static str {
-        match self {
-            Self::Go => "go",
-            Self::CopyAs => "copy_as",
-            Self::Sort => "sort",
-            Self::Actions => "actions",
-            Self::Tabs => "tabs",
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Kind {
     Single,
-    Trigger(Group),
-    /// Matches only while its group's trigger is pending.
-    Step(Group),
     /// Escape, Enter, Tab or an arrow. Its first default binding is the
     /// canonical key its other bindings are read as; see [`super::alias`].
     Structural,
@@ -116,10 +89,6 @@ impl Command {
         match map {
             Map::Default => self.0.default,
         }
-    }
-
-    pub(crate) fn kind(self) -> Kind {
-        self.0.kind
     }
 
     /// The key a structural command's alternates are read as.

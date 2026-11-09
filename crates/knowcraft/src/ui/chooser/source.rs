@@ -10,15 +10,6 @@ pub(super) struct ChooserFileSource {
 }
 
 impl ChooserFileSource {
-    pub(super) fn new() -> Rc<Self> {
-        Rc::new(Self {
-            source: Rc::new(LocalFileSource),
-            filter: Rc::new(RefCell::new(None)),
-            directory_only: Rc::new(Cell::new(false)),
-            root_limit: crate::knowledge::data_dir(),
-        })
-    }
-
     pub(super) fn set_filter(&self, filter: Option<gtk::FileFilter>) {
         self.filter.replace(filter);
     }

@@ -131,7 +131,6 @@ pub(super) struct SidebarState {
     rail_changed: RefCell<Option<RailListener>>,
     keycaps: RefCell<Vec<gtk::Label>>,
     keycaps_shown: Cell<bool>,
-    visible_pins: RefCell<Vec<Location>>,
     drop_feedback: Rc<sidebar_drop_feedback::SidebarDropFeedback>,
 }
 

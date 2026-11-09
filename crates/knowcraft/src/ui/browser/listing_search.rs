@@ -6,18 +6,16 @@
 //! **Include subfolders** preference is never written, and dismissal puts back
 //! the **f** query the search replaced.
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 
 use gtk::{glib, prelude::*};
 
 use super::{BrowserView, listing_filter::Target};
-use crate::{model::Location, ui::browser_modes::BrowserMode};
+use crate::ui::browser_modes::BrowserMode;
 
 #[derive(Default)]
 pub(super) struct SearchState {
     borrowed: RefCell<Option<(glib::WeakRef<gtk::Entry>, String)>>,
-    /// A hit's Miller column is opening beside the hits, not replacing them.
-    opening_hit_column: Cell<bool>,
 }
 
 impl SearchState {
@@ -51,34 +49,12 @@ impl BrowserView {
             .is_some_and(|location| location.native_path().is_some())
     }
 
-    pub(super) fn saved_listing_filter(&self, target: &Target) -> String {
-        self.state.listing_search.saved_filter(target)
-    }
-
     pub(super) fn end_listing_search_for_filter(&self) {
         self.state.listing_search.borrowed.take();
     }
 
     pub(in crate::ui) fn listing_search_active(&self) -> bool {
         self.search_target().is_some()
-    }
-
-    /// Starts an **s** search in the focused listing, remembering its **f**
-    /// query. Returns the text to pre-fill: the current query when a search is
-    /// already showing, or `None` when this listing cannot search subfolders.
-    pub(in crate::ui) fn begin_listing_search(&self) -> Option<String> {
-        let target = self.filter_target()?;
-        if target.searching() {
-            return Some(target.entry().text().to_string());
-        }
-        if !self.supports_listing_search(&target) {
-            return None;
-        }
-        self.state.listing_search.borrowed.replace(Some((
-            target.entry().downgrade(),
-            target.entry().text().to_string(),
-        )));
-        Some(String::new())
     }
 
     /// Shows the hits for `query` below the focused folder. An empty query
@@ -91,9 +67,6 @@ impl BrowserView {
             let saved = self.state.listing_search.saved_filter(&target);
             target.apply(&saved, false);
         } else if self.supports_listing_search(&target) {
-            // The hidden directory's range would otherwise keep the footer
-            // mark and the first Esc. Its fill stays, and the prompt keeps focus.
-            self.state.browser.take_visual();
             self.clear_other_column_filters(&target);
             target.apply(query, true);
         }
@@ -140,37 +113,6 @@ impl BrowserView {
         self.focus_filter_results(&target);
         true
     }
-
-    /// Opens the folder holding the hit under the cursor with that item
-    /// selected, ending the search. Returns `false` without a hit.
-    pub(in crate::ui) fn reveal_listing_search_hit(&self) -> bool {
-        let Some(row) = self
-            .search_target()
-            .and_then(|target| target.current_result())
-        else {
-            return false;
-        };
-        let Some(hit) = crate::ui::browser::collection::result_entry(&row) else {
-            return false;
-        };
-        self.forget_listing_search();
-        self.keyboard_navigation();
-        self.reveal_location(hit.location);
-        true
-    }
-
-    pub(in crate::ui) fn forget_listing_search(&self) {
-        self.state.forget_listing_search();
-    }
-
-    /// Opens a directory hit in the column after `depth` and leaves the
-    /// search showing.
-    pub(in crate::ui) fn open_hit_column(&self, depth: usize, location: Location) {
-        let search = &self.state.listing_search;
-        let nested = search.opening_hit_column.replace(true);
-        self.state.browser.show_child(depth, location);
-        search.opening_hit_column.set(nested);
-    }
 }
 
 impl super::ViewState {
@@ -196,9 +138,6 @@ impl super::ViewState {
     /// Drops the search without restoring anything, for navigation and
     /// leaving the mode: its hits never outlive the folder they came from.
     pub(super) fn forget_listing_search(&self) {
-        if self.listing_search.opening_hit_column.get() {
-            return;
-        }
         self.listing_search.borrowed.take();
         if let Some(target) = self.filter_target().filter(Target::forced_recursive) {
             target.apply("", false);

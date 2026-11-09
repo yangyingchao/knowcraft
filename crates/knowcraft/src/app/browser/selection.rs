@@ -7,7 +7,7 @@ use std::{
 
 use crate::model::{FileEntry, Location};
 
-use super::{Browser, BrowserEvent, CursorToggle, SelectionUpdate, VisualKind, VisualRange};
+use super::{Browser, BrowserEvent, SelectionUpdate};
 
 impl Browser {
     pub fn select(&self, depth: usize, position: usize) {
@@ -15,58 +15,10 @@ impl Browser {
         self.emit_focus(selected.then_some((depth, Some(position))));
     }
 
-    pub fn toggle_cursor_fill(&self) -> CursorToggle {
-        let outcome = self.state.borrow_mut().toggle_cursor_fill();
-        if outcome != CursorToggle::Empty
-            && let Some((depth, position, _)) = self.focused_item()
-        {
-            self.emit_fill(depth, position);
-        }
-        outcome
-    }
-
-    pub fn select_visible(&self, depth: usize) -> bool {
-        let Some((focused, _)) = self.state.borrow_mut().select_visible(depth) else {
-            return false;
-        };
-        self.emit_fill(depth, focused);
-        true
-    }
-
-    pub fn invert_visible(&self, depth: usize) -> bool {
-        let Some((focused, _)) = self.state.borrow_mut().invert_visible(depth) else {
-            return false;
-        };
-        self.emit_fill(depth, focused);
-        true
-    }
-
-    pub fn install_pane_fill(&self, depth: usize, positions: &[usize], cursor: usize) -> bool {
-        if !self
-            .state
-            .borrow_mut()
-            .install_pane_fill(depth, positions, cursor)
-        {
-            return false;
-        }
-        self.emit_fill(depth, cursor);
-        true
-    }
-
-    /// `order` is the pane's displayed order, which an active visual range walks.
-    pub fn set_preserve_fill_on_removal(&self, preserve: bool) {
-        self.state
-            .borrow_mut()
-            .set_preserve_fill_on_removal(preserve);
-    }
-
-    pub fn place_cursor(&self, depth: usize, position: usize, order: Option<&[usize]>) {
+    pub fn place_cursor(&self, depth: usize, position: usize, _order: Option<&[usize]>) {
         let Some(cleared) = self.state.borrow_mut().place_cursor(depth, position) else {
             return;
         };
-        if self.emit_visual_fill(order) {
-            return;
-        }
         if cleared {
             let focused = self
                 .focused_item()
@@ -81,82 +33,6 @@ impl Browser {
                 triggered_by_removal: false,
             });
         }
-    }
-
-    pub fn page_cursor(&self, direction: i32, page: usize, order: Option<&[usize]>) {
-        let moved = self.state.borrow_mut().page_cursor(direction, page, order);
-        if let Some((depth, position, cleared)) = moved {
-            if self.emit_visual_fill(order) {
-                return;
-            }
-            if cleared {
-                self.emit_fill(depth, position);
-            } else {
-                self.emit(BrowserEvent::FocusChanged {
-                    depth,
-                    position: Some(position),
-                    triggered_by_removal: false,
-                });
-            }
-        }
-    }
-
-    pub fn toggle_visual(&self, kind: VisualKind, order: Option<&[usize]>) -> bool {
-        if self.visual_kind() == Some(kind) {
-            self.leave_visual();
-            return true;
-        }
-        let started = self.state.borrow_mut().start_visual(kind, order);
-        let Some((depth, focused, _)) = started else {
-            return false;
-        };
-        self.emit_fill(depth, focused);
-        true
-    }
-
-    pub fn toggle_visual_cursor(&self, order: Option<&[usize]>) -> bool {
-        let toggled = self.state.borrow_mut().toggle_visual_cursor(order);
-        let Some((depth, focused, _)) = toggled else {
-            return false;
-        };
-        self.emit_fill(depth, focused);
-        true
-    }
-
-    pub fn refresh_visual(&self, order: Option<&[usize]>) -> bool {
-        self.emit_visual_fill(order)
-    }
-
-    pub fn leave_visual(&self) -> bool {
-        let valid = self.visual_kind().is_some();
-        if !self.state.borrow_mut().leave_visual() || !valid {
-            return false;
-        }
-        if let Some((depth, position, _)) = self.focused_item() {
-            self.emit_fill(depth, position);
-        }
-        true
-    }
-
-    pub fn take_visual(&self) -> Option<VisualRange> {
-        self.state.borrow_mut().take_visual()
-    }
-
-    pub fn restore_visual(&self, range: Option<VisualRange>) {
-        self.state.borrow_mut().restore_visual(range);
-    }
-
-    pub fn visual_kind(&self) -> Option<VisualKind> {
-        self.state.borrow().visual_kind()
-    }
-
-    pub(super) fn emit_visual_fill(&self, order: Option<&[usize]>) -> bool {
-        let refreshed = self.state.borrow_mut().refresh_visual(order);
-        let Some((depth, focused, _)) = refreshed else {
-            return false;
-        };
-        self.emit_fill(depth, focused);
-        true
     }
 
     pub(super) fn emit_fill(&self, depth: usize, focused: usize) {

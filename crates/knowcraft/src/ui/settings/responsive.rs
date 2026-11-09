@@ -292,15 +292,6 @@ impl ResponsiveBin {
             .borrow_mut()
             .push((flow, columns));
     }
-
-    pub(super) fn add_action(&self, row: gtk::Box, button: gtk::Button) {
-        row.set_orientation(stacked_orientation(self.imp().compact_content.get()));
-        button.set_halign(gtk::Align::Fill);
-        self.imp()
-            .responsive_actions
-            .borrow_mut()
-            .push((row, button));
-    }
 }
 
 /// Whether a segmented control gives any choice less than its one-line width.

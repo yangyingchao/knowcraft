@@ -59,6 +59,7 @@ impl Prompt {
         )
     }
 
+    #[cfg(test)]
     pub(in crate::ui) fn name(self) -> &'static str {
         match self {
             Self::Filter => "Filter this listing",
@@ -184,6 +185,7 @@ impl PromptBar {
         !session.is_open()
     }
 
+    #[cfg(test)]
     fn open(&self, stack: &gtk::Stack, kind: Prompt, text: &str) -> bool {
         // Replacing an open prompt must not hand its text to the new kind.
         self.kind.set(None);
@@ -274,10 +276,12 @@ impl ShortcutFooter {
         self.prompt.entry.add_controller(focus);
     }
 
+    #[cfg(test)]
     pub(in crate::ui) fn open_prompt(&self, kind: Prompt) -> bool {
         self.open_prompt_with(kind, "")
     }
 
+    #[cfg(test)]
     pub(in crate::ui) fn open_prompt_with(&self, kind: Prompt, text: &str) -> bool {
         self.prompt.open(&self.root, kind, text)
     }

@@ -27,7 +27,6 @@ struct StatusRow {
     status: gtk::Box,
     count: gtk::Label,
     paste: gtk::Label,
-    visual: gtk::Label,
     filter: gtk::Label,
     current: CurrentHit,
     prompt: PromptBar,
@@ -83,7 +82,6 @@ impl StatusRow {
         let status = gtk::Box::new(gtk::Orientation::Horizontal, 12);
         let count = status_label("shortcut-footer-count");
         let paste = paste_label();
-        let visual = status_label("shortcut-footer-chord");
         let filter = gtk::Label::new(None);
         filter.add_css_class("shortcut-footer-chord");
         filter.set_ellipsize(gtk::pango::EllipsizeMode::End);
@@ -92,7 +90,7 @@ impl StatusRow {
         let current = CurrentHit::new();
         let prompt = PromptBar::new();
         let feedback = status_label("shortcut-footer-feedback");
-        for widget in [&paste, &filter, &visual, &feedback, &count] {
+        for widget in [&paste, &filter, &feedback, &count] {
             status.append(widget);
         }
         root.add_child(&status);
@@ -102,7 +100,6 @@ impl StatusRow {
             status,
             count,
             paste,
-            visual,
             filter,
             current,
             prompt,
@@ -126,7 +123,6 @@ impl StatusRow {
             self.paste.clone().upcast::<gtk::Widget>(),
             self.count.clone().upcast(),
             more.clone().upcast(),
-            self.visual.clone().upcast(),
             self.filter.clone().upcast(),
             self.current.root.clone().upcast(),
             self.prompt.bar.clone().upcast(),
@@ -354,7 +350,6 @@ impl ShortcutFooter {
             feedback: row.feedback,
             feedback_epoch: Rc::new(Cell::new(0)),
             prompt: row.prompt,
-            visual: row.visual,
             filter: row.filter,
             current: row.current,
             filter_source: Rc::new(RefCell::new(None)),

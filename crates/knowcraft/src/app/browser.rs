@@ -25,7 +25,7 @@ use crate::{
     },
 };
 
-pub use crate::app::navigation::{ColumnEntryCounts, CursorToggle, VisualKind, VisualRange};
+pub use crate::app::navigation::ColumnEntryCounts;
 
 mod deferred;
 mod directory_changes;

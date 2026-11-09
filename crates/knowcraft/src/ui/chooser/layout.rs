@@ -44,7 +44,7 @@ pub(super) fn build_chooser_hosted(
 
     let details = ChooserDetails::build(&request, &filters, selected_filter, &source, &view);
     let actions = ChooserActions::build(&request);
-    let details_scroll = details_scroll(&details, &request, &filters);
+    let details_scroll = details_scroll(&details, &filters);
     let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
     root.append(&header.bar);
     root.append(&panes.preview_split);
@@ -53,10 +53,6 @@ pub(super) fn build_chooser_hosted(
     root.append(&actions.bar);
     attach_root(&window, &root, &view, &actions.accept);
 
-    let filename_source = match &request.kind {
-        ChooserKind::SaveFile { current_name } => current_name.clone(),
-        _ => None,
-    };
     let state = Rc::new(ChooserState {
         request,
         window: window.clone(),
@@ -65,7 +61,6 @@ pub(super) fn build_chooser_hosted(
         filename: details.filename.clone(),
         filename_selection: RefCell::new(Vec::new()),
         filename_edited: Cell::new(false),
-        filename_source: RefCell::new(filename_source),
         filter_dropdown: details.filter_dropdown,
         filters,
         choices: details.choices,
@@ -385,46 +380,21 @@ impl ChooserDetails {
 
 fn name_row(kind: &ChooserKind, details: &gtk::Box) -> Option<gtk::Entry> {
     match kind {
-        ChooserKind::SaveFile { current_name } => Some(name_entry(
-            details,
-            "Enter a filename",
-            current_name.as_deref(),
-        )),
-        ChooserKind::SaveFiles { names } => {
-            let names =
-                crate::i18n::list(names.iter().map(|name| name.to_string_lossy().into_owned()));
-            let label = gtk::Label::new(Some(&names));
-            label.add_css_class("action-dialog-description");
-            label.set_xalign(0.0);
-            label.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
-            crate::ui::accessibility::set_description(&label, Some(&names));
-            let row = labeled_row(&crate::i18n::tr("Files"), Some(label.upcast_ref()));
-            details.append(&row);
-            None
-        }
         ChooserKind::Open {
             directory: false, ..
-        } => Some(name_entry(
-            details,
-            "Enter a filename or https:// URL",
-            None,
-        )),
+        } => Some(name_entry(details, "Enter a filename or https:// URL")),
         ChooserKind::Open {
             directory: true, ..
         } => None,
     }
 }
 
-fn name_entry(details: &gtk::Box, placeholder: &str, initial: Option<&OsStr>) -> gtk::Entry {
+fn name_entry(details: &gtk::Box, placeholder: &str) -> gtk::Entry {
     let row = labeled_row(&crate::i18n::tr("Name"), None::<&gtk::Widget>);
     let entry = form_entry();
     entry.set_hexpand(true);
     entry.set_placeholder_text(Some(&crate::i18n::tr(placeholder)));
     crate::ui::accessibility::set_label(&entry, &crate::i18n::tr("Name"));
-    if let Some(name) = initial {
-        entry.set_text(&name.to_string_lossy());
-        select_name_stem(&entry);
-    }
     row.append(&entry);
     details.append(&row);
     entry
@@ -528,11 +498,7 @@ impl ChooserActions {
     }
 }
 
-fn details_scroll(
-    details: &ChooserDetails,
-    request: &ChooserRequest,
-    filters: &[PortalFilter],
-) -> gtk::ScrolledWindow {
+fn details_scroll(details: &ChooserDetails, filters: &[PortalFilter]) -> gtk::ScrolledWindow {
     let details_scroll = gtk::ScrolledWindow::builder()
         .child(&details.details)
         .hscrollbar_policy(gtk::PolicyType::Never)
@@ -543,8 +509,7 @@ fn details_scroll(
     let has_details = details.filename.is_some()
         || !filters.is_empty()
         || !details.choices.is_empty()
-        || details.read_only.is_some()
-        || matches!(&request.kind, ChooserKind::SaveFiles { .. });
+        || details.read_only.is_some();
     details_scroll.set_visible(has_details);
     details_scroll
 }
@@ -567,7 +532,6 @@ fn connect_actions(
     cancel: &gtk::Button,
     filename: Option<&gtk::Entry>,
 ) {
-    state.install_filename_selection_click();
     let weak = Rc::downgrade(state);
     accept.connect_clicked(move |_| {
         if let Some(state) = weak.upgrade() {
@@ -766,8 +730,6 @@ pub(super) fn chooser_reference(kind: &ChooserKind) -> crate::ui::shortcut_refer
             directory: true,
             multiple,
         } => (ChooserRequest::Folders, *multiple),
-        ChooserKind::SaveFile { .. } => (ChooserRequest::SaveFile, false),
-        ChooserKind::SaveFiles { .. } => (ChooserRequest::SaveFiles, false),
     };
     ChooserScope { request, multiple }
 }

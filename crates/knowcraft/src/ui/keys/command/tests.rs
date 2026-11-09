@@ -6,11 +6,11 @@ use gtk::gdk::{Key, ModifierType as Modifiers};
 
 use super::{
     super::{
-        Binding, CUSTOM_ACTIONS, KeyPress, Shown,
-        bindings::{self, Entry, Listed},
+        Binding, CUSTOM_ACTIONS, KeyPress,
+        bindings::{self, Entry},
         custom_action_slot,
     },
-    Command, Group, Kind, Map, registry,
+    Command, Map, registry,
 };
 
 const MANY_ROLES: &str =
@@ -44,17 +44,6 @@ fn bound(command: Command) -> bool {
     !command.defaults(Map::Default).is_empty()
 }
 
-fn trigger(group: Group) -> Option<Command> {
-    registry().find(|command| command.kind() == Kind::Trigger(group))
-}
-
-fn is_trigger_key(prefix: Shown) -> bool {
-    let Shown::Command(prefix) = prefix else {
-        return false;
-    };
-    matches!(prefix.kind(), Kind::Trigger(_)) && !prefix.defaults(Map::Default).is_empty()
-}
-
 #[test]
 fn listed_commands_are_bound_in_the_maps_that_list_them() {
     let mut checked = 0;
@@ -68,12 +57,12 @@ fn listed_commands_are_bound_in_the_maps_that_list_them() {
                 }
                 checked += 1;
             }
-            // Digit ranges stay fixed; a chord's range belongs to its trigger's group.
-            Entry::Digits(digits) => {
-                if let Some(prefix) = digits.prefix() {
-                    assert!(is_trigger_key(prefix), "{name} follows no chord trigger");
-                }
-            }
+            // Digit ranges stay fixed; a range that follows a chord trigger would
+            // belong to that trigger's group.
+            Entry::Digits(digits) => assert!(
+                digits.prefix().is_none(),
+                "{name} follows a chord trigger that no command declares"
+            ),
             Entry::Binding(_) => assert!(
                 NOT_COMMANDS.iter().any(|(excluded, _)| *excluded == name),
                 "{name} is a fixed binding; make it a command or give it a reason"
@@ -129,62 +118,14 @@ fn ids_are_unique_and_round_trip() {
         let id = command.id();
         assert!(ids.insert(id), "{id} is used twice");
         assert_eq!(Command::parse(id), Some(command));
-        let well_formed = match command.kind() {
-            Kind::Single | Kind::Structural => {
-                word(id)
-                    || custom_action_slot(command)
-                        .is_some_and(|number| id == format!("custom_action.{number}"))
-            }
-            Kind::Trigger(group) => word(id) && id == group.id(),
-            Kind::Step(group) => id
-                .split_once('.')
-                .is_some_and(|(prefix, step)| prefix == group.id() && word(step)),
-        };
-        assert!(well_formed, "{id} does not fit {:?}", command.kind());
+        let well_formed = word(id)
+            || custom_action_slot(command)
+                .is_some_and(|number| id == format!("custom_action.{number}"));
+        assert!(well_formed, "{id} does not fit the command id grammar");
     }
     assert!(!ids.is_empty());
-    for unknown in ["", "Copy", "go.", ".home", "go.home.", "future_command"] {
+    for unknown in ["", "Copy", "future_command"] {
         assert_eq!(Command::parse(unknown), None, "{unknown:?}");
-    }
-}
-
-#[test]
-fn chord_steps_name_their_trigger() {
-    let mut steps = 0;
-    for command in registry() {
-        match command.kind() {
-            Kind::Step(group) => {
-                let Some(trigger) = trigger(group) else {
-                    panic!("{} has no {group:?} trigger", command.id());
-                };
-                assert!(
-                    !trigger.defaults(Map::Default).is_empty(),
-                    "{} is bound in the default map, where {} is not",
-                    command.id(),
-                    trigger.id()
-                );
-                steps += 1;
-            }
-            Kind::Trigger(group) => assert_eq!(
-                registry()
-                    .filter(|other| other.kind() == Kind::Trigger(group))
-                    .count(),
-                1,
-                "{group:?} has more than one trigger"
-            ),
-            Kind::Single | Kind::Structural => {}
-        }
-    }
-    assert!(steps > 0);
-    let listed: Vec<Listed> = bindings::listed().collect();
-    for constant in &listed {
-        if let Some(after) = constant.after {
-            assert!(
-                matches!(after.kind(), Kind::Single),
-                "{} follows a chord trigger, so it must be a step",
-                constant.name
-            );
-        }
     }
 }
 

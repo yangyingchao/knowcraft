@@ -31,68 +31,6 @@ impl BrowserView {
         }
     }
 
-    pub fn select_focused_pane(&self) -> bool {
-        self.keyboard_navigation();
-        let Some(depth) = self.focused_listing_depth() else {
-            return false;
-        };
-        self.state.browser.set_active_column(depth);
-        self.state.browser.select_visible(depth)
-    }
-
-    pub fn invert_focused_pane(&self) -> bool {
-        self.keyboard_navigation();
-        let Some(depth) = self.focused_listing_depth() else {
-            return false;
-        };
-        self.state.browser.set_active_column(depth);
-        self.state.browser.invert_visible(depth)
-    }
-
-    pub fn toggle_cursor_and_advance(&self) -> bool {
-        if let Some(toggled) = self.toggle_result_and_advance() {
-            return toggled;
-        }
-        self.keyboard_navigation();
-        let Some(depth) = self.focused_listing_depth() else {
-            return false;
-        };
-        self.state.browser.set_active_column(depth);
-        if self.state.browser.visual_kind().is_some() {
-            let order = self.displayed_order(depth);
-            return self.state.browser.toggle_visual_cursor(order.as_deref());
-        }
-        if self.state.browser.toggle_cursor_fill() == crate::app::CursorToggle::Empty {
-            return false;
-        }
-        self.move_displayed_cursor(1, 1);
-        true
-    }
-
-    pub fn toggle_visual(&self, kind: crate::app::VisualKind) -> bool {
-        if let Some(toggled) = self.toggle_result_visual(kind) {
-            return toggled;
-        }
-        self.keyboard_navigation();
-        let Some(depth) = self.focused_listing_depth() else {
-            return false;
-        };
-        self.state.browser.set_active_column(depth);
-        let order = self.displayed_order(depth);
-        self.state.browser.toggle_visual(kind, order.as_deref())
-    }
-
-    pub fn refresh_visual(&self) {
-        if let Some(depth) = self.state.browser.active_depth() {
-            let order = self.displayed_order(depth);
-            self.state.browser.refresh_visual(order.as_deref());
-        }
-    }
-
-    pub fn leave_visual(&self) -> bool {
-        self.leave_result_visual() || self.state.browser.leave_visual()
-    }
-
     /// Source positions of one pane in the order it displays them, including
     /// type groups and a Columns filter. `None` falls back to source order.
     pub(super) fn displayed_order(&self, depth: usize) -> Option<Vec<usize>> {
@@ -327,10 +265,6 @@ impl BrowserView {
         self.step_selection_by_page(direction, extend, false)
     }
 
-    pub(in crate::ui) fn half_page_selection(&self, direction: i32) -> bool {
-        self.step_selection_by_page(direction, false, true)
-    }
-
     pub(super) fn step_selection_by_page(&self, direction: i32, extend: bool, half: bool) -> bool {
         let focused = self.state.overlay.root().and_then(|root| root.focus());
         let Some((view, scroll)) = focused
@@ -422,72 +356,6 @@ impl BrowserView {
         }
     }
 
-    pub fn move_displayed_cursor(&self, direction: i32, steps: usize) {
-        let motion = if steps == usize::MAX {
-            crate::ui::scrolling::CursorMotion::Jump
-        } else {
-            crate::ui::scrolling::CursorMotion::Step
-        };
-        self.shift_displayed_cursor(direction, steps, motion);
-    }
-
-    pub(super) fn shift_displayed_cursor(
-        &self,
-        direction: i32,
-        steps: usize,
-        motion: crate::ui::scrolling::CursorMotion,
-    ) {
-        if direction == 0 {
-            return;
-        }
-        self.keyboard_navigation();
-        let steps = steps.max(1);
-        // Filter results replace the directory; its hidden cursor stays put.
-        if self.step_filter_results(direction, steps, true) {
-            return;
-        }
-        let focused = self.state.overlay.root().and_then(|root| root.focus());
-        let collection = focused
-            .as_ref()
-            .and_then(crate::ui::scrolling::focused_collection);
-        let depth = self.state.browser.active_depth();
-        let target = depth.and_then(|depth| {
-            self.state
-                .mode_views
-                .borrow()
-                .page_target(depth, direction, steps)
-                .map(|position| (depth, position))
-        });
-        let order = depth.and_then(|depth| self.displayed_order(depth));
-        let cursor = || {
-            self.state
-                .browser
-                .focused_item()
-                .map(|(depth, position, _)| (depth, position))
-        };
-        let before = cursor();
-        if let Some((depth, position)) = target {
-            self.state
-                .browser
-                .place_cursor(depth, position, order.as_deref());
-        } else {
-            self.state
-                .browser
-                .page_cursor(direction, steps, order.as_deref());
-        }
-        // A move that clears the selection reports a fill, not a focus change.
-        if let Some((depth, position)) = cursor()
-            && Some((depth, position)) != before
-        {
-            self.state
-                .mirror_focused_folder(depth, Some(position), false);
-        }
-        if let Some((view, scroll)) = collection {
-            let position = self.cursor_view_position(&view);
-            crate::ui::scrolling::reveal_cursor(&view, &scroll, direction, motion, position);
-        }
-    }
-
     pub(super) fn cursor_view_position(&self, view: &gtk::Widget) -> Option<u32> {
         let (depth, source, _) = self.state.browser.focused_item()?;
         let columns = self.state.columns.borrow();
@@ -502,18 +370,6 @@ impl BrowserView {
             .mode_views
             .borrow()
             .view_position_in(view, depth, source)
-    }
-
-    pub fn page_displayed_cursor(&self, direction: i32, half: bool) {
-        let focused = self.state.overlay.root().and_then(|root| root.focus());
-        let items = focused
-            .as_ref()
-            .and_then(crate::ui::scrolling::focused_collection)
-            .map(|(view, scroll)| crate::ui::scrolling::page(&view, &scroll).items)
-            .unwrap_or(1)
-            .max(1);
-        let steps = if half { (items / 2).max(1) } else { items };
-        self.shift_displayed_cursor(direction, steps, crate::ui::scrolling::CursorMotion::Page);
     }
 
     /// Moves the focus to the first or last visible entry of the active pane, for

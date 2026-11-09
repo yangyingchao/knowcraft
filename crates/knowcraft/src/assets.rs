@@ -67,7 +67,6 @@ pub mod icons {
     pub const CORNER_DOWN_RIGHT: &str = "knowcraft-corner-down-right";
     pub const FUNNEL: &str = "knowcraft-funnel";
     pub const COLUMNS: &str = "knowcraft-columns";
-    pub const ICONS: &str = "knowcraft-icons";
     pub const HOME: &str = "knowcraft-house";
     pub const LIBRARY: &str = "knowcraft-library";
     pub const LIST: &str = "knowcraft-list";

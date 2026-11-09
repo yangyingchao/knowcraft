@@ -10,9 +10,6 @@ pub(super) struct ChooserState {
     pub(super) filename: Option<gtk::Entry>,
     pub(super) filename_selection: RefCell<Vec<Location>>,
     pub(super) filename_edited: Cell<bool>,
-    /// Exact bytes of the filesystem name last copied into `filename`; the entry
-    /// itself holds only the lossy UTF-8 rendering.
-    pub(super) filename_source: RefCell<Option<OsString>>,
     pub(super) filter_dropdown: Option<ChooserDropdown>,
     pub(super) filters: Vec<PortalFilter>,
     pub(super) choices: Vec<ChoiceControl>,
@@ -329,70 +326,11 @@ impl ChooserState {
 
     pub(super) fn fill_filename(&self, filename: &gtk::Entry, name: &OsStr) {
         filename.set_text(&name.to_string_lossy());
-        self.filename_source.replace(Some(name.to_owned()));
     }
 
     pub(super) fn clear_filename(&self, filename: &gtk::Entry) {
         filename.set_text("");
-        self.filename_source.replace(None);
         self.filename_edited.set(false);
-    }
-
-    pub(super) fn save_destination_name(&self, text: &str) -> OsString {
-        match self.filename_source.borrow().as_deref() {
-            Some(source) if source.to_string_lossy() == text => source.to_owned(),
-            _ => OsString::from(text),
-        }
-    }
-
-    pub(super) fn install_filename_selection_click(self: &Rc<Self>) {
-        if !matches!(self.request.kind, ChooserKind::SaveFile { .. }) {
-            return;
-        }
-        let click = gtk::GestureClick::new();
-        click.set_button(1);
-        click.set_propagation_phase(gtk::PropagationPhase::Capture);
-        let weak = Rc::downgrade(self);
-        click.connect_pressed(move |gesture, _, x, y| {
-            let Some(state) = weak.upgrade() else {
-                return;
-            };
-            let Some(surface) = gesture.widget() else {
-                return;
-            };
-            let Some(picked) = surface.pick(x, y, gtk::PickFlags::DEFAULT) else {
-                return;
-            };
-            if !clicked_entry_row(&surface, picked) {
-                return;
-            }
-            let location = state.view.browser().active_location();
-            let weak = Rc::downgrade(&state);
-            // Re-clicking a highlighted row emits no GTK selection change. Let the
-            // row handlers finish before committing its cursor and refilling the name.
-            glib::idle_add_local_once(move || {
-                if let Some(state) = weak.upgrade() {
-                    state.refill_name_after_click(location);
-                }
-            });
-        });
-        self.view.widget().add_controller(click);
-    }
-
-    fn refill_name_after_click(&self, location: Option<Location>) {
-        let browser = self.view.browser();
-        if !self.window.is_visible() || browser.active_location() != location {
-            return;
-        }
-        if self.view.selected_search_results().is_none()
-            && browser.selection_is_load_cursor()
-            && let Some((depth, position, _)) = browser.focused_item()
-        {
-            browser.commit_selection();
-            browser.set_selection(depth, &browser.selected_positions(depth), Some(position));
-        }
-        self.filename_selection.borrow_mut().clear();
-        self.update_selected_filename();
     }
 
     pub(super) fn update_selected_filename(&self) {
@@ -519,11 +457,6 @@ impl ChooserState {
                 directory,
                 multiple,
             } => self.accept_open(*directory, *multiple),
-            ChooserKind::SaveFile { .. } => self.accept_save_file(),
-            ChooserKind::SaveFiles { names } => match self.active_folder() {
-                Ok(folder) => self.accept_destinations(folder, names.clone()),
-                Err(message) => self.show_error(&crate::i18n::tr(message)),
-            },
         }
     }
 
@@ -664,125 +597,6 @@ impl ChooserState {
         }
     }
 
-    pub(super) fn accept_save_file(self: &Rc<Self>) {
-        let Some(filename) = self.filename.as_ref() else {
-            return;
-        };
-        let name = filename.text().to_string();
-        if let Err(message) = crate::services::validate_basename(&name) {
-            let message = crate::i18n::tr(message);
-            filename.add_css_class("error");
-            crate::ui::accessibility::set_description(filename, Some(&message));
-            self.show_error(&message);
-            filename.grab_focus();
-            return;
-        }
-        filename.remove_css_class("error");
-        crate::ui::accessibility::set_description(filename, None);
-        let folder = match self.active_folder() {
-            Ok(folder) => folder,
-            Err(message) => {
-                self.show_error(&crate::i18n::tr(message));
-                return;
-            }
-        };
-        let name = self.save_destination_name(&name);
-        self.accept_destinations(folder, vec![name]);
-    }
-
-    pub(super) fn accept_destinations(self: &Rc<Self>, folder: PathBuf, names: Vec<OsString>) {
-        if self.destination_check.replace(true) {
-            return;
-        }
-        self.accept_button.set_sensitive(false);
-        let generation = self.accept_generation.get();
-        let weak = Rc::downgrade(self);
-        let _task = glib::MainContext::default().spawn_local(async move {
-            let result = check_destinations(&folder, &names).await;
-            let Some(state) = weak.upgrade() else {
-                return;
-            };
-            state.destination_check.set(false);
-            if state.accept_generation.get() != generation {
-                return;
-            }
-            state.accept_button.set_sensitive(true);
-            if state.completion.borrow().is_none() {
-                return;
-            }
-            let destinations = match result {
-                Ok(destinations) => destinations,
-                Err(message) => {
-                    state.show_error(&message);
-                    return;
-                }
-            };
-            if destinations.existing.is_empty() {
-                state.complete_paths(destinations.paths, None);
-                return;
-            }
-
-            state.confirm_overwrite(destinations);
-        });
-    }
-
-    pub(super) fn confirm_overwrite(self: &Rc<Self>, destinations: DestinationCheck) {
-        let DestinationCheck { paths, existing } = destinations;
-        let Some(overlay) = self.window.child().and_downcast::<gtk::Overlay>() else {
-            return;
-        };
-        let root = overlay.child().and_downcast::<BlurBin>();
-        if let Some(root) = root.as_ref() {
-            root.set_blurred(true);
-        }
-        let names = crate::i18n::list(
-            existing
-                .iter()
-                .take(3)
-                .filter_map(|path| path.file_name())
-                .map(|name| name.to_string_lossy().chars().take(80).collect::<String>()),
-        );
-        let layout = message_dialog_layout(
-            crate::assets::icons::COPY,
-            &crate::i18n::tr(if existing.len() > 1 {
-                "Replace existing files?"
-            } else {
-                "Replace existing file?"
-            }),
-            &names,
-            &crate::i18n::tr("Replace"),
-            ModalTone::Danger,
-        );
-        layout
-            .body
-            .append(&crate::ui::controls::message_dialog_description(
-                &crate::i18n::tr(if existing.len() > 1 {
-                    "One or more destination files already exist. Continuing may overwrite them."
-                } else {
-                    "The destination file already exists. Continuing may overwrite it."
-                }),
-            ));
-        let layer = modal_layer(&layout.content, &overlay, root.clone(), None);
-        overlay.add_overlay(&layer);
-        for button in [&layout.cancel, &layout.close] {
-            let layer = layer.clone();
-            let overlay = overlay.clone();
-            let root = root.clone();
-            button.connect_clicked(move |_| dismiss_modal_layer(&layer, &overlay, root.as_ref()));
-        }
-        let weak = Rc::downgrade(self);
-        let confirmed_layer = layer.clone();
-        layout.confirm.connect_clicked(move |_| {
-            dismiss_modal_layer(&confirmed_layer, &overlay, root.as_ref());
-            if let Some(state) = weak.upgrade() {
-                state.complete_paths(paths.clone(), None);
-            }
-        });
-        let cancel = layout.cancel.clone();
-        close_on_escape(&layer, move || cancel.emit_clicked());
-        focus_button(&layout.cancel);
-    }
-
     pub(super) fn confirm_file(self: &Rc<Self>, entry: &FileEntry) {
         if self.completion.borrow().is_none() || !self.view.browser().allows_entry(entry) {
             return;
@@ -811,61 +625,21 @@ impl ChooserState {
         self.activate_file(&entry.location);
     }
 
-    pub(super) fn edit_name(&self) {
-        let Some(filename) = self.filename.as_ref() else {
-            return;
-        };
-        filename.grab_focus_without_selecting();
-        select_name_stem(filename);
-    }
-
     pub(super) fn activate_file(self: &Rc<Self>, location: &Location) {
         if self.download_in_progress() {
             return;
         }
-        match &self.request.kind {
-            ChooserKind::Open {
-                directory: false, ..
-            } => {
-                let Some(path) = location.native_path() else {
-                    self.show_error(&crate::i18n::tr("Choose a local file"));
-                    return;
-                };
-                self.complete_paths(vec![path.to_path_buf()], self.writable());
-            }
-            ChooserKind::SaveFile { .. } => {
-                let Some((folder, name)) = location
-                    .native_path()
-                    .and_then(|path| Some((path.parent()?, path.file_name()?)))
-                    .filter(|(_, name)| safe_filename(name))
-                    .map(|(folder, name)| (folder.to_owned(), name.to_owned()))
-                else {
-                    return;
-                };
-                if let Some(filename) = self.filename.as_ref() {
-                    self.fill_filename(filename, &name);
-                }
-                self.accept_destinations(folder, vec![name]);
-            }
-            _ => {}
+        if let ChooserKind::Open {
+            directory: false, ..
+        } = &self.request.kind
+        {
+            let Some(path) = location.native_path() else {
+                self.show_error(&crate::i18n::tr("Choose a local file"));
+                return;
+            };
+            self.complete_paths(vec![path.to_path_buf()], self.writable());
         }
     }
-}
-
-/// Whether a pick landed on a file row rather than an editable or popover.
-fn clicked_entry_row(surface: &gtk::Widget, picked: gtk::Widget) -> bool {
-    if crate::ui::focus_navigation::editable(&picked)
-        || crate::ui::focus_navigation::in_popover(&picked)
-    {
-        return false;
-    }
-    std::iter::successors(Some(picked), gtk::Widget::parent)
-        .take_while(|widget| widget != surface)
-        .any(|widget| {
-            widget.has_css_class("file-row")
-                || widget.has_css_class("list-row")
-                || widget.has_css_class("icons-card")
-        })
 }
 
 fn single_safe_file_name(entries: &[FileEntry]) -> Option<&OsStr> {

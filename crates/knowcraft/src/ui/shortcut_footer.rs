@@ -10,7 +10,7 @@ use gtk::{gdk, glib, prelude::*};
 
 pub(in crate::ui) use candidates::CandidateKeys;
 use catalog::{ReferenceView, rebuild_reference};
-use indicators::{CurrentHit, update_visual_mode};
+use indicators::CurrentHit;
 pub(in crate::ui) use prompt::Prompt;
 use prompt::PromptBar;
 use reference::{ReferenceArea, ReferenceSession};
@@ -53,7 +53,6 @@ pub(super) struct ShortcutFooter {
     feedback: gtk::Label,
     feedback_epoch: Rc<Cell<u64>>,
     prompt: PromptBar,
-    visual: gtk::Label,
     filter: gtk::Label,
     current: CurrentHit,
     filter_source: FilterSource,
@@ -210,12 +209,6 @@ impl ShortcutFooter {
         status: Option<&FilterStatus>,
     ) {
         update_item_count(&self.count, browser, status);
-        // A range over results is theirs; the hidden directory's never shows.
-        let visual = match status {
-            Some(status) if status.visual.is_some() => status.visual,
-            _ => browser.visual_kind(),
-        };
-        update_visual_mode(&self.visual, visual);
     }
 
     pub fn set_mode(&self, mode: BrowserMode) {

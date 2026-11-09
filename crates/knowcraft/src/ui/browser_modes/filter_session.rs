@@ -138,35 +138,6 @@ impl ModeViews {
         ))
     }
 
-    pub(in crate::ui) fn pane_searches(&self) -> Vec<InlineSearch> {
-        self.icons_panes
-            .iter()
-            .chain(self.list_pane.iter())
-            .map(|pane| pane.search.clone())
-            .collect()
-    }
-
-    pub(in crate::ui) fn hidden_filter_entries(&self) -> Vec<gtk::Entry> {
-        self.icons_panes
-            .iter()
-            .chain(self.list_pane.iter())
-            .filter(|pane| {
-                pane.filter_button
-                    .as_ref()
-                    .is_some_and(|button| !button.is_active())
-            })
-            // A field open on the knowledge source also has its funnel off, but
-            // its text is the live query, not a leftover filter.
-            .filter(|pane| {
-                pane.filter_mode
-                    .as_ref()
-                    .is_none_or(|mode| mode.source() != Some(QuerySource::Knowledge))
-            })
-            .filter_map(|pane| pane.filter_entry.clone())
-            .filter(|entry| !entry.text().is_empty())
-            .collect()
-    }
-
     pub(crate) fn capture_active_filter(&self) -> ActivePaneFilter {
         let Some(depth) = self.browser.active_depth() else {
             return ActivePaneFilter::default();

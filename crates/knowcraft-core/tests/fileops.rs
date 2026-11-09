@@ -564,7 +564,10 @@ fn record_copy_refreshes_registered_record() {
     let before = doc.checksum.clone();
 
     write_file(&path, "second content with new size");
-    let report = fixture.ops.record_copy(&[path.clone()]).unwrap();
+    let report = fixture
+        .ops
+        .record_copy(std::slice::from_ref(&path))
+        .unwrap();
     assert_eq!(report.files, 1);
     assert_eq!(report.registered, 0, "已登记记录只刷新");
 
@@ -580,7 +583,10 @@ fn record_copy_refreshes_registered_record() {
 
     let loose = fixture.path("inbox/loose.md");
     write_file(&loose, "looseword");
-    let report = fixture.ops.record_copy(&[loose.clone()]).unwrap();
+    let report = fixture
+        .ops
+        .record_copy(std::slice::from_ref(&loose))
+        .unwrap();
     assert_eq!(report.files, 1);
     assert_eq!(report.registered, 1, "未登记目标被登记");
     let doc = doc_at(&fixture, &loose).unwrap();

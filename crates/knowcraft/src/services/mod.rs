@@ -97,7 +97,7 @@ pub(crate) use preview::{
     model_format, normalize_preview_text, read_head_sample, read_supports_named_family,
     reconcile_with_sample, refine_reported_content_type, split_archive_name, supports_remote_video,
 };
-pub(crate) use release_channel::{BuildKind, Channel, Version};
+pub(crate) use release_channel::{BuildKind, Version};
 pub(crate) use remote_download::{
     RemoteDownload, download_remote, remote_file_name, remote_file_url,
 };

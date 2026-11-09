@@ -69,7 +69,6 @@ impl ColumnState {
 
 impl NavigationState {
     pub fn extend_selection(&mut self, direction: i32) -> Option<(usize, usize, Vec<usize>)> {
-        self.visual = None;
         let depth = self
             .active_column
             .or_else(|| self.columns.len().checked_sub(1))?;
@@ -142,7 +141,6 @@ impl NavigationState {
         focused: usize,
         order: &[usize],
     ) -> Option<Vec<usize>> {
-        self.visual = None;
         let column = self.columns.get_mut(depth)?;
         let end = order.iter().position(|position| *position == focused)?;
         let start = column
@@ -201,23 +199,9 @@ impl NavigationState {
     ) -> Option<(usize, usize)> {
         let (depth, _, position) = self.page_target(direction, page, order)?;
         let column = self.columns.get_mut(depth)?;
-        self.visual = None;
         place_committed_cursor(column, position);
         self.active_column = Some(depth);
         Some((depth, position))
-    }
-
-    pub fn page_cursor(
-        &mut self,
-        direction: i32,
-        page: usize,
-        order: Option<&[usize]>,
-    ) -> Option<(usize, usize, bool)> {
-        let (depth, _, position) = self.page_target(direction, page, order)?;
-        let column = self.columns.get_mut(depth)?;
-        let cleared = place_cursor(column, position);
-        self.active_column = Some(depth);
-        Some((depth, position, cleared))
     }
 
     pub fn extend_page_selection(
@@ -294,13 +278,6 @@ impl NavigationState {
     }
 
     pub(super) fn activate_pane(&mut self, depth: usize) {
-        if self
-            .visual
-            .as_ref()
-            .is_some_and(|range| range.depth != depth)
-        {
-            self.visual = None;
-        }
         self.active_column = Some(depth);
     }
 
@@ -369,7 +346,6 @@ impl NavigationState {
             return None;
         }
         self.peek = None;
-        self.visual = None;
         self.columns.truncate(depth);
         let parent_depth = depth - 1;
         self.active_column = Some(parent_depth);

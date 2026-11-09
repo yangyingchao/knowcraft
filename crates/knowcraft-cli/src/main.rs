@@ -334,7 +334,7 @@ fn main() -> anyhow::Result<()> {
                 maintenance.run_with_progress(request, |event| match event {
                     IndexEvent::Finished { path, ok } => {
                         println!(
-                            "indexing {} started ... {}",
+                            "indexing {} ... {}",
                             path.display(),
                             if ok { "done" } else { "failed" }
                         );

@@ -24,7 +24,6 @@ use crate::{
 #[derive(Default)]
 pub(super) struct FindState {
     query: String,
-    backward: bool,
     highlighted: bool,
 }
 
@@ -203,37 +202,6 @@ impl ViewState {
 }
 
 impl BrowserView {
-    /// Commits `query` and moves the cursor to its next match (previous when
-    /// `backward`). A miss leaves the cursor where it is. Returns whether a match
-    /// was found.
-    pub(in crate::ui) fn find(&self, query: &str, backward: bool, listing_focused: bool) -> bool {
-        if query.is_empty() {
-            return false;
-        }
-        self.state.find.replace(FindState {
-            query: query.to_owned(),
-            backward,
-            highlighted: true,
-        });
-        self.state.refresh_name_highlights();
-        self.find_next(query, backward, listing_focused)
-    }
-
-    /// Repeats the last committed find, reversed for **N**. `None` when there is
-    /// no query to repeat.
-    pub(in crate::ui) fn repeat_find(&self, reverse: bool, listing_focused: bool) -> Option<bool> {
-        let (query, backward) = {
-            let mut find = self.state.find.borrow_mut();
-            if find.query.is_empty() {
-                return None;
-            }
-            find.highlighted = true;
-            (find.query.clone(), find.backward != reverse)
-        };
-        self.state.refresh_name_highlights();
-        Some(self.find_next(&query, backward, listing_focused))
-    }
-
     #[cfg(test)]
     pub(in crate::ui) fn find_highlighted(&self) -> bool {
         self.state.find_highlight().is_some()
@@ -252,13 +220,6 @@ impl BrowserView {
             self.state.refresh_name_highlights();
         }
         dismissed
-    }
-
-    pub(in crate::ui) fn clear_find(&self) {
-        let had_highlight = self.state.find.replace(FindState::default()).highlighted;
-        if had_highlight {
-            self.state.refresh_name_highlights();
-        }
     }
 
     /// Moves the cursor by `direction` in the displayed listing without taking
@@ -284,74 +245,6 @@ impl BrowserView {
         if Some(index) != current {
             self.place_found_cursor(depth, order[index], &order, false);
         }
-    }
-
-    fn find_next(&self, query: &str, backward: bool, listing_focused: bool) -> bool {
-        if let Some(target) = self.filter_target()
-            && target.results_view().is_some()
-        {
-            let Some(results) = target.results() else {
-                return false;
-            };
-            let Some(hits) = target.hits() else {
-                return false;
-            };
-            let len = results.len();
-            if len == 0 {
-                return false;
-            }
-            let current = hits.cursor.map(|position| position as usize);
-            let found = (1..=len)
-                .map(|step| match (current, backward) {
-                    (Some(index), false) => (index + step) % len,
-                    (Some(index), true) => (index + len - step % len) % len,
-                    (None, false) => step - 1,
-                    (None, true) => len - step,
-                })
-                .find(|&index| !match_ranges(results[index].title(), query).is_empty());
-            let Some(index) = found else {
-                return false;
-            };
-            self.place_found_result(index as u32, listing_focused);
-            return true;
-        }
-        let Some(depth) = self.focused_listing_depth() else {
-            return false;
-        };
-        let Some(order) = self.displayed_order(depth) else {
-            return false;
-        };
-        let len = order.len();
-        let current = self.cursor_index(depth, &order);
-        let found = (1..=len)
-            .map(|step| match (current, backward) {
-                (Some(index), false) => (index + step) % len,
-                (Some(index), true) => (index + len - step % len) % len,
-                (None, false) => step - 1,
-                (None, true) => len - step,
-            })
-            .map(|index| order[index])
-            .find(|&position| {
-                self.state
-                    .browser
-                    .entry_at(depth, position)
-                    .is_some_and(|entry| {
-                        let name = entry
-                            .location
-                            .native_path()
-                            .and_then(|path| {
-                                crate::knowledge::init()
-                                    .and_then(|knowledge| knowledge.display_title(path))
-                            })
-                            .unwrap_or_else(|| entry.display_name.clone());
-                        !match_ranges(&name, query).is_empty()
-                    })
-            });
-        let Some(position) = found else {
-            return false;
-        };
-        self.place_found_cursor(depth, position, &order, listing_focused);
-        true
     }
 
     fn cursor_index(&self, depth: usize, order: &[usize]) -> Option<usize> {

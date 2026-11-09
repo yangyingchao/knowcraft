@@ -57,7 +57,7 @@ fn firing(command: Command, map: Map, bindings: Vec<Binding>) -> Vec<Binding> {
 }
 
 /// The [`Shown`] keys of catalog constants, commands and fixed bindings alike,
-/// for [`Keys::Any`] and [`Keys::Chord`].
+/// for [`Keys::Any`].
 macro_rules! shown {
     ($($key:expr),* $(,)?) => { &const { [$($key.shown()),*] } };
 }
@@ -70,12 +70,8 @@ pub(crate) enum Keys {
     One(Shown),
     /// Alternatives: **F2 / Ctrl+R**.
     Any(&'static [Shown]),
-    /// A sequence of primary bindings: **g h**.
-    Chord(&'static [Shown]),
     /// A digit range: **Ctrl+Shift+1–9 / 0**, **t 1–9 / t 0**.
     Digits(Digits),
-    /// Alternatives that mix the shapes above: **g g / Home**.
-    Mixed(&'static [Keys]),
 }
 
 impl Keys {
@@ -90,29 +86,13 @@ impl Keys {
     pub(crate) fn commands(&self) -> Vec<Command> {
         match self {
             Self::One(shown) => shown.command().into_iter().collect(),
-            Self::Any(shown) | Self::Chord(shown) => {
-                shown.iter().filter_map(|shown| shown.command()).collect()
-            }
+            Self::Any(shown) => shown.iter().filter_map(|shown| shown.command()).collect(),
             Self::Digits(digits) => digits.prefix.and_then(Shown::command).into_iter().collect(),
-            Self::Mixed(keys) => keys.iter().flat_map(Self::commands).collect(),
-        }
-    }
-
-    fn resolved(&self, map: Map) -> Vec<Binding> {
-        match self {
-            Self::One(shown) => shown.bindings(map),
-            Self::Any(shown) | Self::Chord(shown) => expanded(shown, map),
-            Self::Digits(digits) => digits
-                .prefix
-                .map(|prefix| prefix.bindings(map))
-                .unwrap_or_default(),
-            Self::Mixed(keys) => keys.iter().flat_map(|keys| keys.resolved(map)).collect(),
         }
     }
 }
 
-/// Digit-row keys 1 to `last`, and 0 when `zero`, with shared modifiers or
-/// after a chord prefix.
+/// Digit-row keys 1 to `last`, and 0 when `zero`, with shared modifiers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Digits {
     prefix: Option<Shown>,
@@ -128,18 +108,6 @@ impl Digits {
             prefix: None,
             modifiers,
             ignored: Modifiers::empty(),
-            last,
-            zero,
-        }
-    }
-
-    /// A chord's digit step. It also accepts Shift, which AZERTY needs to type
-    /// digits and which no chord step uses.
-    pub(crate) const fn after(prefix: Shown, last: u8, zero: bool) -> Self {
-        Self {
-            prefix: Some(prefix),
-            modifiers: Modifiers::empty(),
-            ignored: Modifiers::SHIFT_MASK,
             last,
             zero,
         }
@@ -202,11 +170,7 @@ fn written_out(locale: &str, keys: &Keys, map: Map) -> String {
     let alternatives = match keys {
         Keys::One(shown) => labels(locale, &shown.bindings(map)),
         Keys::Any(shown) => labels(locale, &expanded(shown, map)),
-        Keys::Mixed(keys) => keys
-            .iter()
-            .map(|keys| written_out(locale, keys, map))
-            .collect(),
-        Keys::Chord(_) | Keys::Digits(_) => return label_in_map(locale, keys, map),
+        Keys::Digits(_) => return label_in_map(locale, keys, map),
     };
     alternatives.join(" / ")
 }
@@ -249,25 +213,12 @@ pub(crate) fn label_in(locale: &str, keys: &Keys) -> String {
     label_in_map(locale, keys, Map::active())
 }
 
-/// Empty when nothing it shows is bound in `map`, as for a chord with an
-/// unbound step.
+/// Empty when nothing it shows is bound in `map`.
 pub(crate) fn label_in_map(locale: &str, keys: &Keys, map: Map) -> String {
     match keys {
         Keys::One(shown) => alternatives(locale, &shown.bindings(map)),
         Keys::Any(shown) => alternatives(locale, &expanded(shown, map)),
-        Keys::Chord(steps) => steps
-            .iter()
-            .map(|step| primary_label(locale, *step, map))
-            .collect::<Option<Vec<_>>>()
-            .map(|steps| steps.join(" "))
-            .unwrap_or_default(),
         Keys::Digits(digits) => digits_label(locale, digits, map).unwrap_or_default(),
-        Keys::Mixed(keys) => keys
-            .iter()
-            .map(|keys| label_in_map(locale, keys, map))
-            .filter(|label| !label.is_empty())
-            .collect::<Vec<_>>()
-            .join(" / "),
     }
 }
 

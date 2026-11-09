@@ -11,18 +11,6 @@ use gtk::{gio, prelude::*};
 
 use crate::adapters::MountTable;
 
-fn mounted_devices(table: &MountTable) -> Vec<PathBuf> {
-    table
-        .sources()
-        .filter(|(point, source)| {
-            source.starts_with("/dev")
-                && point.is_absolute()
-                && !gio_unix::functions::is_mount_path_system_internal(point)
-        })
-        .map(|(point, _)| point.to_owned())
-        .collect()
-}
-
 pub(super) fn block_device_from_mount_table(table: &MountTable, path: &Path) -> Option<PathBuf> {
     table
         .source_for(path)
@@ -877,37 +865,6 @@ pub(super) fn password_drive_is_orphaned(
                 .any(|volume_identity| volume_identity == identity)
         });
     should_list_orphaned_password_drive(start_stop, covered)
-}
-
-pub(super) fn global_search_roots() -> Vec<PathBuf> {
-    let monitor = gio::VolumeMonitor::get();
-    let roots = monitor
-        .mounts()
-        .into_iter()
-        .filter(|mount| !mount.is_shadowed())
-        .filter_map(|mount| mount.root().path())
-        .chain(mounted_devices(&crate::adapters::mount_watch::latest()));
-    search_roots(&super::home_directory(), roots)
-}
-
-fn search_roots(home: &Path, mounts: impl IntoIterator<Item = PathBuf>) -> Vec<PathBuf> {
-    let mut mounts: Vec<_> = mounts
-        .into_iter()
-        .filter(|root| {
-            root.is_absolute()
-                && root != home
-                && !gio_unix::functions::is_mount_path_system_internal(root)
-                && !root.strip_prefix("/run/user").is_ok_and(|relative| {
-                    relative
-                        .components()
-                        .nth(1)
-                        .is_some_and(|part| part.as_os_str() == "gvfs")
-                })
-        })
-        .collect();
-    mounts.sort();
-    mounts.dedup();
-    std::iter::once(home.to_owned()).chain(mounts).collect()
 }
 
 #[cfg(test)]

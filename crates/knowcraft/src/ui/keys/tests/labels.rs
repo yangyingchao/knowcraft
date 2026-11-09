@@ -62,37 +62,21 @@ fn notation_orders_modifiers_and_spells_out_named_keys() {
 }
 
 #[test]
-fn alternatives_chords_and_digit_ranges() {
+fn alternatives_and_digit_ranges() {
     const RENAME: &[Shown] = shown![Binding::plain(Key::F2), Binding::ctrl(Key::r)];
     const ARROWS: &[Shown] = shown![Binding::ctrl_alt(Key::Left), Binding::ctrl_alt(Key::Right)];
     const SCROLL: &[Shown] = shown![Binding::ctrl(Key::u), Binding::ctrl(Key::d)];
-    const GO_HOME: &[Shown] = shown![Binding::plain(Key::g), Binding::plain(Key::h)];
-    const TOP: [Keys; 2] = [
-        Keys::Chord(shown![Binding::plain(Key::g), Binding::plain(Key::g)]),
-        Keys::One(Binding::plain(Key::Home).shown()),
-    ];
     const TAB_NUMBERS: Digits = Digits::new(CTRL.union(Modifiers::SHIFT_MASK), 9, true);
-    const TAB_CHORD_NUMBERS: Digits = Digits::after(Binding::plain(Key::t).shown(), 9, true);
     let cases = [
         (Keys::Any(RENAME), "F2 / Ctrl+R"),
         (Keys::Any(ARROWS), "Ctrl+Alt+← / →"),
         (Keys::Any(SCROLL), "Ctrl+U / Ctrl+D"),
-        (Keys::Chord(GO_HOME), "g h"),
-        (Keys::Mixed(&TOP), "g g / Home"),
         (Keys::Digits(TAB_NUMBERS), "Ctrl+Shift+1\u{2013}9 / 0"),
-        (Keys::Digits(TAB_CHORD_NUMBERS), "t 1\u{2013}9 / t 0"),
-        (Keys::Digits(TAB_CHORD_NUMBERS.step()), "1\u{2013}9 / 0"),
         (Keys::Digits(TAB_NUMBERS.step()), "1\u{2013}9 / 0"),
-        (
-            Keys::Digits(Digits::after(Binding::plain(Key::g).shown(), 9, false)),
-            "g 1\u{2013}9",
-        ),
     ];
     for (keys, expected) in cases {
         assert_eq!(english(keys), expected);
     }
-    // Neither label is translated, so the locale other tests set cannot change them.
-    assert_eq!(digit_label(TAB_CHORD_NUMBERS, 0), "t 0");
     assert_eq!(digit_label(TAB_NUMBERS.step(), 3), "3");
 }
 

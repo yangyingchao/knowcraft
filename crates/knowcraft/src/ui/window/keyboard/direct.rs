@@ -6,15 +6,9 @@
 use gtk::glib::Propagation;
 
 use super::{Dispatcher, KeyEvent, KeyResult};
-use crate::ui::keys::{self, KeyPress, Map, bindings::*};
+use crate::ui::keys::{self, Map, bindings::*};
 
 impl Dispatcher {
-    /// Whether a typed key belongs to a direct command, which the focused
-    /// listing must pass on instead of keeping.
-    pub(super) fn runs_directly(&self, press: &KeyPress) -> bool {
-        self.chooser.is_none() && press.is_any(keys::direct_commands(Map::active()))
-    }
-
     /// Escape in the default map ends a search a direct key started; an open
     /// preview closes first.
     pub(super) fn dismiss_direct_search(&self, event: &KeyEvent) -> bool {

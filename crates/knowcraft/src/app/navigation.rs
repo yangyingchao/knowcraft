@@ -33,9 +33,8 @@ mod monitored;
 mod ordering;
 mod preferences;
 mod selection;
-mod visual;
 
-use cursor::{place_committed_cursor, place_cursor, visible_positions};
+use cursor::{place_committed_cursor, place_cursor};
 use fill::{adopt_selected_locations, adopt_selected_positions};
 use location_set::LocationSet;
 #[cfg(test)]
@@ -165,25 +164,6 @@ pub struct NavigationState {
     selection_commit: bool,
     selectionless_removals: HashSet<Location>,
     preserve_fill_on_removal: bool,
-    visual: Option<VisualRange>,
-}
-
-/// A walked range over one pane in displayed order. The fill is recomputed from
-/// `base` on every cursor move, so contracting the range restores what it covered.
-pub struct VisualRange {
-    depth: usize,
-    directory: Location,
-    anchor: Location,
-    kind: VisualKind,
-    base: HashSet<Location>,
-    // Space inside the range flips an item on top of the walked result.
-    toggled: HashSet<Location>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum VisualKind {
-    Select,
-    Unset,
 }
 
 impl NavigationState {
@@ -385,13 +365,6 @@ impl NavigationState {
             .enumerate()
             .find(|(_, column)| column.request_id == request_id)
     }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum CursorToggle {
-    Empty,
-    Added,
-    Removed,
 }
 
 impl ColumnState {

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 //! Checks keymap entries against their table: keys another command already
-//! takes there, keys a chord, GTK, a text field or an input method claims, and
-//! keys that never fire. Findings are data for Settings and the load-time log
-//! to render. See `docs/keyboard-shortcuts.md`.
+//! takes there, keys GTK, a text field or an input method claims, and keys
+//! that never fire. Findings are data for Settings and the load-time log to
+//! render. See `docs/keyboard-shortcuts.md`.
 
 use gtk::gdk::{Key, ModifierType as Modifiers};
 
@@ -25,7 +25,7 @@ use super::{
         TEXT_LARGER, TEXT_RESET, TEXT_SMALLER, THUMBNAILS_LARGER, THUMBNAILS_RESET,
         THUMBNAILS_SMALLER, UP, VIEW_COLUMNS, VIEW_ICONS, VIEW_LIST,
     },
-    command::{Group, Kind as CommandKind, registry},
+    command::registry,
     digit_value,
 };
 
@@ -48,18 +48,8 @@ pub(crate) enum Severity {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Kind {
-    /// Another command the same surface matches holds the key. Chord steps
-    /// count only against steps of their group and the keys an armed chord
-    /// reads before its steps.
+    /// Another command the same surface matches holds the key.
     Duplicate(Command),
-    /// A top-level key equal to a chord group's trigger, so one of them never
-    /// acts.
-    ShadowsChordGroup(Group),
-    /// A Sort step with Shift, which reverses a step.
-    ShiftedSortStep,
-    /// A Sort step on a digit or a symbol that Shift types, which Shift cannot
-    /// reverse.
-    SortStepCannotReverse,
     /// A plain printable key in the default map while type-to-search types it.
     TypeToSearchShadowed,
     /// A key that text fields keep from a command that also acts in them: a
@@ -93,8 +83,7 @@ pub(crate) enum Fixed {
     MediaKeys,
     /// Backspace opens the parent folder and deletes in text fields.
     Backspace,
-    /// A digit range: pins after Go, actions after the Action chord, tabs
-    /// after the Tabs chord or with Ctrl+Shift.
+    /// A digit range: tabs with Ctrl+Shift.
     Digits(Digits),
 }
 
@@ -110,15 +99,12 @@ impl Kind {
     pub(crate) const fn severity(self) -> Severity {
         match self {
             Self::Duplicate(_)
-            | Self::ShadowsChordGroup(_)
-            | Self::ShiftedSortStep
             | Self::ReservedByGtk
             | Self::InputMethodKey
             | Self::FixedKey(_)
             | Self::NeverMatches
             | Self::NoPath => Severity::Error,
-            Self::SortStepCannotReverse
-            | Self::TypeToSearchShadowed
+            Self::TypeToSearchShadowed
             | Self::TextFieldLimit(_)
             | Self::ContextOverlap(_)
             | Self::ChooserMnemonic => Severity::Warning,
@@ -185,12 +171,6 @@ pub(crate) fn check(
     }
     match mine.place {
         Place::Top(scope) => top_level_findings(mine, scope, policy, &mut findings),
-        Place::Step(Group::Sort) => {
-            if let Some(kind) = sort_step(candidate) {
-                findings.add(kind);
-            }
-        }
-        Place::Step(_) | Place::Inert => {}
     }
     findings.found
 }
@@ -343,8 +323,6 @@ pub(crate) fn duplicate_outcome(
     };
     let (mine, theirs) = (side(command), side(other));
     match (mine.place, theirs.place) {
-        (Place::Step(_), Place::Top(_)) if reads_before_steps(other) => Outcome::Loses,
-        (Place::Top(_), Place::Step(_)) if reads_before_steps(command) => Outcome::Wins,
         (Place::Top(_), Place::Top(_)) if runs_first(other, command, map) => Outcome::Loses,
         (Place::Top(_), Place::Top(_)) if runs_first(command, other, map) => Outcome::Wins,
         _ => Outcome::Either,
@@ -354,25 +332,17 @@ pub(crate) fn duplicate_outcome(
 /// Where a command's bindings are matched.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Place {
-    /// Only while its chord is armed.
-    Step(Group),
     Top(Scope),
-    /// A chord trigger in the default map, which has no chords.
-    Inert,
 }
 
 impl Place {
     fn of(command: Command, _map: Map) -> Self {
-        match command.kind() {
-            CommandKind::Step(group) => Self::Step(group),
-            CommandKind::Trigger(_) => Self::Inert,
-            _ => Self::Top(
-                SCOPES
-                    .iter()
-                    .find(|(scoped, _)| *scoped == command)
-                    .map_or(Scope::Window, |(_, scope)| *scope),
-            ),
-        }
+        Self::Top(
+            SCOPES
+                .iter()
+                .find(|(scoped, _)| *scoped == command)
+                .map_or(Scope::Window, |(_, scope)| *scope),
+        )
     }
 }
 
@@ -435,10 +405,7 @@ const TAB_STRIP: [Command; 7] = [
 /// Whether the tab strip reads keys before `place`: every surface but the
 /// file chooser, which has no tabs, and modal dialogs, which block the strip.
 fn under_tab_strip(place: Place) -> bool {
-    !matches!(
-        place,
-        Place::Inert | Place::Top(Scope::Chooser | Scope::Search)
-    )
+    !matches!(place, Place::Top(Scope::Chooser | Scope::Search))
 }
 
 /// What the file chooser's own handler reads before `choose_folder`.
@@ -695,14 +662,7 @@ fn conflict(mine: Side, theirs: Side) -> Option<Kind> {
         theirs,
         exact,
     };
-    let other = theirs.command;
     match (mine.place, theirs.place) {
-        (Place::Inert, _) | (_, Place::Inert) => None,
-        (Place::Step(group), Place::Step(theirs)) => {
-            (group == theirs).then_some(clash.duplicate_or_overlap())
-        }
-        (Place::Step(group), Place::Top(_)) => step_against(exact, group, other, other),
-        (Place::Top(_), Place::Step(group)) => step_against(exact, group, mine.command, other),
         (Place::Top(scope), Place::Top(theirs_scope)) => clash.top_level(scope, theirs_scope),
     }
 }
@@ -717,14 +677,6 @@ struct Clash {
 }
 
 impl Clash {
-    fn duplicate_or_overlap(self) -> Kind {
-        if self.exact {
-            Kind::Duplicate(self.theirs.command)
-        } else {
-            Kind::ContextOverlap(self.theirs.command)
-        }
-    }
-
     /// Two top-level commands, on the surfaces `scope` and `theirs_scope`.
     fn top_level(self, scope: Scope, theirs_scope: Scope) -> Option<Kind> {
         let (command, other) = (self.mine.command, self.theirs.command);
@@ -741,10 +693,7 @@ impl Clash {
         if !same_key_here || known_overlap(command, other) {
             return Some(Kind::ContextOverlap(other));
         }
-        Some(match (other.kind(), is_trigger(command)) {
-            (CommandKind::Trigger(group), false) => Kind::ShadowsChordGroup(group),
-            _ => Kind::Duplicate(other),
-        })
+        Some(Kind::Duplicate(other))
     }
 
     fn either_runs_first(self) -> bool {
@@ -760,27 +709,6 @@ impl Clash {
             || also_on(other, scope, map)
             || zoom_and_text_size(command, other)
     }
-}
-
-/// A chord step against a top-level command on the same key.
-fn step_against(exact: bool, group: Group, top: Command, other: Command) -> Option<Kind> {
-    if !exact {
-        // A tolerated variant of the step, such as Shift with the Go prompt's.
-        reads_before_steps(top).then_some(Kind::ContextOverlap(other))
-    } else if reads_before_steps(top) {
-        Some(Kind::Duplicate(other))
-    } else {
-        // A focused document resets its zoom over the Go chord the preview arms.
-        (group == Group::Go && top == PDF_ZOOM_RESET).then_some(Kind::ContextOverlap(other))
-    }
-}
-
-/// Keys read before an armed chord's steps: the tab strip, text size, the
-/// reference in an earlier stage, then the chord's own Settings and Escape.
-fn reads_before_steps(command: Command) -> bool {
-    TAB_STRIP.contains(&command)
-        || EVERY_SURFACE.contains(&command)
-        || [REFERENCE, SETTINGS, ESCAPE].contains(&command)
 }
 
 /// Whether `first` takes the key before `second`'s surface sees it.
@@ -832,27 +760,21 @@ fn zoom_and_text_size(first: Command, second: Command) -> bool {
         .any(|(zoom, text)| *zoom == PDF_ZOOM_RESET && EVERY_SURFACE.contains(text))
 }
 
-fn is_trigger(command: Command) -> bool {
-    matches!(command.kind(), CommandKind::Trigger(_))
-}
-
 fn known_overlap(first: Command, second: Command) -> bool {
     KNOWN_OVERLAPS
         .iter()
         .any(|pair| *pair == (first, second) || *pair == (second, first))
 }
 
-/// Whether `map` ships no key for `command` and no stage reads one: a chord
-/// step no chord arms, or a command the direct stage does not run. The direct
-/// stage also runs the custom action slots.
+/// Whether `map` ships no key for `command` and no stage reads one: a command
+/// the direct stage does not run. The direct stage also runs the custom action
+/// slots.
 pub(crate) fn no_path(command: Command, _map: Map) -> bool {
-    command.defaults(Map::Default).is_empty()
-        && !is_trigger(command)
-        && !CUSTOM_ACTIONS.contains(&command)
+    command.defaults(Map::Default).is_empty() && !CUSTOM_ACTIONS.contains(&command)
 }
 
 fn never_matches(side: Side) -> bool {
-    side.place == Place::Inert || shift_is_consumed(side.binding)
+    shift_is_consumed(side.binding)
 }
 
 /// The fixed role holding a key where `side` acts. The tab strip reads its
@@ -863,10 +785,7 @@ fn fixed_key(side: Side) -> Option<Fixed> {
     if under_tab_strip(side.place) && in_digits(side.binding, TAB_NUMBERS) {
         return Some(Fixed::Digits(TAB_NUMBERS));
     }
-    match side.place {
-        Place::Top(_) => fixed_top_level_key(side),
-        Place::Step(_) | Place::Inert => None,
-    }
+    fixed_top_level_key(side)
 }
 
 fn fixed_top_level_key(side: Side) -> Option<Fixed> {
@@ -919,18 +838,6 @@ fn is_symbol(key: Key) -> bool {
     key.to_unicode().is_some_and(|character| {
         !character.is_control() && !character.is_alphanumeric() && character != ' '
     })
-}
-
-/// Shift with a Sort step reverses it, which a Shifted step, a digit that
-/// already accepts Shift, or a symbol that Shift turns into another cannot.
-fn sort_step(binding: Binding) -> Option<Kind> {
-    if binding.modifiers().contains(SHIFT) {
-        Some(Kind::ShiftedSortStep)
-    } else if digit_value(binding.key()).is_some() || is_symbol(binding.key()) {
-        Some(Kind::SortStepCannotReverse)
-    } else {
-        None
-    }
 }
 
 fn acts_in_text_fields(command: Command) -> bool {

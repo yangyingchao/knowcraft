@@ -141,9 +141,6 @@ impl PreferenceManager {
         super::super::browser_modes::BrowserMode::List
     }
 
-    /// 视图固定为列表；保留空实现供旧测试与调用点编译。
-    pub fn set_browser_mode(&self, _mode: super::super::browser_modes::BrowserMode) {}
-
     pub fn browser_density(&self) -> super::super::browser_modes::BrowserDensity {
         let preferences = self.preferences.borrow();
         stored_density(

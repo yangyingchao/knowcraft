@@ -226,18 +226,6 @@ impl FilterModeController {
         self.source().is_some()
     }
 
-    /// A toggle click on `source`: opens, switches, or closes the field.
-    pub(in crate::ui) fn apply_toggle(&self, source: QuerySource) {
-        let transition = self.state.borrow_mut().toggle(source);
-        apply(
-            &self.view(),
-            transition,
-            source,
-            &self.syncing,
-            &self.listener,
-        );
-    }
-
     /// A shortcut for `source`: an open field only takes focus, and never closes.
     pub(in crate::ui) fn focus_or_switch(&self, source: QuerySource) {
         let Some(transition) = self.state.borrow_mut().shortcut(source) else {
@@ -356,13 +344,6 @@ impl RowId {
 
     pub(in crate::ui) fn tag(name: &str) -> Self {
         Self::Tag(name.to_owned())
-    }
-
-    pub(in crate::ui) fn path(&self) -> Option<&Path> {
-        match self {
-            Self::Path(path) => Some(path),
-            Self::Tag(_) => None,
-        }
     }
 }
 

@@ -13,14 +13,11 @@ use std::{
 use gtk::{glib, prelude::*};
 
 use super::{BrowserView, FilterQueryBinding, ViewState, columns::ColumnView};
-use crate::{
-    app::VisualKind,
-    ui::{
-        browser::filter_mode::{FilterModeController, QuerySource},
-        browser::filter_rows::ResultRow,
-        browser_modes::BrowserMode,
-        inline_search::InlineSearch,
-    },
+use crate::ui::{
+    browser::filter_mode::{FilterModeController, QuerySource},
+    browser::filter_rows::ResultRow,
+    browser_modes::BrowserMode,
+    inline_search::InlineSearch,
 };
 
 #[derive(Default)]
@@ -55,7 +52,6 @@ pub(in crate::ui) struct FilterStatus {
     pub displayed: bool,
     pub files: usize,
     pub folders: usize,
-    pub visual: Option<VisualKind>,
 }
 
 /// Which part of the active pane's filter session holds keyboard focus.
@@ -277,27 +273,6 @@ impl Target {
             Self::Pane { search, .. } => search.step(direction, steps, take_focus),
         }
     }
-
-    fn invert(&self) -> bool {
-        match self {
-            Self::Column(column) => {
-                if !column.recursive_search_active.get() {
-                    return false;
-                }
-                let count = column.selection.n_items();
-                if count == 0 {
-                    return false;
-                }
-                let inverted = gtk::Bitset::new_range(0, count);
-                inverted.subtract(&column.selection.selection());
-                column
-                    .selection
-                    .set_selection(&inverted, &gtk::Bitset::new_range(0, count));
-                true
-            }
-            Self::Pane { search, .. } => search.invert_selection(),
-        }
-    }
 }
 
 /// Only a revealed funnel counts: a footer filter leaves it closed and has its
@@ -407,7 +382,6 @@ fn filter_status(
             && !(results.is_empty() && target.awaiting_results()),
         files: results.len() - folders - tags,
         folders,
-        visual: None,
     })
 }
 
@@ -571,16 +545,6 @@ impl BrowserView {
         self.state.filter_focus()
     }
 
-    pub(in crate::ui) fn listing_filter(&self) -> Option<String> {
-        let target = self.filter_target()?;
-        let text = if target.searching() {
-            self.saved_listing_filter(&target)
-        } else {
-            target.entry().text().to_string()
-        };
-        (!text.trim().is_empty()).then_some(text)
-    }
-
     /// Filters the focused listing by `query` (an empty query clears it) and
     /// leaves the funnel closed.
     pub(in crate::ui) fn set_listing_filter(&self, query: &str) {
@@ -685,40 +649,6 @@ impl BrowserView {
         true
     }
 
-    pub(in crate::ui) fn release_forced_recursion(&self) {
-        let columns: Vec<_> = self.state.columns.borrow().clone();
-        for column in columns {
-            column.with_query_binding(FilterQueryBinding::release_forced_recursion);
-        }
-        let panes = self.state.mode_views.borrow().pane_searches();
-        for search in panes {
-            search.with_query_binding(FilterQueryBinding::release_forced_recursion);
-        }
-    }
-
-    /// Clears the filters a footer prompt left behind a closed funnel in every pane.
-    pub(in crate::ui) fn clear_hidden_filters(&self) {
-        self.state.listing_filter.focus_on_arrival.set(false);
-        self.state.forget_result_fill();
-        let columns: Vec<_> = self
-            .state
-            .columns
-            .borrow()
-            .iter()
-            .filter(|column| {
-                !column.filter_button.is_active()
-                    // A column open on the knowledge source is not a leftover
-                    // filter; its text is the live query.
-                    && column.filter_mode.source() != Some(QuerySource::Knowledge)
-            })
-            .map(|column| column.filter_entry.clone())
-            .collect();
-        let panes = self.state.mode_views.borrow().hidden_filter_entries();
-        for entry in columns.into_iter().chain(panes) {
-            entry.set_text("");
-        }
-    }
-
     /// The focused listing's filter; `None` while a rebuild holds the views,
     /// so callers retry rather than report a stale listing.
     pub(in crate::ui) fn filter_status(&self) -> Option<Option<FilterStatus>> {
@@ -730,32 +660,12 @@ impl BrowserView {
         let root = root.as_ref().and_then(|location| location.native_path());
         let status = target
             .and_then(|target| filter_status(&target, root, &self.state.listing_filter.cursor_hit));
-        Some(status.map(|status| FilterStatus {
-            visual: self.state.result_visual_kind(),
-            ..status
-        }))
+        Some(status)
     }
 
     pub(in crate::ui) fn results_replace_listing(&self) -> bool {
         self.filter_target()
             .is_some_and(|target| target.results_view().is_some())
-    }
-
-    pub(super) fn place_found_result(&self, position: u32, take_focus: bool) {
-        let Some(hits) = self.filter_target().and_then(|target| target.hits()) else {
-            return;
-        };
-        self.keyboard_navigation();
-        self.keep_result_fill(|| {
-            hits.selection.select_item(position, true);
-            let flags = if take_focus {
-                hits.view.grab_focus();
-                gtk::ListScrollFlags::FOCUS
-            } else {
-                gtk::ListScrollFlags::NONE
-            };
-            scroll_results_to(&hits.view, position, flags);
-        });
     }
 
     /// Moves among filter results instead of the hidden directory cursor.
@@ -771,22 +681,6 @@ impl BrowserView {
         }
         self.filter_target()
             .is_some_and(|target| target.step(direction, steps, take_focus))
-    }
-
-    /// Inverts the selection among filter results. Returns whether results are
-    /// showing.
-    /// Recursive **s** hits claim the key without inverting.
-    pub(in crate::ui) fn invert_filter_results(&self) -> bool {
-        self.filter_target().is_some_and(|target| {
-            target.results_view().is_some() && {
-                if !target.searching() && target.invert() {
-                    self.state.remember_result_selection(&target);
-                    // A late arrival would collapse the inverted selection to its cursor.
-                    self.state.listing_filter.focus_on_arrival.set(false);
-                }
-                true
-            }
-        })
     }
 
     #[cfg(test)]

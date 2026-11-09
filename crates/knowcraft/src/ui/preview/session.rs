@@ -15,10 +15,6 @@ impl PreviewDrawer {
         self.state.sidebar_fit(content)
     }
 
-    pub(in crate::ui) fn action(&self) -> gio::SimpleAction {
-        self.state.enabled_action.clone()
-    }
-
     pub(in crate::ui) fn clear_target(&self) {
         self.state.clear_target();
     }

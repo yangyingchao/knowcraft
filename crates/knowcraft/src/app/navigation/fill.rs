@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use crate::model::{FileEntry, Location};
 
 use super::{
-    ColumnState, CursorToggle, NavigationState, SelectedLocations, lists_each_location_once,
-    place_committed_cursor, place_cursor, visible_positions,
+    ColumnState, NavigationState, SelectedLocations, lists_each_location_once,
+    place_committed_cursor, place_cursor,
 };
 
 impl NavigationState {
@@ -19,50 +19,10 @@ impl NavigationState {
         }
         place_committed_cursor(column, position);
         self.active_column = Some(depth);
-        self.visual = None;
         true
     }
 
-    /// A load cursor is not a fill: the first Space adds that item.
-    pub fn toggle_cursor_fill(&mut self) -> CursorToggle {
-        let Some(depth) = self
-            .active_column
-            .or_else(|| self.columns.len().checked_sub(1))
-        else {
-            return CursorToggle::Empty;
-        };
-        let Some(column) = self.columns.get_mut(depth) else {
-            return CursorToggle::Empty;
-        };
-        let visible = visible_positions(column);
-        let Some(position) = column
-            .selected
-            .filter(|position| visible.contains(position))
-        else {
-            return CursorToggle::Empty;
-        };
-        let location = column.entries[position].location.clone();
-        let filled = column.load_cursor.is_none() && column.selected_locations.contains(&location);
-        column.drop_load_intents();
-        if column.load_cursor.is_some() {
-            column.selected_locations.clear();
-            column.load_cursor = None;
-        }
-        if filled {
-            column.selected_locations.remove(&location);
-            CursorToggle::Removed
-        } else {
-            column.selected_locations.insert(location);
-            CursorToggle::Added
-        }
-    }
-
-    pub fn select_visible(&mut self, depth: usize) -> Option<(usize, Vec<usize>)> {
-        self.replace_visible(depth, true)
-    }
-
     pub fn select_all(&mut self, depth: usize) -> Option<usize> {
-        self.visual = None;
         self.selection_commit = false;
         let column = self.columns.get_mut(depth)?;
         let show_hidden = column.preferences.show_hidden;
@@ -77,60 +37,6 @@ impl NavigationState {
         column.drop_load_intents();
         self.active_column = Some(depth);
         Some(focused)
-    }
-
-    pub fn invert_visible(&mut self, depth: usize) -> Option<(usize, Vec<usize>)> {
-        self.replace_visible(depth, false)
-    }
-
-    pub(super) fn replace_visible(
-        &mut self,
-        depth: usize,
-        select_all: bool,
-    ) -> Option<(usize, Vec<usize>)> {
-        self.visual = None;
-        let column = self.columns.get_mut(depth)?;
-        let visible = visible_positions(column);
-        if visible.is_empty() {
-            return None;
-        }
-        let focused = column
-            .selected
-            .filter(|position| visible.contains(position))
-            .unwrap_or(visible[0]);
-        let committed = column.load_cursor.is_none();
-        let positions = visible
-            .into_iter()
-            .filter(|position| {
-                select_all
-                    || !(committed
-                        && column
-                            .selected_locations
-                            .contains(&column.entries[*position].location))
-            })
-            .collect();
-        adopt_selected_positions(column, positions, true);
-        column.selected = Some(focused);
-        self.active_column = Some(depth);
-        let positions = column.selected_positions().to_vec();
-        Some((focused, positions))
-    }
-
-    pub fn install_pane_fill(&mut self, depth: usize, positions: &[usize], cursor: usize) -> bool {
-        let Some(column) = self.columns.get_mut(depth) else {
-            return false;
-        };
-        if cursor >= column.entries.len()
-            || positions
-                .iter()
-                .any(|position| *position >= column.entries.len())
-        {
-            return false;
-        }
-        adopt_selected_positions(column, positions.to_vec(), true);
-        column.selected = Some(cursor);
-        self.active_column = Some(depth);
-        true
     }
 
     /// Leaving a load cursor drops its uncommitted highlight.
@@ -178,7 +84,6 @@ impl NavigationState {
         let commit = std::mem::take(&mut self.selection_commit);
         column.adopt_reported_fill(positions, located, commit);
         column.selected = focused.or(column.selected);
-        self.visual = None;
         if column.selection_anchor.is_none() {
             column.selection_anchor = column.cursor_location();
         }
@@ -194,7 +99,6 @@ impl NavigationState {
         }
         let focused = column.selected.unwrap_or(0);
         adopt_selected_locations(column, HashSet::new(), true);
-        self.visual = None;
         Some((depth, focused))
     }
 

@@ -1153,35 +1153,6 @@ fn clear_shared_marks() {
     set_shared_marks(&[], &[]);
 }
 
-pub(super) fn unyank() {
-    clear_shared_marks();
-    let Some(display) = gtk::gdk::Display::default() else {
-        return;
-    };
-    let clipboard = display.clipboard();
-    if owns_clipboard(&clipboard) {
-        OWNED_FILE_PROVIDER.with(|owned| owned.replace(None));
-        if clipboard
-            .set_content(None::<&gtk::gdk::ContentProvider>)
-            .is_err()
-        {
-            tracing::warn!("unable to release the file clipboard");
-        }
-    }
-}
-
-pub(super) fn clipboard_may_paste() -> bool {
-    gtk::gdk::Display::default().is_some_and(|display| {
-        let formats = display.clipboard().formats();
-        formats::offers_files(&formats)
-            || formats.contains_type(gtk::gdk::Texture::static_type())
-            || formats
-                .mime_types()
-                .iter()
-                .any(|mime| mime.starts_with("image/"))
-    })
-}
-
 fn retain_shared_untransferred(transferred: &[Location]) {
     SHARED_CUT_LOCATIONS.with(|cut| retain_untransferred(&mut cut.borrow_mut(), transferred));
     refresh_cut_views();

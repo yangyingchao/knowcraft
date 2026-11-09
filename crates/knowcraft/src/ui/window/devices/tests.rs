@@ -309,69 +309,6 @@ fn orphaned_password_drive_listing_uses_production_filter() {
 }
 
 #[test]
-fn global_search_always_includes_home_and_all_mounted_drives() {
-    assert_eq!(
-        search_roots(
-            Path::new("/home/me"),
-            ["/run/media/me/USB", "/mnt/Backup"].map(PathBuf::from)
-        ),
-        ["/home/me", "/mnt/Backup", "/run/media/me/USB"].map(PathBuf::from)
-    );
-    assert_eq!(
-        search_roots(Path::new("/home/me"), []),
-        [PathBuf::from("/home/me")]
-    );
-}
-
-#[test]
-fn global_search_deduplicates_roots_without_dropping_nested_mounts() {
-    assert_eq!(
-        search_roots(
-            Path::new("/home/me"),
-            [
-                "/home/me",
-                "/home/me/USB",
-                "/home/me/USB",
-                "/home/me/USB/nested"
-            ]
-            .map(PathBuf::from)
-        ),
-        ["/home/me", "/home/me/USB", "/home/me/USB/nested"].map(PathBuf::from)
-    );
-}
-
-#[test]
-fn global_search_does_not_expand_into_system_mounts_or_gvfs_mirrors() {
-    assert_eq!(
-        search_roots(
-            Path::new("/home/me"),
-            [
-                "/",
-                "/home",
-                "/boot",
-                "/proc",
-                "/sys",
-                "relative",
-                "/run/user/1000/gvfs"
-            ]
-            .map(PathBuf::from)
-        ),
-        [PathBuf::from("/home/me")]
-    );
-}
-
-#[test]
-fn a_non_system_drive_containing_home_is_still_included() {
-    assert_eq!(
-        search_roots(
-            Path::new("/mnt/Storage/Home"),
-            [PathBuf::from("/mnt/Storage")]
-        ),
-        ["/mnt/Storage/Home", "/mnt/Storage"].map(PathBuf::from)
-    );
-}
-
-#[test]
 fn knowcraft_label_identity_survives_mount_changes_without_using_recycled_device_paths() {
     assert_eq!(
         label_identity(Some("fixture-uuid"), Some("file:///media/old")),
@@ -420,38 +357,6 @@ fn properties_resolve_the_innermost_block_mount_including_btrfs_and_escaped_path
             device.map(PathBuf::from)
         );
     }
-}
-
-#[test]
-fn mount_table_fallback_keeps_storage_but_not_system_mounts() {
-    crate::test_support::gtk_test(
-        "ui::window::devices::tests::mount_table_fallback_keeps_storage_but_not_system_mounts",
-        || {
-            crate::adapters::mount_watch::publish_for_isolated_test(Some(MountTable::parse(
-                br"25 1 8:1 / / rw - ext4 /dev/sda1 rw
-26 1 8:2 / /boot rw - vfat /dev/sda2 rw
-27 1 0:1 / /proc rw - proc proc rw
-28 1 8:3 / /run/media/me/USB\040Backup rw shared:1 - exfat /dev/sdb1 rw
-29 1 8:4 / /mnt/Archive ro - fuseblk /dev/sdc1 ro
-30 1 0:2 / /run/user/1000/gvfs rw - fuse.gvfsd-fuse gvfsd-fuse rw
-malformed
-31 1 8:5 / /mnt/missing-source rw - ext4
-",
-            )));
-            let roots = global_search_roots();
-            for (root, searched) in [
-                ("/", false),
-                ("/run/media/me/USB Backup", true),
-                ("/mnt/Archive", true),
-                ("/boot", false),
-                ("/proc", false),
-                ("/run/user/1000/gvfs", false),
-                ("/mnt/missing-source", false),
-            ] {
-                assert_eq!(roots.contains(&PathBuf::from(root)), searched, "{root}");
-            }
-        },
-    );
 }
 
 #[test]

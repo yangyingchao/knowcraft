@@ -56,10 +56,6 @@ impl WeakReferenceView {
             scope: self.scope.clone(),
         })
     }
-
-    pub(super) fn reference_alive(&self) -> bool {
-        self.reference.upgrade().is_some()
-    }
 }
 
 /// What the results list shows.

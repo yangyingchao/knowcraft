@@ -181,15 +181,6 @@ impl PreviewState {
             })
     }
 
-    pub(super) fn close_archive(self: &Rc<Self>) -> bool {
-        if self.archive_browser.borrow().is_some() {
-            self.close();
-            true
-        } else {
-            false
-        }
-    }
-
     pub(super) fn open_archive_row(self: &Rc<Self>, position: u32) {
         let mut browsers = self.archive_browser.borrow_mut();
         let Some(browser) = browsers.as_mut() else {

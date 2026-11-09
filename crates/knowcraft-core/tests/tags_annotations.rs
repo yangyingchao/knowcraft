@@ -124,7 +124,7 @@ fn list_for_many_matches_list_for_and_skips_untagged_documents() {
         &vec!["alpha".to_string(), "zeta".to_string()]
     );
     assert_eq!(many.get(&second).unwrap(), &vec!["beta".to_string()]);
-    assert!(many.get(&third).is_none());
+    assert!(!many.contains_key(&third));
     assert_eq!(many.get(&first).unwrap(), &tags.list_for(first).unwrap());
 }
 

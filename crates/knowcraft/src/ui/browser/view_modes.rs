@@ -38,7 +38,6 @@ impl BrowserView {
             self.state.peek_anchor.take();
         }
         // The rebuilt view has a different displayed order for the same anchor.
-        self.state.browser.leave_visual();
         let searching = self.state.listing_search_showing();
         // Read before the rebuild tears down the focused field or results.
         let filter_focus = self.state.filter_focus();
@@ -97,19 +96,6 @@ impl BrowserView {
             self.state.focus_rebuilt_active_column();
         } else if let Some(depth) = self.state.browser.active_depth() {
             self.state.mode_views.borrow().focus_visible_pane(depth);
-        }
-    }
-
-    /// Focus for a view switched from a menu, once the menu has closed: results replace
-    /// the listing that would otherwise take focus.
-    pub(in crate::ui) fn focus_switched_view(&self) {
-        if let Some(target) = self
-            .filter_target()
-            .filter(listing_filter::filter_shows_query)
-        {
-            self.focus_filter_results(&target);
-        } else {
-            self.state.browser.focus_active();
         }
     }
 
@@ -275,16 +261,6 @@ impl BrowserView {
         {
             self.state.adopt_pointer(column);
         }
-    }
-
-    pub fn toggle_folder_peek(&self) {
-        if self.state.peek.borrow().is_some() {
-            self.state.browser.close_peek();
-            self.keyboard_navigation();
-            return;
-        }
-        self.keyboard_navigation();
-        self.state.open_keyboard_peek();
     }
 
     pub fn set_watch_network_folders(&self, enabled: bool) {

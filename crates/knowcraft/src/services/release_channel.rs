@@ -9,45 +9,10 @@
 
 use std::{cmp::Ordering, fmt};
 
-/// The user's persisted update-channel preference.
-///
-/// This is deliberately distinct from [`BuildKind`], which describes what a
-/// given release *is* rather than which stability level the user requested.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Channel {
-    Stable,
-    Preview,
-    Nightly,
-}
-
-impl Channel {
-    /// The persisted/config-file representation of this channel.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Channel::Stable => "stable",
-            Channel::Preview => "preview",
-            Channel::Nightly => "nightly",
-        }
-    }
-
-    /// Parses a persisted channel value, falling back to [`Channel::Stable`]
-    /// for anything unrecognised.
-    ///
-    /// This must fail closed: a corrupted or hand-edited config value must
-    /// never silently opt a user into prereleases.
-    pub fn parse(value: &str) -> Channel {
-        match value {
-            "preview" => Channel::Preview,
-            "nightly" => Channel::Nightly,
-            _ => Channel::Stable,
-        }
-    }
-}
-
 /// What a given release build IS, independent of the user's channel
 /// preference.
 ///
-/// Kept separate from [`Channel`] because each prerelease stage retains a
+/// Kept separate from [`BuildKind`] because each prerelease stage retains a
 /// distinct user-facing label even when several are accepted by one channel.
 ///
 /// Declaration order pins precedence for prereleases sharing a core version
@@ -214,18 +179,6 @@ impl Version {
         };
         Some(Version { core, prerelease })
     }
-
-    /// The [`BuildKind`] this version identifies as: [`BuildKind::Stable`]
-    /// for a version with no prerelease suffix, or the parsed prerelease's
-    /// kind otherwise.
-    ///
-    /// Used by `update_check` to label a release's build kind for display,
-    /// without exposing `Prerelease`'s otherwise-private fields.
-    pub fn build_kind(&self) -> BuildKind {
-        self.prerelease
-            .as_ref()
-            .map_or(BuildKind::Stable, |prerelease| prerelease.kind)
-    }
 }
 
 impl fmt::Display for Version {
@@ -288,104 +241,6 @@ impl PartialEq for Version {
 }
 
 impl Eq for Version {}
-
-/// A single release, normalised from GitHub's API shape into the fields
-/// this module's eligibility rules need.
-///
-/// Deliberately free of `serde` derives: converting GitHub's JSON into this
-/// type is Task 4's job, kept strictly on its own side of the boundary this
-/// module enforces. This module never learns what GitHub's JSON looks like.
-#[derive(Clone, Debug)]
-pub struct ReleaseSummary {
-    pub tag: String,
-    pub version: Version,
-    pub draft: bool,
-    /// GitHub's own `prerelease` flag on the release, distinct from
-    /// whether `version` itself parsed with a prerelease suffix. Stable
-    /// eligibility requires both signals to agree; see [`is_eligible`].
-    pub prerelease: bool,
-    /// `None` when no published asset matches the running architecture --
-    /// an update the user cannot install must never be offered.
-    pub download_url: Option<String>,
-    pub published_at: Option<String>,
-    pub notes: String,
-}
-
-/// Whether `release` may be offered to a user on `channel`.
-///
-/// A draft is never eligible, on any channel: it is not a published
-/// release. Nor is a release with no installable asset for this
-/// architecture, since offering it would leave the user stuck.
-///
-/// On [`Channel::Stable`], both the parsed version and GitHub's own
-/// `prerelease` flag must agree that the release is final. This
-/// redundancy is a stated security requirement of issue #61: a release
-/// mislabelled on either signal alone must still be caught by the other.
-///
-/// [`Channel::Preview`] accepts stable, alpha, beta, and RC releases but not
-/// nightlies. [`Channel::Nightly`] accepts every recognised build kind. Drafts
-/// and assetless releases are rejected on every channel.
-pub fn is_eligible(channel: Channel, release: &ReleaseSummary) -> bool {
-    if release.draft || release.download_url.is_none() {
-        return false;
-    }
-    match channel {
-        Channel::Stable => release.version.prerelease.is_none() && !release.prerelease,
-        Channel::Preview => release.version.build_kind() != BuildKind::Nightly,
-        Channel::Nightly => true,
-    }
-}
-
-/// The newest eligible release strictly newer than `installed`, or `None`
-/// if there isn't one.
-///
-/// Filters `releases` by [`is_eligible`] for `channel`, then returns the
-/// maximum by [`Version`] ordering -- but only when that maximum is
-/// strictly greater than `installed`. This path must never offer a
-/// downgrade; use [`rollback_target`] for that instead.
-pub fn best_update<'a>(
-    channel: Channel,
-    installed: &Version,
-    releases: &'a [ReleaseSummary],
-) -> Option<&'a ReleaseSummary> {
-    let candidate = releases
-        .iter()
-        .filter(|release| is_eligible(channel, release))
-        .max_by(|a, b| a.version.cmp(&b.version))?;
-    (&candidate.version > installed).then_some(candidate)
-}
-
-/// Every release a user on `channel` may install, newest first.
-///
-/// Unlike [`best_update`], this ignores the installed version on purpose:
-/// choosing an older release is how a user rolls back.
-pub fn installable_releases(channel: Channel, releases: &[ReleaseSummary]) -> Vec<&ReleaseSummary> {
-    let mut eligible: Vec<_> = releases
-        .iter()
-        .filter(|release| is_eligible(channel, release))
-        .collect();
-    eligible.sort_by(|a, b| b.version.cmp(&a.version));
-    eligible.dedup_by(|a, b| a.version == b.version);
-    eligible
-}
-
-/// The newest final release available, ignoring the installed version
-/// entirely.
-///
-/// Ignoring the installed version is precisely what makes a downgrade
-/// possible -- a user on a prerelease must be able to roll back to a
-/// stable release older than what they currently have installed. This is
-/// why `rollback_target` cannot reuse [`best_update`], which deliberately
-/// refuses to go backwards.
-pub fn rollback_target(releases: &[ReleaseSummary]) -> Option<&ReleaseSummary> {
-    // `is_eligible(Stable, ..)` already asserts `version.prerelease.is_none()`
-    // (alongside GitHub's own `prerelease` flag), so no separate check is
-    // needed here.
-    releases
-        .iter()
-        .filter(|release| is_eligible(Channel::Stable, release))
-        .max_by(|a, b| a.version.cmp(&b.version))
-}
 
 #[cfg(test)]
 mod tests;

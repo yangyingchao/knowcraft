@@ -4,29 +4,14 @@ use std::{path::PathBuf, rc::Rc};
 
 use gtk::{glib, prelude::*};
 
-use super::{
-    BrowserView, PinStatus,
-    clipboard::{self, copy_locations, copy_names},
-    desktop::{can_open_terminal, launch_terminal},
-    paths::{can_remove_location, is_trash_item, is_trash_location},
-};
+use super::{BrowserView, paths::is_trash_location};
 use crate::{
     adapters::gio_file_for_location,
-    model::{ActionInput, FileEntry, Location, SortDirection, SortKey},
-    services::{ActionCatalog, ActionHandle, ArchiveFormat, InvocationSource, TypedPath},
+    model::{ActionInput, FileEntry, Location},
+    services::{ActionCatalog, ActionHandle, InvocationSource, TypedPath},
 };
 
-pub(crate) use super::transfer::ConflictFocus;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Yank {
-    Nothing,
-    Done,
-    Refused,
-}
-
 pub(crate) struct NumberedActions {
-    pub(crate) targets: Vec<Location>,
     pub(crate) actions: Vec<Rc<ActionHandle>>,
     paths: Vec<PathBuf>,
     parent: Option<PathBuf>,
@@ -36,24 +21,6 @@ pub(crate) struct NumberedActions {
 pub(super) enum KeyboardRefocus {
     Sort(usize),
     Rename(crate::services::OperationRequestId),
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub(crate) enum PinChange {
-    Pinned(Location, String),
-    Unpinned(String),
-    AlreadyPinned(String),
-    NotPinned(String),
-    /// Standard places and Trash already have their own sidebar rows.
-    Refused(String),
-    Nothing,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum TargetCommand {
-    Nothing,
-    Refused,
-    Started,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -120,77 +87,6 @@ impl BrowserView {
         self.state.sync_mode_selection();
         self.focused_listing_depth()
             .and_then(|depth| self.state.browser.cursor_entry(depth))
-    }
-
-    pub fn yank_targets(&self, cut: bool) -> Yank {
-        let entries = self.command_targets();
-        if entries.is_empty() {
-            return Yank::Nothing;
-        }
-        if !cut {
-            self.state.copy_entries(&entries);
-            return Yank::Done;
-        }
-        if self.state.cut_entries(&entries) {
-            Yank::Done
-        } else {
-            Yank::Refused
-        }
-    }
-
-    pub fn unyank(&self) {
-        clipboard::unyank();
-    }
-
-    pub fn copy_target_text(&self, names: bool) -> bool {
-        let entries = self.command_targets();
-        if entries.is_empty() {
-            return false;
-        }
-        if names {
-            copy_names(&entries);
-        } else {
-            copy_locations(&entries);
-        }
-        true
-    }
-
-    pub fn paste_preferring(&self, focus: ConflictFocus, nothing: Rc<dyn Fn()>) {
-        if !clipboard::clipboard_may_paste() {
-            nothing();
-            return;
-        }
-        if let Some(location) = self.paste_location() {
-            self.state.paste_preferring(location, focus, nothing);
-        }
-    }
-
-    pub fn confirm_targets_delete(&self, permanent: bool) -> bool {
-        let mut entries = self.command_targets();
-        if entries.is_empty()
-            && self.selected_search_results().is_none()
-            && self.view_mode() == crate::ui::browser_modes::BrowserMode::Columns
-            && self.focused_listing_depth() == self.state.browser.active_depth()
-            && self.focused_listing_depth().is_some_and(|depth| {
-                self.state
-                    .browser
-                    .column_snapshot(depth)
-                    .is_some_and(|column| column.count == 0)
-            })
-        {
-            entries = self.state.browser.deletion_entries();
-        }
-        if entries.is_empty() {
-            return false;
-        }
-        let permanent = permanent || self.focused_location_is_trash();
-        self.state.request_confirmed_delete(entries, permanent);
-        true
-    }
-
-    pub fn can_create_entry(&self) -> bool {
-        self.new_entry_parent()
-            .is_some_and(|(_, parent)| !is_trash_location(&parent) && !parent.is_recent_location())
     }
 
     pub fn prepare_typed_entry(&self, text: &str) -> Result<TypedEntry, CreateRefusal> {
@@ -430,36 +326,6 @@ impl super::ViewState {
 }
 
 impl BrowserView {
-    pub fn sort_focused_pane(&self, key: SortKey, direction: SortDirection) {
-        if let Some(depth) = self.focused_listing_depth() {
-            self.state.browser.set_sort(depth, key, direction);
-            self.state
-                .keyboard_refocus
-                .set(Some(KeyboardRefocus::Sort(depth)));
-        }
-    }
-
-    pub fn open_focused_folder_terminal(&self) -> bool {
-        let Some(location) = self
-            .focused_listing_depth()
-            .and_then(|depth| self.state.browser.location_at(depth))
-            .filter(can_open_terminal)
-        else {
-            return false;
-        };
-        launch_terminal(&location, &self.state.overlay);
-        true
-    }
-
-    pub fn toggle_hidden_from_keys(&self) {
-        self.state.browser.toggle_hidden();
-        self.state.refocus_cursor();
-    }
-
-    pub(crate) fn numbered_actions(&self) -> NumberedActions {
-        self.actions_for_targets(ActionCatalog::numbered)
-    }
-
     /// The targets and the action at `index` in Settings → Actions' order,
     /// when that action can run on them.
     pub(crate) fn listed_action(
@@ -478,7 +344,6 @@ impl BrowserView {
         choose: impl FnOnce(&ActionCatalog, &[ActionInput]) -> Vec<Rc<ActionHandle>>,
     ) -> NumberedActions {
         let entries = self.command_targets();
-        let targets = entries.iter().map(|entry| entry.location.clone()).collect();
         let parent = self
             .focused_listing_depth()
             .and_then(|depth| self.state.browser.location_at(depth))
@@ -496,7 +361,6 @@ impl BrowserView {
             choose(&crate::ui::actions::shared().catalog(), &inputs)
         };
         NumberedActions {
-            targets,
             actions,
             paths,
             parent,
@@ -521,150 +385,9 @@ impl BrowserView {
             })),
         );
     }
-
-    /// Looks up applications for the fill, or the focused item, off the key
-    /// handler, then shows Open With over them. The chooser appears only while
-    /// `current` holds and the targets and folder are unchanged; otherwise the
-    /// lookup ends silently. `report` receives why nothing can be chosen.
-    /// `None` means there was nothing to open.
-    pub fn open_targets_with(
-        &self,
-        current: Rc<dyn Fn() -> bool>,
-        report: Rc<dyn Fn(&str)>,
-    ) -> Option<glib::JoinHandle<()>> {
-        let entries = self.command_targets();
-        if entries.is_empty() {
-            return None;
-        }
-        let locations: Vec<Location> = entries.iter().map(|entry| entry.location.clone()).collect();
-        let administrator = locations.iter().any(Location::is_administrator);
-        let files: Vec<_> = locations.iter().map(gio_file_for_location).collect();
-        let folder = self.state.browser.active_location();
-        let state = Rc::downgrade(&self.state);
-        Some(glib::MainContext::default().spawn_local(async move {
-            if administrator {
-                return report(super::desktop::ADMINISTRATOR_OPEN_REFUSAL);
-            }
-            let unchanged = || {
-                current()
-                    && state.upgrade().is_some_and(|state| {
-                        let view = BrowserView { state };
-                        view.state.browser.active_location() == folder
-                            && view
-                                .command_targets()
-                                .iter()
-                                .map(|entry| &entry.location)
-                                .eq(locations.iter())
-                    })
-            };
-            let Some(resolved) = crate::ui::open_with::resolve(&files, &unchanged).await else {
-                return;
-            };
-            let Some(state) = state.upgrade() else {
-                return;
-            };
-            let applications = match resolved {
-                Ok(applications) => applications,
-                Err(reason) => return report(reason),
-            };
-            if let Some(reason) = applications.unavailable_reason() {
-                return report(reason);
-            }
-            let browser = Rc::downgrade(&state.browser);
-            crate::ui::open_with::show(
-                &state.overlay,
-                files,
-                applications.content_types,
-                applications.choices,
-                crate::ui::open_with::OpenWithContext::Explicit,
-                Rc::new(move || {
-                    if let Some(browser) = browser.upgrade() {
-                        browser.focus_active();
-                    }
-                }),
-            );
-        }))
-    }
 }
 
 impl BrowserView {
-    fn keyboard_pin_folder(&self) -> Option<(Location, String)> {
-        if let Some(entry) = self.focused_target().filter(FileEntry::is_directory) {
-            return Some((entry.location, entry.display_name));
-        }
-        let location = self
-            .focused_listing_depth()
-            .and_then(|depth| self.state.browser.location_at(depth))?;
-        let name = location.display_name();
-        Some((location, name))
-    }
-
-    pub fn change_keyboard_pin(&self, pin: bool, done: impl FnOnce(PinChange) + 'static) {
-        let Some((location, name)) = self.keyboard_pin_folder() else {
-            return done(PinChange::Nothing);
-        };
-        let status = if is_trash_location(&location) {
-            PinStatus::Unavailable
-        } else {
-            self.state
-                .pin_status_handler
-                .borrow()
-                .as_ref()
-                .map_or(PinStatus::Unavailable, |handler| handler(&location))
-        };
-        let change = match (pin, status) {
-            (true, PinStatus::Available) => {
-                let handler = self.state.pin_handler.borrow().clone();
-                let Some(handler) = handler else {
-                    return done(PinChange::Refused(name));
-                };
-                handler(
-                    location.clone(),
-                    name.clone(),
-                    Box::new(move |saved| {
-                        done(if saved {
-                            PinChange::Pinned(location, name)
-                        } else {
-                            PinChange::Refused(name)
-                        });
-                    }),
-                );
-                return;
-            }
-            (true, PinStatus::Pinned) => PinChange::AlreadyPinned(name),
-            (true, PinStatus::Unavailable) => PinChange::Refused(name),
-            (false, PinStatus::Pinned) => {
-                let handler = self.state.unpin_handler.borrow().clone();
-                let Some(handler) = handler else {
-                    return done(PinChange::NotPinned(name));
-                };
-                handler(&location);
-                PinChange::Unpinned(name)
-            }
-            (false, _) => PinChange::NotPinned(name),
-        };
-        done(change);
-    }
-
-    pub fn transfer_targets(&self, moving: bool) -> Result<Vec<FileEntry>, &'static str> {
-        let entries = self.command_targets();
-        if entries.is_empty() {
-            return Err(if moving {
-                "Nothing to move"
-            } else {
-                "Nothing to copy"
-            });
-        }
-        if moving
-            && !entries
-                .iter()
-                .all(|entry| can_remove_location(&entry.location))
-        {
-            return Err("Can\u{2019}t move these items");
-        }
-        Ok(entries)
-    }
-
     pub fn transfer_to_folder(
         &self,
         entries: Vec<FileEntry>,
@@ -694,50 +417,6 @@ impl BrowserView {
             moving,
         );
         Ok(())
-    }
-
-    pub fn restore_targets(&self) -> TargetCommand {
-        let entries = self.command_targets();
-        if entries.is_empty() {
-            return TargetCommand::Nothing;
-        }
-        if !entries.iter().all(|entry| is_trash_item(&entry.location)) {
-            return TargetCommand::Refused;
-        }
-        self.state.request_restore(entries);
-        TargetCommand::Started
-    }
-
-    pub fn compress_targets(&self) -> TargetCommand {
-        let entries = self.command_targets();
-        if entries.is_empty() {
-            return TargetCommand::Nothing;
-        }
-        if entries
-            .iter()
-            .any(|entry| entry.location.native_path().is_none())
-        {
-            return TargetCommand::Refused;
-        }
-        self.state.show_compress_dialog(entries);
-        TargetCommand::Started
-    }
-
-    pub fn extract_target(&self) -> Result<FileEntry, &'static str> {
-        let mut entries = self.command_targets();
-        let entry = match entries.len() {
-            0 => return Err("Nothing to extract"),
-            1 => entries.remove(0),
-            _ => return Err("Extract one archive at a time"),
-        };
-        if ArchiveFormat::for_entry(&entry).is_none() {
-            return Err("Not an archive");
-        }
-        Ok(entry)
-    }
-
-    pub fn extract_here(&self, entry: FileEntry) {
-        self.state.extract_entry(entry);
     }
 
     pub fn extract_to_folder(&self, entry: FileEntry, destination: PathBuf) {

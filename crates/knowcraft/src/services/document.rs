@@ -403,26 +403,6 @@ fn parse_document_with_limits(
     validate_document(parsed, limits)
 }
 
-// Release notes retain their legacy unbounded parser limits and hide HTML comments.
-pub fn parse_markdown(markdown: &str) -> Document {
-    let cancellation = Cancellation::default();
-    let limits = ParseLimits {
-        events: usize::MAX,
-        depth: usize::MAX,
-        table_columns: usize::MAX,
-        markup: usize::MAX,
-        time: Duration::MAX,
-    };
-    parse_markdown_bounded(
-        markdown,
-        &cancellation,
-        limits,
-        MarkdownProfile::RELEASE_NOTES,
-    )
-    .map(|parsed| parsed.document)
-    .unwrap_or(Document { blocks: Vec::new() })
-}
-
 fn validate_document(
     parsed: ParsedDocument,
     limits: ParseLimits,

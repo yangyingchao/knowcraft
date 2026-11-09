@@ -5,7 +5,7 @@ use std::time::Duration;
 use super::*;
 use crate::services::document::{
     DOCUMENT_INPUT_LIMIT, DOCUMENT_TABLE_COLUMN_LIMIT, Document, DocumentSpan, LayoutBudget,
-    ParseLimits, append_styled_text, layout_document, parse_document_with_limits, parse_markdown,
+    ParseLimits, append_styled_text, layout_document, parse_document_with_limits,
 };
 
 fn limited_error(
@@ -254,11 +254,6 @@ fn document_parsers_reject_nul_bytes_without_panicking() {
             .contains("NUL")
         );
     }
-
-    assert_eq!(
-        parse_markdown("before\0after").blocks,
-        vec![paragraph("before�after")]
-    );
 }
 
 #[test]

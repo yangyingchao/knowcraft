@@ -86,9 +86,4 @@ impl SidebarState {
             .or_else(|| rows.first())
             .is_some_and(|(_, row)| row.grab_focus())
     }
-
-    /// Pinned places in sidebar display order, excluding rows the sidebar hides.
-    pub(in crate::ui) fn visible_pins(&self) -> Vec<Location> {
-        self.visible_pins.borrow().clone()
-    }
 }

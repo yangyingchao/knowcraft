@@ -22,7 +22,7 @@ use crate::{
             ModalTone, keep_words_whole, message_dialog_description, message_dialog_layout,
         },
         keys::{
-            self, Binding, Command, CommandKind, Group, Keys, Map,
+            self, Binding, Command, Keys, Map,
             bindings::*,
             conflicts::{self, FieldLimit, Finding, Fixed, Kind, Outcome, Policy, Severity},
         },
@@ -82,7 +82,6 @@ pub(super) fn keyboard_page(preferences: Rc<PreferenceManager>) -> gtk::Widget {
             preferences: preferences.clone(),
             actions: crate::ui::actions::shared(),
             rows,
-            table,
             sections,
             no_match,
             query: RefCell::new(String::new()),
@@ -178,7 +177,6 @@ struct Page {
     preferences: Rc<PreferenceManager>,
     actions: Rc<ActionRegistry>,
     rows: Vec<Rc<Row>>,
-    table: gtk::Box,
     sections: Vec<Section>,
     no_match: gtk::Label,
     query: RefCell<String>,
@@ -786,9 +784,7 @@ fn sections(map: Map) -> Vec<(&'static str, Vec<Command>)> {
         }
     }
     let commands: Vec<Command> = keys::registry()
-        .filter(|command| {
-            !matches!(command.kind(), CommandKind::Trigger(_)) && !conflicts::no_path(*command, map)
-        })
+        .filter(|command| !conflicts::no_path(*command, map))
         .collect();
     let section_of = |command: Command| {
         reference
@@ -838,10 +834,6 @@ const FALLBACK_SECTIONS: &[(Command, &str)] = &[
     (FILTER_SLASH, SEARCH_AND_TOOLS),
 ];
 
-fn trigger(group: Group) -> Option<Command> {
-    keys::registry().find(|command| command.kind() == CommandKind::Trigger(group))
-}
-
 fn key_label(binding: Binding) -> String {
     keys::label(&Keys::One(binding.shown()))
 }
@@ -851,16 +843,6 @@ fn key_label(binding: Binding) -> String {
 fn set_button_text(button: &gtk::Button, text: &str) {
     button.set_label(text);
     accessibility::clear_labelled_by(button);
-}
-
-fn groups(table: &gtk::Box) -> impl Iterator<Item = gtk::Widget> {
-    children(table.upcast_ref())
-        .flat_map(|section| children(&section))
-        .filter(|child| child.has_css_class("settings-group"))
-}
-
-fn children(widget: &gtk::Widget) -> impl Iterator<Item = gtk::Widget> + use<> {
-    std::iter::successors(widget.first_child(), gtk::Widget::next_sibling)
 }
 
 fn clear(container: &gtk::Box) {
@@ -898,7 +880,6 @@ fn message(map: Map, command: Command, finding: Finding) -> String {
     let keys = keys.as_str();
     let named = title;
     let plain = |message: &str| rust_i18n::t!(message, keys = keys).into_owned();
-    let shift = keys::modifiers_label(gtk::gdk::ModifierType::SHIFT_MASK);
     match finding.kind {
         Kind::Duplicate(other) => {
             let message = match conflicts::duplicate_outcome(map, command, finding.binding, other) {
@@ -908,24 +889,6 @@ fn message(map: Map, command: Command, finding: Finding) -> String {
             };
             rust_i18n::t!(message, keys = keys, other = named(other)).into_owned()
         }
-        Kind::ShadowsChordGroup(group) => rust_i18n::t!(
-            "%{keys} also starts “%{group}”, so either this key or that chord never runs.",
-            keys = keys,
-            group = trigger(group).map(named).unwrap_or_default()
-        )
-        .into_owned(),
-        Kind::ShiftedSortStep => rust_i18n::t!(
-            "%{shift} with a sort key reverses the sort, so %{keys} cannot be one.",
-            keys = keys,
-            shift = shift
-        )
-        .into_owned(),
-        Kind::SortStepCannotReverse => rust_i18n::t!(
-            "%{keys} sorts, but %{shift} cannot reverse it.",
-            keys = keys,
-            shift = shift
-        )
-        .into_owned(),
         Kind::TypeToSearchShadowed => plain("%{keys} does nothing while type-to-search is on."),
         Kind::TextFieldLimit(FieldLimit::Typing) => {
             plain("Doesn't work while a text field or menu has focus.")

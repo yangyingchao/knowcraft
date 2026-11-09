@@ -58,34 +58,7 @@ impl CurrentHit {
     }
 }
 
-/// The chord is armed only while its pill is visible.
-/// The visual mode label shows while a range selection is active.
-pub(super) fn update_visual_mode(label: &gtk::Label, visual: Option<crate::app::VisualKind>) {
-    let (text, name) = match visual {
-        Some(crate::app::VisualKind::Select) => ("VISUAL", "Visual select"),
-        Some(crate::app::VisualKind::Unset) => ("UNSET", "Visual unset"),
-        None => ("", ""),
-    };
-    let (text, name) = if text.is_empty() {
-        (String::new(), String::new())
-    } else {
-        (crate::i18n::tr(text), crate::i18n::tr(name))
-    };
-    if label.text() != text {
-        label.set_text(&text);
-        crate::ui::accessibility::set_label(label, &name);
-    }
-    label.set_visible(!text.is_empty());
-}
-
 impl ShortcutFooter {
-    #[cfg(test)]
-    pub(in crate::ui) fn visual_text(&self) -> Option<String> {
-        self.visual
-            .is_visible()
-            .then(|| self.visual.text().to_string())
-    }
-
     #[cfg(test)]
     pub(in crate::ui) fn current_hit(&self) -> Option<(String, String)> {
         let current = &self.current;

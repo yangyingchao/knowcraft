@@ -30,7 +30,7 @@ pub const BUILD_KIND: &str = env!("KNOWCRAFT_BUILD_KIND");
 /// Parses [`BUILD_KIND`], falling back to [`BuildKind::Stable`] for
 /// anything unrecognised.
 ///
-/// This must fail closed, the same way [`crate::services::Channel::parse`]
+/// This must fail closed, the same way [`BuildKind`]'s parser
 /// does: a build that cannot identify its own kind must present as an
 /// ordinary stable build, never as a preview.
 pub fn build_kind() -> BuildKind {

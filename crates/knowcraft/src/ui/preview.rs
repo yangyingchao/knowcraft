@@ -293,10 +293,6 @@ impl PreviewDrawer {
         self.state.archive_key(motion)
     }
 
-    pub fn close_archive(&self) -> bool {
-        self.state.close_archive()
-    }
-
     pub fn archive_list_has_focus(&self, focused: Option<&gtk::Widget>) -> bool {
         self.state.archive_list_has_focus(focused)
     }

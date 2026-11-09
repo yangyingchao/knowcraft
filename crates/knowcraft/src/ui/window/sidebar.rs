@@ -200,7 +200,6 @@ impl SidebarState {
             rail_changed: RefCell::new(None),
             keycaps: RefCell::new(Vec::new()),
             keycaps_shown: Cell::new(false),
-            visible_pins: RefCell::new(Vec::new()),
             drop_feedback,
         })
     }

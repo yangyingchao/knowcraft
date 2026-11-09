@@ -32,10 +32,6 @@ struct State {
 pub(in crate::ui) struct KnowledgeQuery(Rc<State>);
 
 impl KnowledgeQuery {
-    pub(in crate::ui) fn generation(&self) -> u64 {
-        self.0.generation.get()
-    }
-
     pub(in crate::ui) fn cancel(&self) {
         self.0
             .generation
@@ -118,14 +114,6 @@ pub(in crate::ui) fn skips_tag_provider(text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_cancelled_generation_drops_its_result() {
-        let query = KnowledgeQuery::default();
-        let first = query.generation();
-        query.cancel();
-        assert_ne!(query.generation(), first);
-    }
 
     #[test]
     fn a_tags_prefix_skips_the_tag_provider() {

@@ -44,30 +44,6 @@ fn shift_on_the_digit_row_follows_the_level(tab_numbers: Digits) {
     assert_eq!(azerty_ctrl_1.digit_in(tab_numbers), None);
 }
 
-/// A chord's digit step accepts the Shift AZERTY types digits with.
-fn chord_steps_take_the_digit_a_symbol_key_shares(chord_step: Digits) {
-    let azerty_shift_6 = press(
-        slot(&[FR], 0, 15, 1),
-        Typed {
-            typed: Key::_6,
-            matched: (Key::_6, NONE),
-            state: SHIFT,
-        },
-    );
-    assert_eq!(azerty_shift_6.digit_in(chord_step), Some(6));
-    // A top-row + or − is both: g and Ctrl read the symbol first, while t and ;
-    // have no symbol step and take the digit.
-    let azerty_minus = press(slot(&[FR], 0, 15, 0), typed(Key::minus, NONE));
-    let cz_plus = press(slot(&[CZ], 0, 10, 0), typed(Key::plus, NONE));
-    for (press, symbol, digit) in [
-        (azerty_minus, Binding::plain(Key::minus), 6),
-        (cz_plus, Binding::plain(Key::plus), 1),
-    ] {
-        assert!(press.is(symbol), "{press:?}");
-        assert_eq!(press.digit_in(chord_step), Some(digit), "{press:?}");
-    }
-}
-
 /// Hungarian prints 0 left of 1 and Ö on the tenth key; both read as 0.
 fn hungarian_zero_sits_left_of_one() {
     let hu_zero = press(slot(&[HU], 0, 49, 0), typed(Key::_0, CTRL));
@@ -87,13 +63,13 @@ fn hungarian_zero_sits_left_of_one() {
 
 /// GDK reports no AltGr modifier: above level 1 the row counts only a digit
 /// it types, as Lithuanian does, never an AltGr symbol.
-fn altgr_rows_count_only_the_digits_they_type(tab_numbers: Digits, chord_step: Digits) {
+fn altgr_rows_count_only_the_digits_they_type(tab_numbers: Digits) {
     let lt_ctrl_1 = press(slot(&[LT], 0, 10, 2), typed(Key::_1, CTRL));
     assert!(lt_ctrl_1.is(Binding::ctrl(Key::_1)));
     let azerty_ctrl_superscript = press(slot(&[FR], 0, 10, 2), typed(Key::onesuperior, CTRL));
     assert!(!azerty_ctrl_superscript.is(Binding::ctrl(Key::_1)));
     let azerty_tilde = press(slot(&[FR], 0, 11, 2), typed(Key::asciitilde, NONE));
-    assert_eq!(azerty_tilde.digit_in(chord_step), None);
+    assert_eq!(azerty_tilde.digit_in(tab_numbers), None);
     // German Mac types \ with Shift+AltGr+7: Ctrl+\, not tab 7.
     let de_mac_backslash = press(
         slot(&[DE], 0, 16, 3),
@@ -110,11 +86,9 @@ fn altgr_rows_count_only_the_digits_they_type(tab_numbers: Digits, chord_step: D
 #[test]
 fn digit_row_keys_are_digits_by_position() {
     let tab_numbers = Digits::new(CTRL_SHIFT, 9, true);
-    let chord_step = Digits::after(Binding::plain(Key::g).shown(), 9, false);
     shift_on_the_digit_row_follows_the_level(tab_numbers);
-    chord_steps_take_the_digit_a_symbol_key_shares(chord_step);
     hungarian_zero_sits_left_of_one();
-    altgr_rows_count_only_the_digits_they_type(tab_numbers, chord_step);
+    altgr_rows_count_only_the_digits_they_type(tab_numbers);
 }
 
 /// A US press whose Shift, if held, typed the character.

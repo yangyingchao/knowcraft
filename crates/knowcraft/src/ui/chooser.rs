@@ -16,7 +16,7 @@ mod tests;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
-    ffi::{OsStr, OsString},
+    ffi::OsStr,
     path::{Component, Path, PathBuf},
     rc::Rc,
     sync::{
@@ -38,8 +38,8 @@ use crate::{
     app::BrowserEvent,
     model::{EntryKind, FileEntry, Location, MetadataValue},
     portal::{
-        ChooserKind, ChooserRequest, DestinationCheck, check_destinations, local_uri,
-        open_selection, safe_filename, writable_from_read_only,
+        ChooserKind, ChooserRequest, local_uri, open_selection, safe_filename,
+        writable_from_read_only,
     },
     services::{
         DirectoryChange, DirectoryEvent, DirectoryRequest, FileSource, ItemIdentity, LoadHandle,
@@ -111,43 +111,4 @@ pub(crate) fn destination_chooser_for(parent: &gtk::Window) -> Option<(gtk::Wind
             })
             .map(|state| (state.window.clone(), state.view.clone()))
     })
-}
-
-pub(crate) fn present_chooser(
-    request: ChooserRequest,
-    cancelled: Arc<AtomicBool>,
-    completion: impl FnOnce(ashpd::backend::Result<SelectedFiles>) + 'static,
-) {
-    let _ = build_chooser(request, cancelled, completion);
-}
-
-fn build_chooser(
-    request: ChooserRequest,
-    cancelled: Arc<AtomicBool>,
-    completion: impl FnOnce(ashpd::backend::Result<SelectedFiles>) + 'static,
-) -> Option<Rc<ChooserState>> {
-    build_chooser_with_source(request, cancelled, completion, ChooserFileSource::new())
-}
-
-fn build_chooser_with_source(
-    request: ChooserRequest,
-    cancelled: Arc<AtomicBool>,
-    completion: impl FnOnce(ashpd::backend::Result<SelectedFiles>) + 'static,
-    source: Rc<ChooserFileSource>,
-) -> Option<Rc<ChooserState>> {
-    build_chooser_hosted(request, cancelled, completion, source, None)
-}
-
-pub(crate) fn cancel_chooser(token: &str) {
-    CHOOSERS.with(|choosers| {
-        let window = {
-            choosers
-                .borrow()
-                .get(token)
-                .and_then(glib::WeakRef::upgrade)
-        };
-        if let Some(window) = window {
-            window.close();
-        }
-    });
 }

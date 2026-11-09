@@ -10,9 +10,8 @@ use gtk::prelude::*;
 use super::{
     ModeViews,
     pane::{Pane, PaneSection},
-    source_index::{source_position_for_view, view_position_for_source},
+    source_index::source_position_for_view,
 };
-use crate::model::Location;
 
 impl ModeViews {
     pub(in crate::ui) fn page_target(
@@ -87,28 +86,6 @@ impl ModeViews {
             .into_iter()
             .find(|section| section.view == *view)
             .and_then(|section| section.source_to_view(&pane.model, source))
-    }
-
-    pub(in crate::ui) fn keyboard_peek_target(&self) -> Option<(gtk::Widget, usize, Location)> {
-        if let Some(pane) = self.single_pane()
-            && pane.search.selected_entries().is_some()
-        {
-            let (widget, entry) = pane.search.selected_anchor()?;
-            return entry
-                .is_directory()
-                .then_some((widget, pane.depth, entry.location));
-        }
-        let (depth, position, entry) = self.browser.focused_item()?;
-        if !entry.is_directory() {
-            return None;
-        }
-        let pane = self.mode_pane(depth)?;
-        let widget = pane.item_sections().into_iter().find_map(|section| {
-            let view_position =
-                view_position_for_source(&pane.model, Some(&section.view_model), position)?;
-            section.item_widget(view_position)
-        })?;
-        Some((widget, depth, entry.location))
     }
 
     fn visible_pane(&self, depth: usize) -> Option<&Pane> {

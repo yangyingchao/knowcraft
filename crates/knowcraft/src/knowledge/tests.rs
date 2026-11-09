@@ -29,34 +29,6 @@ fn warm_index_registers_and_indexes_new_files() {
 }
 
 #[test]
-fn dispatch_moves_an_inbox_file_into_a_library_category() {
-    let (dir, knowledge) = fixture("dispatch");
-    let inbox = dir.join("inbox").join("paper.md");
-    std::fs::write(&inbox, "dispatch 测试内容").unwrap();
-    warm_index(&knowledge);
-
-    let moved = knowledge.dispatch(&inbox, "论文").expect("dispatch");
-    assert!(moved.path.ends_with("library/论文/paper.md"));
-    assert!(!inbox.exists());
-    assert_eq!(knowledge.categories(), vec!["论文".to_owned()]);
-    assert!(
-        knowledge
-            .search("dispatch", 10)
-            .iter()
-            .any(|hit| hit.path == moved.path)
-    );
-}
-
-#[test]
-fn dispatch_refuses_a_document_outside_the_inbox() {
-    let (dir, knowledge) = fixture("dispatch-outside");
-    let library = dir.join("library").join("paper.md");
-    std::fs::write(&library, "already archived").unwrap();
-    warm_index(&knowledge);
-    assert!(knowledge.dispatch(&library, "论文").is_err());
-}
-
-#[test]
 fn placeholder_titles_are_treated_as_missing() {
     let placeholders = [
         "",

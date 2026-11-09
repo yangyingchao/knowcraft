@@ -143,19 +143,6 @@ impl ActionCatalog {
         matched
     }
 
-    pub fn numbered(&self, inputs: &[ActionInput]) -> Vec<Rc<ActionHandle>> {
-        let (top, submenu): (Vec<_>, Vec<_>) = self
-            .matches(inputs)
-            .into_iter()
-            .filter(|matched| matched.action.is_available())
-            .partition(|matched| matched.placement == MenuPlacement::Top);
-        top.into_iter()
-            .chain(submenu)
-            .map(|matched| matched.action)
-            .take(NUMBERED_ACTIONS)
-            .collect()
-    }
-
     /// The action at `index` in the order Settings lists them, disabled ones
     /// included, when it is enabled, runnable and accepts every input.
     pub fn listed(&self, index: usize, inputs: &[ActionInput]) -> Option<Rc<ActionHandle>> {
@@ -165,8 +152,6 @@ impl ActionCatalog {
             .cloned()
     }
 }
-
-const NUMBERED_ACTIONS: usize = 10;
 
 fn applies(action: &ActionHandle, inputs: &[ActionInput]) -> bool {
     action.definition.enabled && action.definition.when.matches(inputs)

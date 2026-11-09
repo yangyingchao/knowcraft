@@ -262,11 +262,6 @@ impl Index {
         Ok(hits)
     }
 
-    /// 供 core 内搜索模块构造字段查询与文档 id 集合查询。
-    pub(crate) fn schema(&self) -> Schema {
-        self.index.schema()
-    }
-
     /// 全文检索并按文档 id 集合过滤（`None` 表示不过滤）。
     /// 集合很小时用 `TermSetQuery`；超过阈值时退回「多取再内存过滤」。
     pub fn search_filtered(

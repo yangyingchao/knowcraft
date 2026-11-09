@@ -26,10 +26,6 @@ impl TopBarNavigation {
         &self.toggle
     }
 
-    pub fn focus_first(&self) -> bool {
-        self.header.child_focus(gtk::DirectionType::TabForward)
-    }
-
     pub fn has_focus(&self) -> bool {
         self.header
             .root()

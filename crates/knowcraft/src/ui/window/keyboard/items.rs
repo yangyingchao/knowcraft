@@ -34,28 +34,6 @@ enum OpenInNewTarget {
 }
 
 impl Dispatcher {
-    /// Flips the selection of the focused pane, or the filtered results.
-    pub(in crate::ui::window::keyboard) fn invert_selection(&self) -> bool {
-        self.view.invert_filter_results()
-            || (self.view.selected_search_results().is_none()
-                && self.fill_selection(self.view.invert_focused_pane()))
-    }
-
-    pub(super) fn fill_selection(&self, filled: bool) -> bool {
-        if !filled {
-            self.shortcuts
-                .show_feedback(&crate::i18n::tr("Nothing to select"));
-        }
-        true
-    }
-
-    /// Search hits shown in the listing swallow paging.
-    pub(in crate::ui::window::keyboard) fn page_cursor(&self, direction: i32, half: bool) {
-        if !self.view.listing_search_active() {
-            self.view.page_displayed_cursor(direction, half);
-        }
-    }
-
     /// Opens the focused result while results replace the directory, and
     /// nothing when there is none rather than the hidden directory's cursor.
     pub(super) fn activate_focused(&self, browser: &Rc<Browser>) {

@@ -25,9 +25,7 @@ pub(crate) use alias::install_native as install_native_aliases;
 pub(crate) use capture::{Capture, capture};
 #[cfg(test)]
 pub(crate) use command::use_keymap;
-pub(crate) use command::{
-    Command, Group, Keymap, Kind as CommandKind, Map, Matcher, Rejected, registry,
-};
+pub(crate) use command::{Command, Keymap, Map, Matcher, Rejected, registry};
 pub(crate) use label::{
     Digits, Keys, Shown, digit_label, label, label_in, label_in_map, modifiers_label,
     modifiers_label_in, search_text, shown,

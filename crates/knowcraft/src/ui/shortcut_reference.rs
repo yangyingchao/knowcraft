@@ -6,7 +6,7 @@ use super::{
     browser_modes::BrowserMode,
     keys::{
         self, Binding, Keys,
-        Keys::{Any, Chord, Mixed, One},
+        Keys::{Any, One},
         bindings::*,
         shown,
     },
@@ -40,8 +40,6 @@ pub(crate) struct ChooserScope {
 pub(crate) enum ChooserRequest {
     Files,
     Folders,
-    SaveFile,
-    SaveFiles,
 }
 
 /// Lowercase, with the `−` and the `–` of digit ranges that labels show read
@@ -322,7 +320,7 @@ pub(crate) fn menu_accelerator(keys: Keys) -> Option<Binding> {
     match keys {
         One(shown) => shown.primary(),
         Any(shown) => shown.first().and_then(|shown| shown.primary()),
-        Chord(_) | Keys::Digits(_) | Mixed(_) => None,
+        Keys::Digits(_) => None,
     }
 }
 
@@ -626,19 +624,6 @@ const SELECT_TAB: Shortcut = row(
 .mentioning(Mention::Held(TAB_NUMBERS.modifiers()));
 
 const TEXT_SIZE: Keys = Any(shown![TEXT_LARGER.alternate(0), TEXT_SMALLER, TEXT_RESET]);
-
-fn dismiss_search_hits(mode: BrowserMode) -> Shortcut {
-    within(
-        "%{keys} after a search",
-        // Icons h and ← move between result icons instead.
-        if mode == BrowserMode::Icons {
-            One(ESCAPE.shown())
-        } else {
-            Any(shown![ESCAPE, LEFT.alternate(1), LEFT.alternate(0)])
-        },
-        "Dismiss the hits",
-    )
-}
 
 const MEDIA: &[Shortcut] = &[
     row(One(MEDIA_PLAY_PAUSE.shown()), "Play / pause"),

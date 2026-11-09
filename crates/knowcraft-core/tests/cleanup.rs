@@ -119,7 +119,7 @@ fn cleanup_skips_hidden_entries() {
     // 可见文件的缺失条目：应被清理。
     let mut v = make_doc(2, &dir, "visible.md", "md", "v");
     v.path = dir.join("visible.md").to_string_lossy().into_owned();
-    std::fs::remove_file(&dir.join("visible.md")).unwrap();
+    std::fs::remove_file(dir.join("visible.md")).unwrap();
     store.insert_document(&v).unwrap();
 
     let report = cleanup_documents(&store, &index, |_| {}).unwrap();

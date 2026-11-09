@@ -195,18 +195,6 @@ impl Knowledge {
         )
     }
 
-    pub(crate) fn inbox(&self) -> Vec<Document> {
-        self.workflow.list_inbox().unwrap_or_default()
-    }
-
-    pub(crate) fn library(&self) -> Vec<Document> {
-        self.workflow.list_library().unwrap_or_default()
-    }
-
-    pub(crate) fn tags(&self) -> Vec<String> {
-        self.tags.list_all().unwrap_or_default()
-    }
-
     pub(crate) fn search(&self, query: &str, limit: usize) -> Vec<IndexHit> {
         if query.trim().is_empty() {
             return Vec::new();
@@ -220,10 +208,6 @@ impl Knowledge {
             return Vec::new();
         }
         self.tags.search(query).unwrap_or_default()
-    }
-
-    pub(crate) fn documents_with_tag(&self, name: &str) -> Vec<Document> {
-        self.tags.documents_with_tag(name).unwrap_or_default()
     }
 
     /// 递归导入外部目录到 `inbox/<目录名>/`（保留层级，同名与 checksum
@@ -282,7 +266,7 @@ impl Knowledge {
             .map_err(|error| error.to_string())
     }
 
-    /// 未归档判定：文件位于 `inbox/` 内。dispatch 会把文档移出 inbox，
+    /// 未归档判定：文件位于 `inbox/` 内。归档会把文档移出 inbox，
     /// 因此不在 inbox 的文件一律视为已归档（或尚未导入知识库）。
     pub(crate) fn is_pending(&self, path: &Path) -> bool {
         path.starts_with(self.data_dir.join("inbox"))
@@ -337,12 +321,6 @@ impl Knowledge {
         Ok(archived)
     }
 
-    /// Moves an inbox document into `library/<category>/`; thin wrapper over
-    /// `archive_to_library` so callers share one move path.
-    pub(crate) fn dispatch(&self, path: &Path, category: &str) -> Result<Document, String> {
-        self.archive_to_library(path, category)
-    }
-
     /// 按路径查找文档；不在库内时按目录登记（inbox 走 pending，其余走 linked 归档）。
     fn resolve_doc(&self, path: &Path) -> Result<Document, String> {
         let path_text = path.to_string_lossy();
@@ -362,7 +340,7 @@ impl Knowledge {
         registered.map_err(|error| error.to_string())
     }
 
-    /// 归档成功后按现有 dispatch 的做法更新索引状态与文件新鲜度。
+    /// 归档成功后按现有 archive_to_library 的做法更新索引状态与文件新鲜度。
     /// archive 内部已重建索引并返回 Ok；这里只记录状态。
     fn mark_indexed(&self, doc: &Document) {
         let _ = self.store.mark_indexed(doc.id);

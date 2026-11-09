@@ -30,7 +30,6 @@ impl NavigationState {
 
         self.record_navigation();
         self.peek = None;
-        self.visual = None;
         self.selection_commit = false;
         self.columns.truncate(parent_depth + 1);
         self.push_column(location, request_id);
@@ -94,7 +93,6 @@ impl NavigationState {
         request_ids: impl IntoIterator<Item = RequestId>,
     ) {
         self.peek = None;
-        self.visual = None;
         self.selection_commit = false;
         self.columns = path
             .locations

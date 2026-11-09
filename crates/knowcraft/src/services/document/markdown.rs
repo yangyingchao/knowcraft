@@ -25,10 +25,6 @@ impl MarkdownProfile {
         document_features: true,
         hide_html_comments: false,
     };
-    pub(super) const RELEASE_NOTES: Self = Self {
-        document_features: false,
-        hide_html_comments: true,
-    };
 }
 
 fn is_html_comment(html: &str) -> bool {

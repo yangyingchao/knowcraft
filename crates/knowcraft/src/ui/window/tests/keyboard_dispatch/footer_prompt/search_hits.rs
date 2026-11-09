@@ -31,28 +31,17 @@ impl Hits<'_> {
     fn press(&self, key: Key) {
         assert!(self.fixture.press(key, ModifierType::empty()));
     }
-
-    fn wait_visual(&self, text: Option<&str>) {
-        wait_until(|| self.fixture.shortcuts.visual_text().as_deref() == text);
-    }
 }
 
-/// A search started from a visual range ends the hidden directory's range;
+/// A search over the hits leaves the hidden directory's selection untouched;
 /// returns the hits and the hidden directory's selection from before them.
-fn search_from_a_range(fixture: &KeyboardFixture, mode: BrowserMode) -> (Hits<'_>, Vec<String>) {
+fn search_over_hits(fixture: &KeyboardFixture, mode: BrowserMode) -> (Hits<'_>, Vec<String>) {
     select_named(fixture, "beta.txt");
     let hidden = hidden_selection(fixture);
     assert_eq!(hidden, ["beta.txt"], "{mode:?}");
-    assert!(fixture.press(Key::v, ModifierType::empty()));
-    wait_until(|| fixture.shortcuts.visual_text().as_deref() == Some("VISUAL"));
     commit_search(fixture, "report");
     wait_results(fixture, &ALL_REPORTS);
     wait_until(|| fixture.shortcuts.filter_mark().as_deref() == Some("search: report"));
-    assert_eq!(
-        fixture.shortcuts.visual_text(),
-        None,
-        "{mode:?}: hits end the hidden directory's range"
-    );
     let hits = Hits {
         fixture,
         mode,
@@ -135,10 +124,6 @@ fn icons_spatial_moves_keep_the_fill(hits: &Hits<'_>) {
     let cursor = hit_cursor(fixture).expect("cursor");
     wait_footer_hit(fixture, hits.mode, "h over the fill", &cursor);
     assert_eq!(selected_result_names(fixture), hits.names(&[0, 1]));
-    hits.press(Key::v);
-    hits.wait_visual(Some("VISUAL"));
-    hits.press(Key::v);
-    hits.wait_visual(None);
     assert!(fixture.view.listing_search_active(), "{:?}", hits.mode);
 }
 
@@ -150,42 +135,6 @@ fn linear_motion_keeps_the_fill(hits: &Hits<'_>) {
     hits.press(Key::k);
     hits.wait_cursor(2);
     hits.wait_footer("k over the fill", 2);
-}
-
-/// `v` extends the fill into a range that follows the cursor; Escape keeps the range's
-/// selection as a fill.
-fn v_range_grows_and_shrinks(hits: &Hits<'_>) {
-    let fixture = hits.fixture;
-    hits.press(Key::v);
-    hits.wait_visual(Some("VISUAL"));
-    assert_eq!(selected_result_names(fixture), hits.names(&[0, 1, 2]));
-    hits.press(Key::j);
-    hits.wait_cursor(3);
-    hits.wait_footer("j in a v range", 3);
-    assert_eq!(selected_result_names(fixture), hits.names(&[0, 1, 2, 3]));
-    hits.press(Key::k);
-    hits.wait_cursor(2);
-    hits.wait_footer("k in a v range", 2);
-    assert_eq!(selected_result_names(fixture), hits.names(&[0, 1, 2]));
-
-    hits.press(Key::Escape);
-    hits.wait_visual(None);
-    assert!(fixture.view.listing_search_active(), "{:?}", hits.mode);
-    assert_eq!(selected_result_names(fixture), hits.names(&[0, 1, 2]));
-}
-
-/// `V` unsets along the cursor's path.
-fn unset_range_removes_the_cursor(hits: &Hits<'_>) {
-    let fixture = hits.fixture;
-    hits.press(Key::k);
-    hits.wait_cursor(1);
-    hits.wait_footer("k after Escape", 1);
-    assert!(fixture.press(Key::V, ModifierType::SHIFT_MASK));
-    hits.wait_visual(Some("UNSET"));
-    assert_eq!(selected_result_names(fixture), hits.names(&[0, 2]));
-    assert!(fixture.press(Key::V, ModifierType::SHIFT_MASK));
-    hits.wait_visual(None);
-    assert_eq!(selected_result_names(fixture), hits.names(&[0, 2]));
 }
 
 /// Extending the selection to an unselected hit and pressing Space toggles the
@@ -241,7 +190,7 @@ fn search_hits_fill_and_range_apart_from_the_hidden_directory() {
             for mode in ALL_MODES {
                 fixture.view.set_view_mode(mode);
                 wait_loaded(&browser, 0);
-                let (hits, hidden) = search_from_a_range(&fixture, mode);
+                let (hits, hidden) = search_over_hits(&fixture, mode);
 
                 jump_keys_are_swallowed(&hits);
                 space_fills_hits(&hits);
@@ -249,8 +198,6 @@ fn search_hits_fill_and_range_apart_from_the_hidden_directory() {
                     icons_spatial_moves_keep_the_fill(&hits);
                 } else {
                     linear_motion_keeps_the_fill(&hits);
-                    v_range_grows_and_shrinks(&hits);
-                    unset_range_removes_the_cursor(&hits);
                 }
                 space_toggles_the_cursor_hit(&hits);
                 escape_keeps_the_hidden_selection(&hits, &hidden);

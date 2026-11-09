@@ -176,10 +176,9 @@ impl ViewState {
         self.pending_mirror.replace(Some(source));
     }
 
-    /// Mirroring is a Columns keyboard feature that must not interrupt an edit or a visual range.
+    /// Mirroring is a Columns keyboard feature that must not interrupt an edit.
     fn child_mirror_blocked(&self, force: bool) -> bool {
         self.browser.child_mirror_suppressed()
-            || self.browser.visual_kind().is_some()
             || !self.columns_mirror_selection.get()
             || self.active_rename.borrow().is_some()
             || self.pending_new_entry.borrow().is_some()

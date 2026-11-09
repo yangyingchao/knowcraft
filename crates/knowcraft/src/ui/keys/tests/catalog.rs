@@ -3,9 +3,8 @@
 use gtk::glib::translate::IntoGlib;
 
 use super::super::{
-    CUSTOM_ACTIONS, Keymap, Keys, Map, Shown,
+    CUSTOM_ACTIONS, Keymap, Keys, Map,
     bindings::{self, Entry, Listed},
-    command::{Kind, registry},
     main_key, use_keymap,
 };
 use super::*;
@@ -55,38 +54,18 @@ fn wanted(constant: &Listed, map: Map) -> Wanted {
     match constant.entry {
         Entry::Binding(binding) => Wanted::Keys(vec![binding], None),
         Entry::Digits(digits) => Wanted::Digits(digits),
-        Entry::Command(command) => {
-            let after = match command.kind() {
-                Kind::Step(group) => {
-                    registry().find(|trigger| trigger.kind() == Kind::Trigger(group))
-                }
-                Kind::Single | Kind::Trigger(_) | Kind::Structural => constant.after,
-            };
-            Wanted::Keys(
-                command.bindings_in(map),
-                after.and_then(|after| after.bindings_in(map).first().copied()),
-            )
-        }
+        Entry::Command(command) => Wanted::Keys(
+            command.bindings_in(map),
+            constant
+                .after
+                .and_then(|after| after.bindings_in(map).first().copied()),
+        ),
     }
 }
 
 fn shows(keys: &Keys, wanted: &Wanted, map: Map) -> bool {
-    let primary = |shown: &Shown| shown.bindings(map).first().copied();
     match (keys, wanted) {
-        (Keys::Mixed(alternatives), _) => alternatives.iter().any(|keys| shows(keys, wanted, map)),
         (Keys::Digits(digits), Wanted::Digits(wanted)) => digits == wanted,
-        (Keys::Chord(steps), Wanted::Keys(bindings, Some(first))) => {
-            let steps: Vec<Option<Binding>> = steps.iter().map(primary).collect();
-            bindings.iter().any(|binding| {
-                steps
-                    .windows(2)
-                    .any(|pair| pair == [Some(*first), Some(*binding)])
-            })
-        }
-        (Keys::Chord(steps), Wanted::Keys(bindings, None)) => steps
-            .first()
-            .and_then(primary)
-            .is_some_and(|step| bindings.contains(&step)),
         (Keys::One(shown), Wanted::Keys(bindings, None)) => shown
             .bindings(map)
             .iter()

@@ -9,29 +9,10 @@ use std::{
     time::Duration,
 };
 
-use ashpd::{MaybeAppID, WindowIdentifierType};
 use async_io::{Async, Timer};
 use futures_lite::{AsyncReadExt, AsyncWriteExt, future};
-use serde::Deserialize;
 
 const QUERY_TIMEOUT: Duration = Duration::from_millis(100);
-const MAX_REPLY_BYTES: u64 = 1024 * 1024;
-
-// xdg-foreign exports transiency, not geometry. Only use a compositor sizing
-// hint when the requesting application has a single identifiable window.
-pub(super) async fn parent_size_hint(
-    app_id: Option<&MaybeAppID>,
-    parent: Option<&WindowIdentifierType>,
-) -> Option<(i32, i32)> {
-    if !matches!(parent, Some(WindowIdentifierType::Wayland(_))) {
-        return None;
-    }
-    let app_id = app_id?.to_string();
-    if app_id.is_empty() {
-        return None;
-    }
-    query_size(&hyprland_socket()?, &app_id, QUERY_TIMEOUT).await
-}
 
 pub(crate) async fn prepare_chooser_placement() {
     let Some(socket) = hyprland_socket() else {
@@ -113,20 +94,6 @@ fn socket_path(runtime: &Path, signature: &str) -> Option<PathBuf> {
     Some(runtime.join("hypr").join(signature).join(".socket.sock"))
 }
 
-async fn query_size(socket: &Path, app_id: &str, timeout: Duration) -> Option<(i32, i32)> {
-    future::or(
-        async {
-            let reply = exchange(socket, b"j/clients", MAX_REPLY_BYTES).await?;
-            application_window_size(&reply, app_id)
-        },
-        async {
-            Timer::after(timeout).await;
-            None
-        },
-    )
-    .await
-}
-
 async fn exchange(socket: &Path, command: &[u8], max_reply_bytes: u64) -> Option<Vec<u8>> {
     let mut stream = Async::<UnixStream>::connect(socket).await.ok()?;
     stream.write_all(command).await.ok()?;
@@ -137,35 +104,4 @@ async fn exchange(socket: &Path, command: &[u8], max_reply_bytes: u64) -> Option
         .await
         .ok()?;
     (reply.len() as u64 <= max_reply_bytes).then_some(reply)
-}
-
-#[derive(Deserialize)]
-struct ApplicationWindow {
-    class: String,
-    #[serde(rename = "initialClass")]
-    initial_class: String,
-    mapped: bool,
-    hidden: bool,
-    size: [i32; 2],
-}
-
-fn application_window_size(reply: &[u8], app_id: &str) -> Option<(i32, i32)> {
-    if app_id.is_empty() {
-        return None;
-    }
-    let windows: Vec<ApplicationWindow> = serde_json::from_slice(reply).ok()?;
-    let mut matches = windows.iter().filter(|window| {
-        [&window.class, &window.initial_class]
-            .iter()
-            .any(|class| class.eq_ignore_ascii_case(app_id))
-    });
-    let window = matches.next()?;
-    if matches.next().is_some()
-        || !window.mapped
-        || window.hidden
-        || window.size.iter().any(|size| *size <= 0)
-    {
-        return None;
-    }
-    Some((window.size[0], window.size[1]))
 }

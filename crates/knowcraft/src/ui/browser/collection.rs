@@ -403,17 +403,6 @@ impl FilterQueryBinding {
         self.scope.forced.get()
     }
 
-    pub(in crate::ui) fn release_forced_recursion(&self) {
-        if self.force_recursive(false)
-            && self
-                .entry
-                .upgrade()
-                .is_some_and(|entry| !entry.text().trim().is_empty())
-        {
-            self.requery();
-        }
-    }
-
     /// Like [`Self::flush`], but restarts the query so the previous query's
     /// rows are dropped rather than shown until the new ones arrive.
     pub(in crate::ui) fn settle(&self) {

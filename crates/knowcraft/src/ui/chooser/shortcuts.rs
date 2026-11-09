@@ -78,13 +78,6 @@ pub(super) struct ShortcutParts<'a> {
 
 fn chooser_keys(state: &Rc<ChooserState>, parts: &ShortcutParts<'_>) -> ChooserKeys {
     let confirming = Rc::downgrade(state);
-    let cancelling = Rc::downgrade(state);
-    let saving = Rc::downgrade(state);
-    let naming = Rc::downgrade(state);
-    let save_request = matches!(
-        &state.request.kind,
-        ChooserKind::SaveFile { .. } | ChooserKind::SaveFiles { .. }
-    );
     crate::ui::window::chooser_keys(
         &state.window,
         &state.view,
@@ -93,33 +86,10 @@ fn chooser_keys(state: &Rc<ChooserState>, parts: &ShortcutParts<'_>) -> ChooserK
         parts.preview,
         parts.footer,
         ChooserPolicy {
-            multiple: matches!(
-                &state.request.kind,
-                ChooserKind::Open { multiple: true, .. }
-            ),
             confirm: Rc::new(move |entry| {
                 if let Some(state) = confirming.upgrade() {
                     state.confirm_file(&entry);
                 }
-            }),
-            cancel: Rc::new(move || {
-                if let Some(state) = cancelling.upgrade() {
-                    state.cancel();
-                }
-            }),
-            save: save_request.then(|| {
-                Rc::new(move || {
-                    if let Some(state) = saving.upgrade() {
-                        state.accept();
-                    }
-                }) as Rc<dyn Fn()>
-            }),
-            edit_name: (save_request && state.filename.is_some()).then(|| {
-                Rc::new(move || {
-                    if let Some(state) = naming.upgrade() {
-                        state.edit_name();
-                    }
-                }) as Rc<dyn Fn()>
             }),
         },
     )

@@ -13,10 +13,6 @@ use super::{
 };
 
 impl NavigationState {
-    pub fn set_preserve_fill_on_removal(&mut self, preserve: bool) {
-        self.preserve_fill_on_removal = preserve;
-    }
-
     pub fn set_selectionless_removals(&mut self, locations: impl IntoIterator<Item = Location>) {
         self.selectionless_removals = locations.into_iter().collect();
     }

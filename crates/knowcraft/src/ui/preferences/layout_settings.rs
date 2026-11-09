@@ -9,18 +9,8 @@ impl PreferenceManager {
         self.preferences.borrow().columns_show_sizes
     }
 
-    pub fn set_columns_show_sizes(&self, enabled: bool) {
-        self.preferences.borrow_mut().columns_show_sizes = enabled;
-        self.save_preferences();
-    }
-
     pub fn columns_mirror_selection(&self) -> bool {
         self.preferences.borrow().columns_mirror_selection
-    }
-
-    pub fn set_columns_mirror_selection(&self, enabled: bool) {
-        self.preferences.borrow_mut().columns_mirror_selection = enabled;
-        self.save_preferences();
     }
 
     pub fn chooser_column_width(&self) -> Option<i32> {

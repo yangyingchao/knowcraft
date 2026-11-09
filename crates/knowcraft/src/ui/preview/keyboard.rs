@@ -12,9 +12,9 @@ use crate::ui::{
     keys::{
         Match,
         bindings::{
-            DOWN, END_KEY, HOME_KEY, LEFT, MEDIA_SEEK_BACK_PAGE, MEDIA_SEEK_END,
-            MEDIA_SEEK_FORWARD_PAGE, MEDIA_SEEK_START, MEDIA_VOLUME_STEP_DOWN,
-            MEDIA_VOLUME_STEP_UP, PAGE_DOWN_KEY, PAGE_UP_KEY, PDF_ZOOM_RESET, RIGHT, UP,
+            END_KEY, HOME_KEY, LEFT, MEDIA_SEEK_BACK_PAGE, MEDIA_SEEK_END, MEDIA_SEEK_FORWARD_PAGE,
+            MEDIA_SEEK_START, MEDIA_VOLUME_STEP_DOWN, MEDIA_VOLUME_STEP_UP, PAGE_DOWN_KEY,
+            PAGE_UP_KEY, PDF_ZOOM_RESET, RIGHT,
         },
     },
 };
@@ -111,19 +111,8 @@ const SEEK_AND_VOLUME: [(&dyn Match, MediaCommand); 12] = [
     (&MEDIA_VOLUME_STEP_DOWN, MediaCommand::VolumeDown),
 ];
 
-const PLAYBACK: [(&dyn Match, MediaCommand); 2] = [
-    (&UP, MediaCommand::VolumeUp),
-    (&DOWN, MediaCommand::VolumeDown),
-];
-
 pub(super) fn seek_or_volume(press: &KeyPress) -> Option<MediaCommand> {
     command_for(&SEEK_AND_VOLUME, press)
-}
-
-/// Keys a keyboard-owned media preview claims, even when the stream cannot
-/// act on them.
-pub(in crate::ui) fn media_key_command(press: &KeyPress) -> Option<MediaCommand> {
-    command_for(&PLAYBACK, press).or_else(|| seek_or_volume(press))
 }
 
 fn command_for(commands: &[(&dyn Match, MediaCommand)], press: &KeyPress) -> Option<MediaCommand> {
@@ -199,32 +188,12 @@ impl PreviewDrawer {
             .is_some_and(|action| *focused == action)
     }
 
-    /// Plain media keys for a keyboard-owned media preview, plus `<` / `>`
-    /// while an audio preview is open.
-    pub(in crate::ui) fn media_key(&self, command: MediaCommand) -> bool {
-        self.has_video() && self.state.media_command(command)
-    }
-
     pub(in crate::ui) fn archive_at_root(&self) -> bool {
         self.state
             .archive_browser
             .borrow()
             .as_ref()
             .is_none_or(archive::ArchiveBrowser::at_root)
-    }
-
-    pub(in crate::ui) fn archive_edge(&self, last: bool) -> bool {
-        self.state
-            .archive_browser
-            .borrow()
-            .as_ref()
-            .is_some_and(|browser| {
-                browser.move_cursor(if last {
-                    isize::MAX / 2
-                } else {
-                    -isize::MAX / 2
-                })
-            })
     }
 }
 

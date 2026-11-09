@@ -163,11 +163,7 @@ pub(super) fn release_controllers_on_close(
 }
 
 pub(in crate::ui) struct ChooserPolicy {
-    pub(in crate::ui) multiple: bool,
     pub(in crate::ui) confirm: Rc<dyn Fn(crate::model::FileEntry)>,
-    pub(in crate::ui) cancel: Rc<dyn Fn()>,
-    pub(in crate::ui) save: Option<Rc<dyn Fn()>>,
-    pub(in crate::ui) edit_name: Option<Rc<dyn Fn()>>,
 }
 
 pub(in crate::ui) struct ChooserKeys {

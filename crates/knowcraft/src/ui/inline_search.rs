@@ -411,17 +411,6 @@ impl InlineSearch {
         }
     }
 
-    pub(super) fn selected_anchor(&self) -> Option<(gtk::Widget, FileEntry)> {
-        let state = self.state.as_ref()?;
-        if state.stack.visible_child_name().as_deref() != Some("search") {
-            return None;
-        }
-        let position = state.collection.current_position()?;
-        let entry = collection_entry(&state.collection.sorted, position)?;
-        let (_, widget) = state.collection.bound_at(position)?;
-        Some((widget, entry))
-    }
-
     pub fn focus_result(&self, path: &Path) -> bool {
         self.focus_result_with_selection(path, false)
     }
@@ -613,21 +602,6 @@ impl InlineSearch {
             collection.view.clone(),
             collection.current_position(),
         ))
-    }
-
-    pub(in crate::ui) fn invert_selection(&self) -> bool {
-        let Some(state) = self.showing_results() else {
-            return false;
-        };
-        let selection = &state.collection.selection;
-        let count = selection.n_items();
-        if count == 0 {
-            return false;
-        }
-        let inverted = gtk::Bitset::new_range(0, count);
-        inverted.subtract(&selection.selection());
-        selection.set_selection(&inverted, &gtk::Bitset::new_range(0, count));
-        true
     }
 
     /// Moves the result cursor `steps` rows; `usize::MAX` jumps to an end. The

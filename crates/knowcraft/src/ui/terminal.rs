@@ -14,8 +14,6 @@ pub(super) const PREFERRED_LAUNCHER: &str = "xdg-terminal-exec";
 
 const GHOSTTY: &str = "ghostty";
 
-const OMARCHY_PRESENTATION_LAUNCHER: &str = "omarchy-launch-floating-terminal-with-presentation";
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DirectoryStyle {
     Joined(&'static str),
@@ -222,23 +220,6 @@ impl Terminal {
         )
         .into_owned()
     }
-}
-
-/// Omarchy's own launcher for its maintenance commands: a floating terminal
-/// that keeps the output open until a key is pressed, even after a failure.
-pub(super) fn omarchy_presentation_command(
-    path_var: Option<&OsStr>,
-    command: &str,
-) -> Option<Command> {
-    let launcher = find_on_path(path_var, OMARCHY_PRESENTATION_LAUNCHER)?;
-    let mut launch = Command::new(launcher);
-    launch
-        .arg(command)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    crate::child_environment::restore_command(&mut launch);
-    Some(launch)
 }
 
 pub(super) fn no_terminal_message() -> String {
