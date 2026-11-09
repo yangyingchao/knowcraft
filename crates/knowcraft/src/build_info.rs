@@ -10,11 +10,12 @@ pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 /// The release tag this build was published under, e.g. `v0.5.0` or
 /// `v0.5.0-rc.1`.
 ///
-/// Injected by `build.rs`, mirroring how it injects [`COMMIT`]. Defaults to
-/// `v{CARGO_PKG_VERSION}` when `KNOWCRAFT_RELEASE_TAG` is unset or empty --
-/// i.e. every developer build -- so this is where prerelease identity
-/// travels without ever bumping `Cargo.toml` for an RC (see D3 in the
-/// release-channel design notes).
+/// Injected by `build.rs`, mirroring how it injects [`COMMIT`]. Derived from
+/// the git tag; untagged commits carry a commit-distance suffix like
+/// `v0.5.0-3`, and a checkout without tags falls back to `v0.0.0`.
+/// `Cargo.toml` keeps a permanent placeholder version and is not a version
+/// source. Prerelease identity still travels here without bumping manifest
+/// metadata (see D3 in the release-channel design notes).
 pub const RELEASE_TAG: &str = knowcraft_core::RELEASE_TAG;
 
 /// The build kind this binary was published as, as the raw string

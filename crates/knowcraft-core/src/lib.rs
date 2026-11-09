@@ -26,7 +26,7 @@ pub mod util;
 pub mod watcher;
 pub mod workflow;
 
-/// 构建时派生的版本号（不含 `v` 前缀），无 tag 时为 Cargo 包版本。
+/// 构建时派生的版本号（不含 `v` 前缀），来源为 git tag；无 tag 时回退 `0.0.0`。
 pub const VERSION: &str = env!("KNOWCRAFT_VERSION");
 
 /// 构建时派生的 release tag（含 `v` 前缀）。

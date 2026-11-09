@@ -2892,7 +2892,7 @@ dependencies = [
 
 [[package]]
 name = "knowcraft"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "ashpd",
  "async-io",
@@ -2965,7 +2965,7 @@ dependencies = [
 
 [[package]]
 name = "knowcraft-cli"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2976,7 +2976,7 @@ dependencies = [
 
 [[package]]
 name = "knowcraft-core"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "dirs",
  "getrandom 0.2.17",

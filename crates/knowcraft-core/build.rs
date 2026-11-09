@@ -1,8 +1,10 @@
 //! 构建时派生版本信息，供 CLI 与 GUI 共用。
 //!
 //! 版本来源优先级：`KNOWCRAFT_RELEASE_TAG` 环境变量（发布流程注入）>
-//! HEAD 精确命中的 git tag > `v{CARGO_PKG_VERSION}`。`KNOWCRAFT_VERSION`
-//! 是去掉 `v` 前缀的纯版本，`KNOWCRAFT_RELEASE_TAG` 保留 `v` 前缀。
+//! `git describe --tags --long`（去掉 `-g<短 hash>`）> `v0.0.0`。
+//! `Cargo.toml` 的版本只是永不变的占位值，不参与版本派生。
+//! `KNOWCRAFT_VERSION` 是去掉 `v` 前缀的纯版本，`KNOWCRAFT_RELEASE_TAG`
+//! 保留 `v` 前缀；未打 tag 的提交带提交数后缀，如 `v0.1.1-3`。
 
 use std::{env, process::Command};
 
@@ -20,7 +22,7 @@ fn main() {
         .and_then(|value| value.lines().next().map(str::trim).map(str::to_owned))
         .filter(|value| !value.is_empty())
         .or_else(git_tag)
-        .unwrap_or_else(|| format!("v{}", env!("CARGO_PKG_VERSION")));
+        .unwrap_or_else(|| "v0.0.0".to_owned());
     println!("cargo::rustc-env=KNOWCRAFT_RELEASE_TAG={release_tag}");
 
     let version = release_tag
@@ -30,11 +32,28 @@ fn main() {
     println!("cargo::rustc-env=KNOWCRAFT_VERSION={version}");
 }
 
-/// HEAD 精确命中的 git tag（含 `v` 前缀）；未处于 tag 上时返回 `None`。
+/// 由 git tag 派生的版本（含 `v` 前缀）：去掉 `git describe --long` 的
+/// `-g<短 hash>`；精确落在 tag 上时同时去掉距离 `0`。仓库没有 tag 时返回 `None`。
 fn git_tag() -> Option<String> {
-    let tag = git_output(&["describe", "--tags"])?;
-    let tag = tag.trim();
-    (!tag.is_empty()).then(|| tag.to_owned())
+    let describe = git_output(&["describe", "--tags", "--long"])?;
+    strip_short_hash(describe.trim())
+}
+
+/// 把 `TAG-N-gHASH` 转为 `TAG`（N 为 0）或 `TAG-N`。
+///
+/// 只处理 `--long` 的固定形态；短 hash 必须是十六进制，避免把 tag 名中的
+/// `-g` 误当成 hash 分隔符。
+fn strip_short_hash(describe: &str) -> Option<String> {
+    let (prefix, hash) = describe.rsplit_once("-g")?;
+    if hash.is_empty() || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    let (tag, distance) = prefix.rsplit_once('-')?;
+    if distance == "0" {
+        (!tag.is_empty()).then(|| tag.to_owned())
+    } else {
+        Some(prefix.to_owned())
+    }
 }
 
 fn git_output(arguments: &[&str]) -> Option<String> {
