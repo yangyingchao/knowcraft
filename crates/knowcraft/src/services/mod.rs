@@ -39,9 +39,9 @@ pub use actions::{
     ActionRegistry, ActionScript, ActionWriteRequest, MatchedAction,
 };
 pub(crate) use document::{
-    DocumentBlock, DocumentLayout, DocumentListChildKind, DocumentMedia, DocumentSpan,
-    DocumentSpanStyle, DocumentTableCellLayout, DocumentUnit, DocumentUnitKind, document_kind,
-    has_web_scheme, layout_document, parse_document, parse_markdown,
+    DocumentLayout, DocumentListChildKind, DocumentMedia, DocumentSpan, DocumentSpanStyle,
+    DocumentTableCellLayout, DocumentUnit, DocumentUnitKind, document_kind, has_web_scheme,
+    layout_document, parse_document,
 };
 pub(crate) use dropped_content::{
     DroppedFile, MAX_DROPPED_FILE_BYTES, WebLink, has_link_extension, save_dropped_files,
@@ -58,15 +58,15 @@ pub(crate) use file_source::{
     gio_backend_error_message, gio_error_detail, gio_error_message, io_error_detail,
     io_error_message, sanitize_failure_message, system_error_text,
 };
-pub use install_source::{InstallSource, ManagedInstall};
-pub(crate) use install_source::{ensure_self_managed, installed_executable};
+pub use install_source::InstallSource;
+pub(crate) use install_source::installed_executable;
 pub use item_identity::{Attributes, Evidence, IdentityTraits, InodeNumbers, ItemIdentity, Proof};
 pub use jobs::{
     ActionEventSink, ActionRunEvent, ActionRunRequest, ActionRunner, CancelHandle,
     InvocationSource, JobId, JobRequest, JobService, JobSnapshot, JobStatus, ScriptProgress,
     expand_command_arguments,
 };
-pub(crate) use listeners::{ListenerGuard, Listeners};
+pub(crate) use listeners::ListenerGuard;
 pub use mime_type::{EntryType, FOLDER_TYPE_NAME, OTHER_TYPE_NAME, entry_type};
 pub use model_preview::{ModelEncoding, ModelFormat, ModelMesh, ModelPalette, ModelView};
 pub(crate) use model_preview::{ModelRender, ModelRenderPurpose};
@@ -97,10 +97,6 @@ pub(crate) use preview::{
     model_format, normalize_preview_text, read_head_sample, read_supports_named_family,
     reconcile_with_sample, refine_reported_content_type, split_archive_name, supports_remote_video,
 };
-pub(crate) use transfer_action::{
-    CrossVolumeDropStrategy, DropActionInput, DropCommit, DropOverride, TransferKind,
-    VolumeIdentity, VolumeRelation, drop_commit, transferable_drop_sources, volume_relation,
-};
 pub(crate) use release_channel::{BuildKind, Channel, Version};
 pub(crate) use remote_download::{
     RemoteDownload, download_remote, remote_file_name, remote_file_url,
@@ -113,4 +109,8 @@ pub(crate) use search::{
     RefusedFolders, SearchCoverage, SearchEvent, SearchExclusions, SearchHandle, SearchItem,
     SearchLimits, filter_name_matches, filter_query_allows_typos, fold_for_search, index_filter,
     index_folder_paths, index_paths, index_trees_with_exclusions,
+};
+pub(crate) use transfer_action::{
+    CrossVolumeDropStrategy, DropActionInput, DropCommit, DropOverride, TransferKind,
+    VolumeIdentity, VolumeRelation, drop_commit, transferable_drop_sources, volume_relation,
 };

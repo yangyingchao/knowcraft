@@ -42,10 +42,10 @@ use rows::{align_document_row, apply_source_view_wrap, document_wrap_mode};
 #[cfg(test)]
 use rows::{bind_document_row, bind_source_row};
 pub(super) use selection::match_ranges;
-pub(super) use space::SelectionSpace;
 #[cfg(test)]
 use source::source_line_numbers;
 use source::source_units;
+pub(super) use space::SelectionSpace;
 pub(super) use table_cell::set_table_cell;
 #[cfg(test)]
 use table_cell::{bounded_text_prefix, styled_markup};
@@ -412,9 +412,10 @@ impl VirtualPreviewState {
                 state.copy_selection();
             }
         });
-        self.toolbar.replace(Some(
-            super::annotation::AnnotationToolbar::new(on_action, on_copy),
-        ));
+        self.toolbar
+            .replace(Some(super::annotation::AnnotationToolbar::new(
+                on_action, on_copy,
+            )));
         self.annotations.replace(Some(controller));
         self.refresh_annotations();
     }
@@ -503,7 +504,11 @@ impl VirtualPreviewState {
             self.hide_toolbar();
             return;
         }
-        let Some(selection) = self.selection.get().filter(|selection| !selection.is_empty()) else {
+        let Some(selection) = self
+            .selection
+            .get()
+            .filter(|selection| !selection.is_empty())
+        else {
             controller.cancel_adjust();
             self.hide_toolbar();
             return;

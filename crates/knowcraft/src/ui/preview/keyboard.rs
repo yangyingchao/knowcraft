@@ -226,7 +226,6 @@ impl PreviewDrawer {
                 })
             })
     }
-
 }
 
 impl PreviewState {

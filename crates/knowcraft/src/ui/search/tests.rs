@@ -72,23 +72,20 @@ fn history_entries_render_under_the_history_header() {
 
 #[test]
 fn typing_filters_history_results() {
-    crate::test_support::gtk_test(
-        "ui::search::tests::typing_filters_history_results",
-        || {
-            let directory = tempfile::tempdir().expect("history directory");
-            let folders = [PathBuf::from("/work/alpha"), PathBuf::from("/work/beta")];
-            let history = history_with(directory.path(), &folders);
-            let dialog = dialog();
-            dialog.state.layer.set_visible(true);
-            dialog.show_history(history);
-            dialog.state.field.set_text("beta");
+    crate::test_support::gtk_test("ui::search::tests::typing_filters_history_results", || {
+        let directory = tempfile::tempdir().expect("history directory");
+        let folders = [PathBuf::from("/work/alpha"), PathBuf::from("/work/beta")];
+        let history = history_with(directory.path(), &folders);
+        let dialog = dialog();
+        dialog.state.layer.set_visible(true);
+        dialog.show_history(history);
+        dialog.state.field.set_text("beta");
 
-            assert_eq!(history_paths(&dialog.state), [folders[1].clone()]);
+        assert_eq!(history_paths(&dialog.state), [folders[1].clone()]);
 
-            dialog.state.field.set_text("");
-            assert_eq!(history_paths(&dialog.state), folders);
-        },
-    );
+        dialog.state.field.set_text("");
+        assert_eq!(history_paths(&dialog.state), folders);
+    });
 }
 
 #[test]

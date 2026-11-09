@@ -3,12 +3,11 @@
 use super::*;
 
 use crate::ui::annotation::{
-    self, AnnotationController, AnnotationMenuCallbacks, AnnotationToolbar,
-    AnnotationToolbarAction,
+    self, AnnotationController, AnnotationMenuCallbacks, AnnotationToolbar, AnnotationToolbarAction,
 };
 use crate::ui::document_view::DocumentTextView;
 use crate::ui::keys::{self as key_events, bindings::ESCAPE};
-use crate::ui::virtual_preview::{notice_container, SelectionSpace, VirtualPreviewState};
+use crate::ui::virtual_preview::{SelectionSpace, VirtualPreviewState, notice_container};
 
 impl SourcePreviewView {
     pub(super) fn new() -> Self {
@@ -44,14 +43,10 @@ impl SourcePreviewView {
                 super::super::preferences::PreferenceManager::shared().preview_text_wrap();
             let (container, state) =
                 super::super::virtual_preview::source_document(content, truncated, wrapped);
-            let controller = AnnotationController::new(
-                source_document_id(entry),
-                "source",
-                state.space(),
-            );
+            let controller =
+                AnnotationController::new(source_document_id(entry), "source", state.space());
             state.set_annotations(controller);
-            self.virtual_state
-                .replace(Some(SourceState::List(state)));
+            self.virtual_state.replace(Some(SourceState::List(state)));
             return (container.upcast(), true);
         }
         let display = normalize_preview_text(content).into_owned();
@@ -361,11 +356,7 @@ impl PlainPreviewState {
         self.clear_selection();
     }
 
-    fn open_menu(
-        &self,
-        annotation: knowcraft_core::model::Annotation,
-        rect: (f64, f64, f64, f64),
-    ) {
+    fn open_menu(&self, annotation: knowcraft_core::model::Annotation, rect: (f64, f64, f64, f64)) {
         let nm = annotation.nm.clone();
         let initial = annotation.note_text.clone().unwrap_or_default();
         let controller = self.controller.clone();
@@ -440,7 +431,11 @@ impl PlainPreviewState {
         buffer.select_range(&cursor, &cursor);
     }
 
-    fn annotation_at(&self, x: f64, y: f64) -> Option<(knowcraft_core::model::Annotation, (f64, f64, f64, f64))> {
+    fn annotation_at(
+        &self,
+        x: f64,
+        y: f64,
+    ) -> Option<(knowcraft_core::model::Annotation, (f64, f64, f64, f64))> {
         let (iter, _) = self
             .view
             .iter_at_position(x.round() as i32, y.round() as i32)?;

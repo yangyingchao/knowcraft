@@ -6,11 +6,10 @@ use gtk::prelude::*;
 
 use super::{
     DocumentSelection, PreviewUnit, SelectionPoint, SelectionSpace, SourceUnit,
-    VirtualPreviewState,
-    bind_document_row, bind_source_row, bounded_text_prefix, code_block_copy_text,
-    document_tag_table, drag_threshold_crossed, local_selection, matching_link, plain_text_view,
-    rendered_document, selection_text, set_table_cell, source_document, source_line_numbers,
-    source_units, styled_markup, use_virtual_plain_source,
+    VirtualPreviewState, bind_document_row, bind_source_row, bounded_text_prefix,
+    code_block_copy_text, document_tag_table, drag_threshold_crossed, local_selection,
+    matching_link, plain_text_view, rendered_document, selection_text, set_table_cell,
+    source_document, source_line_numbers, source_units, styled_markup, use_virtual_plain_source,
 };
 use crate::{
     services::{

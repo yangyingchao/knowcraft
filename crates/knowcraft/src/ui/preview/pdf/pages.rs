@@ -133,12 +133,7 @@ impl PageLoader {
             let Some(spinner) = overlay.last_child().and_downcast::<gtk::Spinner>() else {
                 return;
             };
-            (
-                overlay.clone(),
-                picture.clone(),
-                text_area.clone(),
-                spinner,
-            )
+            (overlay.clone(), picture.clone(), text_area.clone(), spinner)
         };
         let restore = self
             .viewer
@@ -146,12 +141,7 @@ impl PageLoader {
             .borrow()
             .as_ref()
             .and_then(|weak| weak.upgrade())
-            .map(|scroll| {
-                (
-                    scroll.hadjustment().value(),
-                    scroll.vadjustment().value(),
-                )
-            });
+            .map(|scroll| (scroll.hadjustment().value(), scroll.vadjustment().value()));
         let binding_name = overlay.widget_name().to_string();
         spinner.start();
         spinner.set_visible(true);

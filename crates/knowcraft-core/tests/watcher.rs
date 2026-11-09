@@ -251,7 +251,10 @@ fn move_between_managed_dirs_updates_path_and_original_name() {
         .unwrap()
         .expect("记录更新到新路径");
     assert_eq!(moved.id, id, "受管目录间移动只更新路径，不删记录");
-    assert_eq!(moved.original_name, "renamed.md", "linked 移动同步 original_name");
+    assert_eq!(
+        moved.original_name, "renamed.md",
+        "linked 移动同步 original_name"
+    );
     let hits = index.search("move to library", 10).unwrap();
     assert!(
         hits.iter().any(|h| h.document_id == id),
@@ -466,9 +469,7 @@ mod pdf_sync {
             .expect("self write");
         assert!(store.annotations_for(document.id).unwrap().is_empty());
         assert!(
-            index
-                .search("anything", 1)
-                .is_ok(),
+            index.search("anything", 1).is_ok(),
             "index remains readable"
         );
 

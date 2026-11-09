@@ -84,7 +84,6 @@ pub(super) fn default_enabled() -> bool {
     true
 }
 
-
 pub(super) fn default_video_preview_backend() -> String {
     "automatic".to_owned()
 }
@@ -101,9 +100,6 @@ pub(super) fn default_frame_density() -> String {
 pub(super) fn default_density_custom_px() -> u8 {
     0
 }
-
-
-
 
 pub(super) fn default_search_time_limit() -> u32 {
     SearchLimits::default()

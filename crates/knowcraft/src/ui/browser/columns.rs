@@ -5,8 +5,8 @@ use crate::ui::browser::ViewState;
 use crate::ui::browser::collection::{
     ViewMap, apply_selection_plan, bitset_positions, filter_placeholder,
 };
-use crate::ui::browser::find::{HitRanges, highlight_hit_name, highlight_listing_name};
 use crate::ui::browser::filter_rows::{ContentRow, ResultRow};
+use crate::ui::browser::find::{HitRanges, highlight_hit_name, highlight_listing_name};
 use crate::ui::browser::presentation::LoadPresentation;
 use crate::ui::browser_modes::{ClickActivation, ClickCount};
 use crate::ui::entry_list_model::EntryListModel;

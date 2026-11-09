@@ -113,9 +113,15 @@ fn restore_avoids_name_collision_in_inbox() {
     let restored = trash.restore(&store, &index, &uuid).unwrap();
 
     assert!(restored.path.contains("/inbox/"));
-    assert_ne!(restored.path, dir.join("inbox").join("note.md").to_string_lossy());
+    assert_ne!(
+        restored.path,
+        dir.join("inbox").join("note.md").to_string_lossy()
+    );
     assert!(Path::new(&restored.path).exists());
-    assert_eq!(std::fs::read(dir.join("inbox").join("note.md")).unwrap(), b"existing");
+    assert_eq!(
+        std::fs::read(dir.join("inbox").join("note.md")).unwrap(),
+        b"existing"
+    );
     assert_eq!(std::fs::read(&restored.path).unwrap(), b"trashed");
 }
 

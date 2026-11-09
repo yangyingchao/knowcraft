@@ -111,14 +111,24 @@ impl ModeViews {
     /// field has text, and the controller owning the field's query source.
     pub(in crate::ui) fn active_filter(
         &self,
-    ) -> Option<(gtk::Entry, gtk::ToggleButton, InlineSearch, FilterModeController)> {
+    ) -> Option<(
+        gtk::Entry,
+        gtk::ToggleButton,
+        InlineSearch,
+        FilterModeController,
+    )> {
         self.filter_at(self.browser.active_depth()?)
     }
 
     pub(in crate::ui) fn filter_at(
         &self,
         depth: usize,
-    ) -> Option<(gtk::Entry, gtk::ToggleButton, InlineSearch, FilterModeController)> {
+    ) -> Option<(
+        gtk::Entry,
+        gtk::ToggleButton,
+        InlineSearch,
+        FilterModeController,
+    )> {
         let pane = self.panes_at(depth).into_iter().next()?;
         Some((
             pane.filter_entry.clone()?,

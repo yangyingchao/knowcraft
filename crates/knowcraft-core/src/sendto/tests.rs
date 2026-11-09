@@ -110,9 +110,7 @@ fn single_send_to_action_is_selected_automatically() {
     provider(t.path(), "example", Some("Example"), "single", &record);
     let file = t.path().join("note.txt");
     fs::write(&file, b"x").expect("file");
-    let outcome = sendto(t.path())
-        .send("example", &[file])
-        .expect("send");
+    let outcome = sendto(t.path()).send("example", &[file]).expect("send");
     assert_eq!(outcome.provider, "example");
     assert_eq!(outcome.action, "export");
     assert_eq!(outcome.accepted, 1);
@@ -126,7 +124,11 @@ fn multiple_send_to_actions_are_rejected_with_ids_and_labels() {
     provider(t.path(), "example", None, "multi", &record);
     let file = t.path().join("note.txt");
     fs::write(&file, b"x").expect("file");
-    let error = error_text(sendto(t.path()).send("example", &[file]).expect_err("ambiguous"));
+    let error = error_text(
+        sendto(t.path())
+            .send("example", &[file])
+            .expect_err("ambiguous"),
+    );
     assert!(error.contains("export=Export"), "{error}");
     assert!(error.contains("share=Share"), "{error}");
 }
@@ -138,7 +140,11 @@ fn no_send_to_action_is_rejected() {
     provider(t.path(), "example", None, "none", &record);
     let file = t.path().join("note.txt");
     fs::write(&file, b"x").expect("file");
-    let error = error_text(sendto(t.path()).send("example", &[file]).expect_err("no action"));
+    let error = error_text(
+        sendto(t.path())
+            .send("example", &[file])
+            .expect_err("no action"),
+    );
     assert!(error.contains("offers no send-to action"), "{error}");
 }
 
@@ -166,7 +172,11 @@ fn unknown_outcome_is_failure() {
     provider(t.path(), "example", None, "unknown", &record);
     let file = t.path().join("note.txt");
     fs::write(&file, b"x").expect("file");
-    let error = error_text(sendto(t.path()).send("example", &[file]).expect_err("unknown"));
+    let error = error_text(
+        sendto(t.path())
+            .send("example", &[file])
+            .expect_err("unknown"),
+    );
     assert!(error.contains("unknown accepted - of 1"), "{error}");
 }
 
@@ -182,7 +192,10 @@ fn paths_with_spaces_quotes_and_newlines_round_trip() {
     let requests = recorded_requests(&record);
     assert_eq!(requests.len(), 2, "one menu and one activate");
     for request in requests {
-        assert_eq!(request["paths"][0], serde_json::Value::String(expected.clone()));
+        assert_eq!(
+            request["paths"][0],
+            serde_json::Value::String(expected.clone())
+        );
     }
 }
 
@@ -195,7 +208,11 @@ fn non_utf8_path_is_rejected() {
     bytes.push(b'/');
     bytes.push(0xff);
     let path = PathBuf::from(OsString::from_vec(bytes));
-    let error = error_text(sendto(t.path()).send("example", &[path]).expect_err("invalid"));
+    let error = error_text(
+        sendto(t.path())
+            .send("example", &[path])
+            .expect_err("invalid"),
+    );
     assert!(error.contains("path is not valid UTF-8:"), "{error}");
 }
 
@@ -209,7 +226,10 @@ fn relative_path_is_rejected_before_spawn() {
             .send("example", &[PathBuf::from("relative.txt")])
             .expect_err("relative"),
     );
-    assert!(error.contains("path must be absolute: relative.txt"), "{error}");
+    assert!(
+        error.contains("path must be absolute: relative.txt"),
+        "{error}"
+    );
     assert!(!record.exists(), "provider must not be started");
 }
 
@@ -229,7 +249,10 @@ fn send_terminates_provider_process() {
         .expect("pid number");
     let deadline = Instant::now() + Duration::from_secs(2);
     while Path::new(&format!("/proc/{pid}")).exists() {
-        assert!(Instant::now() < deadline, "provider process {pid} still alive");
+        assert!(
+            Instant::now() < deadline,
+            "provider process {pid} still alive"
+        );
         thread::sleep(Duration::from_millis(20));
     }
 }

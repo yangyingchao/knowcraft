@@ -158,10 +158,7 @@ impl PreferenceManager {
     /// What a shortcut label depends on: whether type-to-search types the
     /// keys a user added, and the keys.
     pub(crate) fn shown_keys(&self) -> (bool, u64) {
-        (
-            self.type_to_search(),
-            self.keymap_revision(),
-        )
+        (self.type_to_search(), self.keymap_revision())
     }
 
     /// Saves `bindings`, primary first, as `map`'s entry for `command`. The

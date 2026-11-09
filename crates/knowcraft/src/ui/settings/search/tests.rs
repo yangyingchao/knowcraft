@@ -173,13 +173,7 @@ fn tagged(widget: &gtk::Widget, id: &str) -> bool {
 fn settings_layer(manager: &Rc<PreferenceManager>) -> (gtk::Widget, gtk::Entry, gtk::Stack) {
     let button = gtk::Button::with_label("Settings");
     let root = BlurBin::new(&button);
-    let layer = super::super::build_layer(
-        &button,
-        &root,
-        manager.clone(),
-        Rc::new(|_| {}),
-    )
-    .widget;
+    let layer = super::super::build_layer(&button, &root, manager.clone(), Rc::new(|_| {})).widget;
     layer.set_visible(true);
     let layer: gtk::Widget = layer.upcast();
     let entry = descendants(&layer)
@@ -367,7 +361,6 @@ fn describe(widget: &gtk::Widget) -> String {
         .unwrap_or_default();
     format!("{} {text:?}", widget.type_().name())
 }
-
 
 fn nav(layer: &gtk::Widget, page: &str) -> gtk::Widget {
     descendants(layer)

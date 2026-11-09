@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 use super::*;
-use crate::{
-    model::Document,
-    store::Store,
-    tags::Tags,
-};
+use crate::{model::Document, store::Store, tags::Tags};
 
 #[test]
 fn prefixes_are_recognized_case_insensitively() {
@@ -201,10 +197,7 @@ fn ids(hits: &[IndexHit]) -> Vec<i64> {
 }
 
 fn scratch_dir(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "knowcraft-search-{}-{name}",
-        std::process::id()
-    ));
+    let dir = std::env::temp_dir().join(format!("knowcraft-search-{}-{name}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("scratch dir");
     dir

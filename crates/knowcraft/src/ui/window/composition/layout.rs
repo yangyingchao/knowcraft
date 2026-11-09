@@ -71,8 +71,7 @@ impl Header {
         }
         let location = browser.location_widget();
         location.set_hexpand(true);
-        let appearance =
-            build_appearance_menu(browser, &browser.browser(), preferences.clone());
+        let appearance = build_appearance_menu(browser, &browser.browser(), preferences.clone());
         let settings_label = crate::i18n::tr("Settings");
         let settings = header_action(icons::SETTINGS, &settings_label);
         crate::ui::accessibility::set_label(&settings, &settings_label);

@@ -28,12 +28,7 @@ pub fn list_directory(store: &Store, directory: &Path) -> Result<Vec<DirectoryEn
         .list_documents()?
         .into_iter()
         .filter(|document| document.lifecycle != "trashed")
-        .map(|document| {
-            (
-                normalize(Path::new(&document.path)),
-                document.title,
-            )
-        })
+        .map(|document| (normalize(Path::new(&document.path)), document.title))
         .collect();
     if directory.is_file() {
         let path = normalize(directory);

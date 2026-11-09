@@ -290,7 +290,9 @@ fn begin_query(state: &Rc<SearchState>, query: &str) {
     // 全局检索已迁到面板过滤栏；没有历史来源时只保留空状态。
     clear_results(state);
     state.results.set_visible_child_name("status");
-    state.status.set_text(&crate::i18n::tr("Type to jump to a visited folder"));
+    state
+        .status
+        .set_text(&crate::i18n::tr("Type to jump to a visited folder"));
 }
 
 fn close_result_menu(state: &SearchState) {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-use super::{Manifest, PATH_LIMIT, slug};
+use super::{slug, Manifest, PATH_LIMIT};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, io, path::Path};
 

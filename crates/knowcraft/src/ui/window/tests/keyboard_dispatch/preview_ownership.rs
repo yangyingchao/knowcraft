@@ -403,4 +403,3 @@ fn default_archive_listing_left_moves_to_the_parent_column() {
         },
     );
 }
-

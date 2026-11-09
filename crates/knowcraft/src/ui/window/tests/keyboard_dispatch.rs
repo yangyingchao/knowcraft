@@ -44,9 +44,7 @@ use window_support::{
 };
 
 use crate::ui::{
-    preview::PreviewDrawer,
-    shortcut_footer::ShortcutFooter,
-    top_bar_navigation::TopBarNavigation,
+    preview::PreviewDrawer, shortcut_footer::ShortcutFooter, top_bar_navigation::TopBarNavigation,
 };
 
 struct TextPreview;

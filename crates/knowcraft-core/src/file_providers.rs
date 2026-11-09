@@ -13,10 +13,10 @@ pub mod protocol;
 mod transport;
 
 pub use protocol::{
-    Decoration, Feedback, MenuAction, OutcomeStatus, Placement, Reply, Request, query_batch,
-    selection_fits,
+    query_batch, selection_fits, Decoration, Feedback, MenuAction, OutcomeStatus, Placement, Reply,
+    Request,
 };
-pub use transport::{Client, Update, start};
+pub use transport::{start, Client, Update};
 pub const PATH_LIMIT: usize = 200;
 pub const ICON_LIMIT: u64 = 65536;
 /// An empty file beside `provider.json` that keeps the registration from loading.
@@ -129,7 +129,10 @@ fn read_limited(path: &Path, limit: u64) -> Option<Vec<u8>> {
 }
 pub fn discover(root: &Path) -> Vec<Registration> {
     // 允许配置目录本身是指向受信任目录的符号链接；子目录与文件仍须是真实路径。
-    let Some(root) = fs::canonicalize(root).ok().filter(|root| trusted(root, true)) else {
+    let Some(root) = fs::canonicalize(root)
+        .ok()
+        .filter(|root| trusted(root, true))
+    else {
         return Vec::new();
     };
     let Ok(dirs) = fs::read_dir(&root) else {

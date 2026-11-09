@@ -61,12 +61,7 @@ impl Watcher {
         data_dir: PathBuf,
         lock: Arc<WriteLock>,
     ) -> Result<Watcher> {
-        let fileops = FileOps::new(
-            store.clone(),
-            index.clone(),
-            data_dir.clone(),
-            lock.clone(),
-        )?;
+        let fileops = FileOps::new(store.clone(), index.clone(), data_dir.clone(), lock.clone())?;
         Ok(Watcher {
             store,
             index,
@@ -262,8 +257,11 @@ impl Watcher {
         if !doc.checksum.is_empty() && doc.checksum == checksum {
             return Ok(());
         }
-        let annotations =
-            PdfAnnotations::new(self.store.clone(), self.data_dir.clone(), self.write_lock.clone());
+        let annotations = PdfAnnotations::new(
+            self.store.clone(),
+            self.data_dir.clone(),
+            self.write_lock.clone(),
+        );
         annotations.sync_from_pdf(doc.id)?;
         if let Some(title) = crate::extract::extract_title(path) {
             self.store.update_title(doc.id, &title)?;

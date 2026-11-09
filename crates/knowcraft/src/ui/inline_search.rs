@@ -339,7 +339,7 @@ impl InlineSearch {
             .collection
             .items()
             .iter()
-            .position(|row| row.path().is_some_and(|p| p == &path))? as u32;
+            .position(|row| row.path().is_some_and(|p| p == path))? as u32;
         Some(state.collection.edit_widgets(position)?.into())
     }
 

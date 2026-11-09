@@ -112,10 +112,7 @@ fn status_json_reports_data_dir_and_counts() {
     );
     assert!(out.stderr.is_empty());
     let value: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(
-        value["data_dir"].as_str().unwrap(),
-        dir.to_str().unwrap()
-    );
+    assert_eq!(value["data_dir"].as_str().unwrap(), dir.to_str().unwrap());
     assert_eq!(value["indexed"].as_u64().unwrap(), 1);
     assert_eq!(value["inbox"].as_u64().unwrap(), 1);
 }
@@ -256,13 +253,12 @@ fn archive_record_moves_file_into_uuid_storage() {
     let dir = data_dir("archive-record");
     let src = dir.join("note.md");
     std::fs::write(&src, "archive me").unwrap();
-    assert!(run_cli(&dir, &["add", src.to_str().unwrap()]).status.success());
+    assert!(run_cli(&dir, &["add", src.to_str().unwrap()])
+        .status
+        .success());
 
     let inbox_file = dir.join("inbox").join("note.md");
-    let out = run_cli(
-        &dir,
-        &["archive", inbox_file.to_str().unwrap(), "--record"],
-    );
+    let out = run_cli(&dir, &["archive", inbox_file.to_str().unwrap(), "--record"]);
     assert!(
         out.status.success(),
         "archive failed: {}",
@@ -283,7 +279,9 @@ fn archive_category_keeps_name_under_library() {
     let dir = data_dir("archive-category");
     let src = dir.join("paper.md");
     std::fs::write(&src, "paper body").unwrap();
-    assert!(run_cli(&dir, &["add", src.to_str().unwrap()]).status.success());
+    assert!(run_cli(&dir, &["add", src.to_str().unwrap()])
+        .status
+        .success());
 
     let inbox_file = dir.join("inbox").join("paper.md");
     let out = run_cli(
@@ -308,7 +306,9 @@ fn archive_without_mode_fails() {
     let dir = data_dir("archive-no-mode");
     let src = dir.join("x.md");
     std::fs::write(&src, "x").unwrap();
-    assert!(run_cli(&dir, &["add", src.to_str().unwrap()]).status.success());
+    assert!(run_cli(&dir, &["add", src.to_str().unwrap()])
+        .status
+        .success());
     let inbox_file = dir.join("inbox").join("x.md");
     let out = run_cli(&dir, &["archive", inbox_file.to_str().unwrap()]);
     assert!(!out.status.success());
@@ -365,10 +365,19 @@ fn search_json_reports_contract_fields_and_sorted_tags() {
     assert!(hit["path"].as_str().unwrap().contains("搜索 笔记.md"));
     assert_eq!(hit["snippet"].as_str().unwrap(), "a needle here");
     assert_eq!(hit["tags"], serde_json::json!(["alpha", "zeta"]));
-    let keys = ["\"id\":", "\"path\":", "\"title\":", "\"snippet\":", "\"tags\":"];
+    let keys = [
+        "\"id\":",
+        "\"path\":",
+        "\"title\":",
+        "\"snippet\":",
+        "\"tags\":",
+    ];
     let positions: Vec<usize> = keys
         .iter()
-        .map(|key| text.find(key).unwrap_or_else(|| panic!("missing {key} in {text}")))
+        .map(|key| {
+            text.find(key)
+                .unwrap_or_else(|| panic!("missing {key} in {text}"))
+        })
         .collect();
     assert!(positions.windows(2).all(|pair| pair[0] < pair[1]), "{text}");
 }
@@ -531,7 +540,10 @@ fn file_ops_create_copy_move_delete_restore_chain() {
     assert!(copy.exists());
 
     let moved = dir.join("inbox").join("note-renamed.md");
-    let out = run_cli(&dir, &["move", copy.to_str().unwrap(), moved.to_str().unwrap()]);
+    let out = run_cli(
+        &dir,
+        &["move", copy.to_str().unwrap(), moved.to_str().unwrap()],
+    );
     assert!(
         out.status.success(),
         "move failed: {}",
@@ -602,7 +614,10 @@ fn move_onto_existing_target_fails() {
         );
     }
 
-    let out = run_cli(&dir, &["move", first.to_str().unwrap(), second.to_str().unwrap()]);
+    let out = run_cli(
+        &dir,
+        &["move", first.to_str().unwrap(), second.to_str().unwrap()],
+    );
     assert!(
         !out.status.success(),
         "moving onto an existing target must fail"

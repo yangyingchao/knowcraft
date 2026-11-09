@@ -55,9 +55,8 @@ pub(crate) fn dispatch_path(
         return;
     }
     let knowledge = crate::knowledge::init();
-    let all_inbox = knowledge.is_some_and(|knowledge| {
-        paths.iter().all(|path| knowledge.is_pending(path))
-    });
+    let all_inbox =
+        knowledge.is_some_and(|knowledge| paths.iter().all(|path| knowledge.is_pending(path)));
     let mode = if all_inbox {
         ArchiveMode::Categories
     } else {
@@ -68,7 +67,12 @@ pub(crate) fn dispatch_path(
         .unwrap_or_default();
     let chosen_paths = paths.clone();
     let chosen = Rc::new(move |choice| {
-        run_archive(chosen_paths.clone(), choice, refresh.clone(), feedback.clone());
+        run_archive(
+            chosen_paths.clone(),
+            choice,
+            refresh.clone(),
+            feedback.clone(),
+        );
     });
     let fill = present(parent, mode, categories, chosen);
 
@@ -118,8 +122,7 @@ fn run_archive(
     let (sender, receiver) = std::sync::mpsc::channel::<Result<String, String>>();
     std::thread::spawn(move || {
         let result = (|| {
-            let knowledge =
-                crate::knowledge::init().ok_or_else(|| "知识库不可用".to_owned())?;
+            let knowledge = crate::knowledge::init().ok_or_else(|| "知识库不可用".to_owned())?;
             let (mut ok, mut failed) = (0usize, 0usize);
             for path in &paths {
                 let outcome = match &choice {
@@ -702,32 +705,36 @@ fn poll_cleanup(
     feedback: Rc<dyn Fn(&str)>,
     overlay: gtk::Overlay,
 ) {
-    glib::timeout_add_local(Duration::from_millis(50), move || loop {
-        match receiver.try_recv() {
-            Ok(CleanupEvent::Progress {
-                scanned,
-                total,
-                removed,
-            }) => {
-                let text = rust_i18n::t!(
-                    "Cleaning %{done}/%{total} (removed %{removed})",
-                    done = scanned,
-                    total = total,
-                    removed = removed
-                )
-                .into_owned();
-                crate::ui::notice::show_status(&overlay, &text, Duration::from_secs(10));
-            }
-            Ok(CleanupEvent::Finished(result)) => {
-                match result {
-                    Ok(message) => feedback(&message),
-                    Err(error) => feedback(&error),
+    glib::timeout_add_local(Duration::from_millis(50), move || {
+        loop {
+            match receiver.try_recv() {
+                Ok(CleanupEvent::Progress {
+                    scanned,
+                    total,
+                    removed,
+                }) => {
+                    let text = rust_i18n::t!(
+                        "Cleaning %{done}/%{total} (removed %{removed})",
+                        done = scanned,
+                        total = total,
+                        removed = removed
+                    )
+                    .into_owned();
+                    crate::ui::notice::show_status(&overlay, &text, Duration::from_secs(10));
                 }
-                refresh();
-                return glib::ControlFlow::Break;
+                Ok(CleanupEvent::Finished(result)) => {
+                    match result {
+                        Ok(message) => feedback(&message),
+                        Err(error) => feedback(&error),
+                    }
+                    refresh();
+                    return glib::ControlFlow::Break;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => return glib::ControlFlow::Continue,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    return glib::ControlFlow::Break;
+                }
             }
-            Err(std::sync::mpsc::TryRecvError::Empty) => return glib::ControlFlow::Continue,
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => return glib::ControlFlow::Break,
         }
     });
 }

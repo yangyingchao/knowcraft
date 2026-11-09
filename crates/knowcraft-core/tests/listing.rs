@@ -2,11 +2,7 @@
 
 use std::fs;
 
-use knowcraft_core::{
-    listing::list_directory,
-    model::Document,
-    store::Store,
-};
+use knowcraft_core::{listing::list_directory, model::Document, store::Store};
 
 fn document(path: &str, title: &str) -> Document {
     Document {
@@ -108,10 +104,8 @@ fn dot_segments_do_not_break_registration_matching() {
     let entries = list_directory(&store, &library.path().join(".")).expect("list");
     assert_eq!(entries[0].title, "Alpha");
     assert_eq!(entries[0].registered, Some(true));
-    assert!(
-        !entries[0]
-            .path
-            .components()
-            .any(|component| matches!(component, std::path::Component::CurDir))
-    );
+    assert!(!entries[0]
+        .path
+        .components()
+        .any(|component| matches!(component, std::path::Component::CurDir)));
 }

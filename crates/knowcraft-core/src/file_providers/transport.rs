@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
-use super::protocol::{FRAME_LIMIT, checked_reply};
-use super::{Manifest, PATH_LIMIT, Registration, Reply, Request};
+use super::protocol::{checked_reply, FRAME_LIMIT};
+use super::{Manifest, Registration, Reply, Request, PATH_LIMIT};
 use std::{
     collections::{BTreeMap, VecDeque},
     io::{self, Read, Write},
     os::unix::{net::UnixStream, process::CommandExt},
     process::{Command, Stdio},
     sync::{
-        Arc, Condvar, Mutex,
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, SyncSender, TryRecvError, TrySendError},
+        Arc, Condvar, Mutex,
     },
     thread,
     time::{Duration, Instant},

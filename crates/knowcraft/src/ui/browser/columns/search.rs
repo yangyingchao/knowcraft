@@ -40,9 +40,7 @@ impl ResultLists {
                 .iter()
                 .cloned()
                 .map(|id| match (&settled, &id) {
-                    (Some(settled), RowId::Path(path)) => {
-                        RowId::Path(settled.follow(path.clone()))
-                    }
+                    (Some(settled), RowId::Path(path)) => RowId::Path(settled.follow(path.clone())),
                     _ => id,
                 })
                 .collect()

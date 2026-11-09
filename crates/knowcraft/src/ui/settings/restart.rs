@@ -20,7 +20,9 @@ fn start_restart_waiter() -> Option<std::process::Child> {
     // affected systems. Detach the waiter from inherited terminal streams and
     // put it in its own process group so a restart cannot disturb the
     // terminal that launched Knowcraft.
-    restart_waiter(&current_exe, std::process::id())?.spawn().ok()
+    restart_waiter(&current_exe, std::process::id())?
+        .spawn()
+        .ok()
 }
 
 fn process_start_time(pid: u32) -> Option<String> {

@@ -219,11 +219,7 @@ fn delete_without_trash_support_confirms_permanently_with_cancel_focused() {
     crate::test_support::gtk_test(
         "ui::window::tests::keyboard_dispatch::file_commands::trashless::delete_without_trash_support_confirms_permanently_with_cancel_focused",
         || {
-            for (read_only, key) in [
-                (false, Key::Delete),
-                (false, Key::d),
-                (true, Key::Delete),
-            ] {
+            for (read_only, key) in [(false, Key::Delete), (false, Key::d), (true, Key::Delete)] {
                 delete_without_trash_case(TrashlessDelete { read_only, key });
             }
         },

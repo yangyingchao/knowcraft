@@ -70,12 +70,7 @@ pub fn parse(query: &str) -> ParsedQuery {
 }
 
 /// 组合检索：`name`/`kind`/`tags` 由 store 过滤，全文由索引检索，条件之间为 AND。
-pub fn search(
-    store: &Store,
-    index: &Index,
-    query: &str,
-    limit: usize,
-) -> Result<Vec<IndexHit>> {
+pub fn search(store: &Store, index: &Index, query: &str, limit: usize) -> Result<Vec<IndexHit>> {
     let parsed = parse(query);
     if parsed.full_text.trim().is_empty() {
         return filtered_documents(store, &parsed, limit);
@@ -165,17 +160,9 @@ fn heal_hits(store: &Store, hits: Vec<IndexHit>, limit: usize) -> Result<Vec<Ind
 }
 
 /// 无全文词时由 store 直接回答，不要求索引已建立。
-fn filtered_documents(
-    store: &Store,
-    parsed: &ParsedQuery,
-    limit: usize,
-) -> Result<Vec<IndexHit>> {
-    let documents = store.documents_for_filters(
-        &parsed.names,
-        &parsed.kinds,
-        &parsed.tags,
-        limit,
-    )?;
+fn filtered_documents(store: &Store, parsed: &ParsedQuery, limit: usize) -> Result<Vec<IndexHit>> {
+    let documents =
+        store.documents_for_filters(&parsed.names, &parsed.kinds, &parsed.tags, limit)?;
     Ok(documents
         .into_iter()
         .map(|document| IndexHit {
@@ -199,8 +186,10 @@ fn allowed_ids(store: &Store, parsed: &ParsedQuery) -> Result<Option<HashSet<i64
         intersect(&mut allowed, ids);
     }
     if !parsed.tags.is_empty() {
-        let ids: HashSet<i64> =
-            store.document_ids_with_all_tags(&parsed.tags)?.into_iter().collect();
+        let ids: HashSet<i64> = store
+            .document_ids_with_all_tags(&parsed.tags)?
+            .into_iter()
+            .collect();
         intersect(&mut allowed, ids);
     }
     Ok(allowed)
@@ -281,7 +270,11 @@ fn sanitize_full_text(token: &str) -> Option<String> {
         }
     }
     let out = out.split_whitespace().collect::<Vec<_>>().join(" ");
-    if out.is_empty() { None } else { Some(out) }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
 }
 
 #[cfg(test)]

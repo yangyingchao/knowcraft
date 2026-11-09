@@ -13,10 +13,7 @@ pub(super) struct PdfToolbar {
 }
 
 impl PdfToolbar {
-    pub(super) fn new(
-        on_action: Rc<dyn Fn(PdfToolbarAction)>,
-        on_copy: Rc<dyn Fn()>,
-    ) -> Self {
+    pub(super) fn new(on_action: Rc<dyn Fn(PdfToolbarAction)>, on_copy: Rc<dyn Fn()>) -> Self {
         Self {
             inner: crate::ui::annotation::AnnotationToolbar::new(on_action, on_copy),
         }

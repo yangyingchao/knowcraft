@@ -47,16 +47,7 @@ fn new_annotation(view: &str, note: &str) -> NewTextAnnotation {
     }
 }
 
-fn fixture(
-    name: &str,
-    body: &str,
-) -> (
-    std::path::PathBuf,
-    Store,
-    Index,
-    TextAnnotations,
-    i64,
-) {
+fn fixture(name: &str, body: &str) -> (std::path::PathBuf, Store, Index, TextAnnotations, i64) {
     let dir = temp_dir(name);
     let store = Store::open(&dir).unwrap();
     let path = dir.join("paper.md");
@@ -66,11 +57,7 @@ fn fixture(
         .unwrap();
     let index = Index::open(&dir).unwrap();
     let indexer = Indexer::new(store.clone(), index.clone());
-    let annotations = TextAnnotations::new(
-        store.clone(),
-        indexer,
-        Arc::new(WriteLock::new(&dir)),
-    );
+    let annotations = TextAnnotations::new(store.clone(), indexer, Arc::new(WriteLock::new(&dir)));
     (dir, store, index, annotations, document_id)
 }
 
@@ -134,13 +121,15 @@ fn migration_from_v2_keeps_existing_rows_and_adds_columns() {
     assert_eq!(row.range_start, None);
     assert_eq!(row.note_text.as_deref(), Some("legacy note"));
     assert_eq!(store.pdf_annotations_for(1).unwrap().len(), 1);
-    assert!(store.text_annotations_for(1, "rendered").unwrap().is_empty());
+    assert!(store
+        .text_annotations_for(1, "rendered")
+        .unwrap()
+        .is_empty());
 }
 
 #[test]
 fn add_list_update_and_delete() {
-    let (_dir, store, _index, annotations, document_id) =
-        fixture("crud", "正文内容");
+    let (_dir, store, _index, annotations, document_id) = fixture("crud", "正文内容");
     let created = annotations
         .add(document_id, new_annotation("rendered", "第一条附注"))
         .unwrap();
@@ -171,14 +160,19 @@ fn add_list_update_and_delete() {
     let outcome = annotations.delete(document_id, &created.nm).unwrap();
     assert_eq!(outcome.deleted, 1);
     assert!(outcome.note_removed);
-    assert!(annotations.list(document_id, "rendered").unwrap().is_empty());
-    assert!(store.annotation_by_nm(document_id, &created.nm).unwrap().is_none());
+    assert!(annotations
+        .list(document_id, "rendered")
+        .unwrap()
+        .is_empty());
+    assert!(store
+        .annotation_by_nm(document_id, &created.nm)
+        .unwrap()
+        .is_none());
 }
 
 #[test]
 fn same_nm_is_idempotent() {
-    let (_dir, _store, _index, annotations, document_id) =
-        fixture("idempotent", "正文内容");
+    let (_dir, _store, _index, annotations, document_id) = fixture("idempotent", "正文内容");
     let mut new = new_annotation("rendered", "");
     new.nm = "fixed-nm".into();
     annotations.add(document_id, new.clone()).unwrap();
@@ -192,8 +186,7 @@ fn same_nm_is_idempotent() {
 
 #[test]
 fn list_only_returns_the_requested_view() {
-    let (_dir, store, _index, annotations, document_id) =
-        fixture("views", "正文内容");
+    let (_dir, store, _index, annotations, document_id) = fixture("views", "正文内容");
     annotations
         .add(document_id, new_annotation("rendered", ""))
         .unwrap();
@@ -207,8 +200,7 @@ fn list_only_returns_the_requested_view() {
 
 #[test]
 fn pdf_and_text_queries_are_isolated() {
-    let (_dir, store, _index, annotations, document_id) =
-        fixture("isolate", "正文内容");
+    let (_dir, store, _index, annotations, document_id) = fixture("isolate", "正文内容");
     annotations
         .add(document_id, new_annotation("rendered", "文本"))
         .unwrap();
@@ -226,8 +218,7 @@ fn pdf_and_text_queries_are_isolated() {
 
 #[test]
 fn notes_enter_the_index_and_disappear_after_delete() {
-    let (_dir, _store, index, annotations, document_id) =
-        fixture("index", "正文内容");
+    let (_dir, _store, index, annotations, document_id) = fixture("index", "正文内容");
     annotations
         .add(document_id, new_annotation("rendered", "神经网络"))
         .unwrap();
@@ -242,8 +233,7 @@ fn notes_enter_the_index_and_disappear_after_delete() {
 
 #[test]
 fn color_and_range_changes_do_not_reindex() {
-    let (_dir, store, index, annotations, document_id) =
-        fixture("no-reindex", "正文内容");
+    let (_dir, store, index, annotations, document_id) = fixture("no-reindex", "正文内容");
     let mut stale = annotation(document_id, "nm-direct", "颜色测试");
     stale.view = "rendered".into();
     stale.range_start = Some(0);
@@ -263,8 +253,7 @@ fn color_and_range_changes_do_not_reindex() {
 
 #[test]
 fn invalid_input_is_rejected() {
-    let (_dir, _store, _index, annotations, document_id) =
-        fixture("invalid", "正文内容");
+    let (_dir, _store, _index, annotations, document_id) = fixture("invalid", "正文内容");
 
     let mut bad = new_annotation("", "");
     assert!(annotations.add(document_id, bad.clone()).is_err());
@@ -288,8 +277,7 @@ fn invalid_input_is_rejected() {
 
 #[test]
 fn structural_stale_reports_missing_and_inverted_ranges() {
-    let (_dir, store, _index, annotations, document_id) =
-        fixture("stale", "正文内容");
+    let (_dir, store, _index, annotations, document_id) = fixture("stale", "正文内容");
     let mut missing = annotation(document_id, "nm-missing", "无偏移");
     missing.view = "rendered".into();
     store.upsert_annotation(&missing).unwrap();
@@ -304,7 +292,9 @@ fn structural_stale_reports_missing_and_inverted_ranges() {
     valid.range_end = Some(2);
     store.upsert_annotation(&valid).unwrap();
 
-    let stale = annotations.structural_stale(document_id, "rendered").unwrap();
+    let stale = annotations
+        .structural_stale(document_id, "rendered")
+        .unwrap();
     let names: Vec<&str> = stale.iter().map(|row| row.nm.as_str()).collect();
     assert!(names.contains(&"nm-missing"));
     assert!(names.contains(&"nm-inverted"));
@@ -313,8 +303,7 @@ fn structural_stale_reports_missing_and_inverted_ranges() {
 
 #[test]
 fn extraction_failure_keeps_the_old_index() {
-    let (dir, store, index, annotations, document_id) =
-        fixture("extract-fail", "正文内容");
+    let (dir, store, index, annotations, document_id) = fixture("extract-fail", "正文内容");
     Indexer::new(store.clone(), index.clone())
         .reindex_document(document_id)
         .unwrap();
@@ -324,7 +313,13 @@ fn extraction_failure_keeps_the_old_index() {
     annotations
         .add(document_id, new_annotation("rendered", "无法重建"))
         .unwrap_err();
-    assert!(store.text_annotations_for(document_id, "rendered").unwrap().len() == 1);
+    assert!(
+        store
+            .text_annotations_for(document_id, "rendered")
+            .unwrap()
+            .len()
+            == 1
+    );
     assert!(!index.search("正文内容", 10).unwrap().is_empty());
     assert!(index.search("无法重建", 10).unwrap().is_empty());
 }

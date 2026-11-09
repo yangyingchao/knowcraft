@@ -245,8 +245,7 @@ fn main() -> anyhow::Result<()> {
         }
         Cmd::Index => {
             let lock = Arc::new(WriteLock::new(&cfg.data_dir));
-            let annotations =
-                PdfAnnotations::new(store.clone(), cfg.data_dir.clone(), lock);
+            let annotations = PdfAnnotations::new(store.clone(), cfg.data_dir.clone(), lock);
             for doc in store.list_documents()? {
                 if doc.doc_type == "pdf" {
                     let _ = annotations.sync_from_pdf(doc.id)?;
@@ -363,8 +362,7 @@ fn main() -> anyhow::Result<()> {
         }
         Cmd::Annotations { cmd } => {
             let lock = Arc::new(WriteLock::new(&cfg.data_dir));
-            let annotations =
-                PdfAnnotations::new(store.clone(), cfg.data_dir.clone(), lock);
+            let annotations = PdfAnnotations::new(store.clone(), cfg.data_dir.clone(), lock);
             match cmd {
                 AnnotationsCmd::List { id } => {
                     for annotation in annotations.list(id)? {
@@ -458,8 +456,7 @@ fn absolute(path: PathBuf) -> anyhow::Result<PathBuf> {
 fn file_ops(store: &Store, data_dir: &std::path::Path) -> anyhow::Result<FileOps> {
     let index = Index::open(data_dir)?;
     let lock = Arc::new(WriteLock::new(data_dir));
-    FileOps::new(store.clone(), index, data_dir.to_path_buf(), lock)
-        .map_err(Into::into)
+    FileOps::new(store.clone(), index, data_dir.to_path_buf(), lock).map_err(Into::into)
 }
 
 /// 列出已注册 provider；文本模式每行 `id<TAB>name`。
@@ -691,13 +688,8 @@ mod tests {
 
     #[test]
     fn renders_ls_as_relative_lines() {
-        let output = render_ls(
-            &ls_entries(),
-            std::path::Path::new("/work"),
-            false,
-            false,
-        )
-        .expect("render");
+        let output =
+            render_ls(&ls_entries(), std::path::Path::new("/work"), false, false).expect("render");
         assert_eq!(
             String::from_utf8(output).expect("utf8"),
             "notes/a.md: Alpha\nnotes/b.md: b.md [unregistered]\nnotes/sub: sub\n"
@@ -706,21 +698,20 @@ mod tests {
 
     #[test]
     fn renders_ls_as_json_and_jsonl() {
-        let json = render_ls(&ls_entries(), std::path::Path::new("/work"), true, false)
-            .expect("render");
+        let json =
+            render_ls(&ls_entries(), std::path::Path::new("/work"), true, false).expect("render");
         let value: serde_json::Value = serde_json::from_slice(&json).expect("json");
         assert_eq!(value[0]["path"], "notes/a.md");
         assert_eq!(value[0]["registered"], true);
         assert!(value[2].get("registered").is_none());
 
-        let lines = render_ls(&ls_entries(), std::path::Path::new("/work"), false, true)
-            .expect("render");
+        let lines =
+            render_ls(&ls_entries(), std::path::Path::new("/work"), false, true).expect("render");
         let text = String::from_utf8(lines).expect("utf8");
         assert_eq!(text.lines().count(), 3);
-        assert!(
-            text.lines()
-                .all(|line| serde_json::from_str::<serde_json::Value>(line).is_ok())
-        );
+        assert!(text
+            .lines()
+            .all(|line| serde_json::from_str::<serde_json::Value>(line).is_ok()));
     }
 
     #[test]
@@ -730,8 +721,8 @@ mod tests {
             title: "a.md".into(),
             registered: Some(false),
         }];
-        let output = render_ls(&entries, std::path::Path::new("/work"), false, false)
-            .expect("render");
+        let output =
+            render_ls(&entries, std::path::Path::new("/work"), false, false).expect("render");
         assert_eq!(
             String::from_utf8(output).expect("utf8"),
             "/elsewhere/a.md: a.md [unregistered]\n"

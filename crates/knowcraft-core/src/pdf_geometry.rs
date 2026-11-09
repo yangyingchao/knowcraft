@@ -96,7 +96,12 @@ pub fn view_glyphs_to_quads(
             Some((current_line, [cx0, cy0, cx1, cy1])) if current_line == line => {
                 current = Some((
                     line,
-                    [cx0.min(rect[0]), cy0.min(rect[1]), cx1.max(rect[2]), cy1.max(rect[3])],
+                    [
+                        cx0.min(rect[0]),
+                        cy0.min(rect[1]),
+                        cx1.max(rect[2]),
+                        cy1.max(rect[3]),
+                    ],
                 ));
             }
             Some((_current_line, [cx0, cy0, cx1, cy1])) => {
@@ -128,7 +133,10 @@ mod tests {
     fn upright_page_maps_pixels_to_user_space() {
         let page = page(0, [0.0, 0.0, 600.0, 800.0]);
         let quads = view_glyphs_to_quads(&page, 2.0, &[[10.0, 20.0, 30.0, 40.0]], &[0], 0..1);
-        assert_eq!(quads, vec![[5.0, 790.0, 15.0, 790.0, 5.0, 780.0, 15.0, 780.0]]);
+        assert_eq!(
+            quads,
+            vec![[5.0, 790.0, 15.0, 790.0, 5.0, 780.0, 15.0, 780.0]]
+        );
     }
 
     #[test]
@@ -168,8 +176,14 @@ mod tests {
             for (x, y) in [(0.0, 0.0), (12.0, 34.0), (500.0, 700.0)] {
                 let (user_x, user_y) = page.view_to_user(x, y);
                 let (view_x, view_y) = page.user_to_view(user_x, user_y);
-                assert!((view_x - x).abs() < 1e-9, "rotation {rotation}: {view_x} != {x}");
-                assert!((view_y - y).abs() < 1e-9, "rotation {rotation}: {view_y} != {y}");
+                assert!(
+                    (view_x - x).abs() < 1e-9,
+                    "rotation {rotation}: {view_x} != {x}"
+                );
+                assert!(
+                    (view_y - y).abs() < 1e-9,
+                    "rotation {rotation}: {view_y} != {y}"
+                );
             }
         }
     }

@@ -7,10 +7,7 @@ use std::{
 
 use gtk::{glib, prelude::*};
 
-use crate::{
-    assets::icons,
-    services::{BuildKind, Channel, InstallSource},
-};
+use crate::assets::icons;
 
 #[cfg(test)]
 mod tests;
@@ -34,13 +31,12 @@ mod search;
 mod theme;
 mod wrap;
 use about::about_page;
-use bindings::bind_switch;
 use general::general_page;
 use theme::theme_page;
 
 use navigation::{NAVIGATION, navigation_button, page_shown};
 use page::{page_content, scrollable_page};
-use responsive::{ResponsiveActivationRow, ResponsiveBin, ResponsiveContent};
+use responsive::{ResponsiveBin, ResponsiveContent};
 use restart::restart;
 
 #[cfg(test)]

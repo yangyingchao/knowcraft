@@ -156,12 +156,9 @@ mod imp {
                         if from.y() > visible_bottom {
                             break;
                         }
-                        if let Some([x, y, width, height]) = selection_span_bounds(
-                            from.x(),
-                            to.x(),
-                            from.y(),
-                            from.height(),
-                        ) {
+                        if let Some([x, y, width, height]) =
+                            selection_span_bounds(from.x(), to.x(), from.y(), from.height())
+                        {
                             paint_annotation(snapshot, range, x, y, width, height);
                             if segment_end.offset() == end.offset() {
                                 marker_at = Some((to.x(), y, height));

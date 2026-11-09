@@ -39,7 +39,10 @@ impl SelectionSpace {
     }
 
     pub(in crate::ui) fn unit_start(&self, unit: usize) -> usize {
-        self.prefix.get(unit).copied().unwrap_or_else(|| self.len_chars())
+        self.prefix
+            .get(unit)
+            .copied()
+            .unwrap_or_else(|| self.len_chars())
     }
 
     pub(in crate::ui) fn unit_end(&self, unit: usize) -> usize {
@@ -213,8 +216,10 @@ mod tests {
                 "unit {index}: contribution {contribution}, selection {selection}"
             );
             if contribution == selection + 1 {
-                assert!(space.slice(space.unit_end(index) - 1, space.unit_end(index))
-                    == Some("\n") || unit.copy_text().ends_with('\n'));
+                assert!(
+                    space.slice(space.unit_end(index) - 1, space.unit_end(index)) == Some("\n")
+                        || unit.copy_text().ends_with('\n')
+                );
             }
         }
     }
@@ -228,10 +233,7 @@ mod tests {
 
     #[test]
     fn selection_range_normalizes_and_joins_units() {
-        let units = vec![
-            document_unit("ab", "ab\n"),
-            document_unit("cd", "cd"),
-        ];
+        let units = vec![document_unit("ab", "ab\n"), document_unit("cd", "cd")];
         let space = SelectionSpace::from_units(&units);
         let forward = DocumentSelection {
             anchor: SelectionPoint { unit: 0, offset: 1 },
@@ -258,7 +260,10 @@ mod tests {
         let content = "alpha\r\nbeta 漢字\n\ngamma";
         let normalized = crate::services::normalize_preview_text(content).into_owned();
         let (units, _) = super::super::source_units(&normalized);
-        let units = units.into_iter().map(PreviewUnit::Source).collect::<Vec<_>>();
+        let units = units
+            .into_iter()
+            .map(PreviewUnit::Source)
+            .collect::<Vec<_>>();
         let list = SelectionSpace::from_units(&units);
         let plain = SelectionSpace::from_text(normalized.clone());
         assert_eq!(list.text, plain.text);

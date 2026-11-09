@@ -21,9 +21,7 @@ use super::{
     page_content, scrollable_page, settings_option,
 };
 
-pub(super) fn general_page(
-    manager: Rc<PreferenceManager>,
-) -> (gtk::Widget, Vec<gtk::Box>) {
+pub(super) fn general_page(manager: Rc<PreferenceManager>) -> (gtk::Widget, Vec<gtk::Box>) {
     let preferences = page_content();
 
     append_language_option(&preferences, &manager);
@@ -34,7 +32,6 @@ pub(super) fn general_page(
         &units,
     ));
     append_browsing_options(&preferences, &manager);
-
 
     let transfers = super::settings_group(&preferences, "FILE TRANSFERS");
     append_cross_volume_drop_option(&transfers, &manager);
@@ -455,7 +452,9 @@ fn append_knowledge_location_option(content: &gtk::Box) {
     reset.set_sensitive(knowledge::data_dir_path() != Some(default.as_path()));
     crate::ui::accessibility::set_description(
         &reset,
-        Some(&crate::i18n::tr("Restore the default knowledge base location")),
+        Some(&crate::i18n::tr(
+            "Restore the default knowledge base location",
+        )),
     );
 
     let controls = gtk::Box::new(gtk::Orientation::Horizontal, 8);

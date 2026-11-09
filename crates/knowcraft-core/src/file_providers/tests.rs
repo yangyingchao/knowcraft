@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-use super::protocol::{FRAME_LIMIT, checked_reply};
+use super::protocol::{checked_reply, FRAME_LIMIT};
 use super::transport::take_frames;
 use super::*;
-use std::os::unix::fs::{PermissionsExt, symlink};
+use std::os::unix::fs::{symlink, PermissionsExt};
 use std::{
     thread,
     time::{Duration, Instant},
@@ -318,14 +318,12 @@ fn menu_trees_validate_whole_tree_bounds_and_leaf_contexts() {
     assert!(checked_reply(&serde_json::to_vec(&too_deep).expect("json"), &manifest()).is_err());
     let branches: Vec<_> = (0..4).map(|branch| serde_json::json!({"id":format!("branch-{branch}"),"label":"Branch",
         "children":(0..16).map(|leaf| serde_json::json!({"id":format!("leaf-{branch}-{leaf}"),"label":"Leaf"})).collect::<Vec<_>>()})).collect();
-    assert!(
-        checked_reply(
-            &serde_json::to_vec(&serde_json::json!({"version":1,"id":1,"actions":branches}))
-                .expect("json"),
-            &manifest()
-        )
-        .is_err()
-    );
+    assert!(checked_reply(
+        &serde_json::to_vec(&serde_json::json!({"version":1,"id":1,"actions":branches}))
+            .expect("json"),
+        &manifest()
+    )
+    .is_err());
 }
 
 #[test]

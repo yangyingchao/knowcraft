@@ -312,9 +312,11 @@ fn mark_follows_the_filter(
     mode: BrowserMode,
     directory_count: &(String, String),
 ) {
-    wait_footer(fixture, &format!("{mode:?}: the filter shows its mark"), || {
-        fixture.shortcuts.filter_mark().as_deref() == Some("filter: zzz")
-    });
+    wait_footer(
+        fixture,
+        &format!("{mode:?}: the filter shows its mark"),
+        || fixture.shortcuts.filter_mark().as_deref() == Some("filter: zzz"),
+    );
 
     fixture.view.clear_listing_filter();
     wait_until(|| fixture.view.listing_filter().is_none());

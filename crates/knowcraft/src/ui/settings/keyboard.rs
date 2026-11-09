@@ -1021,7 +1021,10 @@ const NAMES: &[(Command, &str)] = &[
     (PAGE_UP, "Page up"),
     (PAGE_DOWN, "Page down"),
     (ENTER, "Open or activate the focused item"),
-    (ESCAPE, "Return to the file list or cancel the current interaction"),
+    (
+        ESCAPE,
+        "Return to the file list or cancel the current interaction",
+    ),
     (FOCUS_NEXT, "Next interface control"),
     (FOCUS_PREVIOUS, "Previous interface control"),
     (HISTORY_BACK, "Back"),

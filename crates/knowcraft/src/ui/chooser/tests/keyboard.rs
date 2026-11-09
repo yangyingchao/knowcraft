@@ -455,8 +455,7 @@ fn dialogs_dismiss_on_escape_alternate() {
                 (Key::bracketleft, ModifierType::CONTROL_MASK),
                 (Key::Escape, ModifierType::empty()),
             ] {
-                let chooser =
-                    Chooser::open(single_file(), BrowserMode::List, &["a.txt"]);
+                let chooser = Chooser::open(single_file(), BrowserMode::List, &["a.txt"]);
                 chooser.focus_files();
                 assert!(chooser.press_with(key, modifiers));
                 assert!(chooser.cancelled(), "{key:?}");
@@ -476,8 +475,7 @@ fn modified_arrow_alternate_moves_the_cursor() {
             bindings.push(Binding::ctrl(Key::j));
             let keymap = Keymap::defaults().with(Map::Default, DOWN, bindings);
             let _keymap = use_keymap(keymap);
-            let chooser =
-                Chooser::open(single_file(), BrowserMode::List, &["a.txt", "b.txt"]);
+            let chooser = Chooser::open(single_file(), BrowserMode::List, &["a.txt", "b.txt"]);
             chooser.focus_files();
             chooser.press(Key::Home);
             wait_until(|| chooser.cursor_name().as_deref() == Some("a.txt"));
@@ -964,8 +962,7 @@ fn default_map_enter_returns_the_whole_fill_in_every_view() {
                 ),
             ];
             for (mode, fill, expected) in cases {
-                let chooser =
-                    Chooser::open(multiple_files(), mode, &["a.txt", "b.txt", "c.txt"]);
+                let chooser = Chooser::open(multiple_files(), mode, &["a.txt", "b.txt", "c.txt"]);
                 chooser.focus_files();
                 fill(&chooser);
                 assert!(chooser.open_request(), "{mode:?} filling chose a file");
@@ -1057,11 +1054,8 @@ fn default_map_enter_keeps_single_selection_and_folder_navigation() {
     crate::test_support::gtk_test(
         "ui::chooser::tests::keyboard::default_map_enter_keeps_single_selection_and_folder_navigation",
         || {
-            let chooser = Chooser::open(
-                single_file(),
-                BrowserMode::List,
-                &["alpha.txt", "beta.txt"],
-            );
+            let chooser =
+                Chooser::open(single_file(), BrowserMode::List, &["alpha.txt", "beta.txt"]);
             chooser.focus_files();
             assert!(chooser.press(Key::Return));
             assert_eq!(chooser.chosen(), [chooser.uri("alpha.txt")]);
@@ -1217,8 +1211,7 @@ fn context_menu_keys_on_back_list_the_back_history() {
         "ui::chooser::tests::keyboard::context_menu_keys_on_back_list_the_back_history",
         || {
             for mode in [BrowserMode::Icons, BrowserMode::List] {
-                let chooser =
-                    Chooser::open(single_file(), mode, &["alpha/", "notes.txt"]);
+                let chooser = Chooser::open(single_file(), mode, &["alpha/", "notes.txt"]);
                 let browser = chooser.state.view.browser();
                 let alpha = Location::local(chooser.root.path().join("alpha"));
                 browser.navigate(alpha.clone());

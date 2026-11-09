@@ -220,7 +220,7 @@ impl ChooserHeader {
         view: &BrowserView,
         browser: &Rc<crate::app::Browser>,
         theme: &Rc<PreferenceManager>,
-        preview: &PreviewDrawer,
+        _preview: &PreviewDrawer,
         window: &gtk::Window,
     ) -> Self {
         let bar = gtk::HeaderBar::new();

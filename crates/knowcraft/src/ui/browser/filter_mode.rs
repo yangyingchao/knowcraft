@@ -86,8 +86,7 @@ impl ModeView<'_> {
             *self.filter_placeholder.borrow_mut() = placeholder.to_string();
         }
         self.revealer.set_reveal_child(true);
-        self.filter_button
-            .set_active(source == QuerySource::Files);
+        self.filter_button.set_active(source == QuerySource::Files);
         self.search_button
             .set_active(source == QuerySource::Knowledge);
         match source {
@@ -122,8 +121,7 @@ impl ModeView<'_> {
             *self.filter_placeholder.borrow_mut() = placeholder.to_string();
         }
         self.revealer.set_reveal_child(true);
-        self.filter_button
-            .set_active(source == QuerySource::Files);
+        self.filter_button.set_active(source == QuerySource::Files);
         self.search_button
             .set_active(source == QuerySource::Knowledge);
         match source {
@@ -231,7 +229,13 @@ impl FilterModeController {
     /// A toggle click on `source`: opens, switches, or closes the field.
     pub(in crate::ui) fn apply_toggle(&self, source: QuerySource) {
         let transition = self.state.borrow_mut().toggle(source);
-        apply(&self.view(), transition, source, &self.syncing, &self.listener);
+        apply(
+            &self.view(),
+            transition,
+            source,
+            &self.syncing,
+            &self.listener,
+        );
     }
 
     /// A shortcut for `source`: an open field only takes focus, and never closes.
@@ -241,7 +245,13 @@ impl FilterModeController {
             self.entry.select_region(0, -1);
             return;
         };
-        apply(&self.view(), transition, source, &self.syncing, &self.listener);
+        apply(
+            &self.view(),
+            transition,
+            source,
+            &self.syncing,
+            &self.listener,
+        );
     }
 
     /// Closes the field without running a query; the caller restores its listing.

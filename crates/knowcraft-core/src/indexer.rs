@@ -39,8 +39,7 @@ impl Indexer {
 
     /// 正文加全部非空便签文字。`selection` 不进入索引。
     pub fn content(store: &Store, document: &Document) -> Result<String> {
-        let base =
-            crate::extract::extract_text(Path::new(&document.path)).unwrap_or_default();
+        let base = crate::extract::extract_text(Path::new(&document.path)).unwrap_or_default();
         let annotations = store.annotations_for(document.id)?;
         Ok(Self::compose_content(&base, &annotations))
     }
@@ -49,7 +48,11 @@ impl Indexer {
     pub fn compose_content(base: &str, annotations: &[Annotation]) -> String {
         let mut content = base.to_owned();
         for annotation in annotations {
-            if let Some(note) = annotation.note_text.as_ref().filter(|note| !note.is_empty()) {
+            if let Some(note) = annotation
+                .note_text
+                .as_ref()
+                .filter(|note| !note.is_empty())
+            {
                 content.push('\n');
                 content.push_str(note);
             }

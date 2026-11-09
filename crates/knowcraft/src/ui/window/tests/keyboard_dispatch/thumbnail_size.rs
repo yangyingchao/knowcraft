@@ -120,7 +120,11 @@ fn thumbnail_shortcuts_and_shift_wheel_step_icons_sizes_and_leave_other_views_al
                 assert_eq!(thumbnail_size(&fixture), expected, "{key:?}");
             }
             assert!(fixture.press(Key::plus, control_alt));
-            assert_eq!(thumbnail_size(&fixture), 96, "Ctrl+Alt++ keeps the step size");
+            assert_eq!(
+                thumbnail_size(&fixture),
+                96,
+                "Ctrl+Alt++ keeps the step size"
+            );
 
             for mode in [BrowserMode::Columns, BrowserMode::List] {
                 fixture.view.set_view_mode(mode);

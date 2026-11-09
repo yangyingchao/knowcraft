@@ -21,8 +21,7 @@ fn base_theme_import_names_a_resource_gtk_bundles() {
                     .and_then(|rest| rest.split('"').next())
                     .expect("the import should carry a resource URL");
                 assert!(
-                    gtk::gio::resources_get_info(path, gtk::gio::ResourceLookupFlags::NONE)
-                        .is_ok(),
+                    gtk::gio::resources_get_info(path, gtk::gio::ResourceLookupFlags::NONE).is_ok(),
                     "{path} must exist in the running GTK resources"
                 );
             }

@@ -301,7 +301,10 @@ impl Index {
             .collect();
         let query = BooleanQuery::new(vec![
             (Occur::Must, text_query),
-            (Occur::Must, Box::new(TermSetQuery::new(terms)) as Box<dyn tantivy::query::Query>),
+            (
+                Occur::Must,
+                Box::new(TermSetQuery::new(terms)) as Box<dyn tantivy::query::Query>,
+            ),
         ]);
         self.search_with(&query, limit)
     }

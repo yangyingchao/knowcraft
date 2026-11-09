@@ -84,11 +84,7 @@ impl WindowContent {
         }
     }
 
-    fn bind_context(
-        &self,
-        window: &gtk::ApplicationWindow,
-        preferences: &Rc<PreferenceManager>,
-    ) {
+    fn bind_context(&self, window: &gtk::ApplicationWindow, preferences: &Rc<PreferenceManager>) {
         search::install(window, self);
         install_browser_actions(window, &self.actions, &self.browser, preferences);
         knowledge_actions::install(window, self);

@@ -154,12 +154,14 @@ impl TextAnnotations {
         for nm in nms {
             match self.store.annotation_by_nm(document_id, nm)? {
                 Some(record) if record.view.is_empty() => {
-                    return Err(Error::Store(format!(
-                        "annotation {nm} is a PDF annotation"
-                    )));
+                    return Err(Error::Store(format!("annotation {nm} is a PDF annotation")));
                 }
                 Some(record) => {
-                    if record.note_text.as_ref().is_some_and(|text| !text.is_empty()) {
+                    if record
+                        .note_text
+                        .as_ref()
+                        .is_some_and(|text| !text.is_empty())
+                    {
                         outcome.note_removed = true;
                     }
                     ids.push(record.id);
@@ -221,9 +223,7 @@ impl TextAnnotations {
             .annotation_by_nm(document_id, nm)?
             .ok_or_else(|| Error::Store(format!("annotation {nm} not found")))?;
         if record.view.is_empty() {
-            return Err(Error::Store(format!(
-                "annotation {nm} is a PDF annotation"
-            )));
+            return Err(Error::Store(format!("annotation {nm} is a PDF annotation")));
         }
         mutate(&mut record);
         record.updated_at = store::now();

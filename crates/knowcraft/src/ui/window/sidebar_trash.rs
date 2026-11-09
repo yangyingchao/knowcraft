@@ -303,10 +303,7 @@ impl SidebarState {
             separator,
             empty: empty.clone(),
         });
-        let items = TrashMenuItems {
-            properties,
-            empty,
-        };
+        let items = TrashMenuItems { properties, empty };
         (menu, items)
     }
 

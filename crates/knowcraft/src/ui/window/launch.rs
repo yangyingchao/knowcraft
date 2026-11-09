@@ -116,10 +116,7 @@ impl FirstFolder {
     }
 }
 
-pub(super) fn schedule_after_first_paint(
-    window: &gtk::ApplicationWindow,
-    sidebar: &SidebarView,
-) {
+pub(super) fn schedule_after_first_paint(window: &gtk::ApplicationWindow, sidebar: &SidebarView) {
     let state = Rc::downgrade(&sidebar.state);
     let armed = Cell::new(false);
     window.connect_map(move |window| {

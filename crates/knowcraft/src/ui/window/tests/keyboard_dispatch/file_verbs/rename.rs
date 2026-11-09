@@ -224,10 +224,7 @@ fn discarded_renames_rename_nothing(fixture: &KeyboardFixture, directory: &Path)
 fn f2_keeps_inline_rename(fixture: &KeyboardFixture) {
     move_to_named(fixture, &fixture.view.browser(), "a.txt");
     assert!(fixture.press(Key::F2, ModifierType::empty()));
-    assert!(
-        fixture.view.rename_is_active(),
-        "F2 keeps inline rename"
-    );
+    assert!(fixture.view.rename_is_active(), "F2 keeps inline rename");
     assert!(fixture.press(Key::Escape, ModifierType::empty()));
     assert!(!fixture.view.rename_is_active());
 }

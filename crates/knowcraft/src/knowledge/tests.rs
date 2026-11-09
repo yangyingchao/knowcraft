@@ -104,7 +104,10 @@ fn display_title_falls_back_when_the_stored_title_is_a_placeholder() {
         })
         .expect("insert document");
     for title in ["Untitled", "'Untitled'", "", "   "] {
-        knowledge.store.update_title(id, title).expect("update title");
+        knowledge
+            .store
+            .update_title(id, title)
+            .expect("update title");
         clear_title_cache();
         assert_eq!(knowledge.display_title(&path), None, "{title:?}");
     }

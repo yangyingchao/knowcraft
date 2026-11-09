@@ -62,7 +62,11 @@ fn reference_follows_keymap_overrides_without_reopening() {
             manager.set_type_to_search(false);
             let labels = reference_labels(&footer);
             assert!(
-                reference_pairs(&labels, "Ctrl+K / e", "Search the knowledge base in this pane"),
+                reference_pairs(
+                    &labels,
+                    "Ctrl+K / e",
+                    "Search the knowledge base in this pane"
+                ),
                 "{labels:?}"
             );
         },

@@ -80,9 +80,12 @@ impl Store {
                 ON document_tags(tag_id, document_id);",
         )?;
         let report = migrate(&mut conn, dir)?;
-        Ok((Store {
-            conn: Arc::new(Mutex::new(conn)),
-        }, report))
+        Ok((
+            Store {
+                conn: Arc::new(Mutex::new(conn)),
+            },
+            report,
+        ))
     }
 
     // Poisoning only happens if a panic occurred while holding the lock; the
@@ -118,9 +121,8 @@ impl Store {
         if tags.is_empty() {
             return Ok(Vec::new());
         }
-        let mut sql = String::from(
-            "SELECT DISTINCT d.id FROM documents d WHERE d.lifecycle <> 'trashed'",
-        );
+        let mut sql =
+            String::from("SELECT DISTINCT d.id FROM documents d WHERE d.lifecycle <> 'trashed'");
         for _ in 0..tags.len() {
             sql.push_str(
                 " AND EXISTS (SELECT 1 FROM document_tags dt JOIN tags t ON t.id = dt.tag_id
@@ -454,9 +456,8 @@ impl Store {
         let tx = conn.transaction()?;
         // 位于目标前缀下的记录都属搬迁之外的孤儿，先删子表再删父表。
         let orphan_ids = {
-            let mut stmt = tx.prepare(
-                "SELECT id FROM documents WHERE substr(path, 1, length(?1)) = ?1",
-            )?;
+            let mut stmt =
+                tx.prepare("SELECT id FROM documents WHERE substr(path, 1, length(?1)) = ?1")?;
             let rows = stmt.query_map(params![new_scope], |r| r.get::<_, i64>(0))?;
             rows.collect::<std::result::Result<Vec<_>, _>>()?
         };
@@ -552,8 +553,7 @@ impl Store {
     /// 文档总数。用作搜索“取全部”时的安全上界，不加载文档行。
     pub fn count_documents(&self) -> Result<usize> {
         let conn = self.lock();
-        let count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))?;
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))?;
         Ok(count.max(0) as usize)
     }
 
@@ -870,10 +870,7 @@ fn ensure_column(conn: &Connection, table: &str, name: &str, decl: &str) -> Resu
         rows.collect::<std::result::Result<Vec<_>, _>>()?
     };
     if !existing.iter().any(|c| c == name) {
-        conn.execute(
-            &format!("ALTER TABLE {table} ADD COLUMN {name} {decl}"),
-            [],
-        )?;
+        conn.execute(&format!("ALTER TABLE {table} ADD COLUMN {name} {decl}"), [])?;
     }
     Ok(())
 }
@@ -881,12 +878,27 @@ fn ensure_column(conn: &Connection, table: &str, name: &str, decl: &str) -> Resu
 /// 补 annotations 表在 schema v2 新增的列，并为旧行生成可用的 `nm`。
 fn ensure_annotation_columns(conn: &Connection) -> Result<()> {
     ensure_column(conn, "annotations", "nm", "TEXT NOT NULL DEFAULT ''")?;
-    ensure_column(conn, "annotations", "kind", "TEXT NOT NULL DEFAULT 'highlight'")?;
+    ensure_column(
+        conn,
+        "annotations",
+        "kind",
+        "TEXT NOT NULL DEFAULT 'highlight'",
+    )?;
     ensure_column(conn, "annotations", "quads", "TEXT NOT NULL DEFAULT '[]'")?;
     ensure_column(conn, "annotations", "anchor_x", "REAL")?;
     ensure_column(conn, "annotations", "anchor_y", "REAL")?;
-    ensure_column(conn, "annotations", "author", "TEXT NOT NULL DEFAULT 'Knowcraft'")?;
-    ensure_column(conn, "annotations", "updated_at", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_column(
+        conn,
+        "annotations",
+        "author",
+        "TEXT NOT NULL DEFAULT 'Knowcraft'",
+    )?;
+    ensure_column(
+        conn,
+        "annotations",
+        "updated_at",
+        "TEXT NOT NULL DEFAULT ''",
+    )?;
     ensure_column(conn, "annotations", "view", "TEXT NOT NULL DEFAULT ''")?;
     ensure_column(conn, "annotations", "range_start", "INTEGER")?;
     ensure_column(conn, "annotations", "range_end", "INTEGER")?;
@@ -1005,8 +1017,18 @@ fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<MigrationReport> {
     }
     let tx = conn.transaction()?;
     ensure_column(&tx, "documents", "uuid", "TEXT NOT NULL DEFAULT ''")?;
-    ensure_column(&tx, "documents", "storage", "TEXT NOT NULL DEFAULT 'linked'")?;
-    ensure_column(&tx, "documents", "original_name", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_column(
+        &tx,
+        "documents",
+        "storage",
+        "TEXT NOT NULL DEFAULT 'linked'",
+    )?;
+    ensure_column(
+        &tx,
+        "documents",
+        "original_name",
+        "TEXT NOT NULL DEFAULT ''",
+    )?;
     let backfilled = backfill_identity(&tx, data_dir)?;
     tx.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_uuid ON documents(uuid) WHERE uuid <> ''",

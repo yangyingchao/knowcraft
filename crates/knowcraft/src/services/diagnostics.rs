@@ -782,7 +782,6 @@ fn folder_monitoring_for(monitored: Result<(), String>, limit: Option<u64>) -> C
     }
 }
 
-
 pub(crate) fn terminal(program: Option<String>) -> Check {
     match program {
         Some(program) => Check::passed(CheckId::Terminal, Finding::Found(vec![program])),

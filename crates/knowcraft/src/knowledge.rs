@@ -46,9 +46,7 @@ static ACTIVE_INDEX: Mutex<Option<HashMap<PathBuf, ()>>> = Mutex::new(None);
 /// Last known display title per knowledge path; `None` means "no title".
 static TITLE_CACHE: Mutex<Option<HashMap<PathBuf, Option<String>>>> = Mutex::new(None);
 
-fn with_title_cache<T>(
-    update: impl FnOnce(&mut HashMap<PathBuf, Option<String>>) -> T,
-) -> T {
+fn with_title_cache<T>(update: impl FnOnce(&mut HashMap<PathBuf, Option<String>>) -> T) -> T {
     let mut cache = TITLE_CACHE
         .lock()
         .unwrap_or_else(|error| error.into_inner());
@@ -144,9 +142,13 @@ impl Knowledge {
         let trash = Trash::new(data_dir.clone());
         let archive = Archive::new(data_dir.clone()).map_err(|error| error.to_string())?;
         let write_lock = Arc::new(WriteLock::new(&data_dir));
-        let fileops =
-            FileOps::new(store.clone(), index.clone(), data_dir.clone(), write_lock.clone())
-                .map_err(|error| error.to_string())?;
+        let fileops = FileOps::new(
+            store.clone(),
+            index.clone(),
+            data_dir.clone(),
+            write_lock.clone(),
+        )
+        .map_err(|error| error.to_string())?;
         Ok(Self {
             data_dir,
             store,
@@ -219,8 +221,7 @@ impl Knowledge {
         if query.trim().is_empty() {
             return Vec::new();
         }
-        knowcraft_core::search::search(&self.store, &self.index, query, limit)
-            .unwrap_or_default()
+        knowcraft_core::search::search(&self.store, &self.index, query, limit).unwrap_or_default()
     }
 
     pub(crate) fn search_tags(&self, query: &str) -> Vec<TagHit> {
@@ -314,7 +315,11 @@ impl Knowledge {
     }
 
     /// 归档 inbox 文档到 `library/<category>/` 并刷新索引状态。
-    pub(crate) fn archive_to_library(&self, path: &Path, category: &str) -> Result<Document, String> {
+    pub(crate) fn archive_to_library(
+        &self,
+        path: &Path,
+        category: &str,
+    ) -> Result<Document, String> {
         let doc = self.resolve_doc(path)?;
         if doc.lifecycle != "pending" {
             return Err("该文档已归档".to_owned());
@@ -471,8 +476,7 @@ impl Knowledge {
         if !Self::is_placeholder_title(title) && title != file_name.as_ref() {
             return Some(doc.title);
         }
-        (doc.storage == "archived" && !doc.original_name.is_empty())
-            .then_some(doc.original_name)
+        (doc.storage == "archived" && !doc.original_name.is_empty()).then_some(doc.original_name)
     }
 
     /// 无内容标题的占位值：空白，或提取器留下的 `Untitled`（可能带引号）。

@@ -32,8 +32,7 @@ pub(super) fn path() -> PathBuf {
 pub(super) fn load_from(path: &Path) -> Option<i32> {
     let contents = fs::read_to_string(path).ok()?;
     let stored: StoredPreview = toml::from_str(&contents).ok()?;
-    (stored.version == VERSION && valid_width(stored.preview_width))
-        .then_some(stored.preview_width)
+    (stored.version == VERSION && valid_width(stored.preview_width)).then_some(stored.preview_width)
 }
 
 pub(super) fn save(width: i32) {
@@ -74,10 +73,7 @@ mod tests {
 
     fn temp_file(name: &str) -> PathBuf {
         std::env::temp_dir()
-            .join(format!(
-                "kc-preview-width-{name}-{}",
-                std::process::id()
-            ))
+            .join(format!("kc-preview-width-{name}-{}", std::process::id()))
             .join(FILE_NAME)
     }
 

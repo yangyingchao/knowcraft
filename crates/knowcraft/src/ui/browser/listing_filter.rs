@@ -528,16 +528,16 @@ impl ViewState {
     /// Focuses the results showing in the pane at `depth` on their cursor, or
     /// the pane once they are gone.
     pub(super) fn focus_pane_results(&self, depth: usize) {
-        let target = self
-            .mode_views
-            .borrow()
-            .filter_at(depth)
-            .map(|(entry, button, search, mode)| Target::Pane {
-                entry,
-                button,
-                search,
-                mode,
-            });
+        let target =
+            self.mode_views
+                .borrow()
+                .filter_at(depth)
+                .map(|(entry, button, search, mode)| Target::Pane {
+                    entry,
+                    button,
+                    search,
+                    mode,
+                });
         if !target.is_some_and(|target| self.focus_results_on_cursor(&target)) {
             self.mode_views.borrow().focus_visible_pane(depth);
         }

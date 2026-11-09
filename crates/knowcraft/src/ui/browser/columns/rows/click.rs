@@ -10,8 +10,8 @@ use super::{RowContext, RowHandle};
 use crate::model::{FileEntry, Location};
 use crate::ui::browser::{
     ViewState, collection::activate_recursive_search_result,
-    entry::entry_responds_to_preview_click, filter_mode::QuerySource,
-    filter_rows::ResultRow, paths::is_trash_location, tab_location::TabLocationHold,
+    entry::entry_responds_to_preview_click, filter_mode::QuerySource, filter_rows::ResultRow,
+    paths::is_trash_location, tab_location::TabLocationHold,
 };
 use crate::ui::browser_modes::{FilteredFileClick, filtered_file_click};
 use crate::ui::collection_interaction::{MiddleClickAction, PointerSequence, SelectionChange};
@@ -393,15 +393,15 @@ impl RowClick {
                 .get(position as usize)
                 .cloned();
             match row {
-                Some(ResultRow::Tag(_)) => {
-                    Some((position as usize, None, PendingActivationKind::RecursiveSearch))
-                }
-                Some(row) => {
-                    crate::ui::browser::collection::result_entry(&row).and_then(|entry| {
-                        let kind = filtered_click_kind(&state, &entry, true)?;
-                        Some((position as usize, Some(entry.location), kind))
-                    })
-                }
+                Some(ResultRow::Tag(_)) => Some((
+                    position as usize,
+                    None,
+                    PendingActivationKind::RecursiveSearch,
+                )),
+                Some(row) => crate::ui::browser::collection::result_entry(&row).and_then(|entry| {
+                    let kind = filtered_click_kind(&state, &entry, true)?;
+                    Some((position as usize, Some(entry.location), kind))
+                }),
                 None => None,
             }
         } else {
@@ -670,11 +670,7 @@ impl RowClick {
     fn activate_recursive_search(&self, state: &ViewState, pending: &PendingPointerActivation) {
         let context = self.context();
         let search_results = &context.search_results;
-        let Some(row) = search_results
-            .borrow()
-            .get(pending.position)
-            .cloned()
-        else {
+        let Some(row) = search_results.borrow().get(pending.position).cloned() else {
             return;
         };
         let matches = match row.path() {
@@ -705,7 +701,7 @@ impl RowClick {
             .context()
             .search_results
             .borrow()
-            .get(pending.position as usize)
+            .get(pending.position)
             .cloned()
         else {
             return;

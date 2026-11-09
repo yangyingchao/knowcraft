@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use pdfcraft_annot::{Meta, NewAnnotation, Summary, add_annotation, delete_annotation, summaries};
+use pdfcraft_annot::{add_annotation, delete_annotation, summaries, Meta, NewAnnotation, Summary};
 use pdfcraft_cos::{Document, SaveOptions};
 
 use crate::error::{Error, Result};
@@ -41,7 +41,13 @@ impl PdfFile {
         delete_annotation(&mut self.doc, page, index).map_err(|e| Error::Pdf(e.to_string()))
     }
 
-    pub fn set_contents(&mut self, page: usize, index: usize, text: &str, meta: &Meta) -> Result<()> {
+    pub fn set_contents(
+        &mut self,
+        page: usize,
+        index: usize,
+        text: &str,
+        meta: &Meta,
+    ) -> Result<()> {
         pdfcraft_annot::set_contents(&mut self.doc, page, index, text, meta)
             .map_err(|e| Error::Pdf(e.to_string()))
     }

@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use rustix::fs::{FlockOperation, flock};
+use rustix::fs::{flock, FlockOperation};
 
 use crate::error::{Error, Result};
 

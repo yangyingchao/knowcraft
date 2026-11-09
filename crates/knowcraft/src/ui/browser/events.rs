@@ -166,8 +166,9 @@ impl ViewState {
                 if !*merged
                     && let (Some(from_path), Some(to_path)) = (from.native_path(), to.native_path())
                     && from_path != to_path
-                    && crate::knowledge::init()
-                        .is_some_and(|knowledge| knowledge.contains(from_path) || knowledge.contains(to_path))
+                    && crate::knowledge::init().is_some_and(|knowledge| {
+                        knowledge.contains(from_path) || knowledge.contains(to_path)
+                    })
                 {
                     let (from_path, to_path) = (from_path.to_path_buf(), to_path.to_path_buf());
                     std::thread::spawn(move || {

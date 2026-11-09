@@ -425,7 +425,7 @@ fn tab_strip_order_matches_the_conflict_check() {
         "ui::window::tests::keyboard_dispatch::keymap_conflicts::tab_strip_order_matches_the_conflict_check",
         || {
             let preferences = PreferenceManager::shared();
-                let application =
+            let application =
                 gtk::Application::new(None::<&str>, gtk::gio::ApplicationFlags::NON_UNIQUE);
             application
                 .register(None::<&gtk::gio::Cancellable>)

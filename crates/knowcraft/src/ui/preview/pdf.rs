@@ -10,7 +10,7 @@ mod zoom;
 use knowcraft_core::{
     model::Annotation,
     pdf_annotations::{AnnotationKind, NewPdfAnnotation, PdfAnnotations},
-    pdf_geometry::{view_glyphs_to_quads, PageGeometry},
+    pdf_geometry::{PageGeometry, view_glyphs_to_quads},
 };
 use selection::{LayerPoint, pdf_text_at, pdf_text_near};
 pub(super) use selection::{
@@ -146,30 +146,32 @@ impl PreviewState {
             glib::ControlFlow::Continue
         });
         viewer.loader.replace(Some(Rc::downgrade(&loader)));
-        viewer.toolbar.replace(Some(Rc::new(toolbar::PdfToolbar::new(
-            Rc::new({
-                let viewer = Rc::downgrade(&viewer);
-                let weak_scroll = scroll.downgrade();
-                move |action| {
-                    if let (Some(viewer), Some(scroll)) =
-                        (viewer.upgrade(), weak_scroll.upgrade())
-                    {
-                        viewer.toolbar_action(&scroll, action);
+        viewer
+            .toolbar
+            .replace(Some(Rc::new(toolbar::PdfToolbar::new(
+                Rc::new({
+                    let viewer = Rc::downgrade(&viewer);
+                    let weak_scroll = scroll.downgrade();
+                    move |action| {
+                        if let (Some(viewer), Some(scroll)) =
+                            (viewer.upgrade(), weak_scroll.upgrade())
+                        {
+                            viewer.toolbar_action(&scroll, action);
+                        }
                     }
-                }
-            }),
-            Rc::new({
-                let viewer = Rc::downgrade(&viewer);
-                let weak_scroll = scroll.downgrade();
-                move || {
-                    if let (Some(viewer), Some(scroll)) =
-                        (viewer.upgrade(), weak_scroll.upgrade())
-                    {
-                        viewer.copy_selection(&scroll);
+                }),
+                Rc::new({
+                    let viewer = Rc::downgrade(&viewer);
+                    let weak_scroll = scroll.downgrade();
+                    move || {
+                        if let (Some(viewer), Some(scroll)) =
+                            (viewer.upgrade(), weak_scroll.upgrade())
+                        {
+                            viewer.copy_selection(&scroll);
+                        }
                     }
-                }
-            }),
-        ))));
+                }),
+            ))));
         self.content.append(&scroll);
     }
 }
@@ -197,7 +199,9 @@ fn watch_external_changes(viewer: &Rc<PdfViewer>, path: Option<PathBuf>) {
 }
 
 fn file_modified(path: &Path) -> Option<std::time::SystemTime> {
-    std::fs::metadata(path).and_then(|metadata| metadata.modified()).ok()
+    std::fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .ok()
 }
 
 fn annotation_access(entry: &FileEntry) -> (Option<i64>, bool, Vec<Annotation>) {
@@ -769,9 +773,7 @@ impl PdfViewer {
                     }
                 }
                 Ok(Err(error)) => viewer.report_error(&error),
-                Err(_) => viewer.report_error(&crate::i18n::tr(
-                    "Unable to write the annotation",
-                )),
+                Err(_) => viewer.report_error(&crate::i18n::tr("Unable to write the annotation")),
             }
         });
     }
@@ -841,7 +843,12 @@ impl PdfViewer {
             });
             return;
         }
-        if let Some(scroll) = self.scroll.borrow().as_ref().and_then(|weak| weak.upgrade()) {
+        if let Some(scroll) = self
+            .scroll
+            .borrow()
+            .as_ref()
+            .and_then(|weak| weak.upgrade())
+        {
             self.reload_pages(&scroll, &[]);
         }
     }
@@ -886,11 +893,7 @@ impl PdfViewer {
             let Some((px, py)) = selection::layer_position(scroll, area, layer, point) else {
                 continue;
             };
-            if px < 0.0
-                || py < 0.0
-                || px > f64::from(layer.width)
-                || py > f64::from(layer.height)
-            {
+            if px < 0.0 || py < 0.0 || px > f64::from(layer.width) || py > f64::from(layer.height) {
                 continue;
             }
             for annotation in annotations
@@ -905,8 +908,7 @@ impl PdfViewer {
                 if px < left - pad || px > right + pad || py < top - pad || py > bottom + pad {
                     continue;
                 }
-                let anchor =
-                    layer_rect_in_area(layer, area, (left, top, right, bottom))?;
+                let anchor = layer_rect_in_area(layer, area, (left, top, right, bottom))?;
                 return Some(AnnotationHit {
                     annotation: annotation.clone(),
                     area: area.clone(),
@@ -966,11 +968,8 @@ fn selection_rect(
     end: usize,
 ) -> Option<(f64, f64, f64, f64)> {
     let (left, top, right, bottom) = selection_bounds(layer, start, end)?;
-    let (offset_x, offset_y, scale) = pdf_text::image_bounds(
-        layer,
-        f64::from(area.width()),
-        f64::from(area.height()),
-    );
+    let (offset_x, offset_y, scale) =
+        pdf_text::image_bounds(layer, f64::from(area.width()), f64::from(area.height()));
     Some((
         offset_x + left * scale,
         offset_y + top * scale,
@@ -979,7 +978,11 @@ fn selection_rect(
     ))
 }
 
-fn selection_bounds(layer: &PdfTextLayer, start: usize, end: usize) -> Option<(f64, f64, f64, f64)> {
+fn selection_bounds(
+    layer: &PdfTextLayer,
+    start: usize,
+    end: usize,
+) -> Option<(f64, f64, f64, f64)> {
     let mut bounds: Option<(f64, f64, f64, f64)> = None;
     for [x1, y1, x2, y2] in pdf_text::selection_runs(layer, start, end) {
         let (left, top, right, bottom) = (
@@ -1003,10 +1006,8 @@ fn selection_center(layer: &PdfTextLayer, start: usize, end: usize) -> Option<[f
     }
     let (left, top, right, bottom) = selection_bounds(layer, start, end)?;
     let scale = f64::from(layer.scale);
-    let center = layer_geometry(layer).view_to_user(
-        (left + right) / 2.0 / scale,
-        (top + bottom) / 2.0 / scale,
-    );
+    let center = layer_geometry(layer)
+        .view_to_user((left + right) / 2.0 / scale, (top + bottom) / 2.0 / scale);
     Some([center.0, center.1])
 }
 
@@ -1040,7 +1041,7 @@ fn annotation_layer_rect(
     let quads: Vec<[f64; 8]> = serde_json::from_str(&annotation.quads).ok()?;
     let mut bounds: Option<(f64, f64, f64, f64)> = None;
     for quad in quads {
-        for corner in quad.chunks_exact(2) {
+        for corner in quad.as_chunks::<2>().0 {
             let (px, py) = user_to_layer(layer, corner[0], corner[1])?;
             bounds = Some(match bounds {
                 Some((left, top, right, bottom)) => {
@@ -1058,11 +1059,8 @@ fn layer_rect_in_area(
     area: &gtk::DrawingArea,
     (left, top, right, bottom): (f64, f64, f64, f64),
 ) -> Option<(f64, f64, f64, f64)> {
-    let (offset_x, offset_y, scale) = pdf_text::image_bounds(
-        layer,
-        f64::from(area.width()),
-        f64::from(area.height()),
-    );
+    let (offset_x, offset_y, scale) =
+        pdf_text::image_bounds(layer, f64::from(area.width()), f64::from(area.height()));
     Some((
         offset_x + left * scale,
         offset_y + top * scale,

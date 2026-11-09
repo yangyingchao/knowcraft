@@ -8,10 +8,7 @@ use knowcraft_core::model::Document;
 use knowcraft_core::store::Store;
 
 fn setup(suffix: &str) -> (PathBuf, Store, Index, Archive) {
-    let dir = std::env::temp_dir().join(format!(
-        "kc-archive-{suffix}-{}",
-        std::process::id()
-    ));
+    let dir = std::env::temp_dir().join(format!("kc-archive-{suffix}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let store = Store::open(&dir).unwrap();
@@ -59,10 +56,16 @@ fn insert(store: &Store, doc: &Document) -> i64 {
 fn archive_to_library_preserves_relative_hierarchy() {
     let (dir, store, index, archive) = setup("to-lib");
     let uuid = format!("to-lib-{}", std::process::id());
-    let doc = make_doc(&uuid, &dir.join("inbox").join("项目A").join("报告.pdf"), "body");
+    let doc = make_doc(
+        &uuid,
+        &dir.join("inbox").join("项目A").join("报告.pdf"),
+        "body",
+    );
     let id = insert(&store, &doc);
 
-    let archived = archive.archive_to_library(&store, &index, id, "论文").unwrap();
+    let archived = archive
+        .archive_to_library(&store, &index, id, "论文")
+        .unwrap();
 
     assert!(archived.path.contains("/library/论文/项目A/报告.pdf"));
     assert!(Path::new(&archived.path).exists());
@@ -77,11 +80,17 @@ fn archive_to_library_appends_suffix_on_conflict() {
     let (dir, store, index, archive) = setup("suffix");
     let uuid = format!("suffix-{}", std::process::id());
     std::fs::create_dir_all(dir.join("library").join("论文")).unwrap();
-    std::fs::write(dir.join("library").join("论文").join("报告.pdf"), "existing").unwrap();
+    std::fs::write(
+        dir.join("library").join("论文").join("报告.pdf"),
+        "existing",
+    )
+    .unwrap();
     let doc = make_doc(&uuid, &dir.join("inbox").join("报告.pdf"), "body");
     let id = insert(&store, &doc);
 
-    let archived = archive.archive_to_library(&store, &index, id, "论文").unwrap();
+    let archived = archive
+        .archive_to_library(&store, &index, id, "论文")
+        .unwrap();
 
     assert!(archived.path.ends_with("报告-1.pdf"));
     assert_eq!(archived.original_name, "报告-1.pdf");

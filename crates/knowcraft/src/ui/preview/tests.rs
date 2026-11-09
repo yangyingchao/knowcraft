@@ -253,10 +253,7 @@ fn an_explicit_close_blocks_automatic_previews_until_reopened() {
             assert!(!released.is_enabled());
             assert!(released.state.reserves_column_space());
             released.state.toggle_panel(None, None);
-            assert!(
-                released.is_enabled(),
-                "the preview panel cannot be closed"
-            );
+            assert!(released.is_enabled(), "the preview panel cannot be closed");
             released.handle_browser_event(&browser, &automatic);
             assert!(
                 released.is_enabled(),

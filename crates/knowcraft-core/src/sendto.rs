@@ -13,9 +13,9 @@ use std::{
 use crate::{
     error::{Error, Result},
     file_providers::{
-        Client, Registration, Update, config_root, discover, protocol::{
-            MenuAction, OutcomeStatus, Reply, Request, query_batch,
-        }, start,
+        config_root, discover,
+        protocol::{query_batch, MenuAction, OutcomeStatus, Reply, Request},
+        start, Client, Registration, Update,
     },
 };
 
@@ -264,7 +264,9 @@ fn wait_reply(client: &Client, provider_id: &str) -> Result<Reply> {
                 )));
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
-                return Err(Error::SendTo(format!("provider {provider_id} disconnected")));
+                return Err(Error::SendTo(format!(
+                    "provider {provider_id} disconnected"
+                )));
             }
         }
     }
@@ -280,14 +282,9 @@ fn native_paths(paths: &[PathBuf]) -> Result<Vec<String>> {
                     path.display()
                 )));
             }
-            path.to_str()
-                .map(str::to_owned)
-                .ok_or_else(|| {
-                    Error::SendTo(format!(
-                        "path is not valid UTF-8: {}",
-                        path.display()
-                    ))
-                })
+            path.to_str().map(str::to_owned).ok_or_else(|| {
+                Error::SendTo(format!("path is not valid UTF-8: {}", path.display()))
+            })
         })
         .collect()
 }

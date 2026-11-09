@@ -131,54 +131,66 @@ pub(super) fn annotation_menu(
     popover.add_css_class("preview-pdf-annotation-menu");
     let anchor = anchor.clone();
     let row = gtk::Box::new(gtk::Orientation::Vertical, 2);
-    let edit = toolbar_button("Edit note", Rc::new({
-        let popover = popover.downgrade();
-        let on_edit = callbacks.edit.clone();
-        move || {
-            if let Some(popover) = popover.upgrade() {
-                popover.popdown();
+    let edit = toolbar_button(
+        "Edit note",
+        Rc::new({
+            let popover = popover.downgrade();
+            let on_edit = callbacks.edit.clone();
+            move || {
+                if let Some(popover) = popover.upgrade() {
+                    popover.popdown();
+                }
+                on_edit();
             }
-            on_edit();
-        }
-    }));
+        }),
+    );
     row.append(&edit);
     if capabilities.recolor {
         let on_color = callbacks.color.clone();
         let anchor_for_color = anchor.clone();
-        let color = toolbar_button("Change color", Rc::new({
-            let popover = popover.downgrade();
-            move || {
-                if let Some(popover) = popover.upgrade() {
-                    popover.popdown();
+        let color = toolbar_button(
+            "Change color",
+            Rc::new({
+                let popover = popover.downgrade();
+                move || {
+                    if let Some(popover) = popover.upgrade() {
+                        popover.popdown();
+                    }
+                    color_popover(&anchor_for_color, rect, on_color.clone());
                 }
-                color_popover(&anchor_for_color, rect, on_color.clone());
-            }
-        }));
+            }),
+        );
         row.append(&color);
     }
     if capabilities.adjust_range {
         let on_adjust = callbacks.adjust.clone();
-        let adjust = toolbar_button("Adjust range", Rc::new({
+        let adjust = toolbar_button(
+            "Adjust range",
+            Rc::new({
+                let popover = popover.downgrade();
+                move || {
+                    if let Some(popover) = popover.upgrade() {
+                        popover.popdown();
+                    }
+                    on_adjust();
+                }
+            }),
+        );
+        row.append(&adjust);
+    }
+    let on_delete = callbacks.delete.clone();
+    let delete = toolbar_button(
+        "Delete annotation",
+        Rc::new({
             let popover = popover.downgrade();
             move || {
                 if let Some(popover) = popover.upgrade() {
                     popover.popdown();
                 }
-                on_adjust();
+                on_delete();
             }
-        }));
-        row.append(&adjust);
-    }
-    let on_delete = callbacks.delete.clone();
-    let delete = toolbar_button("Delete annotation", Rc::new({
-        let popover = popover.downgrade();
-        move || {
-            if let Some(popover) = popover.upgrade() {
-                popover.popdown();
-            }
-            on_delete();
-        }
-    }));
+        }),
+    );
     row.append(&delete);
     popover.set_child(Some(&row));
     popover.set_parent(&anchor);
@@ -239,11 +251,7 @@ fn color_popover(
 }
 
 /// 便签输入框；确认后把文字交给 `on_accept`。
-pub(super) fn prompt_note(
-    parent: &gtk::Widget,
-    initial: &str,
-    on_accept: Rc<dyn Fn(String)>,
-) {
+pub(super) fn prompt_note(parent: &gtk::Widget, initial: &str, on_accept: Rc<dyn Fn(String)>) {
     let Some(root) = parent.root().and_downcast::<gtk::Window>() else {
         return;
     };
@@ -307,11 +315,7 @@ pub(super) struct AnnotationController {
 }
 
 impl AnnotationController {
-    pub(super) fn new(
-        document_id: Option<i64>,
-        view: &str,
-        space: Rc<SelectionSpace>,
-    ) -> Rc<Self> {
+    pub(super) fn new(document_id: Option<i64>, view: &str, space: Rc<SelectionSpace>) -> Rc<Self> {
         let controller = Rc::new(Self {
             document_id: Cell::new(document_id),
             view: RefCell::new(view.to_owned()),
@@ -491,12 +495,7 @@ impl AnnotationController {
         self.pending_range.replace(None);
     }
 
-    pub(super) fn create(
-        self: &Rc<Self>,
-        kind: &str,
-        range: (usize, usize),
-        note: String,
-    ) {
+    pub(super) fn create(self: &Rc<Self>, kind: &str, range: (usize, usize), note: String) {
         let space = self.space.borrow();
         let Some(selection) = space.slice(range.0, range.1).map(str::to_owned) else {
             return;
@@ -608,9 +607,9 @@ impl AnnotationController {
             match result {
                 Ok(Ok(())) => controller.reload(),
                 Ok(Err(error)) => controller.report_error(&error),
-                Err(_) => controller.report_error(&crate::i18n::tr(
-                    "Unable to write the annotation",
-                )),
+                Err(_) => {
+                    controller.report_error(&crate::i18n::tr("Unable to write the annotation"))
+                }
             }
         });
     }
@@ -630,10 +629,10 @@ pub(super) fn update_stale_notice(
     slot: &RefCell<Option<gtk::Box>>,
     controller: &Rc<AnnotationController>,
 ) {
-    if let Some(row) = slot.borrow_mut().take() {
-        if let Some(parent) = row.parent().and_downcast::<gtk::Box>() {
-            parent.remove(&row);
-        }
+    if let Some(row) = slot.borrow_mut().take()
+        && let Some(parent) = row.parent().and_downcast::<gtk::Box>()
+    {
+        parent.remove(&row);
     }
     if controller.stale().is_empty() {
         return;

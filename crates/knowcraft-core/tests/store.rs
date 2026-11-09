@@ -125,8 +125,12 @@ fn uuid_required_and_unique() {
         Err(Error::Store(_))
     ));
 
-    store.insert_document(&doc("/tmp/dup-a.pdf", "dup")).unwrap();
-    assert!(store.insert_document(&doc("/tmp/dup-b.pdf", "dup")).is_err());
+    store
+        .insert_document(&doc("/tmp/dup-a.pdf", "dup"))
+        .unwrap();
+    assert!(store
+        .insert_document(&doc("/tmp/dup-b.pdf", "dup"))
+        .is_err());
 }
 
 #[test]

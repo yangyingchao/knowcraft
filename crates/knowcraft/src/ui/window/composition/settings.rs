@@ -125,4 +125,3 @@ impl SettingsLauncher {
         crate::ui::browser::animate_in(&layer.widget);
     }
 }
-

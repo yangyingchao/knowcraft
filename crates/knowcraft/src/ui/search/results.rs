@@ -210,10 +210,7 @@ fn prune_rows_outside(state: &SearchState, kept: &[Option<gtk::ListBoxRow>]) {
     while let Some(widget) = child {
         let next = widget.next_sibling();
         if let Some(row) = widget.downcast_ref::<gtk::ListBoxRow>()
-            && !kept
-                .iter()
-                .flatten()
-                .any(|candidate| candidate == row)
+            && !kept.iter().flatten().any(|candidate| candidate == row)
         {
             crate::ui::thumbnail::cancel_thumbnails_in(&widget);
             state.list.remove(row);

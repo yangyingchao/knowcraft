@@ -92,9 +92,7 @@ fn deleting_an_annotation_removes_its_hits() {
     indexer.reindex_document(document_id).unwrap();
     assert!(!index.search("神经网络", 10).unwrap().is_empty());
 
-    store
-        .delete_annotation_by_nm(document_id, "nm-1")
-        .unwrap();
+    store.delete_annotation_by_nm(document_id, "nm-1").unwrap();
     indexer.reindex_document(document_id).unwrap();
     assert!(index.search("神经网络", 10).unwrap().is_empty());
 }

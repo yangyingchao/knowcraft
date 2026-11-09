@@ -27,7 +27,7 @@ impl PageBox {
     /// user space, so their ratio recovers the unit.
     fn user_unit(width: f32, _height: f32, crop: [f32; 4], rotation: u16) -> f64 {
         // The displayed width is the crop width, or its height on a quarter turn.
-        let span = if rotation % 180 == 0 {
+        let span = if rotation.is_multiple_of(180) {
             f64::from(crop[2] - crop[0])
         } else {
             f64::from(crop[3] - crop[1])

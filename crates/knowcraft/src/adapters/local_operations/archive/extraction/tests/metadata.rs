@@ -161,9 +161,7 @@ fn a_password_failure_that_cannot_discard_its_output_offers_no_retry() -> Result
     fs::set_permissions(staging.join("locked"), fs::Permissions::from_mode(0o500))?;
 
     let outcome = session.finish(
-        Err(ArchiveError::PasswordRequired(
-            PASSWORD_REQUIRED.to_owned(),
-        )),
+        Err(ArchiveError::PasswordRequired(PASSWORD_REQUIRED.to_owned())),
         Vec::new,
     );
 

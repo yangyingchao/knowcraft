@@ -35,11 +35,7 @@ impl Archive {
         let doc = load(store, doc_id)?;
         let source = PathBuf::from(&doc.path);
         let relative = self.relative_to_knowledge_folder(&source);
-        let target = self
-            .data_dir
-            .join("library")
-            .join(category)
-            .join(&relative);
+        let target = self.data_dir.join("library").join(category).join(&relative);
         let target = self.unique_suffix(&target);
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent)?;
@@ -60,12 +56,7 @@ impl Archive {
     /// archived 归档：移动到 `archived/<ext>/<uuid>.<ext>`，UUID 是文件名身份。
     ///
     /// 目标已存在视为错误，不覆盖；`original_name` 保持归档时名称不变。
-    pub fn archive_record(
-        &self,
-        store: &Store,
-        index: &Index,
-        doc_id: i64,
-    ) -> Result<Document> {
+    pub fn archive_record(&self, store: &Store, index: &Index, doc_id: i64) -> Result<Document> {
         let doc = load(store, doc_id)?;
         let source = PathBuf::from(&doc.path);
         let ext = Self::extension(&source);
@@ -159,10 +150,7 @@ impl Archive {
         if !target.exists() {
             return target.to_path_buf();
         }
-        let parent = target
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_default();
+        let parent = target.parent().map(Path::to_path_buf).unwrap_or_default();
         let stem = target
             .file_stem()
             .map(|s| s.to_string_lossy().into_owned())

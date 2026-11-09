@@ -97,7 +97,8 @@ impl PdfAnnotations {
         }
 
         let written = fs::read(&path)?;
-        self.store.update_checksum(document_id, &sha256_hex(&written))?;
+        self.store
+            .update_checksum(document_id, &sha256_hex(&written))?;
         self.store
             .touch_document(document_id, written.len() as i64)?;
         let record = self.record(document_id, &new, &nm);
@@ -120,7 +121,8 @@ impl PdfAnnotations {
         file.set_contents(page, index, text, &meta(nm))?;
         write_atomic(&path, &file.write()?)?;
         let written = fs::read(&path)?;
-        self.store.update_checksum(document_id, &sha256_hex(&written))?;
+        self.store
+            .update_checksum(document_id, &sha256_hex(&written))?;
         self.store
             .touch_document(document_id, written.len() as i64)?;
 
@@ -153,7 +155,8 @@ impl PdfAnnotations {
             write_atomic(&path, &file.write()?)?;
         }
         let written = fs::read(&path)?;
-        self.store.update_checksum(document_id, &sha256_hex(&written))?;
+        self.store
+            .update_checksum(document_id, &sha256_hex(&written))?;
         self.store
             .touch_document(document_id, written.len() as i64)?;
         self.store.delete_annotation_by_nm(document_id, nm)?;
@@ -220,12 +223,14 @@ impl PdfAnnotations {
 
         for cached in self.store.pdf_annotations_for(document_id)? {
             if !seen.contains(&cached.nm) {
-                self.store.delete_annotation_by_nm(document_id, &cached.nm)?;
+                self.store
+                    .delete_annotation_by_nm(document_id, &cached.nm)?;
             }
         }
 
         let written = fs::read(&path)?;
-        self.store.update_checksum(document_id, &sha256_hex(&written))?;
+        self.store
+            .update_checksum(document_id, &sha256_hex(&written))?;
         self.store
             .touch_document(document_id, written.len() as i64)?;
         Ok(imported)
@@ -352,7 +357,11 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
 pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
-    hasher.finalize().iter().map(|b| format!("{b:02x}")).collect()
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 fn hex_to_rgb(color: &str) -> [f64; 3] {
@@ -487,7 +496,10 @@ mod tests {
             .add(fixture.document_id, highlight("nm-1"))
             .unwrap();
         assert_eq!(record.nm, "nm-1");
-        assert_eq!(fixture.annotations.list(fixture.document_id).unwrap().len(), 1);
+        assert_eq!(
+            fixture.annotations.list(fixture.document_id).unwrap().len(),
+            1
+        );
 
         let reopened = PdfFile::open(std::fs::read(&fixture.path).unwrap()).unwrap();
         assert_eq!(reopened.find("nm-1"), Some((0, 0)));
@@ -569,7 +581,11 @@ mod tests {
         let fixture = fixture("symlink");
         let link = fixture.dir.join("link.pdf");
         std::os::unix::fs::symlink(&fixture.path, &link).unwrap();
-        let document = fixture.store.get_document(fixture.document_id).unwrap().unwrap();
+        let document = fixture
+            .store
+            .get_document(fixture.document_id)
+            .unwrap()
+            .unwrap();
         fixture
             .store
             .update_path(document.id, &link.to_string_lossy())
@@ -594,7 +610,11 @@ mod tests {
             .delete(fixture.document_id, "nm-1")
             .unwrap();
 
-        assert!(fixture.annotations.list(fixture.document_id).unwrap().is_empty());
+        assert!(fixture
+            .annotations
+            .list(fixture.document_id)
+            .unwrap()
+            .is_empty());
         let reopened = PdfFile::open(std::fs::read(&fixture.path).unwrap()).unwrap();
         assert_eq!(reopened.find("nm-1"), None);
     }
