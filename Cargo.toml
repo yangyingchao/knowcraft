@@ -4,6 +4,9 @@ members = ["crates/knowcraft-core", "crates/knowcraft", "crates/knowcraft-cli"]
 default-members = ["crates/knowcraft-core", "crates/knowcraft", "crates/knowcraft-cli"]
 exclude = ["crates/vendor"]
 
+[workspace.package]
+version = "0.1.0"
+
 # Vendored, patched third-party crates for the pdfcraft-render text-extraction stack
 # (crates/vendor/pdfcraft/vendor/). The text stack has no git dependencies, so only the
 # hayro/lopdf/vello path patches are replicated here (see docs/notes/m0-probe.md).

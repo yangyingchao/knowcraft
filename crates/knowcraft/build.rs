@@ -31,15 +31,7 @@ fn main() {
         .unwrap_or_else(|| "unknown".to_owned());
     println!("cargo::rustc-env=KNOWCRAFT_BUILD_COMMIT={commit}");
 
-    println!("cargo::rerun-if-env-changed=KNOWCRAFT_RELEASE_TAG");
     println!("cargo::rerun-if-env-changed=KNOWCRAFT_BUILD_KIND");
-
-    let release_tag = env::var("KNOWCRAFT_RELEASE_TAG")
-        .ok()
-        .and_then(|value| value.lines().next().map(str::trim).map(str::to_owned))
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| format!("v{}", env!("CARGO_PKG_VERSION")));
-    println!("cargo::rustc-env=KNOWCRAFT_RELEASE_TAG={release_tag}");
 
     let build_kind = env::var("KNOWCRAFT_BUILD_KIND")
         .ok()

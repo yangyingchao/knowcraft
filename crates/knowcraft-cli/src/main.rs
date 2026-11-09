@@ -20,7 +20,7 @@ use knowcraft_core::workflow::Workflow;
 use knowcraft_core::write_lock::WriteLock;
 
 #[derive(Parser)]
-#[command(name = "knowcraft", version, about = "knowcraft 知识库命令行接口")]
+#[command(name = "knowcraft", version = knowcraft_core::VERSION, about = "knowcraft 知识库命令行接口")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,

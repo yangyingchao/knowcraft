@@ -2,7 +2,7 @@
 
 use crate::services::{BuildKind, Version};
 
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = knowcraft_core::VERSION;
 pub const COMMIT: &str = env!("KNOWCRAFT_BUILD_COMMIT");
 pub const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
@@ -15,7 +15,7 @@ pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 /// i.e. every developer build -- so this is where prerelease identity
 /// travels without ever bumping `Cargo.toml` for an RC (see D3 in the
 /// release-channel design notes).
-pub const RELEASE_TAG: &str = env!("KNOWCRAFT_RELEASE_TAG");
+pub const RELEASE_TAG: &str = knowcraft_core::RELEASE_TAG;
 
 /// The build kind this binary was published as, as the raw string
 /// `build.rs` injected: `"stable"`, `"alpha"`, `"beta"`, `"rc"`, or
