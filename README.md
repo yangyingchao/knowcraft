@@ -112,8 +112,12 @@ cargo run -p knowcraft-cli -- <子命令>
 | `cleanup` | 清理数据库中文件已不存在的失效条目 |
 | `upgrade` | 迁移数据库 schema 并报告回填数量 |
 | `archive <paths>...` | 归档文件：`--category <名称>` 或 `--record`，加 `--uuid` 只输出 UUID 与内部路径 |
-| `sendto-list [--json]` | 列出已注册的外部 send-to 插件 |
-| `sendto <plugin> <path>...` | 把文件发送给插件，自动选择唯一的发送动作 |
+| `delete <path>` | 把库内文件或目录移入回收站；`--permanent` 彻底删除文件、记录与索引条目 |
+| `trash list [--json\|--jsonl]` | 列出回收站条目：uuid、原路径与标题 |
+| `trash empty [--yes] [--json]` | 清空回收站：删除文件、记录与索引条目；非终端环境需 `--yes` |
+| `trash restore <uuid>` | 按 uuid 从回收站恢复 |
+| `sendto list [--json]` | 列出已注册的外部 send-to 插件 |
+| `sendto send --plugin <id> <path>...` | 把文件发送给插件，自动选择唯一的发送动作 |
 | `ls [dir]` | 列出目录条目；已登记文档显示库内标题，未登记文件标记 `[unregistered]` |
 
 示例：
@@ -130,9 +134,14 @@ knowcraft-cli search "tags:ml* 神经网络"
 # 归档为记录，只输出 UUID 与内部路径
 knowcraft-cli archive --record --uuid ~/Knowledge/inbox/report.pdf
 
+# 移入回收站、列出条目并清空
+knowcraft-cli delete ~/Knowledge/inbox/draft.md
+knowcraft-cli trash list
+knowcraft-cli trash empty --yes
+
 # 列出外部插件并把文件交给其中的一个
-knowcraft-cli sendto-list
-knowcraft-cli sendto example ~/Knowledge/inbox/report.pdf
+knowcraft-cli sendto list
+knowcraft-cli sendto send --plugin example ~/Knowledge/inbox/report.pdf
 
 # 列出当前目录；已登记文档显示库内标题
 knowcraft-cli ls

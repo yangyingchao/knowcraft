@@ -54,6 +54,49 @@ enum TagsCmd {
 }
 
 #[derive(Subcommand)]
+enum SendtoCmd {
+    /// 列出可用插件：每行 id 与显示名
+    List {
+        /// 输出 JSON 数组，供脚本与 Emacs 消费
+        #[arg(long)]
+        json: bool,
+    },
+    /// 把文件发送给指定插件，自动选择唯一的发送动作
+    Send {
+        /// 插件 id，取自 sendto list 的第一列
+        #[arg(long)]
+        plugin: String,
+        /// 要发送的本地路径
+        #[arg(required = true)]
+        paths: Vec<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+enum TrashCmd {
+    /// 列出回收站条目：每行 uuid、原路径与标题
+    List {
+        /// 输出 JSON 数组，供脚本与 Emacs 消费
+        #[arg(long, conflicts_with = "jsonl")]
+        json: bool,
+        /// 每行输出一个 JSON 对象，适合流式消费
+        #[arg(long, conflicts_with = "json")]
+        jsonl: bool,
+    },
+    /// 清空回收站：删除文件、记录与索引条目，不可恢复
+    Empty {
+        /// 跳过交互确认；非终端环境必须显式传入
+        #[arg(long)]
+        yes: bool,
+        /// 输出 JSON 对象，供脚本与 Emacs 消费
+        #[arg(long)]
+        json: bool,
+    },
+    /// 按 uuid 从回收站恢复
+    Restore { uuid: String },
+}
+
+#[derive(Subcommand)]
 enum Cmd {
     /// 全文搜索，返回命中的文档 id 与路径。
     /// 支持前缀：name: 文件名子串、kind: 文档类型、tags: 标签（空格分隔为 AND）
@@ -69,6 +112,23 @@ enum Cmd {
         #[arg(long, default_value_t = 50, allow_negative_numbers = true)]
         limit: i64,
     },
+    /// 列出目录条目：已登记文档显示库内标题，未登记文件加标记
+    Ls {
+        /// 目录；省略时使用当前工作目录
+        dir: Option<PathBuf>,
+        /// 输出 JSON 数组，供脚本与 Emacs 消费
+        #[arg(long, conflicts_with = "jsonl")]
+        json: bool,
+        /// 每行输出一个 JSON 对象，适合流式消费
+        #[arg(long, conflicts_with = "json")]
+        jsonl: bool,
+    },
+    /// 查看数据目录、索引文档数与 inbox 计数
+    Status {
+        /// 输出 JSON 对象，供脚本与 Emacs 消费
+        #[arg(long)]
+        json: bool,
+    },
     /// 重建搜索索引；无参数增量，指定路径只重建范围内文档
     Index {
         /// 彻底重建整个索引，不能与路径同时使用
@@ -83,17 +143,10 @@ enum Cmd {
         #[arg(long)]
         verbose: bool,
     },
-    /// 列出目录条目：已登记文档显示库内标题，未登记文件加标记
-    Ls {
-        /// 目录；省略时使用当前工作目录
-        dir: Option<PathBuf>,
-        /// 输出 JSON 数组，供脚本与 Emacs 消费
-        #[arg(long, conflicts_with = "jsonl")]
-        json: bool,
-        /// 每行输出一个 JSON 对象，适合流式消费
-        #[arg(long, conflicts_with = "json")]
-        jsonl: bool,
-    },
+    /// 清理数据库中文件已不存在的失效条目
+    Cleanup,
+    /// 迁移数据库 schema 并报告回填数量
+    Upgrade,
     /// 导入文件或目录到 inbox
     Add { path: PathBuf },
     /// 在库内新建空文件或目录并登记
@@ -114,45 +167,13 @@ enum Cmd {
         #[arg(long)]
         permanent: bool,
     },
-    /// 按 uuid 从回收站恢复
-    Restore { uuid: String },
+    /// 回收站：列出、清空与恢复
+    Trash {
+        #[command(subcommand)]
+        cmd: TrashCmd,
+    },
     /// 将文档归入 library 下的分类目录
     Dispatch { id: i64, category: String },
-    /// 抓取网页入库到 captures
-    Capture { url: String },
-    /// 查看数据目录、索引文档数与 inbox 计数
-    Status {
-        /// 输出 JSON 对象，供脚本与 Emacs 消费
-        #[arg(long)]
-        json: bool,
-    },
-    /// 清理数据库中文件已不存在的失效条目
-    Cleanup,
-    /// 迁移数据库 schema 并报告回填数量
-    Upgrade,
-    /// PDF 注释：列出或从文件同步
-    Annotations {
-        #[command(subcommand)]
-        cmd: AnnotationsCmd,
-    },
-    /// 文档标签：移除
-    Tags {
-        #[command(subcommand)]
-        cmd: TagsCmd,
-    },
-    /// 列出可用 send-to 插件：每行 id 与显示名
-    SendtoList {
-        /// 输出 JSON 数组，供脚本与 Emacs 消费
-        #[arg(long)]
-        json: bool,
-    },
-    /// 把文件发送给外部 provider 插件
-    Sendto {
-        plugin: String,
-        /// 要发送的本地路径
-        #[arg(required = true)]
-        paths: Vec<PathBuf>,
-    },
     /// 归档文件：--category 保留路径，--record 写入 UUID 存储
     Archive {
         paths: Vec<PathBuf>,
@@ -163,6 +184,23 @@ enum Cmd {
         /// 只输出 UUID 与内部路径
         #[arg(long)]
         uuid: bool,
+    },
+    /// 抓取网页入库到 captures
+    Capture { url: String },
+    /// 文档标签：移除
+    Tags {
+        #[command(subcommand)]
+        cmd: TagsCmd,
+    },
+    /// PDF 注释：列出或从文件同步
+    Annotations {
+        #[command(subcommand)]
+        cmd: AnnotationsCmd,
+    },
+    /// 外部 send-to 插件：列出可用插件或发送文件
+    Sendto {
+        #[command(subcommand)]
+        cmd: SendtoCmd,
     },
 }
 
@@ -176,10 +214,8 @@ fn main() -> anyhow::Result<()> {
             anyhow::bail!("--limit must be at most {MAX_LIMIT}");
         }
     }
-    match &cli.cmd {
-        Cmd::SendtoList { json } => return write_provider_list(*json),
-        Cmd::Sendto { plugin, paths } => return run_sendto(plugin, paths),
-        _ => {}
+    if let Cmd::Sendto { cmd } = &cli.cmd {
+        return run_sendto_group(cmd);
     }
     let cfg = knowcraft_core::config::Config::load()?;
     if matches!(&cli.cmd, Cmd::Upgrade) {
@@ -193,9 +229,9 @@ fn main() -> anyhow::Result<()> {
     let store = knowcraft_core::store::Store::open(&cfg.data_dir)?;
     let wf = Workflow::new(store.clone(), cfg.data_dir.clone())?;
     match cli.cmd {
-        // Upgrade、SendtoList 与 Sendto 在上面已提前返回。
+        // Upgrade 与 Sendto 在上面已提前返回。
         Cmd::Upgrade => {}
-        Cmd::SendtoList { .. } | Cmd::Sendto { .. } => {}
+        Cmd::Sendto { .. } => {}
         Cmd::Search {
             query,
             json,
@@ -365,11 +401,39 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        Cmd::Restore { uuid } => {
-            let ops = file_ops(&store, &cfg.data_dir)?;
-            let doc = ops.restore(&uuid)?;
-            println!("restored: path={}", doc.path);
-        }
+        Cmd::Trash { cmd } => match cmd {
+            TrashCmd::List { json, jsonl } => {
+                let output = render_trash_ls(&store, &cfg.data_dir, json, jsonl)?;
+                std::io::Write::write_all(&mut std::io::stdout().lock(), &output)?;
+            }
+            TrashCmd::Empty { yes, json } => {
+                if !confirm_empty_trash(yes)? {
+                    println!("cancelled: nothing removed");
+                    return Ok(());
+                }
+                let ops = file_ops(&store, &cfg.data_dir)?;
+                let report = ops.empty_trash()?;
+                if json {
+                    let payload = serde_json::json!({
+                        "documents": report.documents,
+                        "files": report.files,
+                    });
+                    let mut output = serde_json::to_vec(&payload)?;
+                    output.push(b'\n');
+                    std::io::Write::write_all(&mut std::io::stdout().lock(), &output)?;
+                } else {
+                    println!(
+                        "emptied: documents={} files={}",
+                        report.documents, report.files
+                    );
+                }
+            }
+            TrashCmd::Restore { uuid } => {
+                let ops = file_ops(&store, &cfg.data_dir)?;
+                let doc = ops.restore(&uuid)?;
+                println!("restored: path={}", doc.path);
+            }
+        },
         Cmd::Dispatch { id, category } => {
             let doc = wf.dispatch(id, &category)?;
             println!("dispatched: id={} path={}", doc.id, doc.path);
@@ -503,6 +567,26 @@ fn indexed_documents(
     Ok(docs)
 }
 
+/// 清空回收站的确认：`--yes` 直接放行；TTY 下询问 y/N；
+/// 非 TTY 且未传 `--yes` 时拒绝执行，避免脚本误删。
+fn confirm_empty_trash(yes: bool) -> anyhow::Result<bool> {
+    use std::io::{IsTerminal, Write};
+    if yes {
+        return Ok(true);
+    }
+    if !std::io::stdin().is_terminal() {
+        anyhow::bail!("refusing to empty the trash without --yes");
+    }
+    print!("Empty the trash? This cannot be undone. [y/N] ");
+    std::io::stdout().flush()?;
+    let mut answer = String::new();
+    std::io::stdin().read_line(&mut answer)?;
+    Ok(matches!(
+        answer.trim().to_lowercase().as_str(),
+        "y" | "yes" | "1"
+    ))
+}
+
 /// 把相对路径按当前工作目录换算为绝对路径；绝对路径原样返回。
 fn absolute(path: PathBuf) -> anyhow::Result<PathBuf> {
     if path.is_absolute() {
@@ -548,6 +632,13 @@ fn write_provider_list(json: bool) -> anyhow::Result<()> {
     let output = render_provider_list(&providers, json)?;
     std::io::Write::write_all(&mut std::io::stdout().lock(), &output)?;
     Ok(())
+}
+
+fn run_sendto_group(cmd: &SendtoCmd) -> anyhow::Result<()> {
+    match cmd {
+        SendtoCmd::List { json } => write_provider_list(*json),
+        SendtoCmd::Send { plugin, paths } => run_sendto(plugin, paths),
+    }
 }
 
 fn run_sendto(plugin: &str, paths: &[PathBuf]) -> anyhow::Result<()> {

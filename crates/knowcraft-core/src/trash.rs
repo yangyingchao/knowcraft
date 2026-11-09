@@ -16,6 +16,15 @@ pub struct Trash {
     data_dir: PathBuf,
 }
 
+/// `empty` 的结果：清除的 trashed 记录数与移除的回收站文件数。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TrashEmptyReport {
+    /// 清除的 `lifecycle = trashed` 记录数。
+    pub documents: usize,
+    /// 移除的回收站文件数，包含没有对应记录的残留项。
+    pub files: usize,
+}
+
 impl Trash {
     pub fn new(data_dir: PathBuf) -> Self {
         let trash = Trash { data_dir };
@@ -60,12 +69,27 @@ impl Trash {
         Ok(target)
     }
 
-    /// 清空回收站：删除 `.trash/files` 下所有文件及其 `.trashinfo`，返回删除数量。
+    /// 清空回收站：先删除 `lifecycle = trashed` 的记录与索引条目，再移除
+    /// `.trash/files` 下所有文件及其 `.trashinfo`。
     ///
-    /// 只清文件，不处理记录：`lifecycle = trashed` 的行会变成指向缺失文件的
-    /// 孤儿记录（cleanup 按设计豁免 trashed）。需要彻底清理记录时，后续实现
-    /// 显式 purge 接口，而不是让 cleanup 越权。
-    pub fn empty(&self) -> Result<usize> {
+    /// 记录先于文件删除，避免文件删除后留下指向缺失文件的孤儿记录；
+    /// `cleanup` 按设计豁免 `trashed`，不会自行清理它们。
+    pub fn empty(&self, store: &Store, index: &Index) -> Result<TrashEmptyReport> {
+        let documents = store.list_by_lifecycle("trashed")?;
+        let ids: Vec<i64> = documents.iter().map(|doc| doc.id).collect();
+        index.apply(&ids, &[])?;
+        for doc in &documents {
+            store.delete_document(doc.id)?;
+        }
+        let files = self.remove_files()?;
+        Ok(TrashEmptyReport {
+            documents: documents.len(),
+            files,
+        })
+    }
+
+    /// 移除 `.trash/files` 下所有文件及对应 `.trashinfo`，返回文件数量。
+    fn remove_files(&self) -> Result<usize> {
         let dir = self.files_dir();
         if !dir.is_dir() {
             return Ok(0);

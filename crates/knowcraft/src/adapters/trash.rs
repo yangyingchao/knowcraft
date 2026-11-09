@@ -17,14 +17,15 @@ pub(crate) async fn empty_trash(
     _root: &gio::File,
     mut on_progress: impl FnMut(usize),
 ) -> Result<EmptyTrashOutcome, glib::Error> {
-    let Some(trash) = crate::knowledge::trash() else {
+    let Some(fileops) = crate::knowledge::fileops() else {
         return Err(glib::Error::new(
             gio::IOErrorEnum::Failed,
             "Knowcraft is unavailable",
         ));
     };
-    match trash.empty() {
-        Ok(deleted) => {
+    match fileops.empty_trash() {
+        Ok(report) => {
+            let deleted = report.files;
             on_progress(deleted);
             Ok(EmptyTrashOutcome {
                 deleted,

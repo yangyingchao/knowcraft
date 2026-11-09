@@ -24,7 +24,6 @@ use knowcraft_core::{
     store::Store,
     tags::{TagHit, Tags},
     text_annotations::TextAnnotations,
-    trash::Trash,
     workflow::Workflow,
     write_lock::WriteLock,
 };
@@ -88,7 +87,6 @@ pub(crate) struct Knowledge {
     workflow: Workflow,
     index: Index,
     tags: Tags,
-    trash: Trash,
     archive: Archive,
     /// 统一文件操作门面，文件层动作与记录/索引维护委托给 core。
     fileops: FileOps,
@@ -133,7 +131,6 @@ impl Knowledge {
             Workflow::new(store.clone(), data_dir.clone()).map_err(|error| error.to_string())?;
         let index = Index::open(&data_dir).map_err(|error| error.to_string())?;
         let tags = Tags::new(store.clone());
-        let trash = Trash::new(data_dir.clone());
         let archive = Archive::new(data_dir.clone()).map_err(|error| error.to_string())?;
         let write_lock = Arc::new(WriteLock::new(&data_dir));
         let fileops = FileOps::new(
@@ -149,7 +146,6 @@ impl Knowledge {
             workflow,
             index,
             tags,
-            trash,
             archive,
             fileops,
             write_lock,
@@ -856,9 +852,9 @@ pub(crate) fn data_dir_path() -> Option<&'static Path> {
     init().map(|knowledge| knowledge.data_dir())
 }
 
-/// The core trash interface, once the store has been opened.
-pub(crate) fn trash() -> Option<&'static Trash> {
-    init().map(|knowledge| &knowledge.trash)
+/// The unified file-operation facade, once the store has been opened.
+pub(crate) fn fileops() -> Option<&'static FileOps> {
+    init().map(|knowledge| &knowledge.fileops)
 }
 
 /// The trash file directory (`data_dir/.trash/files`) used for browsing the trash.

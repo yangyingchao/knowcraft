@@ -34,6 +34,7 @@
 
 ## 约定
 
+- 新增 CLI 子命令必须按功能分组插入 `Cmd` 枚举的对应位置，禁止盲目追加到末尾。分组顺序为：检索与浏览（search/ls/status）→ 索引与维护（index/cleanup/upgrade）→ 文件生命周期（add/create/copy/move/delete/trash）→ 知识组织（dispatch/archive/capture/tags/annotations）→ 外部集成（sendto）。子命令组内部同样按生命周期或使用顺序排列（如 trash 为 list/empty/restore，sendto 为 list/send）。
 - 文档与提交信息用中文。
 - i18n 文案变更需同步 `data/locales/` 下全部语言（当前仅 zh-CN 与 en，`<lang>.json` 与 `messages/<lang>.json`；zh-CN 键序需与 en 一致）。
 - core 对外仅 `Result<_, Error>`，不 panic；GUI 为薄壳，不复制业务逻辑。

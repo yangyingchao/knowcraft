@@ -135,8 +135,11 @@ fn empty_removes_all_trashed_files() {
         trash.delete_document(&store, &index, &uuid).unwrap();
     }
     assert!(trash.has_items().unwrap());
-    assert_eq!(trash.empty().unwrap(), 3);
+    let report = trash.empty(&store, &index).unwrap();
+    assert_eq!(report.files, 3);
+    assert_eq!(report.documents, 3);
     assert!(!trash.has_items().unwrap());
+    assert!(store.list_by_lifecycle("trashed").unwrap().is_empty());
 }
 
 #[test]

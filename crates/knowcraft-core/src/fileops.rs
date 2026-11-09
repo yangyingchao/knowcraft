@@ -16,7 +16,7 @@ use crate::indexer::Indexer;
 use crate::location::{classify, Location};
 use crate::model::Document;
 use crate::store::Store;
-use crate::trash::Trash;
+use crate::trash::{Trash, TrashEmptyReport};
 use crate::workflow::{ImportReport, Workflow};
 use crate::write_lock::WriteLock;
 
@@ -277,6 +277,12 @@ impl FileOps {
     pub fn restore(&self, uuid: &str) -> Result<Document> {
         let _guard = self.lock.acquire()?;
         self.trash.restore(&self.store, &self.index, uuid)
+    }
+
+    /// 清空回收站：删除 trashed 记录与索引条目，并移除回收站文件。
+    pub fn empty_trash(&self) -> Result<TrashEmptyReport> {
+        let _guard = self.lock.acquire()?;
+        self.trash.empty(&self.store, &self.index)
     }
 
     /// 记录层新建：仅供文件层动作已完成的调用方使用，不动文件。

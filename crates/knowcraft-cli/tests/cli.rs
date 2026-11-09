@@ -607,7 +607,7 @@ fn file_ops_create_copy_move_delete_restore_chain() {
         .expect("delete prints the trashed uuid");
     assert!(!moved.exists());
 
-    let out = run_cli(&dir, &["restore", uuid]);
+    let out = run_cli(&dir, &["trash", "restore", uuid]);
     assert!(
         out.status.success(),
         "restore failed: {}",
@@ -636,8 +636,74 @@ fn create_outside_data_dir_fails() {
 #[test]
 fn restore_unknown_uuid_fails() {
     let dir = data_dir("fileops-restore-missing");
-    let out = run_cli(&dir, &["restore", "00000000-0000-0000-0000-000000000000"]);
+    let out = run_cli(
+        &dir,
+        &["trash", "restore", "00000000-0000-0000-0000-000000000000"],
+    );
     assert!(!out.status.success(), "restoring an unknown uuid must fail");
+}
+
+#[test]
+fn sendto_list_reports_json_array() {
+    let dir = data_dir("sendto-list");
+    let out = run_cli(&dir, &["sendto", "list", "--json"]);
+    assert!(
+        out.status.success(),
+        "sendto list failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let rows: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert!(rows.is_array(), "{rows}");
+}
+
+#[test]
+fn trash_empty_requires_confirmation_without_yes() {
+    let dir = data_dir("trash-empty-no-yes");
+    let out = run_cli(&dir, &["trash", "empty"]);
+    assert!(!out.status.success(), "非终端下缺少 --yes 必须拒绝执行");
+    assert!(String::from_utf8_lossy(&out.stderr).contains("--yes"));
+}
+
+#[test]
+fn trash_empty_removes_files_records_and_index() {
+    let dir = data_dir("trash-empty");
+    let src = dir.join("note.md");
+    std::fs::write(&src, "trash me").unwrap();
+    let add = run_cli(&dir, &["add", src.to_str().unwrap()]);
+    assert!(
+        add.status.success(),
+        "add failed: {}",
+        String::from_utf8_lossy(&add.stderr)
+    );
+    let inbox = dir.join("inbox").join("note.md");
+    let delete = run_cli(&dir, &["delete", inbox.to_str().unwrap()]);
+    assert!(
+        delete.status.success(),
+        "delete failed: {}",
+        String::from_utf8_lossy(&delete.stderr)
+    );
+
+    let list = run_cli(&dir, &["trash", "list", "--json"]);
+    assert!(list.status.success());
+    let rows: serde_json::Value = serde_json::from_slice(&list.stdout).unwrap();
+    assert_eq!(rows.as_array().unwrap().len(), 1, "{rows}");
+
+    let out = run_cli(&dir, &["trash", "empty", "--yes", "--json"]);
+    assert!(
+        out.status.success(),
+        "empty failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(report["documents"], 1, "{report}");
+    assert_eq!(report["files"], 1, "{report}");
+
+    let list = run_cli(&dir, &["trash", "list", "--json"]);
+    assert!(list.status.success());
+    let rows: serde_json::Value = serde_json::from_slice(&list.stdout).unwrap();
+    assert!(rows.as_array().unwrap().is_empty(), "{rows}");
+    let files = dir.join(".trash").join("files");
+    assert!(files.read_dir().unwrap().next().is_none());
 }
 
 #[test]
