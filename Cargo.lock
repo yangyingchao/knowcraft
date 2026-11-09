@@ -2994,6 +2994,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "tantivy",
+ "tempfile",
  "toml 0.8.23",
  "url",
  "uuid",

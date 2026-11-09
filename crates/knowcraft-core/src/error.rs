@@ -12,6 +12,7 @@ pub enum Error {
     Trash(String),
     FileOps(String),
     Pdf(String),
+    SendTo(String),
     Io(std::io::Error),
 }
 
@@ -30,6 +31,7 @@ impl std::fmt::Display for Error {
             Error::Trash(s) => write!(f, "trash error: {s}"),
             Error::FileOps(s) => write!(f, "fileops error: {s}"),
             Error::Pdf(s) => write!(f, "pdf error: {s}"),
+            Error::SendTo(s) => write!(f, "sendto error: {s}"),
             Error::Io(e) => write!(f, "io error: {e}"),
         }
     }

@@ -738,3 +738,28 @@ fn escaped_large_selections_split_queries_without_killing_the_provider() {
     }
     assert_eq!(received.len(), 200);
 }
+
+#[test]
+fn launched_commands_see_the_original_gdk_debug() -> Result<(), Box<dyn std::error::Error>> {
+    use std::ffi::OsStr;
+    for (original, expected) in [
+        (Some("misc"), "misc|unset"),
+        (Some(""), "unset|unset"),
+        (None, "misc:no-portals|unset"),
+    ] {
+        let mut command = std::process::Command::new("sh");
+        command
+            .args([
+                "-c",
+                "printf '%s|%s' \"${GDK_DEBUG-unset}\" \"${KNOWCRAFT_ORIGINAL_GDK_DEBUG-unset}\"",
+            ])
+            .env("GDK_DEBUG", "misc:no-portals");
+        if let Some(original) = original {
+            command.env(super::ORIGINAL_GDK_DEBUG, original);
+        }
+        super::restore_command_from(&mut command, original.map(OsStr::new));
+        let output = command.output()?;
+        assert_eq!(String::from_utf8(output.stdout)?, expected, "{original:?}");
+    }
+    Ok(())
+}

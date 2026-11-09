@@ -111,6 +111,19 @@ enum Cmd {
         #[command(subcommand)]
         cmd: TagsCmd,
     },
+    /// 列出可用 send-to 插件：每行 id 与显示名
+    SendtoList {
+        /// 输出 JSON 数组，供脚本与 Emacs 消费
+        #[arg(long)]
+        json: bool,
+    },
+    /// 把文件发送给外部 provider 插件
+    Sendto {
+        plugin: String,
+        /// 要发送的本地路径
+        #[arg(required = true)]
+        paths: Vec<PathBuf>,
+    },
     /// 归档文件：--category 保留路径，--record 写入 UUID 存储
     Archive {
         paths: Vec<PathBuf>,
@@ -134,6 +147,11 @@ fn main() -> anyhow::Result<()> {
             anyhow::bail!("--limit must be at most {MAX_LIMIT}");
         }
     }
+    match &cli.cmd {
+        Cmd::SendtoList { json } => return write_provider_list(*json),
+        Cmd::Sendto { plugin, paths } => return run_sendto(plugin, paths),
+        _ => {}
+    }
     let cfg = knowcraft_core::config::Config::load()?;
     if matches!(&cli.cmd, Cmd::Upgrade) {
         let (_, report) = knowcraft_core::store::Store::open_with_report(&cfg.data_dir)?;
@@ -146,7 +164,9 @@ fn main() -> anyhow::Result<()> {
     let store = knowcraft_core::store::Store::open(&cfg.data_dir)?;
     let wf = Workflow::new(store.clone(), cfg.data_dir.clone())?;
     match cli.cmd {
-        Cmd::Upgrade => {} // 上面已提前返回
+        // Upgrade、SendtoList 与 Sendto 在上面已提前返回。
+        Cmd::Upgrade => {}
+        Cmd::SendtoList { .. } | Cmd::Sendto { .. } => {}
         Cmd::Search {
             query,
             json,
@@ -402,4 +422,102 @@ fn file_ops(store: &Store, data_dir: &std::path::Path) -> anyhow::Result<FileOps
     let lock = Arc::new(WriteLock::new(data_dir));
     FileOps::new(store.clone(), index, data_dir.to_path_buf(), lock)
         .map_err(Into::into)
+}
+
+/// 列出已注册 provider；文本模式每行 `id<TAB>name`。
+fn render_provider_list(
+    providers: &[knowcraft_core::sendto::ProviderSummary],
+    json: bool,
+) -> anyhow::Result<Vec<u8>> {
+    if json {
+        let payload: Vec<_> = providers
+            .iter()
+            .map(|provider| serde_json::json!({"id": provider.id, "name": provider.name}))
+            .collect();
+        let mut output = serde_json::to_vec(&payload)?;
+        output.push(b'\n');
+        return Ok(output);
+    }
+    let mut output = String::new();
+    for provider in providers {
+        output.push_str(&provider.id);
+        output.push('\t');
+        output.push_str(&provider.name);
+        output.push('\n');
+    }
+    Ok(output.into_bytes())
+}
+
+fn write_provider_list(json: bool) -> anyhow::Result<()> {
+    let providers = knowcraft_core::sendto::SendTo::discover().providers();
+    let output = render_provider_list(&providers, json)?;
+    std::io::Write::write_all(&mut std::io::stdout().lock(), &output)?;
+    Ok(())
+}
+
+fn run_sendto(plugin: &str, paths: &[PathBuf]) -> anyhow::Result<()> {
+    let paths = paths
+        .iter()
+        .map(|path| absolute(path.clone()))
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    for path in &paths {
+        if !path.exists() {
+            anyhow::bail!("path not found: {}", path.display());
+        }
+    }
+    let outcome = knowcraft_core::sendto::SendTo::discover().send(plugin, &paths)?;
+    println!(
+        "sent: provider={} action={} accepted={} total={}",
+        outcome.provider, outcome.action, outcome.accepted, outcome.total
+    );
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use knowcraft_core::sendto::ProviderSummary;
+
+    fn sample() -> Vec<ProviderSummary> {
+        vec![
+            ProviderSummary {
+                id: "a".into(),
+                name: "Alpha".into(),
+            },
+            ProviderSummary {
+                id: "b".into(),
+                name: "Beta".into(),
+            },
+        ]
+    }
+
+    #[test]
+    fn renders_provider_list_as_lines() {
+        let output = render_provider_list(&sample(), false).expect("render");
+        assert_eq!(
+            String::from_utf8(output).expect("utf8"),
+            "a\tAlpha\nb\tBeta\n"
+        );
+    }
+
+    #[test]
+    fn renders_provider_list_as_json() {
+        let output = render_provider_list(&sample(), true).expect("render");
+        let value: serde_json::Value = serde_json::from_slice(&output).expect("json");
+        assert_eq!(
+            value,
+            serde_json::json!([
+                {"id": "a", "name": "Alpha"},
+                {"id": "b", "name": "Beta"}
+            ])
+        );
+    }
+
+    #[test]
+    fn renders_empty_provider_list() {
+        let lines = render_provider_list(&[], false).expect("render");
+        assert!(lines.is_empty());
+        let json = render_provider_list(&[], true).expect("render");
+        assert_eq!(json, b"[]\n");
+    }
 }

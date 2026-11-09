@@ -22,7 +22,7 @@ fn python_command(script: &str, args: &[&Path]) -> Vec<String> {
 
 fn scripted_registration(name: Option<&str>, script: &str, args: &[&Path]) -> Registration {
     Registration {
-        manifest: protocol::Manifest {
+        manifest: knowcraft_core::file_providers::Manifest {
             version: 1,
             id: "example".into(),
             name: name.map(str::to_owned),

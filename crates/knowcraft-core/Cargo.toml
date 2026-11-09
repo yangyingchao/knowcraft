@@ -18,7 +18,7 @@ notify = "6"
 reqwest = { version = "0.12", features = ["blocking"] }
 scraper = "0.20"
 url = "2"
-rustix = { version = "1.1", features = ["fs"] }
+rustix = { version = "1.1", features = ["fs", "process"] }
 pdfcraft-render = { path = "../vendor/pdfcraft/crates/render" }
 pdfcraft-model = { path = "../vendor/pdfcraft/crates/model" }
 pdfcraft-annot = { path = "../vendor/pdfcraft/crates/annot" }
@@ -30,3 +30,4 @@ sha2 = "0.11"
 rusqlite = { version = "0.31", features = ["bundled"] }
 zip = "0.6"
 url = "2"
+tempfile = "3.27.0"

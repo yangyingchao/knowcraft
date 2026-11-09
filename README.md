@@ -112,6 +112,8 @@ cargo run -p knowcraft-cli -- <子命令>
 | `cleanup` | 清理数据库中文件已不存在的失效条目 |
 | `upgrade` | 迁移数据库 schema 并报告回填数量 |
 | `archive <paths>...` | 归档文件：`--category <名称>` 或 `--record`，加 `--uuid` 只输出 UUID 与内部路径 |
+| `sendto-list [--json]` | 列出已注册的外部 send-to 插件 |
+| `sendto <plugin> <path>...` | 把文件发送给插件，自动选择唯一的发送动作 |
 
 示例：
 
@@ -126,6 +128,10 @@ knowcraft-cli search "tags:ml* 神经网络"
 
 # 归档为记录，只输出 UUID 与内部路径
 knowcraft-cli archive --record --uuid ~/Knowledge/inbox/report.pdf
+
+# 列出外部插件并把文件交给其中的一个
+knowcraft-cli sendto-list
+knowcraft-cli sendto example ~/Knowledge/inbox/report.pdf
 ```
 
 CLI 与 GUI 使用同一写者路径：GUI 进程持有 SQLite/tantivy 写权限；没有 GUI
