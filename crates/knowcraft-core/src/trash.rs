@@ -204,6 +204,11 @@ impl Trash {
         Ok(())
     }
 
+    /// 回收站文件对应的原始路径；`.trashinfo` 缺失或格式不符时返回 `None`。
+    pub fn original_path(&self, trashed: &Path) -> Option<PathBuf> {
+        self.read_trashinfo_path(trashed)
+    }
+
     /// 回收站文件对应的 `.trashinfo` 路径：额外加 `.trashinfo` 后缀。
     fn trashinfo_path(&self, trashed: &Path) -> PathBuf {
         let mut name = trashed

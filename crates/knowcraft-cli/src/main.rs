@@ -12,6 +12,7 @@ use clap::{Parser, Subcommand};
 use knowcraft_core::fileops::{FileOps, Imported};
 use knowcraft_core::index::Index;
 use knowcraft_core::indexer::Indexer;
+use knowcraft_core::location::{resolve, Resolved};
 use knowcraft_core::pdf_annotations::PdfAnnotations;
 use knowcraft_core::store::Store;
 use knowcraft_core::tags::Tags;
@@ -95,7 +96,12 @@ enum Cmd {
     /// 在库内移动或改名文件/目录
     Move { src: PathBuf, dst: PathBuf },
     /// 把库内文件或目录移入回收站
-    Delete { path: PathBuf },
+    Delete {
+        path: PathBuf,
+        /// 跳过回收站，彻底删除文件、记录与索引条目
+        #[arg(long)]
+        permanent: bool,
+    },
     /// 按 uuid 从回收站恢复
     Restore { uuid: String },
     /// 将文档归入 library 下的分类目录
@@ -226,9 +232,15 @@ fn main() -> anyhow::Result<()> {
         }
         Cmd::Ls { dir, json, jsonl } => {
             let cwd = std::env::current_dir()?;
-            let directory = absolute(dir.unwrap_or_else(|| PathBuf::from(".")))?;
-            let entries = knowcraft_core::listing::list_directory(&store, &directory)?;
-            let output = render_ls(&entries, &cwd, json, jsonl)?;
+            let input = dir.unwrap_or_else(|| PathBuf::from("."));
+            let output = match resolve(&cfg.data_dir, &input) {
+                Resolved::Trash => render_trash_ls(&store, &cfg.data_dir, json, jsonl)?,
+                Resolved::Path(directory) => {
+                    let directory = absolute(directory)?;
+                    let entries = knowcraft_core::listing::list_directory(&store, &directory)?;
+                    render_ls(&entries, &cwd, json, jsonl)?
+                }
+            };
             std::io::Write::write_all(&mut std::io::stdout().lock(), &output)?;
         }
         Cmd::Index => {
@@ -276,14 +288,22 @@ fn main() -> anyhow::Result<()> {
                 report.docs, report.index_failed
             );
         }
-        Cmd::Delete { path } => {
+        Cmd::Delete { path, permanent } => {
             let ops = file_ops(&store, &cfg.data_dir)?;
-            let abs = absolute(path)?;
-            let report = ops.delete(&abs)?;
-            if let [uuid] = report.uuids.as_slice() {
-                println!("trashed: path={} uuid={uuid}", abs.display());
+            let abs = match resolve(&cfg.data_dir, &path) {
+                Resolved::Path(path) => absolute(path)?,
+                Resolved::Trash => anyhow::bail!("the trash is not a delete target"),
+            };
+            if permanent {
+                let report = ops.delete_permanent(&abs)?;
+                println!("deleted: path={} count={}", abs.display(), report.deleted);
             } else {
-                println!("trashed: path={} count={}", abs.display(), report.trashed);
+                let report = ops.delete(&abs)?;
+                if let [uuid] = report.uuids.as_slice() {
+                    println!("trashed: path={} uuid={uuid}", abs.display());
+                } else {
+                    println!("trashed: path={} count={}", abs.display(), report.trashed);
+                }
             }
         }
         Cmd::Restore { uuid } => {
@@ -498,6 +518,59 @@ struct LsEntry {
     title: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     registered: Option<bool>,
+}
+
+/// `ls trash:/` 的 JSON 行。
+#[derive(serde::Serialize)]
+struct TrashLsEntry {
+    uuid: String,
+    path: String,
+    title: String,
+}
+
+/// 列出回收站条目：以 `.trashinfo` 的原路径为准，缺失时回退到回收站路径。
+fn render_trash_ls(
+    store: &Store,
+    data_dir: &std::path::Path,
+    json: bool,
+    jsonl: bool,
+) -> anyhow::Result<Vec<u8>> {
+    let trash = knowcraft_core::trash::Trash::new(data_dir.to_path_buf());
+    let rows: Vec<TrashLsEntry> = store
+        .list_by_lifecycle("trashed")?
+        .into_iter()
+        .map(|doc| {
+            let original = trash
+                .original_path(std::path::Path::new(&doc.path))
+                .unwrap_or_else(|| PathBuf::from(&doc.path));
+            TrashLsEntry {
+                uuid: doc.uuid,
+                path: original.to_string_lossy().into_owned(),
+                title: doc.title,
+            }
+        })
+        .collect();
+    if json {
+        let mut output = serde_json::to_vec(&rows)?;
+        output.push(b'\n');
+        return Ok(output);
+    }
+    if jsonl {
+        let mut output = Vec::new();
+        for row in &rows {
+            output.extend_from_slice(&serde_json::to_vec(row)?);
+            output.push(b'\n');
+        }
+        return Ok(output);
+    }
+    let mut output = String::new();
+    for row in &rows {
+        output.push_str(&row.uuid);
+        output.push(' ');
+        output.push_str(&row.path);
+        output.push('\n');
+    }
+    Ok(output.into_bytes())
 }
 
 fn render_ls(

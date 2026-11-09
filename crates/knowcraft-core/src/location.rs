@@ -50,3 +50,41 @@ impl Location {
         )
     }
 }
+
+/// 解析后的知识库位置：普通路径或回收站整体视图。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Resolved {
+    /// 展开 scheme 后的文件系统路径；普通绝对/相对路径原样保留。
+    Path(std::path::PathBuf),
+    /// `trash:/` 回收站整体视图，由调用方按回收站语义处理。
+    Trash,
+}
+
+/// 把 CLI/GUI 的 `scheme:/` 位置解析为实际路径或回收站视图。
+///
+/// 支持的 scheme：`root:/` 知识库根、`trash:/` 回收站、`inbox:/`、
+/// `library:/`、`notes:/`、`captures:/`、`archived:/`。`root:/` 与各目录
+/// scheme 支持其后追加子路径（如 `inbox:/papers`）。不含已知 scheme 的
+/// 输入按普通路径返回，因此 `/` 仍是文件系统绝对路径原意。
+pub fn resolve(data_dir: &Path, input: &Path) -> Resolved {
+    let text = input.to_string_lossy();
+    if text.starts_with("trash:/") {
+        return Resolved::Trash;
+    }
+    for (scheme, dir) in [
+        ("inbox", "inbox"),
+        ("library", "library"),
+        ("notes", "notes"),
+        ("captures", "captures"),
+        ("archived", "archived"),
+    ] {
+        let prefix = format!("{scheme}:/");
+        if let Some(rest) = text.strip_prefix(&prefix) {
+            return Resolved::Path(data_dir.join(dir).join(rest));
+        }
+    }
+    if let Some(rest) = text.strip_prefix("root:/") {
+        return Resolved::Path(data_dir.join(rest));
+    }
+    Resolved::Path(input.to_path_buf())
+}

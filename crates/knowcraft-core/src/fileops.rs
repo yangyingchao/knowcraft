@@ -54,6 +54,13 @@ pub struct DeleteReport {
     pub uuids: Vec<String>,
 }
 
+/// `delete_permanent` 的计数结果；`uuids` 记录被彻底删除的文档。
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct PurgeReport {
+    pub deleted: usize,
+    pub uuids: Vec<String>,
+}
+
 /// 单个目标路径的登记结果。
 #[derive(Debug, Default, Clone, Copy)]
 struct RecordOutcome {
@@ -237,6 +244,35 @@ impl FileOps {
         })
     }
 
+    /// 彻底删除路径，跳过回收站：文件直接移除，记录与索引条目一并删除。
+    /// 目录递归处理其下所有普通文件；回收站本身不允许作为目标。
+    pub fn delete_permanent(&self, path: &Path) -> Result<PurgeReport> {
+        let _guard = self.lock.acquire()?;
+        self.validate_inside(path)?;
+        self.validate_not_root(path)?;
+        if classify(&self.data_dir, path) == Location::Trash {
+            return Err(Error::FileOps(format!(
+                "the trash is not a delete target: {}",
+                path.display()
+            )));
+        }
+        if !path.exists() {
+            return Err(Error::FileOps(format!(
+                "path does not exist: {}",
+                path.display()
+            )));
+        }
+        let uuids = if path.is_dir() {
+            self.purge_directory(path)?
+        } else {
+            vec![self.purge_file(path)?]
+        };
+        Ok(PurgeReport {
+            deleted: uuids.len(),
+            uuids,
+        })
+    }
+
     /// 按 uuid 从回收站恢复文档。
     pub fn restore(&self, uuid: &str) -> Result<Document> {
         let _guard = self.lock.acquire()?;
@@ -387,6 +423,30 @@ impl FileOps {
         let mut uuids = Vec::new();
         for file in files {
             uuids.push(self.delete_file(&file)?);
+        }
+        dirs.sort_by_key(|dir| std::cmp::Reverse(dir.components().count()));
+        for dir in dirs {
+            std::fs::remove_dir(&dir)?;
+        }
+        Ok(uuids)
+    }
+
+    /// 彻底删除单个文件：移除文件、数据库记录与索引条目。
+    fn purge_file(&self, path: &Path) -> Result<String> {
+        let doc = self.registered_or_register(path)?;
+        std::fs::remove_file(path)?;
+        self.store.delete_document(doc.id)?;
+        self.index.remove(doc.id)?;
+        Ok(doc.uuid)
+    }
+
+    fn purge_directory(&self, path: &Path) -> Result<Vec<String>> {
+        let mut files = Vec::new();
+        let mut dirs = Vec::new();
+        collect_all(path, &mut files, &mut dirs)?;
+        let mut uuids = Vec::new();
+        for file in files {
+            uuids.push(self.purge_file(&file)?);
         }
         dirs.sort_by_key(|dir| std::cmp::Reverse(dir.components().count()));
         for dir in dirs {
