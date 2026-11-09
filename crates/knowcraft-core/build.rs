@@ -32,7 +32,7 @@ fn main() {
 
 /// HEAD 精确命中的 git tag（含 `v` 前缀）；未处于 tag 上时返回 `None`。
 fn git_tag() -> Option<String> {
-    let tag = git_output(&["describe", "--tags", "--exact-match"])?;
+    let tag = git_output(&["describe", "--tags"])?;
     let tag = tag.trim();
     (!tag.is_empty()).then(|| tag.to_owned())
 }

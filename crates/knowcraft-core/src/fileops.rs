@@ -620,20 +620,24 @@ impl FileOps {
             .ok_or_else(|| Error::FileOps("document disappeared from the store".into()))
     }
 
-    /// 建索引并同步 `index_status`；失败置 pending 并返回 false，不中断调用方。
+    /// 建索引并同步 `index_status` 与文件新鲜度；失败置 pending 并返回 false。
     fn index_document(&self, doc: &Document) -> bool {
-        let result = Indexer::content(&self.store, doc)
-            .and_then(|content| self.index.index_document_with_content(doc, &content));
+        let content = match Indexer::content(&self.store, doc) {
+            Ok(content) => content,
+            Err(error) => {
+                eprintln!("fileops: indexing document {} failed: {error}", doc.id);
+                let _ = self.store.set_index_status(doc.id, "pending");
+                return false;
+            }
+        };
+        let result = self
+            .index
+            .index_document_with_content(doc, &content)
+            .and_then(|()| self.store.mark_indexed(doc.id));
         match result {
-            Ok(()) => match self.store.set_index_status(doc.id, "indexed") {
-                Ok(()) => true,
-                Err(err) => {
-                    eprintln!("fileops: marking document {} indexed failed: {err}", doc.id);
-                    false
-                }
-            },
-            Err(err) => {
-                eprintln!("fileops: indexing document {} failed: {err}", doc.id);
+            Ok(()) => true,
+            Err(error) => {
+                eprintln!("fileops: indexing document {} failed: {error}", doc.id);
                 let _ = self.store.set_index_status(doc.id, "pending");
                 false
             }

@@ -75,12 +75,6 @@ fn with_status_cache<T>(update: impl FnOnce(&mut HashMap<PathBuf, String>) -> T)
     update(cache.get_or_insert_with(HashMap::new))
 }
 
-fn cache_index_status(path: &str, status: &str) {
-    with_status_cache(|cache| {
-        cache.insert(PathBuf::from(path), status.to_owned());
-    });
-}
-
 pub(crate) const FOLDERS: [(&str, bool); 4] = [
     ("inbox", true),
     ("library", false),
@@ -372,10 +366,10 @@ impl Knowledge {
         registered.map_err(|error| error.to_string())
     }
 
-    /// 归档成功后按现有 dispatch 的做法更新 index_status（indexed/error）。
+    /// 归档成功后按现有 dispatch 的做法更新索引状态与文件新鲜度。
     /// archive 内部已重建索引并返回 Ok；这里只记录状态。
     fn mark_indexed(&self, doc: &Document) {
-        let _ = self.store.set_index_status(doc.id, "indexed");
+        let _ = self.store.mark_indexed(doc.id);
     }
 
     /// Whether `path` sits in one of the knowledge folders.
@@ -525,11 +519,13 @@ impl Knowledge {
                 active.insert(path.clone(), ());
             });
             report(IndexProgress::Started { path: path.clone() });
-            let result = self.index.reindex_document(doc);
+            let result = self
+                .index
+                .reindex_document(doc)
+                .and_then(|()| self.store.mark_indexed(doc.id));
             let succeeded = result.is_ok();
             match result {
                 Ok(()) => {
-                    let _ = self.store.set_index_status(doc.id, "indexed");
                     with_status_cache(|cache| {
                         cache.insert(path.clone(), "indexed".to_owned());
                     });
@@ -558,42 +554,47 @@ impl Knowledge {
     /// Reindexes one knowledge file, registering it first when it is new.
     pub(crate) fn reindex_path(&self, path: &Path) -> Result<(), String> {
         let path_text = path.to_string_lossy();
-        let doc = match self
+        if self
             .store
             .find_by_path(&path_text)
             .map_err(|error| error.to_string())?
+            .is_none()
         {
-            Some(doc) => doc,
-            None => {
-                let inbox = path.starts_with(self.data_dir.join("inbox"));
-                let registered = if inbox {
-                    self.workflow.register_inbox_file(path)
-                } else {
-                    self.workflow.register_library_file(path)
-                };
-                registered.map_err(|error| error.to_string())?
-            }
-        };
+            let inbox = path.starts_with(self.data_dir.join("inbox"));
+            let registered = if inbox {
+                self.workflow.register_inbox_file(path)
+            } else {
+                self.workflow.register_library_file(path)
+            };
+            registered.map_err(|error| error.to_string())?;
+        }
         let _guard = index_guard();
         with_active_index(|active| {
             active.insert(path.to_path_buf(), ());
         });
-        let outcome = match self.index.reindex_document(&doc) {
-            Ok(()) => {
-                let _ = self.store.set_index_status(doc.id, "indexed");
-                with_status_cache(|cache| {
-                    cache.insert(path.to_path_buf(), "indexed".to_owned());
-                });
-                Ok(())
-            }
-            Err(error) => {
-                let _ = self.store.set_index_status(doc.id, "error");
-                with_status_cache(|cache| {
-                    cache.insert(path.to_path_buf(), "error".to_owned());
-                });
-                Err(error.to_string())
-            }
-        };
+        let maintenance = knowcraft_core::index_maintenance::IndexMaintenance::new(
+            self.store.clone(),
+            self.index.clone(),
+            self.data_dir.clone(),
+            self.write_lock.clone(),
+        );
+        let outcome = maintenance
+            .run(
+                knowcraft_core::index_maintenance::IndexRequest::Incremental {
+                    scope: knowcraft_core::index_maintenance::IndexScope::Paths(vec![
+                        path.to_path_buf(),
+                    ]),
+                },
+            )
+            .map_err(|error| error.to_string())
+            .and_then(|report| {
+                if report.failed > 0 {
+                    Err(format!("{} document(s) failed to index", report.failed))
+                } else {
+                    Ok(())
+                }
+            });
+        with_status_cache(|cache| cache.clear());
         with_active_index(|active| {
             active.remove(path);
         });
@@ -691,10 +692,9 @@ enum RegisterKind {
     Archived,
 }
 
-/// Registers files found in the knowledge folders and indexes the ones still pending.
+/// Registers files found in the knowledge folders and indexes whatever is new or changed.
 pub(crate) fn warm_index(knowledge: &Knowledge) -> WarmReport {
     let mut report = WarmReport::default();
-    let mut pending = Vec::new();
     for (folder, inbox) in FOLDERS {
         let root = knowledge.data_dir.join(folder);
         let kind = if inbox {
@@ -702,60 +702,50 @@ pub(crate) fn warm_index(knowledge: &Knowledge) -> WarmReport {
         } else {
             RegisterKind::Library
         };
-        pending.extend(collect_pending(knowledge, &root, kind, &mut report));
+        collect_pending(knowledge, &root, kind, &mut report);
     }
     // archived/ 在 linked 目录之外单独扫描：按 archived 存储模式登记。
     let archived_root = knowledge.data_dir.join("archived");
-    pending.extend(collect_pending(
+    collect_pending(
         knowledge,
         &archived_root,
         RegisterKind::Archived,
         &mut report,
-    ));
+    );
 
     let _guard = index_guard();
-    for chunk in pending.chunks(16) {
-        match knowledge.index.index_documents(chunk) {
-            Ok(()) => {
-                for doc in chunk {
-                    let _ = knowledge.store.set_index_status(doc.id, "indexed");
-                    cache_index_status(&doc.path, "indexed");
-                    report.indexed += 1;
-                }
-            }
-            Err(error) => {
-                tracing::warn!(%error, "批量索引失败，改为逐条重试");
-                for doc in chunk {
-                    let single = std::slice::from_ref(doc);
-                    match knowledge.index.index_documents(single) {
-                        Ok(()) => {
-                            let _ = knowledge.store.set_index_status(doc.id, "indexed");
-                            cache_index_status(&doc.path, "indexed");
-                            report.indexed += 1;
-                        }
-                        Err(_) => {
-                            let _ = knowledge.store.set_index_status(doc.id, "error");
-                            cache_index_status(&doc.path, "error");
-                            report.failed += 1;
-                        }
-                    }
-                }
-            }
+    let maintenance = knowcraft_core::index_maintenance::IndexMaintenance::new(
+        knowledge.store.clone(),
+        knowledge.index.clone(),
+        knowledge.data_dir.clone(),
+        knowledge.write_lock.clone(),
+    );
+    match maintenance.run(
+        knowcraft_core::index_maintenance::IndexRequest::Incremental {
+            scope: knowcraft_core::index_maintenance::IndexScope::All,
+        },
+    ) {
+        Ok(indexed) => {
+            report.indexed = indexed.indexed;
+            report.failed = indexed.failed;
+        }
+        Err(error) => {
+            tracing::warn!(%error, "knowledge index pass failed");
         }
     }
+    with_status_cache(|cache| cache.clear());
     clear_title_cache();
     report
 }
 
-/// 遍历 `root` 下的文件：已在库内则复用记录，否则按 `kind` 登记，
-/// 返回仍需索引的文档。登记失败的路径（checksum 去重等）跳过。
+/// 遍历 `root` 下的文件：已在库内则复用记录，否则按 `kind` 登记。
+/// 登记失败的路径（checksum 去重等）跳过。
 fn collect_pending(
     knowledge: &Knowledge,
     root: &Path,
     kind: RegisterKind,
     report: &mut WarmReport,
-) -> Vec<Document> {
-    let mut pending = Vec::new();
+) {
     for path in walk_files(root) {
         let path_text = path.to_string_lossy();
         let doc = match knowledge.store.find_by_path(&path_text) {
@@ -787,11 +777,7 @@ fn collect_pending(
                 let _ = knowledge.store.set_index_status(doc.id, "pending");
             }
         }
-        if doc.index_status != "indexed" {
-            pending.push(doc);
-        }
     }
-    pending
 }
 
 fn walk_files(root: &Path) -> Vec<PathBuf> {

@@ -8,6 +8,7 @@ pub mod extract;
 pub mod file_providers;
 pub mod fileops;
 pub mod index;
+pub mod index_maintenance;
 pub mod indexer;
 pub mod listing;
 pub mod location;

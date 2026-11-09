@@ -7,7 +7,7 @@ use crate::error::{Error, Result};
 use crate::model::{Annotation, Document, Note};
 
 /// 当前数据库 schema 版本，随 `PRAGMA user_version` 持久化。
-const SCHEMA_VERSION: i32 = 3;
+const SCHEMA_VERSION: i32 = 4;
 
 /// 迁移结果，供 CLI 升级等场景展示回填数量。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,6 +15,15 @@ pub struct MigrationReport {
     pub from: i32,
     pub to: i32,
     pub backfilled: usize,
+}
+
+/// 文档被索引时记录的文件新鲜度，用于增量判定。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct IndexState {
+    /// 文件 mtime（纳秒，自 UNIX_EPOCH）；`None` 表示从未记录。
+    pub indexed_mtime: Option<i64>,
+    /// 文件字节数；`None` 表示从未记录。
+    pub indexed_size: Option<i64>,
 }
 
 #[derive(Clone)]
@@ -49,7 +58,9 @@ impl Store {
                 checksum TEXT,
                 ai_summary TEXT,
                 lifecycle TEXT NOT NULL DEFAULT 'pending',
-                index_status TEXT NOT NULL DEFAULT 'pending'
+                index_status TEXT NOT NULL DEFAULT 'pending',
+                indexed_mtime INTEGER,
+                indexed_size INTEGER
             );
             CREATE TABLE IF NOT EXISTS tags (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE);
             CREATE TABLE IF NOT EXISTS document_tags (
@@ -387,6 +398,61 @@ impl Store {
             params![status, id],
         )?;
         Ok(())
+    }
+
+    /// 记录一次成功的索引写入：文件当前的 mtime 与大小，以及 `indexed` 状态。
+    ///
+    /// 先 stat 再写库，文件已不存在时返回错误，调用方应改记 `error`。
+    pub fn mark_indexed(&self, id: i64) -> Result<()> {
+        let path: String = {
+            let conn = self.lock();
+            match conn.query_row(
+                "SELECT path FROM documents WHERE id = ?1",
+                params![id],
+                |r| r.get(0),
+            ) {
+                Ok(path) => path,
+                Err(rusqlite::Error::QueryReturnedNoRows) => {
+                    return Err(Error::Store("document vanished before mark_indexed".into()));
+                }
+                Err(error) => return Err(error.into()),
+            }
+        };
+        let metadata = std::fs::metadata(&path)?;
+        let mtime = metadata
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .and_then(|duration| i64::try_from(duration.as_nanos()).ok());
+        let size = i64::try_from(metadata.len()).ok();
+        let conn = self.lock();
+        conn.execute(
+            "UPDATE documents SET index_status = 'indexed', indexed_mtime = ?1, indexed_size = ?2 \
+             WHERE id = ?3",
+            params![mtime, size, id],
+        )?;
+        Ok(())
+    }
+
+    /// 取每个文档记录的索引新鲜度；没有记录过的文档值为 `None`。
+    pub fn list_index_states(&self) -> Result<HashMap<i64, IndexState>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare("SELECT id, indexed_mtime, indexed_size FROM documents")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                IndexState {
+                    indexed_mtime: row.get(1)?,
+                    indexed_size: row.get(2)?,
+                },
+            ))
+        })?;
+        let mut states = HashMap::new();
+        for row in rows {
+            let (id, state) = row?;
+            states.insert(id, state);
+        }
+        Ok(states)
     }
 
     pub fn clear_ai_summary(&self, id: i64) -> Result<()> {
@@ -1039,6 +1105,8 @@ fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<MigrationReport> {
         [],
     )?;
     ensure_annotation_columns(&tx)?;
+    ensure_column(&tx, "documents", "indexed_mtime", "INTEGER")?;
+    ensure_column(&tx, "documents", "indexed_size", "INTEGER")?;
     tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     tx.commit()?;
     Ok(MigrationReport {

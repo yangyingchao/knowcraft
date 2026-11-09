@@ -245,6 +245,7 @@ impl Watcher {
         self.store.clear_ai_summary(doc.id)?;
         let content = Indexer::content(&self.store, &doc)?;
         self.index.index_document_with_content(&doc, &content)?;
+        self.store.mark_indexed(doc.id)?;
         Ok(())
     }
 
@@ -273,6 +274,7 @@ impl Watcher {
             .ok_or_else(|| Error::Store("document missing after sync".into()))?;
         let content = Indexer::content(&self.store, &updated)?;
         self.index.index_document_with_content(&updated, &content)?;
+        self.store.mark_indexed(updated.id)?;
         Ok(())
     }
 }

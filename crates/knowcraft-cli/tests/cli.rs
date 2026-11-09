@@ -187,6 +187,39 @@ fn cleanup_removes_missing_file_entries() {
 }
 
 #[test]
+fn index_verbose_prints_one_line_per_document() {
+    let dir = data_dir("verbose");
+    let src = dir.join("note.md");
+    std::fs::write(&src, "verbose needle").unwrap();
+    let add = run_cli(&dir, &["add", src.to_str().unwrap()]);
+    assert!(
+        add.status.success(),
+        "add failed: {}",
+        String::from_utf8_lossy(&add.stderr)
+    );
+
+    let out = run_cli(&dir, &["index", "--reindex", "--verbose"]);
+    assert!(
+        out.status.success(),
+        "index failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    let lines: Vec<&str> = text.lines().collect();
+    let progress: Vec<&&str> = lines
+        .iter()
+        .filter(|line| line.starts_with("indexing "))
+        .collect();
+    assert_eq!(progress.len(), 1, "每个文档只输出一行: {text}");
+    assert!(progress[0].ends_with(" done"), "进度行应标记完成: {text}");
+    assert!(progress[0].contains("note.md"), "进度行应含路径: {text}");
+    assert!(
+        lines.last().unwrap().starts_with("indexed: "),
+        "汇总行仍在最后: {text}"
+    );
+}
+
+#[test]
 fn upgrade_reports_migration() {
     let dir = data_dir("upgrade");
     let out = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
@@ -201,7 +234,7 @@ fn upgrade_reports_migration() {
     );
     let text = String::from_utf8_lossy(&out.stdout);
     assert!(text.contains("from=0"), "{text}");
-    assert!(text.contains("to=3"), "{text}");
+    assert!(text.contains("to=4"), "{text}");
 }
 
 fn run_cli(dir: &std::path::Path, args: &[&str]) -> std::process::Output {

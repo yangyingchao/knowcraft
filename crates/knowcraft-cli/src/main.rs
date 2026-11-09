@@ -11,7 +11,7 @@ use clap::{Parser, Subcommand};
 
 use knowcraft_core::fileops::{FileOps, Imported};
 use knowcraft_core::index::Index;
-use knowcraft_core::indexer::Indexer;
+use knowcraft_core::index_maintenance::{IndexEvent, IndexMaintenance, IndexRequest, IndexScope};
 use knowcraft_core::location::{resolve, Resolved};
 use knowcraft_core::pdf_annotations::PdfAnnotations;
 use knowcraft_core::store::Store;
@@ -69,8 +69,17 @@ enum Cmd {
         #[arg(long, default_value_t = 50, allow_negative_numbers = true)]
         limit: i64,
     },
-    /// 重建搜索索引；搜索本身只读，不触发重建
-    Index,
+    /// 重建搜索索引；无参数增量，指定路径只重建范围内文档
+    Index {
+        /// 彻底重建整个索引，不能与路径同时使用
+        #[arg(long, conflicts_with = "path")]
+        reindex: bool,
+        /// 只重建该文件或目录范围内的已登记文档；支持 inbox:/ 等别名
+        path: Option<PathBuf>,
+        /// 逐文档输出重建进展到 stdout，每个文件一行
+        #[arg(long)]
+        verbose: bool,
+    },
     /// 列出目录条目：已登记文档显示库内标题，未登记文件加标记
     Ls {
         /// 目录；省略时使用当前工作目录
@@ -243,16 +252,59 @@ fn main() -> anyhow::Result<()> {
             };
             std::io::Write::write_all(&mut std::io::stdout().lock(), &output)?;
         }
-        Cmd::Index => {
+        Cmd::Index {
+            reindex,
+            path,
+            verbose,
+        } => {
+            let request = if reindex {
+                IndexRequest::Rebuild
+            } else {
+                let scope = match path {
+                    Some(path) => {
+                        let path = match resolve(&cfg.data_dir, &path) {
+                            Resolved::Path(path) => absolute(path)?,
+                            Resolved::Trash => anyhow::bail!("the trash is not an index target"),
+                        };
+                        if !path.starts_with(&cfg.data_dir) {
+                            anyhow::bail!(
+                                "index path must be inside {}: {}",
+                                cfg.data_dir.display(),
+                                path.display()
+                            );
+                        }
+                        IndexScope::Paths(vec![path])
+                    }
+                    None => IndexScope::All,
+                };
+                IndexRequest::Incremental { scope }
+            };
             let lock = Arc::new(WriteLock::new(&cfg.data_dir));
-            let annotations = PdfAnnotations::new(store.clone(), cfg.data_dir.clone(), lock);
-            for doc in store.list_documents()? {
-                if doc.doc_type == "pdf" {
-                    let _ = annotations.sync_from_pdf(doc.id)?;
-                }
-            }
-            let indexer = Indexer::new(store.clone(), Index::open(&cfg.data_dir)?);
-            println!("indexed: {}", indexer.rebuild()?);
+            let maintenance = IndexMaintenance::new(
+                store.clone(),
+                Index::open(&cfg.data_dir)?,
+                cfg.data_dir.clone(),
+                lock,
+            );
+            let report = if verbose {
+                maintenance.run_with_progress(request, |event| match event {
+                    IndexEvent::Started { path } => {
+                        print!("indexing {} started ...", path.display());
+                        let _ = std::io::Write::flush(&mut std::io::stdout());
+                    }
+                    IndexEvent::Finished { ok, .. } => {
+                        println!(" {}", if ok { "done" } else { "failed" });
+                    }
+                    IndexEvent::Begin { .. } | IndexEvent::Done(_) => {}
+                })?
+            } else {
+                maintenance.run(request)?
+            };
+            println!(
+                "indexed: {} unchanged: {} skipped_unregistered: {} missing: {} failed: {} orphans_removed: {}",
+                report.indexed, report.unchanged, report.skipped_unregistered, report.missing,
+                report.failed, report.orphans_removed
+            );
         }
         Cmd::Add { path } => {
             let ops = file_ops(&store, &cfg.data_dir)?;

@@ -44,7 +44,13 @@ fn schema_has_lifecycle_and_index_status_columns() {
     let store = Store::open(&dir).unwrap();
     let cols: Vec<String> = store.column_names("documents").unwrap();
     assert!(cols.contains(&"lifecycle".into()) && cols.contains(&"index_status".into()));
-    for name in ["uuid", "storage", "original_name"] {
+    for name in [
+        "uuid",
+        "storage",
+        "original_name",
+        "indexed_mtime",
+        "indexed_size",
+    ] {
         assert!(cols.contains(&name.to_string()), "missing column {name}");
     }
 }
@@ -92,7 +98,7 @@ fn migrate_backfills_identity_on_old_db() {
 
     let (store, report) = Store::open_with_report(&dir).unwrap();
     assert_eq!(report.from, 0);
-    assert_eq!(report.to, 3);
+    assert_eq!(report.to, 4);
     assert_eq!(report.backfilled, 2);
 
     let inbox_doc = store
@@ -109,8 +115,8 @@ fn migrate_backfills_identity_on_old_db() {
 
     // 已迁移的库再次打开不应重复回填。
     let (_, report) = Store::open_with_report(&dir).unwrap();
-    assert_eq!(report.from, 3);
-    assert_eq!(report.to, 3);
+    assert_eq!(report.from, 4);
+    assert_eq!(report.to, 4);
     assert_eq!(report.backfilled, 0);
 }
 
