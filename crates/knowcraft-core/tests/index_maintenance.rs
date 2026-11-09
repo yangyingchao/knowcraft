@@ -33,6 +33,17 @@ impl Fixture {
         }
     }
 
+    fn with_threads(mut self, threads: usize) -> Fixture {
+        self.maintenance = IndexMaintenance::new(
+            self.store.clone(),
+            self.index.clone(),
+            self.dir.clone(),
+            Arc::new(WriteLock::new(&self.dir)),
+        )
+        .with_threads(threads);
+        self
+    }
+
     fn write(&self, name: &str, content: &str) -> PathBuf {
         let path = self.dir.join("inbox").join(name);
         if let Some(parent) = path.parent() {
@@ -257,6 +268,31 @@ fn single_file_scope_leaves_siblings_untouched() {
     assert_eq!(report.unchanged, 0);
     assert_eq!(fixture.hits("alpha"), vec![a_id]);
     assert_eq!(fixture.hits("beta"), vec![b_id]);
+}
+
+#[test]
+fn parallel_extraction_matches_single_threaded() {
+    let build = |name: &str, threads: usize| {
+        let fixture = Fixture::new(name).with_threads(threads);
+        for file in ["a.md", "b.md", "c.md", "d.md"] {
+            let path = fixture.write(file, &format!("{file} alpha beta gamma"));
+            fixture.register(&path);
+        }
+        fixture
+    };
+    let single = build("parallel-single", 1);
+    let report = single.incremental_all();
+    let mut single_hits: Vec<i64> = single.hits("alpha");
+    single_hits.sort_unstable();
+
+    let parallel = build("parallel-many", 4);
+    let parallel_report = parallel.incremental_all();
+    let mut parallel_hits: Vec<i64> = parallel.hits("alpha");
+    parallel_hits.sort_unstable();
+
+    assert_eq!(report, parallel_report);
+    assert_eq!(report.indexed, 4);
+    assert_eq!(single_hits, parallel_hits);
 }
 
 #[test]

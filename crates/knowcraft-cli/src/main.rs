@@ -76,6 +76,9 @@ enum Cmd {
         reindex: bool,
         /// 只重建该文件或目录范围内的已登记文档；支持 inbox:/ 等别名
         path: Option<PathBuf>,
+        /// 正文提取的并行线程数；省略时使用 CPU 核心数
+        #[arg(long, value_parser = clap::value_parser!(std::num::NonZeroUsize))]
+        threads: Option<std::num::NonZeroUsize>,
         /// 逐文档输出重建进展到 stdout，每个文件一行
         #[arg(long)]
         verbose: bool,
@@ -255,6 +258,7 @@ fn main() -> anyhow::Result<()> {
         Cmd::Index {
             reindex,
             path,
+            threads,
             verbose,
         } => {
             let request = if reindex {
@@ -286,14 +290,18 @@ fn main() -> anyhow::Result<()> {
                 cfg.data_dir.clone(),
                 lock,
             );
+            let maintenance = match threads {
+                Some(threads) => maintenance.with_threads(threads.get()),
+                None => maintenance,
+            };
             let report = if verbose {
                 maintenance.run_with_progress(request, |event| match event {
-                    IndexEvent::Started { path } => {
-                        print!("indexing {} started ...", path.display());
-                        let _ = std::io::Write::flush(&mut std::io::stdout());
-                    }
-                    IndexEvent::Finished { ok, .. } => {
-                        println!(" {}", if ok { "done" } else { "failed" });
+                    IndexEvent::Finished { path, ok } => {
+                        println!(
+                            "indexing {} started ... {}",
+                            path.display(),
+                            if ok { "done" } else { "failed" }
+                        );
                     }
                     IndexEvent::Begin { .. } | IndexEvent::Done(_) => {}
                 })?

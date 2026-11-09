@@ -198,7 +198,7 @@ fn index_verbose_prints_one_line_per_document() {
         String::from_utf8_lossy(&add.stderr)
     );
 
-    let out = run_cli(&dir, &["index", "--reindex", "--verbose"]);
+    let out = run_cli(&dir, &["index", "--reindex", "--threads", "2", "--verbose"]);
     assert!(
         out.status.success(),
         "index failed: {}",
@@ -217,6 +217,13 @@ fn index_verbose_prints_one_line_per_document() {
         lines.last().unwrap().starts_with("indexed: "),
         "汇总行仍在最后: {text}"
     );
+}
+
+#[test]
+fn index_rejects_zero_threads() {
+    let dir = data_dir("threads-zero");
+    let out = run_cli(&dir, &["index", "--threads", "0"]);
+    assert_eq!(out.status.code(), Some(2), "应由 clap 拒绝 0");
 }
 
 #[test]

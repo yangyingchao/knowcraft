@@ -8,7 +8,10 @@
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+    },
     time::UNIX_EPOCH,
 };
 
@@ -23,7 +26,8 @@ use crate::{
     write_lock::WriteLock,
 };
 
-/// 每批索引的文档数；批间释放写锁，缩短跨进程阻塞窗口。
+/// 每批最少索引的文档数；批间释放写锁，缩短跨进程阻塞窗口。
+/// 实际批大小还会放大到线程数，保证并行提取能跑满指定线程。
 const BATCH: usize = 16;
 
 /// 索引作用范围。
@@ -57,7 +61,6 @@ pub struct IndexReport {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IndexEvent {
     Begin { total: usize },
-    Started { path: PathBuf },
     Finished { path: PathBuf, ok: bool },
     Done(IndexReport),
 }
@@ -67,6 +70,7 @@ pub struct IndexMaintenance {
     index: Index,
     data_dir: PathBuf,
     lock: Arc<WriteLock>,
+    threads: usize,
 }
 
 impl IndexMaintenance {
@@ -76,7 +80,14 @@ impl IndexMaintenance {
             index,
             data_dir,
             lock,
+            threads: default_threads(),
         }
+    }
+
+    /// 指定正文提取的并行线程数；0 视为 1。
+    pub fn with_threads(mut self, threads: usize) -> Self {
+        self.threads = threads.max(1);
+        self
     }
 
     /// 执行索引请求，不回报进度。
@@ -156,7 +167,7 @@ impl IndexMaintenance {
             report(IndexEvent::Begin {
                 total: candidates.len(),
             });
-            for chunk in candidates.chunks(BATCH) {
+            for chunk in candidates.chunks(BATCH.max(self.threads)) {
                 self.index_batch(chunk, &mut result, report)?;
             }
         }
@@ -178,7 +189,6 @@ impl IndexMaintenance {
         let documents = self.store.list_documents()?;
         let mut result = IndexReport::default();
         let mut syncable: Vec<Document> = Vec::new();
-        let mut entries: Vec<(Document, String)> = Vec::new();
 
         for doc in documents.into_iter().filter(is_indexable) {
             if file_fingerprint(Path::new(&doc.path)).is_none() {
@@ -195,23 +205,7 @@ impl IndexMaintenance {
         report(IndexEvent::Begin {
             total: syncable.len(),
         });
-        for doc in &syncable {
-            report(IndexEvent::Started {
-                path: PathBuf::from(&doc.path),
-            });
-            match Indexer::content(&self.store, doc) {
-                Ok(content) => entries.push((doc.clone(), content)),
-                Err(error) => {
-                    eprintln!("index: content failed for {}: {error}", doc.path);
-                    let _ = self.store.set_index_status(doc.id, "error");
-                    result.failed += 1;
-                    report(IndexEvent::Finished {
-                        path: PathBuf::from(&doc.path),
-                        ok: false,
-                    });
-                }
-            }
-        }
+        let entries = self.extract_all(&syncable, &mut result, report);
 
         {
             let _guard = self.lock.acquire()?;
@@ -242,27 +236,70 @@ impl IndexMaintenance {
         Ok(result)
     }
 
-    /// 一批文档：组装内容、写索引、回写状态。失败按文档隔离。
+    /// 并行提取正文与注释内容，按输入顺序返回成功结果；失败按文档隔离。
+    ///
+    /// 提取不持有写锁，写入仍由调用方串行提交。事件在全部提取结束后按原顺序
+    /// 回报，避免多线程直接输出导致行交错。
+    fn extract_all(
+        &self,
+        docs: &[Document],
+        result: &mut IndexReport,
+        report: &mut impl FnMut(IndexEvent),
+    ) -> Vec<(Document, String)> {
+        if docs.is_empty() {
+            return Vec::new();
+        }
+        let workers = self.threads.min(docs.len()).max(1);
+        let next = AtomicUsize::new(0);
+        let outcomes: Mutex<Vec<(usize, Result<String>)>> =
+            Mutex::new(Vec::with_capacity(docs.len()));
+        std::thread::scope(|scope| {
+            for _ in 0..workers {
+                scope.spawn(|| loop {
+                    let index = next.fetch_add(1, Ordering::Relaxed);
+                    if index >= docs.len() {
+                        break;
+                    }
+                    let content = Indexer::content(&self.store, &docs[index]);
+                    outcomes
+                        .lock()
+                        .unwrap_or_else(|error| error.into_inner())
+                        .push((index, content));
+                });
+            }
+        });
+
+        let mut outcomes = outcomes
+            .into_inner()
+            .unwrap_or_else(|error| error.into_inner());
+        outcomes.sort_by_key(|(index, _)| *index);
+        let mut prepared = Vec::with_capacity(outcomes.len());
+        for (index, content) in outcomes {
+            let doc = &docs[index];
+            match content {
+                Ok(content) => prepared.push((doc.clone(), content)),
+                Err(error) => {
+                    eprintln!("index: content failed for {}: {error}", doc.path);
+                    let _ = self.store.set_index_status(doc.id, "error");
+                    result.failed += 1;
+                    report(IndexEvent::Finished {
+                        path: PathBuf::from(&doc.path),
+                        ok: false,
+                    });
+                }
+            }
+        }
+        prepared
+    }
+
+    /// 一批文档：并行组装内容、串行写索引、回写状态。失败按文档隔离。
     fn index_batch(
         &self,
         docs: &[Document],
         result: &mut IndexReport,
         report: &mut impl FnMut(IndexEvent),
     ) -> Result<()> {
-        let mut prepared: Vec<(Document, String)> = Vec::new();
-        for doc in docs {
-            let path = PathBuf::from(&doc.path);
-            report(IndexEvent::Started { path: path.clone() });
-            match Indexer::content(&self.store, doc) {
-                Ok(content) => prepared.push((doc.clone(), content)),
-                Err(error) => {
-                    eprintln!("index: content failed for {}: {error}", doc.path);
-                    let _ = self.store.set_index_status(doc.id, "error");
-                    result.failed += 1;
-                    report(IndexEvent::Finished { path, ok: false });
-                }
-            }
-        }
+        let prepared = self.extract_all(docs, result, report);
         if prepared.is_empty() {
             return Ok(());
         }
@@ -338,6 +375,13 @@ impl IndexMaintenance {
             .map(|entry| entry.document_id)
             .collect())
     }
+}
+
+/// 默认线程数：CPU 可用并行度，取不到时退化为 1。
+fn default_threads() -> usize {
+    std::thread::available_parallelism()
+        .map(|threads| threads.get())
+        .unwrap_or(1)
 }
 
 /// 文件指纹：mtime 与字节数。文件不存在或不是普通文件时返回 `None`。
