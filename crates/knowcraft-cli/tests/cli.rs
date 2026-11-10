@@ -776,6 +776,133 @@ fn move_onto_existing_target_fails() {
 }
 
 #[test]
+fn register_then_search_finds_existing_notes_file() {
+    let dir = data_dir("register");
+    let path = dir.join("notes").join("registered.org");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, "#+TITLE: 已登记\n\nregisterneedle").unwrap();
+
+    let out = run_cli(&dir, &["register", path.to_str().unwrap()]);
+    assert!(
+        out.status.success(),
+        "register failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.starts_with("registered: "), "{text}");
+    assert!(text.contains("id="), "{text}");
+    assert!(path.exists(), "register must not move the file");
+
+    // 可重复执行，输出前缀保持一致。
+    let again = run_cli(&dir, &["register", path.to_str().unwrap()]);
+    assert!(
+        again.status.success(),
+        "second register failed: {}",
+        String::from_utf8_lossy(&again.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&again.stdout).starts_with("registered: "),
+        "repeatable output"
+    );
+
+    let search = run_cli(&dir, &["search", "registerneedle"]);
+    assert!(
+        search.status.success(),
+        "search failed: {}",
+        String::from_utf8_lossy(&search.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&search.stdout).contains("registered.org"),
+        "register indexes the body"
+    );
+}
+
+#[test]
+fn register_accepts_multiple_files_with_a_summary_line() {
+    let dir = data_dir("register-multi");
+    let first = dir.join("notes").join("first.org");
+    let second = dir.join("notes").join("second.org");
+    std::fs::create_dir_all(first.parent().unwrap()).unwrap();
+    std::fs::write(&first, "#+TITLE: 一\n\nmultifirstneedle").unwrap();
+    std::fs::write(&second, "#+TITLE: 二\n\nmultisecondneedle").unwrap();
+
+    let out = run_cli(
+        &dir,
+        &[
+            "register",
+            first.to_str().unwrap(),
+            second.to_str().unwrap(),
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "register failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 3, "{text}");
+    assert!(lines[0].starts_with("registered: id="), "{text}");
+    assert!(lines[1].starts_with("registered: id="), "{text}");
+    assert_eq!(lines[2], "registered: count=2 failed=0", "{text}");
+}
+
+#[test]
+fn register_expands_a_directory_argument() {
+    let dir = data_dir("register-dir");
+    let root = dir.join("notes").join("batch");
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("a.org"), "#+TITLE: A\n\ndirneedleone").unwrap();
+    std::fs::create_dir_all(root.join("nested")).unwrap();
+    std::fs::write(root.join("nested/b.org"), "#+TITLE: B\n\ndirneedletwo").unwrap();
+    std::fs::write(root.join(".hidden.org"), "#+TITLE: hidden\n\nhiddenneedle").unwrap();
+
+    let out = run_cli(&dir, &["register", root.to_str().unwrap()]);
+    assert!(
+        out.status.success(),
+        "register failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(
+        text.lines().last(),
+        Some("registered: count=2 failed=0"),
+        "{text}"
+    );
+    assert!(!text.contains(".hidden.org"), "隐藏项不登记：{text}");
+}
+
+#[test]
+fn register_reports_failures_and_exits_nonzero() {
+    let dir = data_dir("register-fail");
+    let good = dir.join("notes").join("good.org");
+    std::fs::create_dir_all(good.parent().unwrap()).unwrap();
+    std::fs::write(&good, "#+TITLE: good\n\ngoodneedle").unwrap();
+    let missing = dir.join("notes").join("missing.org");
+
+    let out = run_cli(
+        &dir,
+        &[
+            "register",
+            good.to_str().unwrap(),
+            missing.to_str().unwrap(),
+        ],
+    );
+    assert!(!out.status.success(), "存在失败项时退出码非零");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(
+        stdout.lines().last(),
+        Some("registered: count=1 failed=1"),
+        "{stdout}"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains(&format!("register failed: path={}", missing.display())),
+        "{stderr}"
+    );
+}
+
+#[test]
 fn ls_lists_files_and_directories() {
     let data = data_dir("ls-data");
     let work = data_dir("ls-work");

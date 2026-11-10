@@ -693,3 +693,177 @@ fn rename_is_a_same_directory_move() {
     );
     assert!(fixture.ops.rename(&renamed, "").is_err(), "空名字被拒绝");
 }
+
+#[test]
+fn register_registers_existing_file_in_place() {
+    let fixture = Fixture::new("register-new");
+    let path = fixture.path("notes/new.org");
+    write_file(&path, "#+TITLE: 新笔记\n\nregisternewword");
+    assert!(doc_at(&fixture, &path).is_none(), "文件尚未登记");
+
+    let doc = fixture.ops.register(&path).unwrap();
+    assert_eq!(doc.path, path.to_string_lossy(), "路径就地登记");
+    assert_eq!(doc.lifecycle, "archived");
+    assert_eq!(doc.storage, "linked");
+    assert_eq!(doc.title, "新笔记", "标题取自内容");
+    assert_eq!(doc.index_status, "indexed");
+    assert!(path.exists(), "登记不复制、不移动文件");
+    assert!(search_has(&fixture, "registernewword", doc.id));
+}
+
+#[test]
+fn register_refreshes_registered_file_title_and_index() {
+    let fixture = Fixture::new("register-refresh");
+    let path = fixture.path("notes/refresh.org");
+    write_file(&path, "#+TITLE: 旧标题\n\noldnewword");
+    let before = fixture.ops.register(&path).unwrap();
+    assert_eq!(before.title, "旧标题");
+    let original_name = before.original_name.clone();
+
+    write_file(&path, "#+TITLE: 新标题\n\nrefreshnewword");
+    let after = fixture.ops.register(&path).unwrap();
+    assert_eq!(after.id, before.id, "重复登记保留记录身份");
+    assert_eq!(after.title, "新标题", "标题刷新");
+    assert_eq!(after.lifecycle, before.lifecycle, "lifecycle 不变");
+    assert_eq!(after.storage, before.storage, "storage 不变");
+    assert_eq!(after.original_name, original_name, "original_name 不变");
+    assert_eq!(after.path, before.path, "path 不变");
+    assert_eq!(after.index_status, "indexed");
+    assert!(search_has(&fixture, "refreshnewword", after.id));
+    assert!(
+        !search_has(&fixture, "oldnewword", after.id),
+        "旧正文不再命中"
+    );
+}
+
+#[test]
+fn register_all_registers_each_file_in_place() {
+    let fixture = Fixture::new("register-all");
+    let first = fixture.path("notes/a.org");
+    let second = fixture.path("library/b.org");
+    write_file(&first, "#+TITLE: A\n\nbatchoneword");
+    write_file(&second, "#+TITLE: B\n\nbatchtwoword");
+
+    let report = fixture
+        .ops
+        .register_all(&[first.clone(), second.clone()])
+        .unwrap();
+    assert_eq!(report.registered.len(), 2);
+    assert!(report.failed.is_empty());
+    assert_eq!(report.registered[0].path, first.to_string_lossy());
+    assert_eq!(report.registered[1].path, second.to_string_lossy());
+    assert_eq!(
+        report.registered[0].lifecycle, "archived",
+        "位置决定生命周期"
+    );
+    assert!(search_has(
+        &fixture,
+        "batchoneword",
+        report.registered[0].id
+    ));
+    assert!(search_has(
+        &fixture,
+        "batchtwoword",
+        report.registered[1].id
+    ));
+}
+
+#[test]
+fn register_all_expands_directories_and_skips_hidden_entries() {
+    let fixture = Fixture::new("register-all-dir");
+    let root = fixture.path("notes/batch");
+    let first = root.join("a.org");
+    let second = root.join("nested/b.org");
+    let hidden = root.join(".hidden.org");
+    write_file(&first, "#+TITLE: A\n\nvisibleone");
+    write_file(&second, "#+TITLE: B\n\nvisibletwo");
+    write_file(&hidden, "#+TITLE: hidden\n\nhiddenword");
+
+    let outside = outside_dir("register-all-dir");
+    let outside_file = outside.join("out.org");
+    write_file(&outside_file, "#+TITLE: outside\n\noutsideword");
+    let link = root.join("link.org");
+    std::os::unix::fs::symlink(&outside_file, &link).unwrap();
+
+    let report = fixture.ops.register_all(&[root.clone()]).unwrap();
+    assert_eq!(report.registered.len(), 2, "只登记可见普通文件");
+    assert!(report.failed.is_empty());
+    assert!(report
+        .registered
+        .iter()
+        .any(|doc| doc.path == first.to_string_lossy()));
+    assert!(report
+        .registered
+        .iter()
+        .any(|doc| doc.path == second.to_string_lossy()));
+    assert!(
+        !report
+            .registered
+            .iter()
+            .any(|doc| doc.path == hidden.to_string_lossy()),
+        "隐藏项不登记"
+    );
+    assert!(
+        !report
+            .registered
+            .iter()
+            .any(|doc| doc.path == link.to_string_lossy()),
+        "符号链接不登记"
+    );
+    let _ = std::fs::remove_dir_all(&outside);
+}
+
+#[test]
+fn register_all_skips_empty_directories() {
+    let fixture = Fixture::new("register-all-empty");
+    let empty = fixture.path("notes/empty");
+    std::fs::create_dir_all(&empty).unwrap();
+
+    let report = fixture.ops.register_all(&[empty]).unwrap();
+    assert!(report.registered.is_empty(), "空目录不产生成功项");
+    assert!(report.failed.is_empty(), "空目录不算失败");
+}
+
+#[test]
+fn register_all_keeps_going_after_a_failure() {
+    let fixture = Fixture::new("register-all-fail");
+    let good = fixture.path("notes/good.org");
+    write_file(&good, "#+TITLE: good\n\ngoodword");
+    let missing = fixture.path("notes/missing.org");
+    let outside = outside_dir("register-all-fail");
+    let outside_file = outside.join("outside.org");
+    write_file(&outside_file, "#+TITLE: outside\n\noutsideword");
+
+    let report = fixture
+        .ops
+        .register_all(&[good.clone(), missing.clone(), outside_file.clone()])
+        .unwrap();
+    assert_eq!(report.registered.len(), 1, "成功项照常登记");
+    assert_eq!(report.registered[0].path, good.to_string_lossy());
+    assert_eq!(report.failed.len(), 2, "失败项逐项记录");
+    assert_eq!(report.failed[0].path, missing);
+    assert!(report.failed[0].error.contains("existing regular file"));
+    assert_eq!(report.failed[1].path, outside_file);
+    assert!(report.failed[1]
+        .error
+        .contains("outside the data directory"));
+    let _ = std::fs::remove_dir_all(&outside);
+}
+
+#[test]
+fn register_all_is_idempotent_for_repeated_paths() {
+    let fixture = Fixture::new("register-all-repeat");
+    let path = fixture.path("notes/repeat.org");
+    write_file(&path, "#+TITLE: repeat\n\nrepeatword");
+
+    let report = fixture
+        .ops
+        .register_all(&[path.clone(), path.clone()])
+        .unwrap();
+    assert_eq!(report.registered.len(), 2);
+    assert!(report.failed.is_empty());
+    assert_eq!(
+        report.registered[0].id, report.registered[1].id,
+        "重复登记保留同一条记录"
+    );
+}

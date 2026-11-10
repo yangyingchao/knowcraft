@@ -255,6 +255,19 @@ enum Cmd {
         #[arg(long)]
         dir: bool,
     },
+    /// 就地登记已存在的库内文件，不复制、不移动
+    #[command(
+        long_about = "就地登记已存在的库内文件，不复制、不移动\n\n只登记受管位置（inbox、library、notes、captures、archived）内已存在的普通\
+        文件；已登记的记录会刷新标题、校验和与索引，其余字段保持不变。可重复执行，可一次传入多个路\
+        径，目录按可见文件递归展开（跳过隐藏项与符号链接）。\n\n单个普通文件输出 \
+        `registered: id=<id> path=<path>`；批量时每个成功项输出同格式一行，失败项以 \
+        `register failed: path=<path> error=<text>` 写入标准错误，末尾以 \
+        `registered: count=<N> failed=<M>` 汇总，存在失败时退出码非零。"
+    )]
+    Register {
+        /// 已存在的文件或目录路径，绝对路径或按当前工作目录解析
+        paths: Vec<PathBuf>,
+    },
     /// 在库内复制文件或目录，副本登记为独立文档
     #[command(
         long_about = "在库内复制文件或目录，副本登记为独立文档\n\n源与目标都必须位于受管位置内且不能是根目录，目标不能已存在，也不能位于源之内。\n\n输出 copied \
@@ -527,6 +540,44 @@ fn main() -> anyhow::Result<()> {
             let created = ops.create(&abs, dir)?;
             let id = created.map_or_else(|| "-".to_string(), |doc| doc.id.to_string());
             println!("created: path={} id={id}", abs.display());
+        }
+        Cmd::Register { paths } => {
+            let ops = file_ops(&store, &cfg.data_dir)?;
+            let paths = paths
+                .into_iter()
+                .map(absolute)
+                .collect::<anyhow::Result<Vec<_>>>()?;
+            let single = paths.len() == 1 && !paths[0].is_dir();
+            let report = ops.register_all(&paths)?;
+            if single {
+                let [doc] = report.registered.as_slice() else {
+                    let reason = report
+                        .failed
+                        .first()
+                        .map_or("no document registered", |failure| failure.error.as_str());
+                    anyhow::bail!("{reason}");
+                };
+                println!("registered: id={} path={}", doc.id, doc.path);
+                return Ok(());
+            }
+            for doc in &report.registered {
+                println!("registered: id={} path={}", doc.id, doc.path);
+            }
+            for failure in &report.failed {
+                eprintln!(
+                    "register failed: path={} error={}",
+                    failure.path.display(),
+                    failure.error
+                );
+            }
+            println!(
+                "registered: count={} failed={}",
+                report.registered.len(),
+                report.failed.len()
+            );
+            if !report.failed.is_empty() {
+                anyhow::bail!("{} path(s) failed to register", report.failed.len());
+            }
         }
         Cmd::Copy { src, dst } => {
             let ops = file_ops(&store, &cfg.data_dir)?;

@@ -61,6 +61,20 @@ pub struct PurgeReport {
     pub uuids: Vec<String>,
 }
 
+/// `register_all` 的逐项结果：成功登记的文档与失败路径及原因。
+#[derive(Debug, Default)]
+pub struct RegisterReport {
+    pub registered: Vec<Document>,
+    pub failed: Vec<RegisterFailure>,
+}
+
+/// `register_all` 中单个路径的失败原因。
+#[derive(Debug)]
+pub struct RegisterFailure {
+    pub path: PathBuf,
+    pub error: String,
+}
+
 /// 单个目标路径的登记结果。
 #[derive(Debug, Default, Clone, Copy)]
 struct RecordOutcome {
@@ -141,6 +155,75 @@ impl FileOps {
         let doc = self.register_document(path, lifecycle, storage)?;
         let _ = self.index_document(&doc);
         Ok(Some(self.reload(doc.id)?))
+    }
+
+    /// 就地登记库内已存在的普通文件：不复制、不移动。
+    ///
+    /// 未登记的路径按位置推导 `lifecycle` 与 `storage` 后登记；已登记记录
+    /// 只刷新标题、校验和、大小与索引，`lifecycle`、`storage`、
+    /// `original_name` 与 `path` 保持不变。
+    pub fn register(&self, path: &Path) -> Result<Document> {
+        let _guard = self.lock.acquire()?;
+        self.register_locked(path)
+    }
+
+    /// 批量就地登记：一次持锁处理全部输入，逐项尽力，失败项不中断后续项。
+    ///
+    /// 目录输入按 `scan_visible_files` 的规则递归展开（跳过隐藏项与符号
+    /// 链接）；其它输入原样交给单项登记。目录展开为空时静默跳过，既不
+    /// 计成功也不计失败。
+    pub fn register_all(&self, paths: &[PathBuf]) -> Result<RegisterReport> {
+        let _guard = self.lock.acquire()?;
+        let mut targets = Vec::new();
+        for path in paths {
+            match std::fs::symlink_metadata(path) {
+                Ok(meta) if meta.is_dir() => targets.extend(scan_visible_files(path)),
+                _ => targets.push(path.clone()),
+            }
+        }
+        let mut report = RegisterReport::default();
+        for target in targets {
+            match self.register_locked(&target) {
+                Ok(doc) => report.registered.push(doc),
+                Err(error) => report.failed.push(RegisterFailure {
+                    path: target,
+                    error: error.to_string(),
+                }),
+            }
+        }
+        Ok(report)
+    }
+
+    /// `register` 的持锁主体；调用方必须已持有写锁。
+    fn register_locked(&self, path: &Path) -> Result<Document> {
+        self.validate_inside(path)?;
+        self.validate_not_root(path)?;
+        if !path.is_file() {
+            return Err(Error::FileOps(format!(
+                "register requires an existing regular file: {}",
+                path.display()
+            )));
+        }
+        let Some((lifecycle, storage)) = initial_state(classify(&self.data_dir, path)) else {
+            return Err(Error::FileOps(format!(
+                "register is only allowed in managed locations: {}",
+                path.display()
+            )));
+        };
+        let Some(doc) = self.store.find_by_path(&path_str(path))? else {
+            let doc = self.register_document(path, lifecycle, storage)?;
+            let _ = self.index_document(&doc);
+            return self.reload(doc.id);
+        };
+        let title = extract::extract_title(path).unwrap_or_else(|| doc.original_name.clone());
+        let checksum = self.workflow.checksum(path)?;
+        let size = std::fs::metadata(path)?.len() as i64;
+        self.store.update_title(doc.id, &title)?;
+        self.store.update_checksum(doc.id, &checksum)?;
+        self.store.touch_document(doc.id, size)?;
+        let updated = self.reload(doc.id)?;
+        let _ = self.index_document(&updated);
+        self.reload(updated.id)
     }
 
     /// 导入库外路径到 inbox：目录递归导入，文件走 checksum 去重，随后建索引。
