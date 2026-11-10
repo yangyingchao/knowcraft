@@ -13,7 +13,7 @@ use crate::{error::Result, extract, store::Store};
 pub struct DirectoryEntry {
     /// 绝对路径，不解析符号链接。
     pub path: PathBuf,
-    /// 已登记文档用库内 title；未登记文件尝试解析内容标题，失败用文件名。
+    /// 已登记文档用库内可信 title；未登记文件尝试解析内容标题，失败用文件名主干。
     pub title: String,
     /// 目录为 `None`；文件为是否已登记。
     pub registered: Option<bool>,
@@ -22,22 +22,28 @@ pub struct DirectoryEntry {
 /// 非递归列出 `directory` 的文件与目录，按条目名排序。
 ///
 /// `directory` 为单个文件时返回该文件一条；未登记文件尝试从内容提取标题，
-/// 无法提取时回退文件名。
+/// 无法提取时回退文件名主干。已登记文档的占位标题同样回退主干。
 pub fn list_directory(store: &Store, directory: &Path) -> Result<Vec<DirectoryEntry>> {
-    let registered: HashMap<PathBuf, String> = store
+    let registered: HashMap<PathBuf, (String, String)> = store
         .list_documents()?
         .into_iter()
         .filter(|document| document.lifecycle != "trashed")
-        .map(|document| (normalize(Path::new(&document.path)), document.title))
+        .map(|document| {
+            (
+                normalize(Path::new(&document.path)),
+                (document.title, document.doc_type),
+            )
+        })
         .collect();
     if directory.is_file() {
         let path = normalize(directory);
-        let fallback = path
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_default();
+        let fallback = file_stem(&path);
         let (title, registered) = match registered.get(&path) {
-            Some(title) if !title.is_empty() => (title.clone(), Some(true)),
+            Some((title, doc_type))
+                if !title.is_empty() && !extract::is_placeholder_title(&path, doc_type, title) =>
+            {
+                (title.clone(), Some(true))
+            }
             Some(_) => (fallback, Some(true)),
             None => (parsed_title(&path).unwrap_or(fallback), Some(false)),
         };
@@ -54,13 +60,19 @@ pub fn list_directory(store: &Store, directory: &Path) -> Result<Vec<DirectoryEn
         let name = item.file_name();
         let metadata = std::fs::symlink_metadata(&path)?;
         let fallback = name.to_string_lossy().into_owned();
+        let file_fallback = file_stem(&path);
         let (title, registered) = if metadata.file_type().is_dir() {
             (fallback, None)
         } else {
             match registered.get(&path) {
-                Some(title) if !title.is_empty() => (title.clone(), Some(true)),
-                Some(_) => (fallback, Some(true)),
-                None => (parsed_title(&path).unwrap_or(fallback), Some(false)),
+                Some((title, doc_type))
+                    if !title.is_empty()
+                        && !extract::is_placeholder_title(&path, doc_type, title) =>
+                {
+                    (title.clone(), Some(true))
+                }
+                Some(_) => (file_fallback, Some(true)),
+                None => (parsed_title(&path).unwrap_or(file_fallback), Some(false)),
             }
         };
         entries.push((
@@ -79,6 +91,13 @@ pub fn list_directory(store: &Store, directory: &Path) -> Result<Vec<DirectoryEn
 /// 从未登记文件内容提取标题；空标题视为无法提取。
 fn parsed_title(path: &Path) -> Option<String> {
     extract::extract_title(path).filter(|title| !title.trim().is_empty())
+}
+
+/// 文件名主干；无文件名时为空串。
+fn file_stem(path: &Path) -> String {
+    path.file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 /// 去掉 `.` 与重复分隔符，保留 `..` 与符号链接，供路径相等比较与输出。

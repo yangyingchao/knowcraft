@@ -425,9 +425,8 @@ impl Knowledge {
             .map_err(|error| error.to_string())
     }
 
-    /// 文件列表显示的标题：优先数据库 `title`；空白、`Untitled` 等占位值，或与文件名
-    /// 相同（无内容标题）时视为没有标题。归档记录回退 `original_name`，其他文件由调用方
-    /// 回退文件系统名。
+    /// 文件列表显示的标题：优先数据库可信 `title`；元数据占位值或文件名式标题视为没有
+    /// 标题，归档记录回退 `original_name`，其余回退文件名主干。
     pub(crate) fn display_title(&self, path: &Path) -> Option<String> {
         if let Some(cached) = with_title_cache(|cache| cache.get(path).cloned()) {
             return cached;
@@ -445,22 +444,14 @@ impl Knowledge {
             .find_by_path(&path.to_string_lossy())
             .ok()
             .flatten()?;
-        let title = doc.title.trim();
-        let file_name = path
-            .file_name()
-            .map(|name| name.to_string_lossy())
-            .unwrap_or_default();
-        if !Self::is_placeholder_title(title) && title != file_name.as_ref() {
+        if !knowcraft_core::extract::is_placeholder_title(path, &doc.doc_type, doc.title.trim()) {
             return Some(doc.title);
         }
-        (doc.storage == "archived" && !doc.original_name.is_empty()).then_some(doc.original_name)
-    }
-
-    /// 无内容标题的占位值：空白，或提取器留下的 `Untitled`（可能带引号）。
-    /// 只决定显示回退，不改写数据库里的原值。
-    fn is_placeholder_title(title: &str) -> bool {
-        let title = title.trim().trim_matches(['\'', '"']).trim();
-        title.is_empty() || title.eq_ignore_ascii_case("untitled")
+        if doc.storage == "archived" && !doc.original_name.is_empty() {
+            return Some(doc.original_name);
+        }
+        path.file_stem()
+            .map(|stem| stem.to_string_lossy().into_owned())
     }
 
     /// The cached `index_status` for a knowledge path, or `None` when untracked.

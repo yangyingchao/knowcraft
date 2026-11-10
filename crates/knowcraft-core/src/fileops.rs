@@ -504,7 +504,7 @@ impl FileOps {
     fn record_imported(&self, target: &Path, checksum: &str) -> Result<Document> {
         if let Some(existing) = self.store.find_by_path(&path_str(target))? {
             let title =
-                extract::extract_title(target).unwrap_or_else(|| existing.original_name.clone());
+                extract::title_or_fallback(target, &existing.storage, &existing.original_name);
             let size = std::fs::metadata(target)?.len() as i64;
             self.store.update_title(existing.id, &title)?;
             self.store.update_checksum(existing.id, checksum)?;
@@ -915,9 +915,8 @@ impl FileOps {
             self.store.update_checksum(doc.id, &checksum)?;
             let size = std::fs::metadata(path)?.len() as i64;
             self.store.touch_document(doc.id, size)?;
-            if let Some(title) = extract::extract_title(path) {
-                self.store.update_title(doc.id, &title)?;
-            }
+            let title = extract::title_or_fallback(path, &doc.storage, &doc.original_name);
+            self.store.update_title(doc.id, &title)?;
             let updated = self.reload(doc.id)?;
             return Ok(RecordOutcome {
                 registered: false,

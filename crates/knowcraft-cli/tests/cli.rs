@@ -1176,7 +1176,7 @@ fn ls_lists_files_and_directories() {
     );
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "a.md: a.md [unregistered]\nsub: sub\n"
+        "a.md: a [unregistered]\nsub: sub\n"
     );
 
     let out = Command::new(env!("CARGO_BIN_EXE_kc"))
@@ -1192,7 +1192,7 @@ fn ls_lists_files_and_directories() {
     );
     let value: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(value[0]["path"], "a.md");
-    assert_eq!(value[0]["title"], "a.md");
+    assert_eq!(value[0]["title"], "a");
     assert_eq!(value[0]["registered"], false);
     assert_eq!(value[1]["path"], "sub");
     assert!(value[1].get("registered").is_none());

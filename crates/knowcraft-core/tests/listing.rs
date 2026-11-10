@@ -56,14 +56,14 @@ fn lists_files_and_directories_with_registered_titles() {
     assert_eq!(names, ["a.md", "b.md", "sub"]);
     assert_eq!(entries[0].title, "Alpha");
     assert_eq!(entries[0].registered, Some(true));
-    assert_eq!(entries[1].title, "b.md");
+    assert_eq!(entries[1].title, "b");
     assert_eq!(entries[1].registered, Some(false));
     assert_eq!(entries[2].title, "sub");
     assert_eq!(entries[2].registered, None);
 }
 
 #[test]
-fn registered_document_without_title_falls_back_to_the_file_name() {
+fn registered_document_without_title_falls_back_to_the_file_stem() {
     let (library, data) = setup();
     fs::write(library.path().join("note.md"), b"x").expect("file");
     let store = Store::open(data.path()).expect("store");
@@ -73,7 +73,22 @@ fn registered_document_without_title_falls_back_to_the_file_name() {
         .expect("insert");
 
     let entries = list_directory(&store, library.path()).expect("list");
-    assert_eq!(entries[0].title, "note.md");
+    assert_eq!(entries[0].title, "note");
+    assert_eq!(entries[0].registered, Some(true));
+}
+
+#[test]
+fn placeholder_titles_fall_back_to_the_file_stem() {
+    let (library, data) = setup();
+    let path = library.path().join("东方金信-海光技术交流-20261110.pdf");
+    fs::write(&path, b"%PDF-1.4").expect("file");
+    let store = Store::open(data.path()).expect("store");
+    let mut document = document(path.to_str().expect("path"), "PowerPoint 演示文稿");
+    document.doc_type = "pdf".into();
+    store.insert_document(&document).expect("insert");
+
+    let entries = list_directory(&store, library.path()).expect("list");
+    assert_eq!(entries[0].title, "东方金信-海光技术交流-20261110");
     assert_eq!(entries[0].registered, Some(true));
 }
 

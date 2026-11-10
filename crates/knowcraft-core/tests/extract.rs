@@ -58,7 +58,12 @@ fn extract_malformed_pdf_returns_error_not_panic() {
 /// Build a minimal, self-contained, single-page PDF carrying one line of text with a
 /// correct cross-reference table, so the test exercises the real opening path.
 fn minimal_pdf(text: &str) -> Vec<u8> {
-    let objects: Vec<String> = vec![
+    pdf_with_info(text, None)
+}
+
+/// 同上，附带 Info 字典的 `/Title`；`None` 时不写 Info。
+fn pdf_with_info(text: &str, title: Option<&str>) -> Vec<u8> {
+    let mut objects: Vec<String> = vec![
         "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n".to_string(),
         "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n".to_string(),
         "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n".to_string(),
@@ -68,6 +73,10 @@ fn minimal_pdf(text: &str) -> Vec<u8> {
         },
         "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n".to_string(),
     ];
+    if let Some(title) = title {
+        objects.push(format!("6 0 obj\n<< /Title ({title}) >>\nendobj\n"));
+    }
+    let info = if title.is_some() { " /Info 6 0 R" } else { "" };
 
     let mut out = String::from("%PDF-1.4\n");
     let mut offsets = Vec::new();
@@ -82,7 +91,7 @@ fn minimal_pdf(text: &str) -> Vec<u8> {
         out.push_str(&format!("{off:010} 00000 n \n"));
     }
     out.push_str(&format!(
-        "trailer\n<< /Root 1 0 R /Size {} >>\nstartxref\n{xref_start}\n%%EOF\n",
+        "trailer\n<< /Root 1 0 R{info} /Size {} >>\nstartxref\n{xref_start}\n%%EOF\n",
         objects.len() + 1
     ));
     out.into_bytes()
@@ -113,4 +122,89 @@ fn extract_org_title_ignores_second_level_heading() {
     let f = std::env::temp_dir().join("kc-ext-second.org");
     std::fs::write(&f, "** 仅二级标题\n").unwrap();
     assert_eq!(knowcraft_core::extract::extract_title(&f), None);
+}
+
+#[test]
+fn placeholder_title_rules_cover_office_defaults_and_file_names() {
+    use knowcraft_core::extract::is_placeholder_title;
+    use std::path::Path;
+
+    let path = Path::new("/tmp/东方金信-海光技术交流-20261110.pdf");
+    for title in [
+        "",
+        "   ",
+        "Untitled",
+        "'Untitled'",
+        "PowerPoint Presentation",
+        "PowerPoint 演示文稿",
+        "PowerPoint 簡報",
+        "PowerPoint-Präsentation",
+        "Microsoft Word - source.docx",
+        "Microsoft Excel – 报表.xlsx",
+        "Document1",
+        "工作簿1",
+        "演示文稿1",
+        "东方金信-海光技术交流-20261110.pdf",
+        "东方金信-海光技术交流-20261110",
+    ] {
+        assert!(is_placeholder_title(path, "pdf", title), "{title:?}");
+    }
+    for title in [
+        "东方金信-海光技术交流",
+        "Untitled Document",
+        "我的笔记",
+        "PowerPoint 设计指南",
+    ] {
+        assert!(!is_placeholder_title(path, "pdf", title), "{title:?}");
+    }
+    // markdown/org 的内容标题是作者显式命名，不参与占位判定。
+    assert!(!is_placeholder_title(path, "md", "Untitled"));
+    assert!(!is_placeholder_title(path, "org", "note"));
+}
+
+#[test]
+fn extract_title_skips_placeholder_pdf_and_docx_metadata() {
+    let pdf = std::env::temp_dir().join("kc-ext-placeholder.pdf");
+    std::fs::write(
+        &pdf,
+        pdf_with_info("Hello PDF", Some("PowerPoint 演示文稿")),
+    )
+    .unwrap();
+    assert_eq!(knowcraft_core::extract::extract_title(&pdf), None);
+
+    let docx = std::env::temp_dir().join("kc-ext-placeholder.docx");
+    let file = std::fs::File::create(&docx).unwrap();
+    let mut zip = zip::ZipWriter::new(file);
+    zip.start_file("docProps/core.xml", zip::write::FileOptions::default())
+        .unwrap();
+    zip.write_all(
+        b"<cp:coreProperties><dc:title>PowerPoint Presentation</dc:title></cp:coreProperties>",
+    )
+    .unwrap();
+    zip.finish().unwrap();
+    assert_eq!(knowcraft_core::extract::extract_title(&docx), None);
+}
+
+#[test]
+fn extract_title_keeps_a_real_pdf_title() {
+    let f = std::env::temp_dir().join("kc-ext-real-title.pdf");
+    std::fs::write(
+        &f,
+        pdf_with_info("Hello PDF", Some("Semantics-aware Dataset Discovery")),
+    )
+    .unwrap();
+    assert_eq!(
+        knowcraft_core::extract::extract_title(&f).as_deref(),
+        Some("Semantics-aware Dataset Discovery")
+    );
+}
+
+#[test]
+fn extract_title_keeps_markdown_headings_that_look_like_placeholders() {
+    let f = std::env::temp_dir().join("kc-ext-untitled.md");
+    std::fs::write(&f, "# Untitled\n\n内容\n").unwrap();
+    assert_eq!(
+        knowcraft_core::extract::extract_title(&f).as_deref(),
+        Some("Untitled")
+    );
 }

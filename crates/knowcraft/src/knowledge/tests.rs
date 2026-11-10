@@ -29,29 +29,7 @@ fn warm_index_registers_and_indexes_new_files() {
 }
 
 #[test]
-fn placeholder_titles_are_treated_as_missing() {
-    let placeholders = [
-        "",
-        "   ",
-        "Untitled",
-        "untitled",
-        "UNTITLED",
-        "'Untitled'",
-        "\"untitled\"",
-    ];
-    for placeholder in placeholders {
-        assert!(
-            Knowledge::is_placeholder_title(placeholder),
-            "{placeholder:?}"
-        );
-    }
-    for title in ["Untitled Document", "My untitled notes", "笔记"] {
-        assert!(!Knowledge::is_placeholder_title(title), "{title:?}");
-    }
-}
-
-#[test]
-fn display_title_falls_back_when_the_stored_title_is_a_placeholder() {
+fn display_title_falls_back_to_the_file_stem_when_the_stored_title_is_a_placeholder() {
     let (dir, knowledge) = fixture("placeholder-display");
     let path = dir.join("inbox").join("paper.pdf");
     std::fs::write(&path, b"%PDF-1.4").unwrap();
@@ -75,13 +53,17 @@ fn display_title_falls_back_when_the_stored_title_is_a_placeholder() {
             index_status: "pending".into(),
         })
         .expect("insert document");
-    for title in ["Untitled", "'Untitled'", "", "   "] {
+    for title in ["Untitled", "'Untitled'", "", "   ", "PowerPoint 演示文稿"] {
         knowledge
             .store
             .update_title(id, title)
             .expect("update title");
         clear_title_cache();
-        assert_eq!(knowledge.display_title(&path), None, "{title:?}");
+        assert_eq!(
+            knowledge.display_title(&path).as_deref(),
+            Some("paper"),
+            "{title:?}"
+        );
     }
     knowledge
         .store
@@ -91,5 +73,36 @@ fn display_title_falls_back_when_the_stored_title_is_a_placeholder() {
     assert_eq!(
         knowledge.display_title(&path).as_deref(),
         Some("Real Title")
+    );
+}
+
+#[test]
+fn archived_documents_keep_original_name_for_placeholder_titles() {
+    let (dir, knowledge) = fixture("archived-title");
+    let path = dir.join("archived").join("pdf").join("0e5a-uuid.pdf");
+    knowledge
+        .store
+        .insert_document(&Document {
+            id: 0,
+            uuid: "archived-placeholder".into(),
+            storage: "archived".into(),
+            original_name: "东方金信-海光技术交流-20261110.pdf".into(),
+            path: path.to_string_lossy().into_owned(),
+            doc_type: "pdf".into(),
+            title: "PowerPoint 演示文稿".into(),
+            source_url: None,
+            size: 0,
+            created_at: String::new(),
+            updated_at: String::new(),
+            checksum: String::new(),
+            ai_summary: None,
+            lifecycle: "archived".into(),
+            index_status: "pending".into(),
+        })
+        .expect("insert document");
+    clear_title_cache();
+    assert_eq!(
+        knowledge.display_title(&path).as_deref(),
+        Some("东方金信-海光技术交流-20261110.pdf")
     );
 }

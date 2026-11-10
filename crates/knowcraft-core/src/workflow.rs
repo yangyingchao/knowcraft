@@ -77,7 +77,7 @@ impl Workflow {
             original_name: original_name.clone(),
             path: path.to_string_lossy().into_owned(),
             doc_type: detect_type(fname),
-            title: crate::extract::extract_title(path).unwrap_or(original_name),
+            title: crate::extract::title_or_fallback(path, storage, &original_name),
             source_url: None,
             size: std::fs::metadata(path)?.len() as i64,
             created_at: now(),

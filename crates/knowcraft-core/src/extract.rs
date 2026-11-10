@@ -31,7 +31,9 @@ pub fn extract_text(path: &Path) -> Result<String> {
 }
 
 /// 从文档内容解析标题：PDF 元数据标题、docx 核心属性 `dc:title`、HTML
-/// `<title>`、markdown 首个一级标题；解析不出返回 `None`，调用方回退文件名。
+/// `<title>`、markdown 首个一级标题。元数据来源的占位标题（如
+/// `PowerPoint 演示文稿`、`Untitled`）视为解析不出；解析不出返回 `None`，
+/// 调用方回退文件名主干。
 pub fn extract_title(path: &Path) -> Option<String> {
     let ext = path
         .extension()
@@ -46,7 +48,150 @@ pub fn extract_title(path: &Path) -> Option<String> {
         _ => None,
     }?;
     let title = title.trim();
-    (!title.is_empty()).then(|| title.to_owned())
+    if title.is_empty() {
+        return None;
+    }
+    if is_metadata_source(&ext) && is_placeholder_value(path, title) {
+        return None;
+    }
+    Some(title.to_owned())
+}
+
+/// 内容标题；占位或提取失败时回退：`storage == "archived"` 保留
+/// `original_name`（文件名是 UUID，主干无意义），其余用文件名主干。
+pub fn title_or_fallback(path: &Path, storage: &str, original_name: &str) -> String {
+    if let Some(title) = extract_title(path) {
+        return title;
+    }
+    if storage == "archived" {
+        return original_name.to_owned();
+    }
+    path.file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .unwrap_or_else(|| original_name.to_owned())
+}
+
+/// 元数据来源（pdf/docx/html）的标题是否为占位值。
+///
+/// markdown 与 org 的标题是正文内容，视为作者显式命名，恒返回 `false`。
+/// 供读取路径判断库内已存的旧值，写入路径由 [`extract_title`] 内部调用。
+pub fn is_placeholder_title(path: &Path, doc_type: &str, title: &str) -> bool {
+    is_metadata_source(doc_type) && is_placeholder_value(path, title)
+}
+
+fn is_metadata_source(kind: &str) -> bool {
+    matches!(kind, "pdf" | "docx" | "html" | "htm")
+}
+
+fn is_placeholder_value(path: &Path, title: &str) -> bool {
+    let title = normalize_title(title);
+    if title.is_empty() || title == "untitled" {
+        return true;
+    }
+    if is_powerpoint_default(&title)
+        || has_office_prefix(&title)
+        || is_default_document_name(&title)
+    {
+        return true;
+    }
+    is_file_name_like(path, &title)
+}
+
+/// 去首尾空白与外层单双引号，内部空白折叠为单空格，并转小写。
+fn normalize_title(title: &str) -> String {
+    let trimmed = title.trim().trim_matches(['\'', '"']).trim();
+    trimmed
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+/// `PowerPoint` 加本地化通用名词：演示文稿、簡報、Presentation 等。
+fn is_powerpoint_default(title: &str) -> bool {
+    let Some(rest) = title.strip_prefix("powerpoint") else {
+        return false;
+    };
+    let rest = rest.trim_start_matches([' ', '-', '–', '—']);
+    const NOUNS: [&str; 11] = [
+        "presentation",
+        "演示文稿",
+        "簡報",
+        "プレゼンテーション",
+        "프레젠테이션",
+        "präsentation",
+        "présentation",
+        "presentación",
+        "presentazione",
+        "презентация",
+        "apresentação",
+    ];
+    NOUNS.contains(&rest)
+}
+
+/// Office 导出 PDF 时嵌入源文件名：`Microsoft Word - <source>.docx` 等。
+fn has_office_prefix(title: &str) -> bool {
+    let title = title.strip_prefix("microsoft ").unwrap_or(title);
+    ["word", "excel", "powerpoint", "office"].iter().any(|app| {
+        title
+            .strip_prefix(app)
+            .is_some_and(|rest| rest.trim_start().starts_with(['-', '–', '—']))
+    })
+}
+
+/// Office 默认文档名：`Document1`、`Book1`、`工作簿1`、`演示文稿1` 等。
+fn is_default_document_name(title: &str) -> bool {
+    let stem = title.trim_end_matches(|c: char| c.is_ascii_digit());
+    if stem.len() == title.len() {
+        return false;
+    }
+    matches!(
+        stem,
+        "document"
+            | "book"
+            | "presentation"
+            | "文档"
+            | "工作簿"
+            | "演示文稿"
+            | "簡報"
+            | "プレゼンテーション"
+    )
+}
+
+/// 标题就是文件名、文件名主干，或以已知文档扩展名结尾。
+fn is_file_name_like(path: &Path, title: &str) -> bool {
+    if let Some(name) = path.file_name() {
+        let name = name.to_string_lossy().to_lowercase();
+        if title == name {
+            return true;
+        }
+        if let Some(stem) = Path::new(&name).file_stem() {
+            if stem.to_string_lossy().as_ref() == title {
+                return true;
+            }
+        }
+    }
+    const DOC_EXTENSIONS: [&str; 16] = [
+        ".pdf",
+        ".docx",
+        ".doc",
+        ".pptx",
+        ".ppt",
+        ".xlsx",
+        ".xls",
+        ".odt",
+        ".ods",
+        ".odp",
+        ".md",
+        ".markdown",
+        ".org",
+        ".html",
+        ".htm",
+        ".txt",
+    ];
+    DOC_EXTENSIONS
+        .iter()
+        .any(|extension| title.ends_with(extension))
 }
 
 fn pdf_title(path: &Path) -> Option<String> {
