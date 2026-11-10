@@ -47,6 +47,15 @@ struct SearchHit {
     title: String,
     snippet: String,
     tags: Vec<String>,
+    types: Vec<String>,
+}
+
+fn source_name(source: knowcraft_core::search::Source) -> &'static str {
+    match source {
+        knowcraft_core::search::Source::Name => "name",
+        knowcraft_core::search::Source::Tags => "tags",
+        knowcraft_core::search::Source::Fts => "fts",
+    }
 }
 
 #[derive(Subcommand)]
@@ -147,12 +156,14 @@ enum TrashCmd {
 enum Cmd {
     /// 全文搜索，返回命中的文档 id 与路径
     #[command(
-        long_about = "全文搜索，返回命中的文档 id 与路径\n\n查询作用于 tantivy 索引，支持 name: 文件名子串、kind: 文档类型、tags: 标签三类\
-        前缀；多个前缀以空格分隔，按 AND 组合。--limit 默认 50，0 与 -1 表示全部，上限 10000。\n\n文本模式每行输出“id 路径”，\
-        库内尚无已登记文档时报错；--json 输出数组、--jsonl 逐行输出对象，字段均为 id、path、title、snippet、tags；空库视为没有命中。"
+        long_about = "全文搜索，返回命中的文档 id 与路径\n\n查询支持 name: 文件名子串、tags: 标签、kind: 文档类型、fts: 全文四类\
+        前缀。未指定来源的词同时匹配文件名、标签与全文，结果按文档去重后汇总；同一个词的多个来源取并集，空格分隔的多个词按 AND \
+        组合。--limit 为总上限，默认 50，0 与 -1 表示全部，上限 10000。\n\n文本模式每行输出“id 路径”，库内尚无已登记文档时报错；\
+        --json 输出数组、--jsonl 逐行输出对象，字段均为 id、path、title、snippet、tags、types；types 记录命中来源，取值为 name、\
+        tags、fts，仅 kind: 过滤时为空数组。"
     )]
     Search {
-        /// 搜索查询，支持 name:/kind:/tags: 前缀
+        /// 搜索查询，支持 name:/tags:/kind:/fts: 前缀
         query: String,
         /// 输出 JSON 数组，供脚本与 Emacs 消费
         #[arg(long, conflicts_with = "jsonl")]
@@ -404,6 +415,11 @@ fn main() -> anyhow::Result<()> {
                     title: hit.title,
                     snippet: hit.snippet,
                     tags: tags.remove(&hit.document_id).unwrap_or_default(),
+                    types: hit
+                        .types
+                        .into_iter()
+                        .map(|source| source_name(source).to_owned())
+                        .collect(),
                 })
                 .collect();
             if json {

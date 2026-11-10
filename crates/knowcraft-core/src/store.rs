@@ -105,88 +105,54 @@ impl Store {
         self.conn.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// 按文档类型取未回收的文档 id（类型名大小写不敏感）。
-    pub fn document_ids_by_kind(&self, kind: &str) -> Result<Vec<i64>> {
+    /// 按文档类型取未回收的文档 id（类型名大小写不敏感），按标题排序。
+    pub fn document_ids_by_kind(&self, kind: &str, limit: usize) -> Result<Vec<i64>> {
         let conn = self.lock();
         let mut stmt = conn.prepare(
-            "SELECT id FROM documents WHERE lower(doc_type) = lower(?1) AND lifecycle <> 'trashed'",
+            "SELECT id FROM documents WHERE lower(doc_type) = lower(?1) \
+             AND lifecycle <> 'trashed' ORDER BY title LIMIT ?2",
         )?;
-        let rows = stmt.query_map(params![kind], |r| r.get(0))?;
+        let rows = stmt.query_map(params![kind, limit as i64], |r| r.get(0))?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
     }
 
-    /// 按文件名子串取未回收的文档 id（大小写不敏感，ASCII）。
-    pub fn document_ids_by_name(&self, needle: &str) -> Result<Vec<i64>> {
+    /// 按文件名子串取未回收的文档 id（大小写不敏感，ASCII），按标题排序。
+    pub fn document_ids_by_name(&self, needle: &str, limit: usize) -> Result<Vec<i64>> {
         let pattern = format!("%{}%", escape_like(needle).to_lowercase());
         let conn = self.lock();
         let mut stmt = conn.prepare(
             "SELECT id FROM documents
-             WHERE lower(original_name) LIKE ?1 ESCAPE '\\' AND lifecycle <> 'trashed'",
+             WHERE lower(original_name) LIKE ?1 ESCAPE '\\' AND lifecycle <> 'trashed'
+             ORDER BY title LIMIT ?2",
         )?;
-        let rows = stmt.query_map(params![pattern], |r| r.get(0))?;
+        let rows = stmt.query_map(params![pattern, limit as i64], |r| r.get(0))?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
     }
 
-    /// 取同时带有全部标签的未回收文档 id（标签名大小写不敏感，ASCII）。
-    pub fn document_ids_with_all_tags(&self, tags: &[String]) -> Result<Vec<i64>> {
-        if tags.is_empty() {
-            return Ok(Vec::new());
-        }
-        let mut sql =
-            String::from("SELECT DISTINCT d.id FROM documents d WHERE d.lifecycle <> 'trashed'");
-        for _ in 0..tags.len() {
-            sql.push_str(
-                " AND EXISTS (SELECT 1 FROM document_tags dt JOIN tags t ON t.id = dt.tag_id
-                   WHERE dt.document_id = d.id AND lower(t.name) LIKE lower(?) ESCAPE '\\')",
-            );
-        }
-        let values: Vec<rusqlite::types::Value> = tags
-            .iter()
-            .map(|tag| rusqlite::types::Value::Text(tag_like_pattern(tag)))
-            .collect();
-        let conn = self.lock();
-        let mut stmt = conn.prepare(&sql)?;
-        let rows = stmt.query_map(rusqlite::params_from_iter(values), |r| r.get(0))?;
-        Ok(rows.collect::<std::result::Result<_, _>>()?)
-    }
-
-    /// 纯过滤查询：kind/name/tags 之间为 AND，按标题排序，最多 `limit` 条。
-    pub fn documents_for_filters(
+    /// 按标签名取未回收文档 id，匹配后展开为该标签下的文档，按标题排序。
+    ///
+    /// `wildcard` 为真时 `*` 匹配任意串（`tags:` 前缀语义）；为假时按字面量子串匹配
+    /// （裸词语义），`%`、`_`、`\` 均按字面量。
+    pub fn document_ids_by_tag(
         &self,
-        names: &[String],
-        kinds: &[String],
-        tags: &[String],
+        needle: &str,
+        wildcard: bool,
         limit: usize,
-    ) -> Result<Vec<Document>> {
-        let mut sql = String::from(
-            "SELECT id, uuid, storage, original_name, path, doc_type, title, source_url,
-                    size, created_at, updated_at, checksum, ai_summary, lifecycle, index_status
-             FROM documents WHERE lifecycle <> 'trashed'",
-        );
-        let mut values: Vec<rusqlite::types::Value> = Vec::new();
-        for kind in kinds {
-            sql.push_str(" AND lower(doc_type) = lower(?)");
-            values.push(rusqlite::types::Value::Text(kind.clone()));
-        }
-        for name in names {
-            sql.push_str(" AND lower(original_name) LIKE ? ESCAPE '\\'");
-            values.push(rusqlite::types::Value::Text(format!(
-                "%{}%",
-                escape_like(name).to_lowercase()
-            )));
-        }
-        for tag in tags {
-            sql.push_str(
-                " AND EXISTS (SELECT 1 FROM document_tags dt JOIN tags t ON t.id = dt.tag_id
-                   WHERE dt.document_id = documents.id AND lower(t.name) LIKE lower(?) ESCAPE '\\')",
-            );
-            values.push(rusqlite::types::Value::Text(tag_like_pattern(tag)));
-        }
-        sql.push_str(" ORDER BY title LIMIT ?");
-        values.push(rusqlite::types::Value::Integer(limit as i64));
+    ) -> Result<Vec<i64>> {
+        let pattern = if wildcard {
+            tag_like_pattern(needle)
+        } else {
+            format!("%{}%", escape_like(needle))
+        };
         let conn = self.lock();
-        let mut stmt = conn.prepare(&sql)?;
-        let rows = stmt.query_map(rusqlite::params_from_iter(values), document_from_row)?;
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT d.id FROM documents d \
+             JOIN document_tags dt ON dt.document_id = d.id \
+             JOIN tags t ON t.id = dt.tag_id \
+             WHERE lower(t.name) LIKE lower(?1) ESCAPE '\\' \
+             AND d.lifecycle <> 'trashed' ORDER BY d.title LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(params![pattern, limit as i64], |r| r.get(0))?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
     }
 
@@ -1020,26 +986,6 @@ fn backfill_identity(conn: &Connection, data_dir: &Path) -> Result<usize> {
         )?;
     }
     Ok(rows.len())
-}
-
-fn document_from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Document> {
-    Ok(Document {
-        id: r.get(0)?,
-        uuid: r.get(1)?,
-        storage: r.get(2)?,
-        original_name: r.get(3)?,
-        path: r.get(4)?,
-        doc_type: r.get(5)?,
-        title: r.get(6)?,
-        source_url: r.get(7)?,
-        size: r.get(8)?,
-        created_at: r.get(9)?,
-        updated_at: r.get(10)?,
-        checksum: r.get(11)?,
-        ai_summary: r.get(12)?,
-        lifecycle: r.get(13)?,
-        index_status: r.get(14)?,
-    })
 }
 
 /// 把标签查询转成 SQL LIKE 模式：`*` 匹配任意串，`%`、`_`、`\` 按字面量转义。

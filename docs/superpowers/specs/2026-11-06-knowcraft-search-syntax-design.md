@@ -1,6 +1,9 @@
 # knowcraft 搜索语法设计（第一期）
 
 > 状态：第一期已完成（core 与 CLI 已验证，GUI 待手测）
+> 第二期修订：`2026-11-10-search-source-aggregation-design.md` 新增 `fts:` 前缀、
+> 裸词三来源聚合，并把裸词与 `tags:` 前缀拆成两套标签匹配规则；本文相关小节已同步
+> 标注，冲突处以第二期设计为准。
 > 调研对象：DEVONthink 3.8.2 官方帮助 Appendix > Search operators / Search Prefixes，以及官方博客
 > 分层依据：`AGENTS.md`「动作先落 core，多壳复用」
 > 审查报告：`docs/review/2026-11-06-search-syntax-{architecture,semantics,engineering}.md`
@@ -71,6 +74,11 @@ knowcraft 现有搜索是单层全文检索：core 的 `Index::search(query, lim
 | `name:` | 文件名包含子串（大小写不敏感，ASCII） | `documents.original_name` |
 | `kind:` | 文档类型精确匹配 | `documents.doc_type` |
 | `tags:` | 标签名匹配，`*` 匹配任意串，其余字符按字面量（大小写不敏感，ASCII） | `tags.name` 经 `document_tags` 关联 |
+| `fts:` | 全文与标题匹配（第二期新增），值按全文规则转义 | 索引 `title`、`content` |
+
+第二期起，未加前缀的裸词同时作用于 `name`、`tags`、`fts` 三个来源并聚合结果。裸词的
+`tags` 来源按标签名子串匹配（`%值%`），与 `tags:` 前缀的「不含 `*` 精确、含 `*` 通配」
+规则不同；两套匹配器不得混用。详见 `2026-11-10-search-source-aggregation-design.md`。
 
 **TODO：内容与元数据**
 
@@ -138,32 +146,38 @@ wordcount:500-1000
 ```
 query      := clause (SP clause)*          # 空格分隔，隐式 AND
 clause     := prefixed | phrase | term
-prefixed   := ("name" | "kind" | "tags") ":" value
+prefixed   := ("name" | "kind" | "tags" | "fts") ":" value
 phrase     := '"' ... '"'
-term       := 普通词，经字面量转义后交给全文检索
-value      := 非空白字符序列；不支持通配符，* 视为普通字符
+term       := 裸词，同时作用于 name、tags、fts 三个来源（第二期）
+value      := 非空白字符序列；tags: 的 * 为通配符，其余前缀与裸词按字面量
 ```
 
 规则：
 
 - 前缀名大小写不敏感（`Name:` 等价 `name:`）。
 - `name:` 匹配 `original_name`，包含子串，大小写不敏感（ASCII 范围；中文无大小写）。
-  不支持通配符与路径分隔符语义；值中的 `%`、`_` 按字面量处理。
+  不支持通配符与路径分隔符语义；值中的 `%`、`_`、`\`、`*` 按字面量处理。
 - `kind:` 精确匹配 `doc_type`，值大小写不敏感。值域见 `detect_type`：`pdf`、`docx`、
   `md`、`org`、`html`、`image`、`other`。未知值返回空结果。
 - `tags:` 匹配标签名，大小写不敏感（ASCII）。值内 `*` 匹配任意串（`grap*` 前缀、
   `*phene` 后缀、`*rap*` 包含），`%`、`_`、`\` 按字面量处理；不含 `*` 时为精确匹配。
   多个 `tags:` 条件为 AND。
+- 裸词的 `tags` 来源与之不同：按标签名子串匹配（`%值%`），`%`、`_`、`\`、`*` 均按
+  字面量处理。命中标签后展开为该标签下的未回收文档。
+- `fts:` 匹配索引的 `title` 与 `content`；值按全文规则转义（特殊字符替换为空格，
+  裸布尔词包成短语），不带前缀的裸词也使用同一路径。
 - 重复前缀（如两个 `kind:`）为 AND；不同 `kind:` 值因此恒空，与 AND 语义一致。
-- 未识别前缀（如 `url:x`、`https://x`、`10:30`）按普通全文词处理：冒号与其他
-  tantivy 特殊字符一律转义为字面量，不报错、不触发字段解析。
+- 未识别前缀（如 `url:x`、`https://x`、`10:30`）按裸词处理：作用于三个来源，
+  全文部分对其他 tantivy 特殊字符一律转义为字面量，不报错、不触发字段解析。
 - 全文部分刻意收窄：第一期仅支持隐式 AND 与引号短语；裸 `AND`/`OR`/`NOT`/`BUT`/
   `XOR` 视为普通词，`+`/`-`/括号/通配符等特殊字符按字面量转义。
   这与旧行为有差异：过去这些字符会被 tantivy 解释为高级语法，现在不会。
 - 空查询（含纯空白）返回空结果，且不访问索引。
-- 纯过滤查询（无全文词，如 `kind:pdf`、`tags:work`）由 store 直接回答，
-  不要求索引已建立；结果按 `title` 排序。
-- 全文与过滤混合时，过滤条件作为 allowed id 集合与索引结果取交集。
+- 纯过滤查询（无来源词，如 `kind:pdf`）由 store 直接回答，不要求索引已建立；
+  结果按 `title` 排序。
+- 第二期起不再使用「过滤条件作为 allowed id 集合与索引结果取交集」的策略：每个 token
+  在自身来源内取并集，token 之间取交集，`kind:` 作为全局过滤。同上，冲突处以
+  `2026-11-10-search-source-aggregation-design.md` 为准。
 
 示例：
 
@@ -185,6 +199,11 @@ name:2026 tags:work
 - 权重差异化：第一期不做 OPT 式排序加权
 
 ## 5. 设计
+
+> 第二期修订：`ParsedQuery` 改为 `tokens: Vec<QueryToken>` 加 `kinds`，`search` 返回
+> `Vec<SearchHit>`（含 `types` 来源数组）；`allowed_ids`/`filtered_documents` 的
+> 「过滤集合与索引结果取交集」链路已删除。本节的接口签名与执行策略保留为第一期记录，
+> 当前行为以 `2026-11-10-search-source-aggregation-design.md` 为准。
 
 ### 5.1 core 接口
 
@@ -333,6 +352,9 @@ impl Store {
 - [ ] CLI 搜索不再重建索引；同一查询成功路径下 CLI 与 GUI 结果一致
       （CLI 已验，GUI 待手测）。
 - [x] `cargo test -p knowcraft-core` 全绿（81 passed）。
+- [x] 第二期：裸词同时作用于 `name`/`tags`/`fts` 并聚合去重，`fts:` 前缀生效，
+      `types` 记录来源；裸词标签子串与 `tags:` 通配两套匹配器分离（测试见
+      `search/tests.rs` 与 CLI `types` 用例）。
 
 ## 8. TODO（后续版本）
 

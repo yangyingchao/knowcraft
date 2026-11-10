@@ -405,12 +405,14 @@ fn search_json_reports_contract_fields_and_sorted_tags() {
     assert!(hit["path"].as_str().unwrap().contains("搜索 笔记.md"));
     assert_eq!(hit["snippet"].as_str().unwrap(), "a needle here");
     assert_eq!(hit["tags"], serde_json::json!(["alpha", "zeta"]));
+    assert_eq!(hit["types"], serde_json::json!(["fts"]));
     let keys = [
         "\"id\":",
         "\"path\":",
         "\"title\":",
         "\"snippet\":",
         "\"tags\":",
+        "\"types\":",
     ];
     let positions: Vec<usize> = keys
         .iter()
@@ -420,6 +422,47 @@ fn search_json_reports_contract_fields_and_sorted_tags() {
         })
         .collect();
     assert!(positions.windows(2).all(|pair| pair[0] < pair[1]), "{text}");
+}
+
+#[test]
+fn search_json_merges_sources_into_one_row_with_types() {
+    let dir = data_dir("search-json-types-merged");
+    let id = add_and_index(&dir, "needle-name.md", "needle body");
+
+    let out = run_cli(&dir, &["search", "--json", "needle"]);
+    assert!(
+        out.status.success(),
+        "search failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let value: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let hits = value.as_array().unwrap();
+    assert_eq!(hits.len(), 1, "a document matched twice must appear once");
+    assert_eq!(hits[0]["id"].as_i64().unwrap(), id);
+    assert_eq!(hits[0]["types"], serde_json::json!(["name", "fts"]));
+}
+
+#[test]
+fn search_json_reports_tags_source_for_a_bare_word() {
+    let dir = data_dir("search-json-types-tags");
+    let id = add_and_index(&dir, "plain.md", "unrelated body");
+    {
+        let store = knowcraft_core::store::Store::open(&dir).unwrap();
+        let tags = knowcraft_core::tags::Tags::new(store);
+        tags.add(id, "needle").unwrap();
+    }
+
+    let out = run_cli(&dir, &["search", "--json", "needle"]);
+    assert!(
+        out.status.success(),
+        "search failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let value: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let hits = value.as_array().unwrap();
+    assert_eq!(hits.len(), 1, "{value}");
+    assert_eq!(hits[0]["id"].as_i64().unwrap(), id);
+    assert_eq!(hits[0]["types"], serde_json::json!(["tags"]));
 }
 
 #[test]

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-//! 搜索语法解析与组合检索。
+//! 搜索语法解析与来源聚合检索。
 //!
-//! 第一期支持 `name:`、`kind:`、`tags:` 三个前缀，空格分隔为隐式 AND；
-//! 未识别前缀与裸布尔词按普通全文词处理。语法与范围见
-//! `docs/superpowers/specs/2026-11-06-knowcraft-search-syntax-design.md`。
+//! 未指定来源的词同时作用于 `name`、`tags`、`fts` 三个来源并聚合结果；显式
+//! `name:`、`tags:`、`fts:` 只作用于对应来源，`kind:` 仍是全局过滤。同一 token
+//! 内来源取并集，token 之间取交集。语法与范围见
+//! `docs/superpowers/specs/2026-11-10-search-source-aggregation-design.md`。
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     error::Result,
@@ -15,14 +16,45 @@ use crate::{
     store::Store,
 };
 
+/// 单个来源的候选数量上限；超出时按标题截断，结果可能不完整。
+const MAX_CANDIDATES: usize = 20_000;
+
+/// 命中来源。输出顺序固定为 `Name`、`Tags`、`Fts`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Source {
+    Name,
+    Tags,
+    Fts,
+}
+
+impl Source {
+    fn rank(self) -> u8 {
+        match self {
+            Source::Name => 0,
+            Source::Tags => 1,
+            Source::Fts => 2,
+        }
+    }
+}
+
+/// 解析后的单个检索子句。
+#[derive(Debug, Clone, PartialEq)]
+pub struct QueryToken {
+    /// 该子句作用的来源集合。
+    pub sources: Vec<Source>,
+    /// 原始值；引号短语保留外层引号，`name`/`tags` 匹配前去掉。
+    pub value: String,
+    /// 是否为引号短语，fts 查询保留短语语义。
+    pub phrase: bool,
+    /// `tags:` 前缀值按第一期 `*` 通配；裸词按字面量。
+    pub wildcard_tags: bool,
+}
+
 /// 解析后的查询条件。
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct ParsedQuery {
-    /// 全文部分：普通词与引号短语，特殊字符已转义。
-    pub full_text: String,
-    pub names: Vec<String>,
+    pub tokens: Vec<QueryToken>,
     pub kinds: Vec<String>,
-    pub tags: Vec<String>,
 }
 
 /// HTTP/MCP 边界的请求类型；CLI 与 GUI 可直接传字符串。
@@ -32,13 +64,27 @@ pub struct SearchRequest {
     pub limit: usize,
 }
 
-/// 解析用户输入；未识别前缀与裸布尔词按普通词处理，不返回错误。
+/// 聚合检索的命中；字段与 `IndexHit` 对应并增加命中来源。
+#[derive(Debug, Clone)]
+pub struct SearchHit {
+    pub document_id: i64,
+    pub path: String,
+    pub title: String,
+    pub snippet: String,
+    pub types: Vec<Source>,
+}
+
+/// 解析用户输入；未识别前缀与裸布尔词按裸词处理，不返回错误。
 pub fn parse(query: &str) -> ParsedQuery {
     let mut parsed = ParsedQuery::default();
-    let mut full = Vec::new();
     for token in split_tokens(query) {
         if is_phrase(&token) {
-            full.push(token);
+            parsed.tokens.push(QueryToken {
+                sources: all_sources(),
+                value: token,
+                phrase: true,
+                wildcard_tags: false,
+            });
             continue;
         }
         if let Some((prefix, value)) = token.split_once(':') {
@@ -46,7 +92,7 @@ pub fn parse(query: &str) -> ParsedQuery {
             if !value.is_empty() {
                 match prefix.as_str() {
                     "name" => {
-                        parsed.names.push(value.to_owned());
+                        push_prefixed(&mut parsed, Source::Name, value, false);
                         continue;
                     }
                     "kind" => {
@@ -54,61 +100,156 @@ pub fn parse(query: &str) -> ParsedQuery {
                         continue;
                     }
                     "tags" => {
-                        parsed.tags.push(value.to_owned());
+                        push_prefixed(&mut parsed, Source::Tags, value, true);
+                        continue;
+                    }
+                    "fts" => {
+                        push_prefixed(&mut parsed, Source::Fts, value, false);
                         continue;
                     }
                     _ => {}
                 }
             }
         }
-        if let Some(token) = sanitize_full_text(&token) {
-            full.push(token);
-        }
+        parsed.tokens.push(QueryToken {
+            sources: all_sources(),
+            value: token,
+            phrase: false,
+            wildcard_tags: false,
+        });
     }
-    parsed.full_text = full.join(" ");
+    dedup_tokens(&mut parsed.tokens);
     parsed
 }
 
-/// 组合检索：`name`/`kind`/`tags` 由 store 过滤，全文由索引检索，条件之间为 AND。
-pub fn search(store: &Store, index: &Index, query: &str, limit: usize) -> Result<Vec<IndexHit>> {
+/// 来源聚合检索：每个 token 在各来源取并集，token 之间取交集，`kind:` 作为
+/// 全局过滤。候选阶段不按 `limit` 截断，排序后统一截断。
+pub fn search(store: &Store, index: &Index, query: &str, limit: usize) -> Result<Vec<SearchHit>> {
     let parsed = parse(query);
-    if parsed.full_text.trim().is_empty() {
-        return filtered_documents(store, &parsed, limit);
+    if limit == 0 || (parsed.tokens.is_empty() && parsed.kinds.is_empty()) {
+        return Ok(Vec::new());
     }
-    let allowed = allowed_ids(store, &parsed)?;
-    search_with_healing(store, index, &parsed.full_text, allowed.as_ref(), limit)
+
+    let mut candidates: Option<HashSet<i64>> = None;
+    let mut origin: HashMap<i64, Vec<Source>> = HashMap::new();
+    let mut fts_hits: HashMap<i64, IndexHit> = HashMap::new();
+
+    for token in &parsed.tokens {
+        let mut token_ids = HashSet::new();
+        for source in &token.sources {
+            let ids = source_ids(store, index, *source, token, &mut fts_hits)?;
+            for id in ids {
+                token_ids.insert(id);
+                let entry = origin.entry(id).or_default();
+                if !entry.contains(source) {
+                    entry.push(*source);
+                }
+            }
+        }
+        intersect(&mut candidates, token_ids);
+    }
+
+    for kind in &parsed.kinds {
+        let ids: HashSet<i64> = store
+            .document_ids_by_kind(kind, MAX_CANDIDATES)?
+            .into_iter()
+            .collect();
+        intersect(&mut candidates, ids);
+    }
+
+    let Some(candidates) = candidates else {
+        return Ok(Vec::new());
+    };
+    if candidates.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let ids: Vec<i64> = candidates.into_iter().collect();
+    let documents = store.documents_by_ids(&ids)?;
+    let mut ranked: Vec<(SearchHit, u8)> = documents
+        .into_values()
+        .filter(is_indexable)
+        .map(|document| {
+            let mut types = origin.get(&document.id).cloned().unwrap_or_default();
+            types.sort_by_key(|source| source.rank());
+            // 字段命中的优先级：name > tags > 仅 fts。
+            let tier = if types.contains(&Source::Name) {
+                0
+            } else if types.contains(&Source::Tags) {
+                1
+            } else {
+                2
+            };
+            let snippet = fts_hits
+                .get(&document.id)
+                .map(|hit| hit.snippet.clone())
+                .unwrap_or_default();
+            (
+                SearchHit {
+                    document_id: document.id,
+                    path: document.path,
+                    title: document.title,
+                    snippet,
+                    types,
+                },
+                tier,
+            )
+        })
+        .collect();
+
+    ranked.sort_by(|a, b| {
+        a.1.cmp(&b.1)
+            .then_with(|| a.0.title.cmp(&b.0.title))
+            .then_with(|| a.0.document_id.cmp(&b.0.document_id))
+    });
+    ranked.truncate(limit);
+    Ok(ranked.into_iter().map(|(hit, _)| hit).collect())
 }
 
-/// 全文检索并在返回前用数据库校正结果。
+/// 取单个来源的候选 id 集合，并记录 fts 命中的摘要。
+fn source_ids(
+    store: &Store,
+    index: &Index,
+    source: Source,
+    token: &QueryToken,
+    fts_hits: &mut HashMap<i64, IndexHit>,
+) -> Result<HashSet<i64>> {
+    let ids: Vec<i64> = match source {
+        Source::Name => store.document_ids_by_name(&strip_quotes(&token.value), MAX_CANDIDATES)?,
+        Source::Tags => store.document_ids_by_tag(
+            &strip_quotes(&token.value),
+            token.wildcard_tags,
+            MAX_CANDIDATES,
+        )?,
+        Source::Fts => {
+            let text = fts_text(token);
+            if text.is_empty() {
+                return Ok(HashSet::new());
+            }
+            let hits = search_fts_all(store, index, &text)?;
+            let ids = hits.iter().map(|hit| hit.document_id).collect();
+            for hit in hits {
+                fts_hits.entry(hit.document_id).or_insert(hit);
+            }
+            ids
+        }
+    };
+    Ok(ids.into_iter().collect())
+}
+
+/// 全文检索取全量候选并在返回前用数据库校正，不做 limit 截断。
 ///
 /// 索引中的 `document_id` 与 `path` 是写入时的快照，可能在数据库删除记录或
 /// 路径被新 id 复用后过期。这里按 id 回查数据库，查不到再按 path 回查；两者
-/// 都没有则丢弃，最终按数据库 id 去重。索引命中可能因此变少，所以按需超取
-/// 后再截断到 `limit`。
-fn search_with_healing(
-    store: &Store,
-    index: &Index,
-    text: &str,
-    allowed: Option<&HashSet<i64>>,
-    limit: usize,
-) -> Result<Vec<IndexHit>> {
-    if limit == 0 {
-        return Ok(Vec::new());
-    }
+/// 都没有则丢弃，最终按数据库 id 去重。
+fn search_fts_all(store: &Store, index: &Index, text: &str) -> Result<Vec<IndexHit>> {
     let index_docs = index.num_docs()?;
     if index_docs == 0 {
         return Ok(Vec::new());
     }
-    let mut take = limit.saturating_mul(2).max(limit).min(index_docs);
-    loop {
-        let raw = index.search_filtered(text, allowed, take)?;
-        let more = raw.len() >= take && take < index_docs;
-        let healed = heal_hits(store, raw, limit)?;
-        if healed.len() >= limit || !more {
-            return Ok(healed);
-        }
-        take = take.saturating_mul(2).min(index_docs);
-    }
+    let take = index_docs.min(MAX_CANDIDATES);
+    let raw = index.search_filtered(text, None, take)?;
+    heal_hits(store, raw, take)
 }
 
 /// 用数据库校正单批索引命中，并截断到 `limit`。
@@ -159,46 +300,53 @@ fn heal_hits(store: &Store, hits: Vec<IndexHit>, limit: usize) -> Result<Vec<Ind
     Ok(healed)
 }
 
-/// 无全文词时由 store 直接回答，不要求索引已建立。
-fn filtered_documents(store: &Store, parsed: &ParsedQuery, limit: usize) -> Result<Vec<IndexHit>> {
-    let documents =
-        store.documents_for_filters(&parsed.names, &parsed.kinds, &parsed.tags, limit)?;
-    Ok(documents
-        .into_iter()
-        .map(|document| IndexHit {
-            document_id: document.id,
-            path: document.path,
-            title: document.title,
-            snippet: String::new(),
-        })
-        .collect())
-}
-
-/// 各过滤条件取交集；没有任何过滤条件时返回 `None`。
-fn allowed_ids(store: &Store, parsed: &ParsedQuery) -> Result<Option<HashSet<i64>>> {
-    let mut allowed: Option<HashSet<i64>> = None;
-    for name in &parsed.names {
-        let ids: HashSet<i64> = store.document_ids_by_name(name)?.into_iter().collect();
-        intersect(&mut allowed, ids);
-    }
-    for kind in &parsed.kinds {
-        let ids: HashSet<i64> = store.document_ids_by_kind(kind)?.into_iter().collect();
-        intersect(&mut allowed, ids);
-    }
-    if !parsed.tags.is_empty() {
-        let ids: HashSet<i64> = store
-            .document_ids_with_all_tags(&parsed.tags)?
-            .into_iter()
-            .collect();
-        intersect(&mut allowed, ids);
-    }
-    Ok(allowed)
-}
-
-fn intersect(allowed: &mut Option<HashSet<i64>>, ids: HashSet<i64>) {
-    match allowed {
+fn intersect(candidates: &mut Option<HashSet<i64>>, ids: HashSet<i64>) {
+    match candidates {
         Some(current) => current.retain(|id| ids.contains(id)),
-        None => *allowed = Some(ids),
+        None => *candidates = Some(ids),
+    }
+}
+
+fn all_sources() -> Vec<Source> {
+    vec![Source::Name, Source::Tags, Source::Fts]
+}
+
+fn push_prefixed(parsed: &mut ParsedQuery, source: Source, value: &str, wildcard_tags: bool) {
+    parsed.tokens.push(QueryToken {
+        sources: vec![source],
+        value: value.to_owned(),
+        phrase: false,
+        wildcard_tags,
+    });
+}
+
+fn dedup_tokens(tokens: &mut Vec<QueryToken>) {
+    let mut seen = HashSet::new();
+    tokens.retain(|token| {
+        seen.insert((
+            token.sources.clone(),
+            token.value.clone(),
+            token.phrase,
+            token.wildcard_tags,
+        ))
+    });
+}
+
+/// fts 查询文本：引号短语保留引号，其余按全文规则转义。
+fn fts_text(token: &QueryToken) -> String {
+    if token.phrase {
+        token.value.clone()
+    } else {
+        sanitize_full_text(&token.value).unwrap_or_default()
+    }
+}
+
+/// `name`/`tags` 匹配前去掉引号短语的外层引号。
+fn strip_quotes(value: &str) -> String {
+    if is_phrase(value) {
+        value[1..value.len() - 1].to_owned()
+    } else {
+        value.to_owned()
     }
 }
 

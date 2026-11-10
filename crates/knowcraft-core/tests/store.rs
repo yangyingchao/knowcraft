@@ -151,3 +151,62 @@ fn find_by_uuid_hit() {
     assert_eq!(found.id, id);
     assert!(store.find_by_uuid("missing").unwrap().is_none());
 }
+
+#[test]
+fn id_queries_sort_by_title_cap_the_limit_and_skip_trash() {
+    let dir = std::env::temp_dir().join("kc-store-id-queries");
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Store::open(&dir).unwrap();
+
+    let rows = [
+        ("/tmp/c-report.md", "a", "pending", "Work"),
+        ("/tmp/b-report.md", "b", "pending", "workshop"),
+        ("/tmp/a-report.md", "c", "pending", "work"),
+        ("/tmp/d-report.md", "d", "trashed", "work"),
+    ];
+    let mut ids = Vec::new();
+    for (path, title, lifecycle, tag) in rows {
+        let mut item = doc(path, &format!("uuid-{title}"));
+        item.original_name = path.rsplit('/').next().unwrap().to_owned();
+        item.title = title.into();
+        item.lifecycle = lifecycle.into();
+        item.checksum = format!("checksum-{title}");
+        let id = store.insert_document(&item).unwrap();
+        knowcraft_core::tags::Tags::new(store.clone())
+            .add(id, tag)
+            .unwrap();
+        ids.push(id);
+    }
+
+    assert_eq!(
+        store.document_ids_by_name("report", 10).unwrap().len(),
+        3,
+        "the trashed document is excluded"
+    );
+    assert_eq!(
+        store.document_ids_by_name("report", 1).unwrap(),
+        vec![ids[0]],
+        "the limit keeps the first title in order"
+    );
+    assert_eq!(store.document_ids_by_kind("PDF", 10).unwrap().len(), 3);
+
+    assert_eq!(
+        store.document_ids_by_tag("work", false, 10).unwrap().len(),
+        3,
+        "a bare word is a case-insensitive substring"
+    );
+    assert_eq!(
+        store.document_ids_by_tag("work", false, 2).unwrap(),
+        vec![ids[0], ids[1]]
+    );
+    assert_eq!(
+        store.document_ids_by_tag("work", true, 10).unwrap(),
+        vec![ids[0], ids[2]],
+        "a prefixed value without * is exact, ignoring ASCII case"
+    );
+    assert_eq!(
+        store.document_ids_by_tag("wor*", true, 10).unwrap().len(),
+        3,
+        "* is a wildcard only for prefixed values"
+    );
+}

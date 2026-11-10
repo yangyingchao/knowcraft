@@ -1,8 +1,21 @@
 # CLI search --json 设计
 
 - 日期：2026-11-08
-- 状态：已评审（grill 已处理）
+- 状态：已评审（grill 已处理）；2026-11-10 追加 `types` 字段（见文末「2026-11-10 修订」）
 - 范围：`knowcraft-cli` 的 `search` 与 `status` 子命令
+
+## 2026-11-10 修订
+
+搜索来源聚合（`2026-11-10-search-source-aggregation-design.md`）改变了 core 的搜索
+语义与排序，本设计的输出契约随之追加 `types`：
+
+- 顶层数组元素新增 `types`，作为 `tags` 之后的最后一个键；其余键名、含义与顺序不变。
+- `types` 记录文档入选时的命中来源，取值为 `name`、`tags`、`fts`，固定按此顺序输出。
+- `Source` 不派生 `Serialize`，CLI 层负责映射为字符串，沿用「core 不绑定 wire format」
+  的原则。
+- 数组顺序改为「name 命中优先，其次 tags 命中，最后仅全文命中；同一档内按标题与 id」，不再承诺全文相关性顺序。
+- 原「非目标」中的「不改变搜索语法、排序」仅描述 2026-11-08 当次改动；2026-11-10
+  的语法与排序变化由上述设计文档定义。
 
 ## 背景
 
@@ -52,9 +65,11 @@ knowcraft-cli status [--json]
 | `title` | 字符串 | 文档标题；空串表示无标题，消费方可回退显示文件名 |
 | `snippet` | 字符串 | 纯文本摘要（约 60 字符，无高亮标记，可能含换行与控制字符，由 JSON 转义）；过滤查询没有摘要时为空串 |
 | `tags` | 字符串数组 | 该文档在数据库中的标签，按 SQLite BINARY collation 升序；无标签为 `[]` |
+| `types` | 字符串数组 | 命中来源，取值 `name`、`tags`、`fts`，按此固定顺序输出；仅 `kind:` 过滤时为 `[]` |
 
-字段顺序固定为 `id`、`path`、`title`、`snippet`、`tags`。数组顺序沿用 core 搜索顺序
-（全文命中为相关性顺序，过滤命中按标题），不承诺跨版本稳定；需要固定顺序时由消费方排序。
+字段顺序固定为 `id`、`path`、`title`、`snippet`、`tags`、`types`。数组顺序沿用 core
+搜索顺序（name 命中优先，其次 tags，最后仅全文命中；同档按标题与 id），不承诺跨版本稳定；需要固定顺序时由
+消费方排序。
 
 示例：
 
@@ -65,7 +80,8 @@ knowcraft-cli status [--json]
     "path": "/home/user/Knowledge/library/paper.pdf",
     "title": "A Paper",
     "snippet": "matching fragment",
-    "tags": ["paper", "rust"]
+    "tags": ["paper", "rust"],
+    "types": ["name", "fts"]
   }
 ]
 ```
@@ -123,6 +139,7 @@ classDiagram
         +String title
         +String snippet
         +Vec~String~ tags
+        +Vec~String~ types
     }
     IndexHit --> SearchHit : 字段映射
     SearchHit --> JSON : serde_json
@@ -136,14 +153,11 @@ sequenceDiagram
     participant Tags
     CLI->>CLI: 解析参数并校验 limit
     CLI->>Store: count_documents()（仅全部模式）
-    CLI->>Index: search(query, limit)
-    Index-->>CLI: Vec<IndexHit>
+    CLI->>Index: search::search(store, index, query, limit)
+    Index-->>CLI: Vec<SearchHit>（含 types）
     CLI->>Tags: list_for_many(document_ids)
     Tags-->>CLI: HashMap<i64, Vec<String>>
-    loop 每条命中
-        CLI->>Store: get_document(id) 回填当前路径
-    end
-    CLI->>CLI: 映射为 SearchHit
+    CLI->>CLI: 映射为本地 SearchHit，Source 映射为字符串
     CLI-->>CLI: to_vec 后一次写出 stdout
 ```
 
@@ -208,6 +222,8 @@ JSON 模式先用 `to_vec` 构建完整字节再一次性写出并补换行，�
 CLI 集成测试：
 
 - `search --json` 输出可解析数组，字段名与顺序固定，标签按 BINARY 升序。
+- `types` 为来源数组，纯全文命中为 `["fts"]`，同一文档同时命中 name 与 fts 时只有一行
+  且 `types` 为 `["name", "fts"]`，仅命中标签时为 `["tags"]`。
 - 空库 `search --json` 输出 `[]` 且退出 0；文本模式仍报错。
 - 无命中输出 `[]`；过滤查询的 `snippet` 为空串。
 - `--limit 1` 只返回一条；`--limit 0` 与 `-1` 返回全部；51 条 fixture 下默认恰好 50 条。
