@@ -133,7 +133,7 @@ fn search_without_index_returns_clean_error() {
 }
 
 #[test]
-fn add_rejects_duplicate_with_nonzero_exit() {
+fn add_skips_duplicate_single_file_with_success() {
     let dir = data_dir("dup");
     let src = dir.join("dup.md");
     std::fs::write(&src, "same content").unwrap();
@@ -152,7 +152,175 @@ fn add_rejects_duplicate_with_nonzero_exit() {
         .arg(&src)
         .output()
         .unwrap();
-    assert!(!second.status.success());
+    assert!(
+        second.status.success(),
+        "默认跳过同名路径不算失败: {}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+    let text = String::from_utf8_lossy(&second.stdout);
+    assert!(text.contains("skipped: "), "{text}");
+    assert!(text.contains("reason=existing"), "{text}");
+}
+
+#[test]
+fn add_multiple_sources_into_dest_with_summary() {
+    let dir = data_dir("add-multi");
+    let single = dir.join("one.md");
+    std::fs::write(&single, "multi one").unwrap();
+    let folder = dir.join("pack");
+    std::fs::create_dir_all(folder.join("nested")).unwrap();
+    std::fs::write(folder.join("x.md"), "multi x").unwrap();
+    std::fs::write(folder.join("nested/y.md"), "multi y").unwrap();
+
+    let out = run_cli(
+        &dir,
+        &[
+            "add",
+            single.to_str().unwrap(),
+            folder.to_str().unwrap(),
+            "--dest",
+            "library",
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "add failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 3, "{text}");
+    assert!(lines[0].starts_with("added: id="), "{text}");
+    assert!(
+        lines[1].starts_with("imported: path=")
+            && lines[1].ends_with("imported=2 updated=0 skipped_existing=0 skipped_duplicate=0"),
+        "{text}"
+    );
+    assert_eq!(lines[2], "added: count=3 failed=0", "{text}");
+    assert!(dir.join("library/one.md").exists());
+    assert!(dir.join("library/pack/x.md").exists());
+    assert!(dir.join("library/pack/nested/y.md").exists());
+    assert!(!dir.join("inbox/one.md").exists(), "指定 dest 后不落 inbox");
+}
+
+#[test]
+fn add_force_updates_the_existing_document_in_place() {
+    let dir = data_dir("add-force");
+    let src = dir.join("note.md");
+    std::fs::write(&src, "force old").unwrap();
+    let first = run_cli(&dir, &["add", src.to_str().unwrap()]);
+    assert!(first.status.success());
+    let first_text = String::from_utf8_lossy(&first.stdout);
+    let first_id: i64 = first_text
+        .split_whitespace()
+        .find_map(|word| word.strip_prefix("id="))
+        .and_then(|value| value.parse().ok())
+        .expect("add prints an id");
+
+    std::fs::write(&src, "force new").unwrap();
+    let out = run_cli(&dir, &["add", src.to_str().unwrap(), "--force"]);
+    assert!(
+        out.status.success(),
+        "add --force failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        text.starts_with(&format!("updated: id={first_id} ")),
+        "{text}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.join("inbox/note.md")).unwrap(),
+        "force new"
+    );
+}
+
+#[test]
+fn add_rejects_a_source_inside_the_data_dir() {
+    let dir = data_dir("add-inside");
+    let inside = dir.join("notes").join("inside.md");
+    std::fs::create_dir_all(inside.parent().unwrap()).unwrap();
+    std::fs::write(&inside, "inside source").unwrap();
+
+    let out = run_cli(
+        &dir,
+        &["add", inside.to_str().unwrap(), "--dest", "library"],
+    );
+    assert!(!out.status.success(), "库内源必须拒绝");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("inside the managed library"), "{stderr}");
+    assert!(stderr.contains("register"), "{stderr}");
+}
+
+#[test]
+fn add_reports_failures_and_exits_nonzero() {
+    let dir = data_dir("add-fail");
+    let good = dir.join("good.md");
+    std::fs::write(&good, "good source").unwrap();
+    let missing = dir.join("missing.md");
+
+    let out = run_cli(
+        &dir,
+        &[
+            "add",
+            good.to_str().unwrap(),
+            missing.to_str().unwrap(),
+            "--dest",
+            "inbox",
+        ],
+    );
+    assert!(!out.status.success(), "存在失败源时退出码非零");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(
+        stdout.lines().last(),
+        Some("added: count=1 failed=1"),
+        "{stdout}"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains(&format!("add failed: path={}", missing.display())),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn add_accepts_a_scheme_dest_alias() {
+    let dir = data_dir("add-dest-alias");
+    let src = dir.join("note.md");
+    std::fs::write(&src, "alias dest").unwrap();
+
+    let out = run_cli(&dir, &["add", src.to_str().unwrap(), "--dest", "library:/"]);
+    assert!(
+        out.status.success(),
+        "add failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(dir.join("library/note.md").exists());
+    assert!(!dir.join("inbox/note.md").exists());
+}
+
+#[test]
+fn add_rejects_a_destination_outside_the_data_dir() {
+    let dir = data_dir("add-dest-outside");
+    let outside = std::env::temp_dir().join(format!("kc-cli-dest-outside-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&outside);
+    std::fs::create_dir_all(&outside).unwrap();
+    let src = dir.join("note.md");
+    std::fs::write(&src, "dest outside").unwrap();
+
+    let out = run_cli(
+        &dir,
+        &[
+            "add",
+            src.to_str().unwrap(),
+            "--dest",
+            outside.to_str().unwrap(),
+        ],
+    );
+    assert!(!out.status.success(), "库外目标必须拒绝");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("outside the data directory"), "{stderr}");
+    let _ = std::fs::remove_dir_all(&outside);
 }
 
 #[test]
@@ -592,10 +760,10 @@ fn search_jsonl_emits_one_object_per_line() {
 }
 
 #[test]
-fn file_ops_create_copy_move_delete_restore_chain() {
+fn file_ops_touch_cp_mv_rm_restore_chain() {
     let dir = data_dir("fileops-chain");
     let created = dir.join("inbox").join("note.md");
-    let out = run_cli(&dir, &["create", created.to_str().unwrap()]);
+    let out = run_cli(&dir, &["touch", created.to_str().unwrap()]);
     assert!(
         out.status.success(),
         "create failed: {}",
@@ -609,7 +777,7 @@ fn file_ops_create_copy_move_delete_restore_chain() {
     let copy = dir.join("inbox").join("note-copy.md");
     let out = run_cli(
         &dir,
-        &["copy", created.to_str().unwrap(), copy.to_str().unwrap()],
+        &["cp", created.to_str().unwrap(), copy.to_str().unwrap()],
     );
     assert!(
         out.status.success(),
@@ -625,7 +793,7 @@ fn file_ops_create_copy_move_delete_restore_chain() {
     let moved = dir.join("inbox").join("note-renamed.md");
     let out = run_cli(
         &dir,
-        &["move", copy.to_str().unwrap(), moved.to_str().unwrap()],
+        &["mv", copy.to_str().unwrap(), moved.to_str().unwrap()],
     );
     assert!(
         out.status.success(),
@@ -637,7 +805,7 @@ fn file_ops_create_copy_move_delete_restore_chain() {
     assert!(moved.exists());
     assert!(!copy.exists());
 
-    let out = run_cli(&dir, &["delete", moved.to_str().unwrap()]);
+    let out = run_cli(&dir, &["rm", moved.to_str().unwrap()]);
     assert!(
         out.status.success(),
         "delete failed: {}",
@@ -668,12 +836,98 @@ fn create_outside_data_dir_fails() {
     std::fs::create_dir_all(&outside).unwrap();
     let target = outside.join("x.md");
 
-    let out = run_cli(&dir, &["create", target.to_str().unwrap()]);
+    let out = run_cli(&dir, &["touch", target.to_str().unwrap()]);
     assert!(
         !out.status.success(),
         "create outside the data dir must fail"
     );
     assert!(!target.exists());
+}
+
+#[test]
+fn mkdir_creates_multiple_directories_with_summary() {
+    let dir = data_dir("mkdir-multi");
+    let first = dir.join("inbox").join("alpha");
+    let second = dir.join("inbox").join("beta");
+    let out = run_cli(
+        &dir,
+        &["mkdir", first.to_str().unwrap(), second.to_str().unwrap()],
+    );
+    assert!(
+        out.status.success(),
+        "mkdir failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 3, "{text}");
+    assert!(
+        lines[0].starts_with("created: path=") && lines[0].ends_with("id=-"),
+        "{text}"
+    );
+    assert_eq!(lines[2], "created: count=2 failed=0", "{text}");
+    assert!(first.is_dir());
+    assert!(second.is_dir());
+}
+
+#[test]
+fn touch_creates_registers_and_skips_existing_files() {
+    let dir = data_dir("touch-idempotent");
+    let created = dir.join("inbox").join("new.md");
+    let out = run_cli(&dir, &["touch", created.to_str().unwrap()]);
+    assert!(
+        out.status.success(),
+        "touch failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(String::from_utf8_lossy(&out.stdout).contains("created:"));
+    assert!(created.exists());
+
+    let out = run_cli(&dir, &["touch", created.to_str().unwrap()]);
+    assert!(out.status.success(), "重复 touch 必须幂等成功");
+    assert!(String::from_utf8_lossy(&out.stdout).contains("skipped: "));
+
+    let existing = dir.join("notes").join("existing.md");
+    std::fs::create_dir_all(existing.parent().unwrap()).unwrap();
+    std::fs::write(&existing, "pre-existing").unwrap();
+    let out = run_cli(&dir, &["touch", existing.to_str().unwrap()]);
+    assert!(out.status.success());
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("registered: "), "{text}");
+}
+
+#[test]
+fn rm_removes_multiple_paths_and_reports_failures() {
+    let dir = data_dir("rm-multi");
+    let first = dir.join("inbox").join("a.md");
+    let second = dir.join("inbox").join("b.md");
+    std::fs::create_dir_all(first.parent().unwrap()).unwrap();
+    std::fs::write(&first, "rm one").unwrap();
+    std::fs::write(&second, "rm two").unwrap();
+    let missing = dir.join("inbox").join("missing.md");
+
+    let out = run_cli(
+        &dir,
+        &[
+            "rm",
+            first.to_str().unwrap(),
+            missing.to_str().unwrap(),
+            second.to_str().unwrap(),
+        ],
+    );
+    assert!(!out.status.success(), "存在失败项时退出码非零");
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(
+        text.lines().last(),
+        Some("trashed: count=2 failed=1"),
+        "{text}"
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("rm failed: path="),
+        "失败项必须写标准错误"
+    );
+    assert!(!first.exists());
+    assert!(!second.exists());
 }
 
 #[test]
@@ -719,7 +973,7 @@ fn trash_empty_removes_files_records_and_index() {
         String::from_utf8_lossy(&add.stderr)
     );
     let inbox = dir.join("inbox").join("note.md");
-    let delete = run_cli(&dir, &["delete", inbox.to_str().unwrap()]);
+    let delete = run_cli(&dir, &["rm", inbox.to_str().unwrap()]);
     assert!(
         delete.status.success(),
         "delete failed: {}",
@@ -755,7 +1009,7 @@ fn move_onto_existing_target_fails() {
     let first = dir.join("inbox").join("first.md");
     let second = dir.join("inbox").join("second.md");
     for path in [&first, &second] {
-        let out = run_cli(&dir, &["create", path.to_str().unwrap()]);
+        let out = run_cli(&dir, &["touch", path.to_str().unwrap()]);
         assert!(
             out.status.success(),
             "create failed: {}",
@@ -765,7 +1019,7 @@ fn move_onto_existing_target_fails() {
 
     let out = run_cli(
         &dir,
-        &["move", first.to_str().unwrap(), second.to_str().unwrap()],
+        &["mv", first.to_str().unwrap(), second.to_str().unwrap()],
     );
     assert!(
         !out.status.success(),

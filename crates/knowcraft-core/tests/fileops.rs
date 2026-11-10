@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use knowcraft_core::fileops::{FileOps, Imported};
+use knowcraft_core::fileops::{DeleteOutcome, FileOps, Imported, Touched};
 use knowcraft_core::index::Index;
 use knowcraft_core::model::Document;
 use knowcraft_core::store::Store;
@@ -262,6 +262,80 @@ fn create_rejects_existing_targets_and_allows_empty_duplicates() {
     assert!(
         fixture.ops.create(&second, false).unwrap().is_some(),
         "空文件按路径为身份，可并存"
+    );
+}
+
+#[test]
+fn touch_creates_registers_and_skips_registered_files() {
+    let fixture = Fixture::new("touch");
+    let created = fixture.path("inbox/touched.md");
+    let Touched::Created(doc) = fixture.ops.touch(&created).unwrap() else {
+        panic!("新文件应返回 Created");
+    };
+    assert_eq!(doc.lifecycle, "pending");
+    assert_eq!(doc.index_status, "indexed");
+    assert_eq!(doc.path, created.to_string_lossy());
+
+    assert!(
+        matches!(fixture.ops.touch(&created).unwrap(), Touched::Skipped),
+        "已登记时幂等跳过"
+    );
+
+    let existing = fixture.path("notes/existing.md");
+    write_file(&existing, "existingword");
+    let Touched::Registered(doc) = fixture.ops.touch(&existing).unwrap() else {
+        panic!("未登记文件应返回 Registered");
+    };
+    assert_eq!(doc.lifecycle, "archived");
+    assert!(search_has(&fixture, "existingword", doc.id));
+
+    let folder = fixture.path("inbox/folder");
+    std::fs::create_dir_all(&folder).unwrap();
+    assert!(fixture.ops.touch(&folder).is_err(), "目录不能 touch");
+
+    let no_parent = fixture.path("inbox/missing/never.md");
+    assert!(fixture.ops.touch(&no_parent).is_err(), "父目录不存在时失败");
+}
+
+#[test]
+fn delete_all_handles_multiple_paths_and_permanent_mode() {
+    let fixture = Fixture::new("delete-all");
+    let first = fixture.path("inbox/one.md");
+    let second = fixture.path("inbox/two.md");
+    write_file(&first, "delete one");
+    write_file(&second, "delete two");
+    let missing = fixture.path("inbox/missing.md");
+
+    let report = fixture
+        .ops
+        .delete_all(&[first.clone(), missing.clone(), second.clone()], false)
+        .unwrap();
+    assert_eq!(report.removed.len(), 2);
+    assert_eq!(report.failed.len(), 1);
+    assert_eq!(report.failed[0].path, missing);
+    assert!(!first.exists());
+    assert!(!second.exists());
+    assert!(matches!(
+        report.removed[0].outcome,
+        DeleteOutcome::Trashed(_)
+    ));
+
+    let removed = fixture.path("library/removed.md");
+    write_file(&removed, "remove permanently");
+    let report = fixture.ops.delete_all(&[removed.clone()], true).unwrap();
+    assert_eq!(report.removed.len(), 1);
+    assert!(matches!(
+        report.removed[0].outcome,
+        DeleteOutcome::Purged(_)
+    ));
+    assert!(!removed.exists());
+    assert!(
+        fixture
+            .store
+            .find_by_path(&removed.to_string_lossy())
+            .unwrap()
+            .is_none(),
+        "彻底删除同时移除记录"
     );
 }
 
@@ -629,15 +703,18 @@ fn import_indexes_files_and_directories() {
             assert_eq!(doc.index_status, "indexed");
             assert!(search_has(&fixture, "importsingleword", doc.id));
         }
-        Imported::Directory(_) => panic!("单文件导入应返回文件"),
+        other => panic!("单文件导入应返回文件，实际为 {other:?}"),
     }
 
     let folder = outside.join("batch");
     write_file(&folder.join("x.md"), "batchxword");
     write_file(&folder.join("nested/y.md"), "batchyword");
     match fixture.ops.import(&folder).unwrap() {
-        Imported::Directory(report) => assert_eq!(report.imported, 2),
-        Imported::File(_) => panic!("目录导入应返回目录"),
+        Imported::Directory(report) => {
+            assert_eq!(report.imported, 2);
+            assert_eq!(report.updated, 0);
+        }
+        other => panic!("目录导入应返回目录，实际为 {other:?}"),
     }
     let x = fixture.path("inbox/batch/x.md");
     let y = fixture.path("inbox/batch/nested/y.md");
@@ -647,6 +724,169 @@ fn import_indexes_files_and_directories() {
     assert_eq!(doc_y.index_status, "indexed");
     assert!(search_has(&fixture, "batchxword", doc_x.id));
     assert!(search_has(&fixture, "batchyword", doc_y.id));
+
+    let _ = std::fs::remove_dir_all(&outside);
+}
+
+#[test]
+fn import_all_bulk_sources_into_chosen_destination() {
+    let fixture = Fixture::new("import-all");
+    let outside = outside_dir("import-all");
+    let single = outside.join("a.md");
+    write_file(&single, "bulkaword");
+    let folder = outside.join("papers");
+    write_file(&folder.join("p1.md"), "bulkponeword");
+    write_file(&folder.join("nested/p2.md"), "bulkptwoword");
+    write_file(&folder.join(".hidden.md"), "hiddenword");
+
+    let dest = fixture.path("library");
+    let report = fixture
+        .ops
+        .import_all(&[single.clone(), folder.clone()], &dest, false)
+        .unwrap();
+    assert!(report.failed.is_empty(), "{:?}", report.failed);
+    assert_eq!(report.entries.len(), 2);
+
+    let Imported::File(doc) = &report.entries[0].outcome else {
+        panic!("单文件源应返回文件: {:?}", report.entries[0].outcome);
+    };
+    assert!(doc.path.ends_with("/library/a.md"), "{}", doc.path);
+    assert_eq!(doc.lifecycle, "archived");
+    assert_eq!(doc.index_status, "indexed");
+    assert!(search_has(&fixture, "bulkaword", doc.id));
+
+    let Imported::Directory(counts) = &report.entries[1].outcome else {
+        panic!("目录源应返回目录: {:?}", report.entries[1].outcome);
+    };
+    assert_eq!(counts.imported, 2, "隐藏项不导入");
+    assert_eq!(counts.updated, 0);
+    assert!(fixture.path("library/papers/p1.md").is_file());
+    assert!(fixture.path("library/papers/nested/p2.md").is_file());
+    assert!(!fixture.path("library/papers/.hidden.md").exists());
+
+    let _ = std::fs::remove_dir_all(&outside);
+}
+
+#[test]
+fn import_all_skips_existing_and_duplicate_until_forced() {
+    let fixture = Fixture::new("import-skip");
+    let outside = outside_dir("import-skip");
+    let src = outside.join("note.md");
+    write_file(&src, "skipv1word");
+    let target = fixture.path("inbox/note.md");
+
+    let Imported::File(first) = fixture.ops.import(&src).unwrap() else {
+        panic!("首次导入应返回文件");
+    };
+    assert_eq!(target, Path::new(&first.path));
+
+    let report = fixture
+        .ops
+        .import_all(&[src.clone()], &fixture.path("inbox"), false)
+        .unwrap();
+    assert!(matches!(
+        report.entries[0].outcome,
+        Imported::SkippedExisting
+    ));
+
+    let same = outside.join("copy.md");
+    write_file(&same, "skipv1word");
+    let report = fixture
+        .ops
+        .import_all(&[same.clone()], &fixture.path("inbox"), false)
+        .unwrap();
+    assert!(matches!(
+        report.entries[0].outcome,
+        Imported::SkippedDuplicate
+    ));
+
+    write_file(&src, "skipv2word");
+    let report = fixture
+        .ops
+        .import_all(&[src.clone()], &fixture.path("inbox"), true)
+        .unwrap();
+    let Imported::Updated(updated) = &report.entries[0].outcome else {
+        panic!("--force 应返回更新: {:?}", report.entries[0].outcome);
+    };
+    assert_eq!(updated.uuid, first.uuid, "覆盖保留原记录身份");
+    assert_eq!(updated.id, first.id);
+    assert_eq!(updated.index_status, "indexed");
+    assert!(search_has(&fixture, "skipv2word", updated.id));
+    assert!(!search_has(&fixture, "skipv1word", updated.id));
+
+    // `--force` 仍按 checksum 跳过库内其它文档已有的内容。
+    let duplicate = outside.join("other.md");
+    write_file(&duplicate, "skipv2word");
+    let report = fixture
+        .ops
+        .import_all(&[duplicate], &fixture.path("inbox"), true)
+        .unwrap();
+    assert!(matches!(
+        report.entries[0].outcome,
+        Imported::SkippedDuplicate
+    ));
+
+    let _ = std::fs::remove_dir_all(&outside);
+}
+
+#[test]
+fn import_all_rejects_library_sources_and_invalid_destinations() {
+    let fixture = Fixture::new("import-reject");
+    let inside = fixture.path("inbox/inside.md");
+    write_file(&inside, "insideword");
+
+    let report = fixture
+        .ops
+        .import_all(&[inside.clone()], &fixture.path("library"), false)
+        .unwrap();
+    assert!(report.entries.is_empty());
+    assert_eq!(report.failed.len(), 1);
+    assert!(
+        report.failed[0]
+            .error
+            .contains("inside the managed library"),
+        "{}",
+        report.failed[0].error
+    );
+
+    let missing = fixture.path("library/missing-dest");
+    let error = fixture
+        .ops
+        .import_all(&[inside.clone()], &missing, false)
+        .unwrap_err();
+    assert!(error.to_string().contains("not accessible"), "{error}");
+
+    let internal = fixture.path(".tmp");
+    let error = fixture
+        .ops
+        .import_all(&[inside], &internal, false)
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("not a managed location"),
+        "{error}"
+    );
+}
+
+#[test]
+fn import_all_reports_structural_conflicts_per_source() {
+    let fixture = Fixture::new("import-conflict");
+    let outside = outside_dir("import-conflict");
+    let folder = outside.join("blocked");
+    write_file(&folder.join("a.md"), "blockedword");
+    let blocker = fixture.path("library/blocked");
+    std::fs::write(&blocker, "not a directory").unwrap();
+
+    let report = fixture
+        .ops
+        .import_all(&[folder.clone()], &fixture.path("library"), false)
+        .unwrap();
+    assert!(report.entries.is_empty());
+    assert_eq!(report.failed.len(), 1);
+    assert!(
+        report.failed[0].error.contains("not a directory"),
+        "{}",
+        report.failed[0].error
+    );
 
     let _ = std::fs::remove_dir_all(&outside);
 }

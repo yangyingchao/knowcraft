@@ -105,14 +105,19 @@ cargo run -p knowcraft-cli -- <子命令>
 | --- | --- |
 | `search <query>` | 全文检索，输出 `文档id 路径`，最多 50 条 |
 | `index` | 重建 tantivy 索引；搜索本身只读，不会触发重建 |
-| `add <path>` | 导入文件或目录到 inbox（目录会去重） |
+| `add <paths>...` | 批量导入库外文件或目录；`--dest <目录>` 指定库内目标，默认 inbox；`-f/--force` 覆盖同名文件 |
+| `register <paths>...` | 就地登记库内已有文件，不复制不移动；目录递归展开 |
+| `mkdir <paths>...` | 在库内受管位置新建目录 |
+| `touch <paths>...` | 在库内受管位置新建空文件并登记；已登记时跳过 |
+| `cp <src> <dst>` | 库内复制文件或目录，副本登记为独立文档 |
+| `mv <src> <dst>` | 库内移动或改名文件/目录 |
+| `rm <paths>... [--permanent]` | 把库内条目移入回收站；`--permanent` 彻底删除文件、记录与索引条目 |
 | `dispatch <id> <category>` | 将文档归入 library 下的分类目录 |
 | `capture <url>` | 抓取网页入库到 captures |
 | `status` | 输出数据目录、已索引文档数、inbox 数量 |
 | `cleanup` | 清理数据库中文件已不存在的失效条目 |
 | `upgrade` | 迁移数据库 schema 并报告回填数量 |
 | `archive <paths>...` | 归档文件：`--category <名称>` 或 `--record`，加 `--uuid` 只输出 UUID 与内部路径 |
-| `delete <path>` | 把库内文件或目录移入回收站；`--permanent` 彻底删除文件、记录与索引条目 |
 | `trash list [--json\|--jsonl]` | 列出回收站条目：uuid、原路径与标题 |
 | `trash empty [--yes] [--json]` | 清空回收站：删除文件、记录与索引条目；非终端环境需 `--yes` |
 | `trash restore <uuid>` | 按 uuid 从回收站恢复 |
@@ -135,7 +140,7 @@ kc search "tags:ml* 神经网络"
 kc archive --record --uuid ~/Knowledge/inbox/report.pdf
 
 # 移入回收站、列出条目并清空
-kc delete ~/Knowledge/inbox/draft.md
+kc rm ~/Knowledge/inbox/draft.md
 kc trash list
 kc trash empty --yes
 

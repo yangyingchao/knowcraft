@@ -25,11 +25,38 @@ const MANAGED_ROOTS: [&str; 5] = ["inbox", "library", "notes", "captures", "arch
 /// 内部目录名：其根不能作为操作对象。
 const INTERNAL_ROOTS: [&str; 2] = [".trash", ".tmp"];
 
-/// `import` 的结果：单文件返回文档，目录返回导入计数。
+/// `import` / `import_all` 的结果：单文件返回文档，目录返回导入计数。
 #[derive(Debug)]
 pub enum Imported {
     File(Document),
+    /// `--force` 覆盖已有路径并原地刷新了记录。
+    Updated(Document),
     Directory(ImportReport),
+    /// 目标已存在同名路径且未传 `--force`。
+    SkippedExisting,
+    /// 内容与库内其它文档重复（checksum 命中）。
+    SkippedDuplicate,
+}
+
+/// `import_all` 的逐项结果。
+#[derive(Debug, Default)]
+pub struct ImportAllReport {
+    pub entries: Vec<ImportEntry>,
+    pub failed: Vec<ImportFailure>,
+}
+
+/// `import_all` 中单个源的处理结果。
+#[derive(Debug)]
+pub struct ImportEntry {
+    pub source: PathBuf,
+    pub outcome: Imported,
+}
+
+/// `import_all` 中单个源的失败原因。
+#[derive(Debug)]
+pub struct ImportFailure {
+    pub source: PathBuf,
+    pub error: String,
 }
 
 /// `copy` / `record_copy` 的计数结果。
@@ -59,6 +86,43 @@ pub struct DeleteReport {
 pub struct PurgeReport {
     pub deleted: usize,
     pub uuids: Vec<String>,
+}
+
+/// `delete_all` 的逐项结果：成功移除的路径与失败项。
+#[derive(Debug, Default)]
+pub struct DeleteAllReport {
+    pub removed: Vec<DeleteEntry>,
+    pub failed: Vec<DeleteFailure>,
+}
+
+/// `delete_all` 中单个路径的移除结果。
+#[derive(Debug)]
+pub struct DeleteEntry {
+    pub path: PathBuf,
+    pub outcome: DeleteOutcome,
+}
+
+/// 单个路径的实际去向：移入回收站或彻底删除。
+#[derive(Debug)]
+pub enum DeleteOutcome {
+    Trashed(DeleteReport),
+    Purged(PurgeReport),
+}
+
+/// `delete_all` 中单个路径的失败原因。
+#[derive(Debug)]
+pub struct DeleteFailure {
+    pub path: PathBuf,
+    pub error: String,
+}
+
+/// `touch` 的结果：新建并登记、补登记已有文件，或已登记而跳过。
+#[derive(Debug)]
+pub enum Touched {
+    Created(Document),
+    Registered(Document),
+    /// 目标已登记，幂等跳过。
+    Skipped,
 }
 
 /// `register_all` 的逐项结果：成功登记的文档与失败路径及原因。
@@ -157,6 +221,49 @@ impl FileOps {
         Ok(Some(self.reload(doc.id)?))
     }
 
+    /// 在受管位置新建或补登记普通文件；已登记时幂等跳过。
+    ///
+    /// 目标不存在时新建空文件并按位置登记；目标已存在但未登记时按位置
+    /// 补登记；目标已登记时直接跳过，不刷新任何记录字段。
+    pub fn touch(&self, path: &Path) -> Result<Touched> {
+        let _guard = self.lock.acquire()?;
+        self.validate_inside(path)?;
+        self.validate_not_root(path)?;
+        let location = classify(&self.data_dir, path);
+        let Some((lifecycle, storage)) = initial_state(location) else {
+            return Err(Error::FileOps(format!(
+                "touch is only allowed in managed locations: {}",
+                path.display()
+            )));
+        };
+        if path.is_dir() {
+            return Err(Error::FileOps(format!(
+                "touch requires a file path: {}",
+                path.display()
+            )));
+        }
+        if path.exists() {
+            if self.store.find_by_path(&path_str(path))?.is_some() {
+                return Ok(Touched::Skipped);
+            }
+            let doc = self.register_document(path, lifecycle, storage)?;
+            let _ = self.index_document(&doc);
+            return Ok(Touched::Registered(self.reload(doc.id)?));
+        }
+        let parent_exists = path.parent().map(Path::is_dir).unwrap_or(false);
+        if !parent_exists {
+            return Err(Error::FileOps(format!(
+                "parent directory does not exist: {}",
+                path.display()
+            )));
+        }
+        let file = OpenOptions::new().write(true).create_new(true).open(path)?;
+        drop(file);
+        let doc = self.register_document(path, lifecycle, storage)?;
+        let _ = self.index_document(&doc);
+        Ok(Touched::Created(self.reload(doc.id)?))
+    }
+
     /// 就地登记库内已存在的普通文件：不复制、不移动。
     ///
     /// 未登记的路径按位置推导 `lifecycle` 与 `storage` 后登记；已登记记录
@@ -226,29 +333,229 @@ impl FileOps {
         self.reload(updated.id)
     }
 
-    /// 导入库外路径到 inbox：目录递归导入，文件走 checksum 去重，随后建索引。
+    /// 导入库外路径到 inbox，等价于 `import_all` 的单个源、默认目标。
     pub fn import(&self, src: &Path) -> Result<Imported> {
         let _guard = self.lock.acquire()?;
-        if src.is_dir() {
-            let report = self.workflow.import_directory(src)?;
-            let name = src
-                .file_name()
-                .ok_or_else(|| Error::FileOps("source directory has no name".into()))?;
-            let root = self.data_dir.join("inbox").join(name);
-            for file in scan_visible_files(&root) {
-                let path_text = path_str(&file);
-                if let Some(doc) = self.store.find_by_path(&path_text)? {
-                    if doc.index_status != "indexed" {
-                        let _ = self.index_document(&doc);
-                    }
-                }
+        let inbox = self.data_dir.join("inbox");
+        self.import_one(src, &inbox, false)
+    }
+
+    /// 批量导入库外源到 `dest`：逐项尽力，失败项不中断后续源。
+    ///
+    /// `dest` 必须是数据目录内已存在的受管目录。目录源复制为
+    /// `dest/<源目录名>/` 并保留内部层级；单文件复制为 `dest/<文件名>`。
+    /// 目标已有同名路径时默认跳过；`force` 为真时覆盖并原地刷新记录。
+    /// 内容与库内其它文档相同（checksum 命中）时始终跳过。
+    pub fn import_all(
+        &self,
+        sources: &[PathBuf],
+        dest: &Path,
+        force: bool,
+    ) -> Result<ImportAllReport> {
+        let _guard = self.lock.acquire()?;
+        let dest = self.validate_import_dest(dest)?;
+        let mut report = ImportAllReport::default();
+        for source in sources {
+            match self.import_one(source, &dest, force) {
+                Ok(outcome) => report.entries.push(ImportEntry {
+                    source: source.clone(),
+                    outcome,
+                }),
+                Err(error) => report.failed.push(ImportFailure {
+                    source: source.clone(),
+                    error: error.to_string(),
+                }),
             }
-            Ok(Imported::Directory(report))
-        } else {
-            let doc = self.workflow.add_to_inbox(src)?;
-            let _ = self.index_document(&doc);
-            Ok(Imported::File(self.reload(doc.id)?))
         }
+        Ok(report)
+    }
+
+    /// 校验导入目标：存在、是目录、位于数据目录内且属于受管位置。
+    fn validate_import_dest(&self, dest: &Path) -> Result<PathBuf> {
+        let canonical = dest.canonicalize().map_err(|error| {
+            Error::FileOps(format!(
+                "import destination is not accessible: {}: {error}",
+                dest.display()
+            ))
+        })?;
+        if !canonical.is_dir() {
+            return Err(Error::FileOps(format!(
+                "import destination is not a directory: {}",
+                dest.display()
+            )));
+        }
+        if !canonical.starts_with(&self.canonical_data_dir) {
+            return Err(Error::FileOps(format!(
+                "import destination is outside the data directory: {}",
+                dest.display()
+            )));
+        }
+        if !classify(&self.data_dir, &canonical).is_managed() {
+            return Err(Error::FileOps(format!(
+                "import destination is not a managed location: {}",
+                dest.display()
+            )));
+        }
+        Ok(canonical)
+    }
+
+    /// 单个源的导入主体：源必须在库外，文件和目录分别处理。
+    fn import_one(&self, src: &Path, dest: &Path, force: bool) -> Result<Imported> {
+        let source = src.canonicalize().map_err(|error| {
+            Error::FileOps(format!(
+                "source is not accessible: {}: {error}",
+                src.display()
+            ))
+        })?;
+        let location = classify(&self.canonical_data_dir, &source);
+        if location.is_managed() || location == Location::Trash {
+            return Err(Error::FileOps(format!(
+                "source is inside the managed library; use register for in-library files: {}",
+                src.display()
+            )));
+        }
+        let name = source
+            .file_name()
+            .ok_or_else(|| Error::FileOps(format!("source has no file name: {}", src.display())))?;
+        if source.is_dir() {
+            self.import_dir(&source, &dest.join(name), force)
+                .map(Imported::Directory)
+        } else if source.is_file() {
+            self.import_file(&source, &dest.join(name), force)
+        } else {
+            Err(Error::FileOps(format!(
+                "source is not a regular file or directory: {}",
+                src.display()
+            )))
+        }
+    }
+
+    /// 导入单个文件：跳过、去重、拷贝，随后登记或原地刷新记录并建索引。
+    fn import_file(&self, source: &Path, target: &Path, force: bool) -> Result<Imported> {
+        if target.is_dir() {
+            return Err(Error::FileOps(format!(
+                "import target is a directory: {}",
+                target.display()
+            )));
+        }
+        let existed = target.exists();
+        if existed && !force {
+            return Ok(Imported::SkippedExisting);
+        }
+        let checksum = self.workflow.checksum(source)?;
+        if self.duplicate_elsewhere(&checksum, target)? {
+            return Ok(Imported::SkippedDuplicate);
+        }
+        self.copy_into_place(source, target)?;
+        let document = self.record_imported(target, &checksum)?;
+        let _ = self.index_document(&document);
+        let document = self.reload(document.id)?;
+        Ok(if existed {
+            Imported::Updated(document)
+        } else {
+            Imported::File(document)
+        })
+    }
+
+    /// 导入目录到 `dest_root`，逐文件应用跳过、去重与覆盖规则。
+    fn import_dir(&self, source: &Path, dest_root: &Path, force: bool) -> Result<ImportReport> {
+        if dest_root.exists() && !dest_root.is_dir() {
+            return Err(Error::FileOps(format!(
+                "import target is not a directory: {}",
+                dest_root.display()
+            )));
+        }
+        let mut report = ImportReport::default();
+        for file in scan_visible_files(source) {
+            let relative = file.strip_prefix(source).map_err(|_| {
+                Error::FileOps(format!("file outside source directory: {}", file.display()))
+            })?;
+            let target = dest_root.join(relative);
+            if target.is_dir() {
+                return Err(Error::FileOps(format!(
+                    "import target is a directory: {}",
+                    target.display()
+                )));
+            }
+            let existed = target.exists();
+            if existed && !force {
+                report.skipped_existing += 1;
+                self.reindex_if_pending(&target)?;
+                continue;
+            }
+            let checksum = self.workflow.checksum(&file)?;
+            if self.duplicate_elsewhere(&checksum, &target)? {
+                report.skipped_duplicate += 1;
+                continue;
+            }
+            self.copy_into_place(&file, &target)?;
+            let document = self.record_imported(&target, &checksum)?;
+            let _ = self.index_document(&document);
+            if existed {
+                report.updated += 1;
+            } else {
+                report.imported += 1;
+            }
+        }
+        Ok(report)
+    }
+
+    /// 记录导入结果：已有记录原地刷新，否则按目标位置登记。
+    fn record_imported(&self, target: &Path, checksum: &str) -> Result<Document> {
+        if let Some(existing) = self.store.find_by_path(&path_str(target))? {
+            let title =
+                extract::extract_title(target).unwrap_or_else(|| existing.original_name.clone());
+            let size = std::fs::metadata(target)?.len() as i64;
+            self.store.update_title(existing.id, &title)?;
+            self.store.update_checksum(existing.id, checksum)?;
+            self.store.touch_document(existing.id, size)?;
+            return self.reload(existing.id);
+        }
+        let Some((lifecycle, storage)) = initial_state(classify(&self.data_dir, target)) else {
+            return Err(Error::FileOps(format!(
+                "import target is not a managed location: {}",
+                target.display()
+            )));
+        };
+        self.register_document(target, lifecycle, storage)
+    }
+
+    /// 内容是否已属于库内其它路径的文档；同路径不算重复。
+    fn duplicate_elsewhere(&self, checksum: &str, target: &Path) -> Result<bool> {
+        Ok(self
+            .store
+            .find_by_checksum(checksum)?
+            .is_some_and(|doc| doc.path != path_str(target)))
+    }
+
+    /// 已存在的登记记录若索引未完成，补建一次索引。
+    fn reindex_if_pending(&self, path: &Path) -> Result<()> {
+        if let Some(doc) = self.store.find_by_path(&path_str(path))? {
+            if doc.index_status != "indexed" {
+                let _ = self.index_document(&doc);
+            }
+        }
+        Ok(())
+    }
+
+    /// 先把 `source` 拷到 `.tmp` 暂存，再原子替换 `target`。
+    fn copy_into_place(&self, source: &Path, target: &Path) -> Result<()> {
+        let staging = self
+            .data_dir
+            .join(".tmp")
+            .join(uuid::Uuid::new_v4().to_string());
+        std::fs::create_dir_all(&staging)?;
+        let payload = staging.join("payload");
+        let result = (|| -> Result<()> {
+            self.workflow.copy_cloned(source, &payload)?;
+            if let Some(parent) = target.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::rename(&payload, target)?;
+            Ok(())
+        })();
+        let _ = std::fs::remove_dir_all(&staging);
+        result
     }
 
     /// 复制文件或目录到库内另一位置，并为每个副本建立独立文档。
@@ -302,6 +609,38 @@ impl FileOps {
     /// 删除路径：文件移入回收站并保留记录，目录递归处理其下普通文件。
     pub fn delete(&self, path: &Path) -> Result<DeleteReport> {
         let _guard = self.lock.acquire()?;
+        self.delete_locked(path)
+    }
+
+    /// 批量删除：一次持锁处理全部路径，逐项尽力，失败项不中断后续项。
+    ///
+    /// `permanent` 为真时跳过回收站彻底删除，否则逐项移入回收站。
+    pub fn delete_all(&self, paths: &[PathBuf], permanent: bool) -> Result<DeleteAllReport> {
+        let _guard = self.lock.acquire()?;
+        let mut report = DeleteAllReport::default();
+        for path in paths {
+            let result = if permanent {
+                self.delete_permanent_locked(path)
+                    .map(DeleteOutcome::Purged)
+            } else {
+                self.delete_locked(path).map(DeleteOutcome::Trashed)
+            };
+            match result {
+                Ok(outcome) => report.removed.push(DeleteEntry {
+                    path: path.clone(),
+                    outcome,
+                }),
+                Err(error) => report.failed.push(DeleteFailure {
+                    path: path.clone(),
+                    error: error.to_string(),
+                }),
+            }
+        }
+        Ok(report)
+    }
+
+    /// 移入回收站的持锁主体；调用方必须已持有写锁。
+    fn delete_locked(&self, path: &Path) -> Result<DeleteReport> {
         self.validate_inside(path)?;
         self.validate_not_root(path)?;
         if classify(&self.data_dir, path) == Location::Trash {
@@ -331,6 +670,11 @@ impl FileOps {
     /// 目录递归处理其下所有普通文件；回收站本身不允许作为目标。
     pub fn delete_permanent(&self, path: &Path) -> Result<PurgeReport> {
         let _guard = self.lock.acquire()?;
+        self.delete_permanent_locked(path)
+    }
+
+    /// 彻底删除的持锁主体；调用方必须已持有写锁。
+    fn delete_permanent_locked(&self, path: &Path) -> Result<PurgeReport> {
         self.validate_inside(path)?;
         self.validate_not_root(path)?;
         if classify(&self.data_dir, path) == Location::Trash {

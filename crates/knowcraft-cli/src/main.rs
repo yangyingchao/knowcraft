@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
 
-use knowcraft_core::fileops::{FileOps, Imported};
+use knowcraft_core::fileops::{DeleteEntry, DeleteOutcome, FileOps, Imported, Touched};
 use knowcraft_core::index::Index;
 use knowcraft_core::index_maintenance::{IndexEvent, IndexMaintenance, IndexRequest, IndexScope};
 use knowcraft_core::location::{resolve, Resolved};
@@ -26,7 +26,7 @@ use knowcraft_core::write_lock::WriteLock;
     version = knowcraft_core::VERSION,
     long_about = "knowcraft 知识库命令行接口\n\n所有子命令作用于同一个数据目录：默认为 `~/Knowledge`，可用 \
         `KNOWCRAFT_DATA_DIR` 或 `~/.config/knowcraft/config.toml` 覆盖；写入经该目录下的 \
-        `.write.lock` 串行，失败以非零退出码结束。\n\n`ls`、`delete` 与 `index --path` 的路径参数支持 \
+        `.write.lock` 串行，失败以非零退出码结束。\n\n`ls`、`rm` 与 `index --path` 的路径参数支持 \
         `inbox:/`、`library:/`、`notes:/`、`captures:/`、`archived:/`、`root:/` 别名，\
         `trash:/` 指向回收站。其余命令把相对路径按当前工作目录解析为绝对路径。\n\n输出默认面向终端；`--json` 输出整个数组或对象，\
         `--jsonl` 每行一个对象，供脚本与 Emacs 消费。"
@@ -233,27 +233,48 @@ enum Cmd {
         long_about = "迁移数据库 schema 并报告回填数量\n\n打开数据库时执行迁移，输出 from、to 与 backfilled 计数，随后退出，不执行其他操作。"
     )]
     Upgrade,
-    /// 导入文件或目录到 inbox
+    /// 批量导入库外文件或目录到指定库内目录
     #[command(
-        long_about = "导入文件或目录到 inbox\n\n文件复制进 inbox 并登记；目录逐文件导入，已存在的按路径跳过，内容重复的按校验和跳过。\n\n单文件输出 \
-        added 的 id 与库内路径，目录输出 imported、skipped_existing 与 skipped_duplicate 计数。"
+        long_about = "批量导入库外文件或目录到指定库内目录\n\n源必须是数据目录外的本地路径；落在数据目录内时拒绝并提示改用 \
+        register。目录复制为 <dest>/<源目录名>/ 并保留内部层级，单文件复制为 <dest>/<文件名>。目标已有同名路径时默认跳过，\
+        --force 覆盖并原地刷新已有记录；内容与库内其它文档重复（checksum 命中）时始终跳过。\n\n--dest 接受相对数据目录的路径或 \
+        inbox:/ 等别名，省略时默认 inbox；目标目录必须已存在。批量时每个源输出一行，失败写标准错误，末尾以 \
+        added: count=<新增或覆盖的文档数> failed=<失败源数> 汇总，存在失败时退出码非零。"
     )]
     Add {
-        /// 本地路径或库内路径；支持 inbox:/ 等别名
-        path: PathBuf,
+        /// 库外的文件或目录路径
+        #[arg(required = true, num_args = 1..)]
+        paths: Vec<PathBuf>,
+        /// 库内目标目录；省略时导入 inbox
+        #[arg(long, value_name = "DIR")]
+        dest: Option<PathBuf>,
+        /// 覆盖已有同名文件并原地刷新记录
+        #[arg(long, short = 'f')]
+        force: bool,
     },
-    /// 在库内新建空文件或目录并登记
+    /// 在库内新建目录
     #[command(
-        long_about = "在库内新建空文件或目录并登记\n\n只允许在受管位置（inbox、library、notes、captures、archived）内新建，父目录必须已存\
-        在，数据目录与其一级根目录不可作为目标。\n\n--dir 创建目录；文件登记为文档后输出 created 的路径与 id，目录不登记，id 输出为 \
-        `-`。"
+        long_about = "在库内新建目录\n\n只允许在受管位置（inbox、library、notes、captures、archived）内新建，父目录必须已存\
+        在，数据目录与其一级根目录不可作为目标。\n\n每个目录输出 `created: path=<path> id=-`；批量时逐个输出，失败写标准错误，\
+        末尾以 `created: count=<N> failed=<M>` 汇总，存在失败时退出码非零。"
     )]
-    Create {
-        /// 新文件或目录路径；支持 inbox:/ 等别名
-        path: PathBuf,
-        /// 创建目录
-        #[arg(long)]
-        dir: bool,
+    Mkdir {
+        /// 要新建的目录路径；支持 inbox:/ 等别名
+        #[arg(required = true, num_args = 1..)]
+        paths: Vec<PathBuf>,
+    },
+    /// 在库内新建空文件并登记；已存在时幂等处理
+    #[command(
+        long_about = "在库内新建空文件并登记；已存在时幂等处理\n\n只允许在受管位置（inbox、library、notes、captures、archived）\
+        内新建，父目录必须已存在。目标不存在时新建空文件并登记；目标已存在但未登记时补登记；已登记时跳过。\n\n新建输出 \
+        `created: path=<path> id=<id>`，补登记输出 `registered: id=<id> path=<path>`，跳过输出 \
+        `skipped: path=<path> reason=registered`；批量时逐个输出，失败写标准错误，末尾以 \
+        `created: count=<新建与补登记数> failed=<M>` 汇总，存在失败时退出码非零。"
+    )]
+    Touch {
+        /// 要新建或补登记的文件路径；支持 inbox:/ 等别名
+        #[arg(required = true, num_args = 1..)]
+        paths: Vec<PathBuf>,
     },
     /// 就地登记已存在的库内文件，不复制、不移动
     #[command(
@@ -273,7 +294,7 @@ enum Cmd {
         long_about = "在库内复制文件或目录，副本登记为独立文档\n\n源与目标都必须位于受管位置内且不能是根目录，目标不能已存在，也不能位于源之内。\n\n输出 copied \
         的文件数与新登记文档数。"
     )]
-    Copy {
+    Cp {
         /// 源路径；支持 inbox:/ 等别名
         src: PathBuf,
         /// 目标路径；支持 inbox:/ 等别名
@@ -283,20 +304,23 @@ enum Cmd {
     #[command(
         long_about = "在库内移动或改名文件/目录\n\n目标不能已存在，同目录改名等价于移动。\n\n输出 moved 的文档数与索引失败数（index_failed）。"
     )]
-    Move {
+    Mv {
         /// 源路径；支持 inbox:/ 等别名
         src: PathBuf,
         /// 目标路径；支持 inbox:/ 等别名
         dst: PathBuf,
     },
-    /// 把库内文件或目录移入回收站
+    /// 把库内条目移入回收站，或彻底删除
     #[command(
-        long_about = "把库内文件或目录移入回收站\n\n回收站是数据目录下的 .trash，不走系统 GIO 回收站。单个条目输出 trashed 的原路径与 uuid，多个\
-        条目输出 count。\n\n--permanent 跳过回收站，直接删除文件、记录与索引条目，不可恢复。"
+        long_about = "把库内条目移入回收站，或彻底删除\n\n回收站是数据目录下的 .trash，不走系统 GIO 回收站。单个条目输出 trashed 的\
+        原路径与 uuid，多个条目输出 count。可一次传入多个路径，逐项尽力，失败写标准错误，末尾以 \
+        `trashed: count=<成功条目数> failed=<失败条目数>` 汇总，存在失败时退出码非零。\n\n--permanent 跳过回收站，直接删除文件、\
+        记录与索引条目，不可恢复，输出前缀改为 deleted。"
     )]
-    Delete {
+    Rm {
         /// 库内路径；支持 inbox:/ 等别名
-        path: PathBuf,
+        #[arg(required = true, num_args = 1..)]
+        paths: Vec<PathBuf>,
         /// 跳过回收站，彻底删除文件、记录与索引条目
         #[arg(long)]
         permanent: bool,
@@ -524,22 +548,154 @@ fn main() -> anyhow::Result<()> {
                 report.failed, report.orphans_removed
             );
         }
-        Cmd::Add { path } => {
+        Cmd::Add { paths, dest, force } => {
             let ops = file_ops(&store, &cfg.data_dir)?;
-            match ops.import(&absolute(path)?)? {
-                Imported::Directory(report) => println!(
-                    "imported: {} skipped_existing={} skipped_duplicate={}",
-                    report.imported, report.skipped_existing, report.skipped_duplicate
-                ),
-                Imported::File(doc) => println!("added: id={} path={}", doc.id, doc.path),
+            let sources = paths
+                .into_iter()
+                .map(absolute)
+                .collect::<anyhow::Result<Vec<_>>>()?;
+            let dest = resolve_dest(&cfg.data_dir, dest.as_deref())?;
+            let single = sources.len() == 1 && !sources[0].is_dir();
+            let report = ops.import_all(&sources, &dest, force)?;
+            if single {
+                if let Some(failure) = report.failed.first() {
+                    anyhow::bail!("{}", failure.error);
+                }
+                match report.entries.first().map(|entry| &entry.outcome) {
+                    Some(Imported::File(doc)) => {
+                        println!("added: id={} path={}", doc.id, doc.path);
+                    }
+                    Some(Imported::Updated(doc)) => {
+                        println!("updated: id={} path={}", doc.id, doc.path);
+                    }
+                    Some(Imported::SkippedExisting) => {
+                        println!("skipped: path={} reason=existing", sources[0].display());
+                    }
+                    Some(Imported::SkippedDuplicate) => {
+                        println!("skipped: path={} reason=duplicate", sources[0].display());
+                    }
+                    _ => anyhow::bail!("no document imported"),
+                }
+                return Ok(());
+            }
+            let mut added = 0;
+            for entry in &report.entries {
+                match &entry.outcome {
+                    Imported::File(doc) => {
+                        added += 1;
+                        println!("added: id={} path={}", doc.id, doc.path);
+                    }
+                    Imported::Updated(doc) => {
+                        added += 1;
+                        println!("updated: id={} path={}", doc.id, doc.path);
+                    }
+                    Imported::Directory(report) => {
+                        added += report.imported + report.updated;
+                        println!(
+                            concat!(
+                                "imported: path={} imported={} updated={}",
+                                " skipped_existing={} skipped_duplicate={}"
+                            ),
+                            entry.source.display(),
+                            report.imported,
+                            report.updated,
+                            report.skipped_existing,
+                            report.skipped_duplicate
+                        );
+                    }
+                    Imported::SkippedExisting => {
+                        println!("skipped: path={} reason=existing", entry.source.display());
+                    }
+                    Imported::SkippedDuplicate => {
+                        println!("skipped: path={} reason=duplicate", entry.source.display());
+                    }
+                }
+            }
+            for failure in &report.failed {
+                eprintln!(
+                    "add failed: path={} error={}",
+                    failure.source.display(),
+                    failure.error
+                );
+            }
+            println!("added: count={} failed={}", added, report.failed.len());
+            if !report.failed.is_empty() {
+                anyhow::bail!("{} path(s) failed to add", report.failed.len());
             }
         }
-        Cmd::Create { path, dir } => {
+        Cmd::Mkdir { paths } => {
             let ops = file_ops(&store, &cfg.data_dir)?;
-            let abs = absolute(path)?;
-            let created = ops.create(&abs, dir)?;
-            let id = created.map_or_else(|| "-".to_string(), |doc| doc.id.to_string());
-            println!("created: path={} id={id}", abs.display());
+            let paths = paths
+                .into_iter()
+                .map(absolute)
+                .collect::<anyhow::Result<Vec<_>>>()?;
+            if let [path] = paths.as_slice() {
+                ops.create(path, true)?;
+                println!("created: path={} id=-", path.display());
+                return Ok(());
+            }
+            let mut created = 0;
+            for path in &paths {
+                match ops.create(path, true) {
+                    Ok(_) => {
+                        created += 1;
+                        println!("created: path={} id=-", path.display());
+                    }
+                    Err(error) => {
+                        eprintln!("mkdir failed: path={} error={error}", path.display());
+                    }
+                }
+            }
+            let failed = paths.len() - created;
+            println!("created: count={created} failed={failed}");
+            if failed > 0 {
+                anyhow::bail!("{failed} path(s) failed to create");
+            }
+        }
+        Cmd::Touch { paths } => {
+            let ops = file_ops(&store, &cfg.data_dir)?;
+            let paths = paths
+                .into_iter()
+                .map(absolute)
+                .collect::<anyhow::Result<Vec<_>>>()?;
+            if let [path] = paths.as_slice() {
+                match ops.touch(path)? {
+                    Touched::Created(doc) => {
+                        println!("created: path={} id={}", doc.path, doc.id);
+                    }
+                    Touched::Registered(doc) => {
+                        println!("registered: id={} path={}", doc.id, doc.path);
+                    }
+                    Touched::Skipped => {
+                        println!("skipped: path={} reason=registered", path.display());
+                    }
+                }
+                return Ok(());
+            }
+            let mut created = 0;
+            for path in &paths {
+                match ops.touch(path) {
+                    Ok(Touched::Created(doc)) => {
+                        created += 1;
+                        println!("created: path={} id={}", doc.path, doc.id);
+                    }
+                    Ok(Touched::Registered(doc)) => {
+                        created += 1;
+                        println!("registered: id={} path={}", doc.id, doc.path);
+                    }
+                    Ok(Touched::Skipped) => {
+                        println!("skipped: path={} reason=registered", path.display());
+                    }
+                    Err(error) => {
+                        eprintln!("touch failed: path={} error={error}", path.display());
+                    }
+                }
+            }
+            let failed = paths.len() - created;
+            println!("created: count={created} failed={failed}");
+            if failed > 0 {
+                anyhow::bail!("{failed} path(s) failed to create");
+            }
         }
         Cmd::Register { paths } => {
             let ops = file_ops(&store, &cfg.data_dir)?;
@@ -579,7 +735,7 @@ fn main() -> anyhow::Result<()> {
                 anyhow::bail!("{} path(s) failed to register", report.failed.len());
             }
         }
-        Cmd::Copy { src, dst } => {
+        Cmd::Cp { src, dst } => {
             let ops = file_ops(&store, &cfg.data_dir)?;
             let report = ops.copy(&absolute(src)?, &absolute(dst)?)?;
             println!(
@@ -587,7 +743,7 @@ fn main() -> anyhow::Result<()> {
                 report.files, report.registered
             );
         }
-        Cmd::Move { src, dst } => {
+        Cmd::Mv { src, dst } => {
             let ops = file_ops(&store, &cfg.data_dir)?;
             let report = ops.move_path(&absolute(src)?, &absolute(dst)?)?;
             println!(
@@ -595,22 +751,74 @@ fn main() -> anyhow::Result<()> {
                 report.docs, report.index_failed
             );
         }
-        Cmd::Delete { path, permanent } => {
+        Cmd::Rm { paths, permanent } => {
             let ops = file_ops(&store, &cfg.data_dir)?;
-            let abs = match resolve(&cfg.data_dir, &path) {
-                Resolved::Path(path) => absolute(path)?,
-                Resolved::Trash => anyhow::bail!("the trash is not a delete target"),
-            };
-            if permanent {
-                let report = ops.delete_permanent(&abs)?;
-                println!("deleted: path={} count={}", abs.display(), report.deleted);
-            } else {
-                let report = ops.delete(&abs)?;
-                if let [uuid] = report.uuids.as_slice() {
-                    println!("trashed: path={} uuid={uuid}", abs.display());
-                } else {
-                    println!("trashed: path={} count={}", abs.display(), report.trashed);
+            let single = paths.len() == 1;
+            let mut targets = Vec::new();
+            let mut alias_failures = Vec::new();
+            for path in paths {
+                match resolve(&cfg.data_dir, &path) {
+                    Resolved::Path(path) => targets.push(absolute(path)?),
+                    Resolved::Trash => {
+                        alias_failures.push((path, "the trash is not a delete target".to_string()));
+                    }
                 }
+            }
+            let report = ops.delete_all(&targets, permanent)?;
+            let print_removed = |entry: &DeleteEntry| match &entry.outcome {
+                DeleteOutcome::Trashed(report) => {
+                    if let [uuid] = report.uuids.as_slice() {
+                        println!("trashed: path={} uuid={uuid}", entry.path.display());
+                    } else {
+                        println!(
+                            "trashed: path={} count={}",
+                            entry.path.display(),
+                            report.trashed
+                        );
+                    }
+                }
+                DeleteOutcome::Purged(report) => {
+                    println!(
+                        "deleted: path={} count={}",
+                        entry.path.display(),
+                        report.deleted
+                    );
+                }
+            };
+            if single {
+                if let Some((path, error)) = alias_failures.first() {
+                    anyhow::bail!("{error}: {}", path.display());
+                }
+                match (report.removed.first(), report.failed.first()) {
+                    (Some(entry), _) => {
+                        print_removed(entry);
+                        return Ok(());
+                    }
+                    (None, Some(failure)) => anyhow::bail!("{}", failure.error),
+                    (None, None) => anyhow::bail!("no path removed"),
+                }
+            }
+            for entry in &report.removed {
+                print_removed(entry);
+            }
+            for failure in &report.failed {
+                eprintln!(
+                    "rm failed: path={} error={}",
+                    failure.path.display(),
+                    failure.error
+                );
+            }
+            for (path, error) in &alias_failures {
+                eprintln!("rm failed: path={} error={}", path.display(), error);
+            }
+            let failed = report.failed.len() + alias_failures.len();
+            if permanent {
+                println!("deleted: count={} failed={}", report.removed.len(), failed);
+            } else {
+                println!("trashed: count={} failed={}", report.removed.len(), failed);
+            }
+            if failed > 0 {
+                anyhow::bail!("{failed} path(s) failed to remove");
             }
         }
         Cmd::Trash { cmd } => match cmd {
@@ -805,6 +1013,22 @@ fn absolute(path: PathBuf) -> anyhow::Result<PathBuf> {
         Ok(path)
     } else {
         Ok(std::env::current_dir()?.join(path))
+    }
+}
+
+/// 解析 `--dest`：别名前缀按数据目录展开，相对路径按数据目录拼接，
+/// 绝对路径原样保留交由 core 校验；省略时使用 inbox。
+fn resolve_dest(
+    data_dir: &std::path::Path,
+    dest: Option<&std::path::Path>,
+) -> anyhow::Result<PathBuf> {
+    let Some(dest) = dest else {
+        return Ok(data_dir.join("inbox"));
+    };
+    match resolve(data_dir, dest) {
+        Resolved::Trash => anyhow::bail!("--dest cannot be the trash"),
+        Resolved::Path(path) if path.is_absolute() => Ok(path),
+        Resolved::Path(path) => Ok(data_dir.join(path)),
     }
 }
 

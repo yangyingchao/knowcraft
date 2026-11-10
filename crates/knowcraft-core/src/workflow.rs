@@ -13,7 +13,9 @@ use crate::store::Store;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct ImportReport {
     pub imported: usize,
-    /// inbox 内已有同名路径而跳过的文件数。
+    /// `--force` 覆盖已有路径并原地刷新记录的文件数。
+    pub updated: usize,
+    /// 目标内已有同名路径而跳过的文件数。
     pub skipped_existing: usize,
     /// 内容重复（checksum 命中）而跳过的文件数。
     pub skipped_duplicate: usize,
