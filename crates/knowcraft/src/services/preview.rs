@@ -142,6 +142,12 @@ pub enum PreviewContent {
         pages: i32,
         text_layer: Option<Arc<PdfTextLayer>>,
     },
+    /// One page of a Word document, rendered to PNG; no selectable text layer.
+    DocumentPage {
+        png: Vec<u8>,
+        page: i32,
+        pages: i32,
+    },
     Archive {
         tree: ArchivePreviewTree,
     },

@@ -306,6 +306,7 @@ impl PreviewState {
             document_view_icon: header.document_view_icon.clone(),
             document_view: Cell::new(DocumentView::Rendered),
             document_preview: RefCell::new(None),
+            document_page: RefCell::new(None),
             source_preview: SourcePreviewView::new(),
             rendered_text: RefCell::new(None),
             find: parts.find,

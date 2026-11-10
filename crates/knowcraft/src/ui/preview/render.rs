@@ -57,6 +57,8 @@ impl PreviewState {
                         .is_some();
                 self.render_rendered(document, warnings, word_processor);
             }
+            PreviewContent::DocumentPage { png, page, pages } => self
+                .render_document_page(entry, document_page::DocumentPageFirst { png, page, pages }),
             PreviewContent::Route { preview } => self.render_route(preview),
             PreviewContent::Model { png, mesh } => self.render_model(png, mesh),
             PreviewContent::Rasterized { png } => self.render_rasterized(&entry, png),
@@ -198,6 +200,7 @@ impl PreviewState {
         self.source_preview.virtual_state.borrow_mut().take();
         self.document_view_button.set_visible(false);
         self.document_preview.borrow_mut().take();
+        self.document_page.borrow_mut().take();
         let audio = self.audio.borrow_mut().take();
         if let Some(audio) = audio.as_ref() {
             audio.view.detach();

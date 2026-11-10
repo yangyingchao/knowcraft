@@ -115,12 +115,15 @@ impl CoverFormat {
 pub(crate) enum DocumentFormat {
     Docx,
     Odt,
+    Doc,
 }
 
 impl DocumentFormat {
     pub(crate) fn for_file(content_type: &str, name: &std::ffi::OsStr) -> Option<Self> {
         if crate::services::docx::is_document(content_type, name) {
             Some(Self::Docx)
+        } else if crate::services::doc::is_document(content_type, name) {
+            Some(Self::Doc)
         } else if crate::services::odt::is_document(content_type, name) {
             Some(Self::Odt)
         } else {
@@ -132,6 +135,7 @@ impl DocumentFormat {
         match self {
             Self::Docx => "docx",
             Self::Odt => "odt",
+            Self::Doc => "doc",
         }
     }
 
@@ -139,6 +143,7 @@ impl DocumentFormat {
         match value {
             "docx" => Some(Self::Docx),
             "odt" => Some(Self::Odt),
+            "doc" => Some(Self::Doc),
             _ => None,
         }
     }
@@ -168,6 +173,11 @@ pub(crate) enum ParseOperation {
     PreviewWorkbook,
     PreviewDocument(DocumentFormat),
     PreviewPdf(PdfRenderSize),
+    /// A single laid-out page of a Word document, rendered to PNG.
+    PreviewWordPage {
+        format: DocumentFormat,
+        size: PdfRenderSize,
+    },
     PreviewModel(ModelRender),
     PreviewRoute(crate::services::route_preview::RouteRender),
     PreviewMedia(MediaPreviewSize),
@@ -208,6 +218,7 @@ impl ParseOperation {
             Self::PreviewWorkbook => "preview-workbook",
             Self::PreviewDocument(_) => "preview-document",
             Self::PreviewPdf(_) => "preview-pdf",
+            Self::PreviewWordPage { .. } => "preview-word-page",
             Self::PreviewModel(_) => "preview-model",
             Self::PreviewRoute(_) => "preview-route",
             Self::PreviewMedia(_) => "preview-media",
@@ -286,6 +297,7 @@ impl ParseOperation {
             | Self::DocumentMermaid
             | Self::DocumentMath { .. } => Some((800, 800, 800 * 800)),
             Self::PreviewPdf(size) => Some(size.image_limits()),
+            Self::PreviewWordPage { size, .. } => Some(size.image_limits()),
             Self::PreviewModel(render) => {
                 let size = MediaPreviewSize::new(render.size.width, render.size.height);
                 Some((size.width as u32, size.height as u32, 1280 * 1280))
@@ -335,6 +347,18 @@ impl ParseOperation {
             Self::PreviewDocument(DocumentFormat::Odt) => {
                 Some(crate::services::odt::ODT_BYTE_LIMIT)
             }
+            Self::PreviewDocument(DocumentFormat::Doc) => {
+                Some(crate::services::doc::DOC_BYTE_LIMIT)
+            }
+            Self::PreviewWordPage {
+                format: DocumentFormat::Docx,
+                ..
+            } => Some(crate::services::docx::DOCX_BYTE_LIMIT),
+            Self::PreviewWordPage {
+                format: DocumentFormat::Doc,
+                ..
+            } => Some(crate::services::doc::DOC_BYTE_LIMIT),
+            Self::PreviewWordPage { .. } => Some(crate::services::odt::ODT_BYTE_LIMIT),
             Self::DocumentImage => Some(crate::services::document_media::IMAGE_INPUT_LIMIT),
             Self::DocumentMermaid => {
                 Some(crate::services::document_media::DIAGRAM_INPUT_LIMIT as u64)

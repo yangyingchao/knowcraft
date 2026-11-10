@@ -414,7 +414,13 @@ impl PreviewLoad {
             DocumentFormat::for_file(&self.content_type, &self.entry.native_name)
             && self.sample_is_text() != Some(true)
         {
-            Some(ParseOperation::PreviewDocument(format))
+            Some(match format {
+                DocumentFormat::Docx | DocumentFormat::Doc => ParseOperation::PreviewWordPage {
+                    format,
+                    size: pdf_render_size(self.request.media_size),
+                },
+                DocumentFormat::Odt => ParseOperation::PreviewDocument(format),
+            })
         } else {
             None
         }
@@ -439,9 +445,19 @@ impl PreviewLoad {
         self.abort_safe.set(false);
         let cancellation = self.cancellation.clone();
         let backend = self.backend;
+        let requested_page = self.request.pdf_page;
         let result = gio::spawn_blocking(move || {
             let is_workbook = matches!(operation, ParseOperation::PreviewWorkbook);
-            let output = render(&path, operation, 0, backend, &cancellation)?;
+            let is_word_page = matches!(operation, ParseOperation::PreviewWordPage { .. });
+            let value = if is_word_page { requested_page } else { 0 };
+            let output = render(&path, operation, value, backend, &cancellation)?;
+            if is_word_page {
+                return Ok(PreviewContent::DocumentPage {
+                    png: output.data,
+                    page: output.page,
+                    pages: output.pages,
+                });
+            }
             let parsed = if is_workbook {
                 crate::services::table::TableData::from_json(&output.data)?.into_document()
             } else {
@@ -555,6 +571,7 @@ impl PreviewLoad {
             | PreviewContent::Route { .. }
             | PreviewContent::Document { .. }
             | PreviewContent::Rendered { .. }
+            | PreviewContent::DocumentPage { .. }
             | PreviewContent::Rasterized { .. }
             | PreviewContent::SandboxedMedia { .. }
             | PreviewContent::Archive { .. }

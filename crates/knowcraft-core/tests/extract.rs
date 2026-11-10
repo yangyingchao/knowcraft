@@ -13,19 +13,39 @@ fn extract_markdown() {
 }
 
 #[test]
-fn extract_docx_via_zip_xml() {
+fn extract_docx_body_text() {
     let f = std::env::temp_dir().join("kc-ext.docx");
     let file = std::fs::File::create(&f).unwrap();
     let mut zip = zip::ZipWriter::new(file);
     let opts = zip::write::FileOptions::default();
     zip.start_file("word/document.xml", opts).unwrap();
     zip.write_all(
-        b"<?xml version=\"1.0\"?><w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>hello docx</w:t></w:r></w:p></w:body></w:document>",
+        b"<?xml version=\"1.0\"?><w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>\
+          <w:p><w:r><w:t>hello docx</w:t></w:r></w:p>\
+          <w:p><w:r><w:t>second paragraph</w:t></w:r></w:p>\
+          <w:tbl><w:tr><w:tc><w:p><w:r><w:t>cell a</w:t></w:r></w:p></w:tc>\
+          <w:tc><w:p><w:r><w:t>cell b</w:t></w:r></w:p></w:tc></w:tr></w:tbl>\
+          <w:p><w:del><w:r><w:delText>deleted text</w:delText></w:r></w:del></w:p>\
+          </w:body></w:document>",
     )
     .unwrap();
     zip.finish().unwrap();
     let text = extract_text(&f).unwrap();
-    assert!(text.contains("hello docx"));
+    // 段落以换行分隔，表格单元格以制表符分隔；删除修订的段落标记留下空行
+    assert_eq!(
+        text.trim_end(),
+        "hello docx\nsecond paragraph\ncell a\tcell b"
+    );
+    // 修订中被删除的文本不进入索引
+    assert!(!text.contains("deleted text"));
+}
+
+#[test]
+fn extract_doc_rejects_non_compound_files() {
+    let f = std::env::temp_dir().join("kc-ext-bad.doc");
+    std::fs::write(&f, b"this is definitely not a word document").unwrap();
+    let result = extract_text(&f);
+    assert!(matches!(result, Err(Error::Extract(_))));
 }
 
 #[test]

@@ -6,7 +6,7 @@ use std::{fs, os::fd::RawFd, path::Path};
 use super::{
     appimage, archive_cover, document_media, image_conversion, media, model, pdf,
     raster::{render_camera_raw, render_camera_raw_preview, render_raw},
-    raw_metadata, render_media, route, run_archive_list, write_media_metadata,
+    raw_metadata, render_media, route, run_archive_list, word_page, write_media_metadata,
 };
 use crate::sandbox::{CoverFormat, DocumentFormat, MAX_OUTPUT_BYTES, MediaPreviewBackend};
 
@@ -138,6 +138,7 @@ fn preview_document(request: &Request<'_>) -> Result<(), String> {
         match DocumentFormat::from_argument(request.value).ok_or("Invalid document format")? {
             DocumentFormat::Docx => crate::services::docx::read_document(request.input)?,
             DocumentFormat::Odt => crate::services::odt::read_document(request.input)?,
+            DocumentFormat::Doc => return Err("Document format preview is unavailable".to_owned()),
         };
     write_bounded_json(request.output, &document, "Document output budget exceeded")
 }
@@ -216,6 +217,7 @@ const RENDERS: &[(&[&str], Render)] = &[
         Err("Equation rendering unavailable".to_owned())
     }),
     (&["preview-pdf"], preview_pdf),
+    (&["preview-word-page"], preview_word_page),
     (&["preview-route"], |request| {
         Ok(request
             .report(route::render(request.input, request.value))?
@@ -246,6 +248,15 @@ fn preview_pdf(request: &Request<'_>) -> Result<Rendered, String> {
         png,
         metadata: Some(metadata),
         text_layer,
+    })
+}
+
+fn preview_word_page(request: &Request<'_>) -> Result<Rendered, String> {
+    let (png, metadata) = word_page::preview(request.input, request.value)?;
+    Ok(Rendered {
+        png,
+        metadata: Some(metadata),
+        text_layer: None,
     })
 }
 

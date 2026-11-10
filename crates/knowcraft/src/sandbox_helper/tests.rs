@@ -147,6 +147,20 @@ fn pdf_surface_dimensions_stay_inside_the_parent_pixel_limit() {
 }
 
 #[test]
+fn pdf_surface_dimensions_cap_the_scale_at_150_dpi() {
+    // A small page would otherwise render at the window's full size.
+    let source_width = 100.0;
+    let source_height = 50.0;
+    let (width, height, scale) =
+        bounded_surface_dimensions(source_width, source_height, 1_400.0, 1_800.0, 2_500_000.0);
+
+    let cap = 150.0 / 72.0;
+    assert!(scale <= cap, "scale {scale} stays within the DPI cap");
+    assert_eq!(width, (source_width * cap).floor() as i32);
+    assert_eq!(height, (source_height * cap).floor() as i32);
+}
+
+#[test]
 fn provider_output_is_bounded_without_buffering_stderr() {
     let exact = bounded_output(Command::new("sh").args(["-c", "printf 1234"]), 4)
         .expect("read output at the limit");

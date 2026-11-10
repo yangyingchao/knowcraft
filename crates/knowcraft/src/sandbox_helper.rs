@@ -26,6 +26,7 @@ mod process;
 mod raster;
 mod raw_metadata;
 mod route;
+mod word_page;
 
 pub(crate) use browser::browser_render;
 #[cfg(test)]

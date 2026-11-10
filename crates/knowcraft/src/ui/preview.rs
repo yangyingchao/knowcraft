@@ -37,6 +37,7 @@ mod archive_view;
 pub(super) mod audio;
 mod components;
 mod document;
+mod document_page;
 mod drawer;
 mod ease_in;
 mod feedback;
@@ -171,6 +172,7 @@ struct PreviewState {
     document_view_icon: gtk::Image,
     document_view: Cell<DocumentView>,
     document_preview: RefCell<Option<DocumentPreview>>,
+    document_page: RefCell<Option<Rc<document_page::DocumentPageViewer>>>,
     source_preview: SourcePreviewView,
     rendered_text: RefCell<Option<Rc<super::virtual_preview::VirtualPreviewState>>>,
     find: find::PreviewFind,

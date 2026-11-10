@@ -1,11 +1,17 @@
 //! Text extraction for documents, dispatched by file extension.
 //!
-//! Plain formats (`md`/`org`/`txt`) are read directly, `docx` is unzipped and its
-//! `word/document.xml` text runs are concatenated, `pdf` goes through the vendored
-//! `pdfcraft-render` text layer, `html` is stripped to bare text, and images (and
-//! unknown formats) yield an empty string so they skip indexing.
+//! Plain formats (`md`/`org`/`txt`) are read directly, `docx` and `doc` are parsed by the
+//! vendored `wordcraft` readers, `pdf` goes through the vendored `pdfcraft-render` text
+//! layer, `html` is stripped to bare text, and images (and unknown formats) yield an empty
+//! string so they skip indexing.
+//!
+//! Word documents index the body story only, with tracked deletions excluded
+//! ([`wordcraft_doc::Document::final_text`]): headers, footers, notes, comments and text
+//! boxes stay out of the index.
 
 use std::path::Path;
+
+use wordcraft_doc::StoryRef;
 
 use crate::error::{Error, Result};
 
@@ -23,6 +29,7 @@ pub fn extract_text(path: &Path) -> Result<String> {
     match ext.as_str() {
         "md" | "markdown" | "org" | "txt" => std::fs::read_to_string(path).map_err(Into::into),
         "docx" => extract_docx(path),
+        "doc" => extract_doc(path),
         "pdf" => extract_pdf(path),
         "html" | "htm" => Ok(strip_html(&std::fs::read_to_string(path)?)),
         "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "raw" => Ok(String::new()),
@@ -30,7 +37,7 @@ pub fn extract_text(path: &Path) -> Result<String> {
     }
 }
 
-/// 从文档内容解析标题：PDF 元数据标题、docx 核心属性 `dc:title`、HTML
+/// 从文档内容解析标题：PDF 元数据标题、Word 核心属性 `dc:title`、HTML
 /// `<title>`、markdown 首个一级标题。元数据来源的占位标题（如
 /// `PowerPoint 演示文稿`、`Untitled`）视为解析不出；解析不出返回 `None`，
 /// 调用方回退文件名主干。
@@ -42,6 +49,7 @@ pub fn extract_title(path: &Path) -> Option<String> {
     let title = match ext.as_str() {
         "pdf" => pdf_title(path),
         "docx" => docx_title(path),
+        "doc" => doc_title(path),
         "html" | "htm" => html_title(&std::fs::read_to_string(path).ok()?),
         "md" | "markdown" => markdown_title(&std::fs::read_to_string(path).ok()?),
         "org" => org_title(&std::fs::read_to_string(path).ok()?),
@@ -71,7 +79,7 @@ pub fn title_or_fallback(path: &Path, storage: &str, original_name: &str) -> Str
         .unwrap_or_else(|| original_name.to_owned())
 }
 
-/// 元数据来源（pdf/docx/html）的标题是否为占位值。
+/// 元数据来源（pdf/docx/doc/html）的标题是否为占位值。
 ///
 /// markdown 与 org 的标题是正文内容，视为作者显式命名，恒返回 `false`。
 /// 供读取路径判断库内已存的旧值，写入路径由 [`extract_title`] 内部调用。
@@ -80,7 +88,7 @@ pub fn is_placeholder_title(path: &Path, doc_type: &str, title: &str) -> bool {
 }
 
 fn is_metadata_source(kind: &str) -> bool {
-    matches!(kind, "pdf" | "docx" | "html" | "htm")
+    matches!(kind, "pdf" | "docx" | "doc" | "html" | "htm")
 }
 
 fn is_placeholder_value(path: &Path, title: &str) -> bool {
@@ -199,24 +207,21 @@ fn pdf_title(path: &Path) -> Option<String> {
     pdfcraft_render::inspect(bytes, None).ok()?.title
 }
 
+/// Most bytes of a Word file's core-properties part read for the title.
+const MAX_CORE_XML: u64 = 64 << 10;
+
 fn docx_title(path: &Path) -> Option<String> {
     let file = std::fs::File::open(path).ok()?;
-    let mut zip = zip::ZipArchive::new(file).ok()?;
-    let mut core = zip.by_name("docProps/core.xml").ok()?;
-    let mut xml = String::new();
-    std::io::Read::read_to_string(&mut core, &mut xml).ok()?;
-    xml_text(&xml, "dc:title")
+    wordcraft_docx::package_title(std::io::BufReader::new(file), MAX_CORE_XML)
 }
 
-/// 抽取 `<tag ...>text</tag>` 的文本节点（与 [`extract_docx`] 的简易抽取同风格）。
-fn xml_text(xml: &str, tag: &str) -> Option<String> {
-    let open = format!("<{tag}");
-    let after_open = xml.find(&open)? + open.len();
-    let rest = &xml[after_open..];
-    let after_gt = rest.find('>')? + 1;
-    let rest = &rest[after_gt..];
-    let end = rest.find("</")?;
-    Some(rest[..end].to_owned())
+/// The title of a Word 97-2003 `.doc` file. `docbin` is import-only, so the whole document
+/// is parsed to reach its core properties (well under a millisecond for typical files).
+fn doc_title(path: &Path) -> Option<String> {
+    let bytes = std::fs::read(path).ok()?;
+    let doc = wordcraft_docbin::read(&bytes).ok()?;
+    let title = doc.core.title.trim();
+    (!title.is_empty()).then(|| title.to_owned())
 }
 
 fn html_title(html: &str) -> Option<String> {
@@ -293,24 +298,22 @@ fn strip_org_heading(text: &str) -> &str {
     text
 }
 
-/// Extract text runs from a `.docx` package by reading `word/document.xml` directly.
+/// Extract the body text of a `.docx` package through the vendored `wordcraft` reader.
+///
+/// Paragraphs are separated by `\n` and table cells by `\t`; tracked deletions are
+/// excluded, matching the text Word shows in "No Markup".
 fn extract_docx(path: &Path) -> Result<String> {
-    let file = std::fs::File::open(path)?;
-    let mut zip = zip::ZipArchive::new(file).map_err(|e| Error::Extract(e.to_string()))?;
-    let mut doc = zip
-        .by_name("word/document.xml")
-        .map_err(|e| Error::Extract(e.to_string()))?;
-    let mut xml = String::new();
-    std::io::Read::read_to_string(&mut doc, &mut xml).map_err(Error::Io)?;
-    // 简易抽取 <w:t> 文本节点
-    let mut out = String::new();
-    for cap in xml.split("<w:t>").skip(1) {
-        if let Some(end) = cap.find("</w:t>") {
-            out.push_str(&cap[..end]);
-            out.push('\n');
-        }
-    }
-    Ok(out)
+    let bytes = std::fs::read(path)?;
+    let doc = wordcraft_docx::read(&bytes).map_err(|e| Error::Extract(e.to_string()))?;
+    Ok(doc.final_text(StoryRef::Body))
+}
+
+/// Extract the body text of a Word 97-2003 `.doc` file through the vendored `wordcraft`
+/// reader, with the same body-only, deletions-excluded rules as [`extract_docx`].
+fn extract_doc(path: &Path) -> Result<String> {
+    let bytes = std::fs::read(path)?;
+    let doc = wordcraft_docbin::read(&bytes).map_err(|e| Error::Extract(e.to_string()))?;
+    Ok(doc.final_text(StoryRef::Body))
 }
 
 /// Strip `<script>`/`<style>` blocks and all remaining tags, returning bare text.

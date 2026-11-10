@@ -9,6 +9,10 @@ use pdfcraft_render::{OpenError, PageRenderer, RenderConfig, RenderRequest, Requ
 
 use crate::sandbox::PdfRenderSize;
 
+/// Highest raster scale for previews and thumbnails, in dots per inch. Page points are
+/// 1/72 inch, so a page renders at most `MAX_RENDER_DPI / 72` pixels per point.
+pub(super) const MAX_RENDER_DPI: f64 = 150.0;
+
 /// One page's displayed size in points and its user-space geometry.
 #[derive(Clone, Copy)]
 struct PageBox {
@@ -246,9 +250,12 @@ pub(super) fn bounded_surface_dimensions(
     max_height: f64,
     max_pixels: f64,
 ) -> (i32, i32, f64) {
+    // Preview and thumbnail scale: the window's needs, capped at a 150 DPI balance
+    // between sharpness and raster cost (150/72 px per point).
     let requested_scale = (max_width / source_width)
         .min(max_height / source_height)
-        .min((max_pixels / (source_width * source_height)).sqrt());
+        .min((max_pixels / (source_width * source_height)).sqrt())
+        .min(MAX_RENDER_DPI / 72.0);
     // Rounding both dimensions up can push the result beyond max_pixels, causing the parent to
     // reject an otherwise valid render. Round down and derive the final scale from the integer
     // surface so the page still fits without clipping.
