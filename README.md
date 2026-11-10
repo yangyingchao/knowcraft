@@ -93,12 +93,12 @@ cargo run --release -p knowcraft
 
 ### CLI
 
-二进制名为 `knowcraft-cli`：
+二进制名为 `kc`：
 
 ```bash
 cargo run -p knowcraft-cli -- <子命令>
 # 或安装后直接调用
-./target/release/knowcraft-cli <子命令>
+./target/release/kc <子命令>
 ```
 
 | 子命令 | 说明 |
@@ -124,29 +124,29 @@ cargo run -p knowcraft-cli -- <子命令>
 
 ```bash
 # 导入并建索引
-knowcraft-cli add ~/Downloads/report.pdf
-knowcraft-cli index
+kc add ~/Downloads/report.pdf
+kc index
 
 # 带前缀的检索
-knowcraft-cli search "name:报告 kind:pdf"
-knowcraft-cli search "tags:ml* 神经网络"
+kc search "name:报告 kind:pdf"
+kc search "tags:ml* 神经网络"
 
 # 归档为记录，只输出 UUID 与内部路径
-knowcraft-cli archive --record --uuid ~/Knowledge/inbox/report.pdf
+kc archive --record --uuid ~/Knowledge/inbox/report.pdf
 
 # 移入回收站、列出条目并清空
-knowcraft-cli delete ~/Knowledge/inbox/draft.md
-knowcraft-cli trash list
-knowcraft-cli trash empty --yes
+kc delete ~/Knowledge/inbox/draft.md
+kc trash list
+kc trash empty --yes
 
 # 列出外部插件并把文件交给其中的一个
-knowcraft-cli sendto list
-knowcraft-cli sendto send --plugin example ~/Knowledge/inbox/report.pdf
+kc sendto list
+kc sendto send --plugin example ~/Knowledge/inbox/report.pdf
 
 # 列出当前目录；已登记文档显示库内标题
-knowcraft-cli ls
-knowcraft-cli ls --json
-knowcraft-cli ls ~/Knowledge/inbox
+kc ls
+kc ls --json
+kc ls ~/Knowledge/inbox
 ```
 
 CLI 与 GUI 使用同一写者路径：GUI 进程持有 SQLite/tantivy 写权限；没有 GUI

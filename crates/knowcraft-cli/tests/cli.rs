@@ -16,7 +16,7 @@ fn add_then_search_roundtrip() {
     let src = dir.join("note.md");
     std::fs::write(&src, "hello world from cli").unwrap();
 
-    let out = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+    let out = Command::new(env!("CARGO_BIN_EXE_kc"))
         .env("KNOWCRAFT_DATA_DIR", &dir)
         .arg("add")
         .arg(&src)
@@ -28,7 +28,7 @@ fn add_then_search_roundtrip() {
         String::from_utf8_lossy(&out.stderr)
     );
 
-    let index = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+    let index = Command::new(env!("CARGO_BIN_EXE_kc"))
         .env("KNOWCRAFT_DATA_DIR", &dir)
         .arg("index")
         .output()
@@ -39,7 +39,7 @@ fn add_then_search_roundtrip() {
         String::from_utf8_lossy(&index.stderr)
     );
 
-    let out = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+    let out = Command::new(env!("CARGO_BIN_EXE_kc"))
         .env("KNOWCRAFT_DATA_DIR", &dir)
         .arg("search")
         .arg("world")
@@ -60,7 +60,7 @@ fn add_then_dispatch_then_status() {
     let src = dir.join("a.md");
     std::fs::write(&src, "dispatch me").unwrap();
 
-    let add = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+    let add = Command::new(env!("CARGO_BIN_EXE_kc"))
         .env("KNOWCRAFT_DATA_DIR", &dir)
         .arg("add")
         .arg(&src)
@@ -74,7 +74,7 @@ fn add_then_dispatch_then_status() {
         .and_then(|v| v.parse().ok())
         .expect("add prints an id");
 
-    let dispatch = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+    let dispatch = Command::new(env!("CARGO_BIN_EXE_kc"))
         .env("KNOWCRAFT_DATA_DIR", &dir)
         .arg("dispatch")
         .arg(id.to_string())
@@ -88,7 +88,7 @@ fn add_then_dispatch_then_status() {
         "{dispatch_text}"
     );
 
-    let status = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+    let status = Command::new(env!("CARGO_BIN_EXE_kc"))
         .env("KNOWCRAFT_DATA_DIR", &dir)
         .arg("status")
         .output()
@@ -120,7 +120,7 @@ fn status_json_reports_data_dir_and_counts() {
 #[test]
 fn search_without_index_returns_clean_error() {
     let dir = data_dir("noindex");
-    let out = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+    let out = Command::new(env!("CARGO_BIN_EXE_kc"))
         .env("KNOWCRAFT_DATA_DIR", &dir)
         .arg("search")
         .arg("x")
@@ -138,7 +138,7 @@ fn add_rejects_duplicate_with_nonzero_exit() {
     let src = dir.join("dup.md");
     std::fs::write(&src, "same content").unwrap();
 
-    let first = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+    let first = Command::new(env!("CARGO_BIN_EXE_kc"))
         .env("KNOWCRAFT_DATA_DIR", &dir)
         .arg("add")
         .arg(&src)
@@ -146,7 +146,7 @@ fn add_rejects_duplicate_with_nonzero_exit() {
         .unwrap();
     assert!(first.status.success());
 
-    let second = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+    let second = Command::new(env!("CARGO_BIN_EXE_kc"))
         .env("KNOWCRAFT_DATA_DIR", &dir)
         .arg("add")
         .arg(&src)
@@ -161,7 +161,7 @@ fn cleanup_removes_missing_file_entries() {
     let src = dir.join("a.md");
     std::fs::write(&src, "to be removed").unwrap();
 
-    let add = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+    let add = Command::new(env!("CARGO_BIN_EXE_kc"))
         .env("KNOWCRAFT_DATA_DIR", &dir)
         .arg("add")
         .arg(&src)
@@ -174,7 +174,7 @@ fn cleanup_removes_missing_file_entries() {
     assert!(inbox_file.exists());
     std::fs::remove_file(&inbox_file).unwrap();
 
-    let cleanup = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+    let cleanup = Command::new(env!("CARGO_BIN_EXE_kc"))
         .env("KNOWCRAFT_DATA_DIR", &dir)
         .arg("cleanup")
         .output()
@@ -229,7 +229,7 @@ fn index_rejects_zero_threads() {
 #[test]
 fn upgrade_reports_migration() {
     let dir = data_dir("upgrade");
-    let out = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+    let out = Command::new(env!("CARGO_BIN_EXE_kc"))
         .env("KNOWCRAFT_DATA_DIR", &dir)
         .arg("upgrade")
         .output()
@@ -245,7 +245,7 @@ fn upgrade_reports_migration() {
 }
 
 fn run_cli(dir: &std::path::Path, args: &[&str]) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+    Command::new(env!("CARGO_BIN_EXE_kc"))
         .env("KNOWCRAFT_DATA_DIR", dir)
         .args(args)
         .output()
@@ -739,7 +739,7 @@ fn ls_lists_files_and_directories() {
     std::fs::write(work.join("a.md"), "x").unwrap();
     std::fs::create_dir(work.join("sub")).unwrap();
 
-    let out = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+    let out = Command::new(env!("CARGO_BIN_EXE_kc"))
         .env("KNOWCRAFT_DATA_DIR", &data)
         .current_dir(&work)
         .arg("ls")
@@ -755,7 +755,7 @@ fn ls_lists_files_and_directories() {
         "a.md: a.md [unregistered]\nsub: sub\n"
     );
 
-    let out = Command::new(env!("CARGO_BIN_EXE_knowcraft-cli"))
+    let out = Command::new(env!("CARGO_BIN_EXE_kc"))
         .env("KNOWCRAFT_DATA_DIR", &data)
         .current_dir(&work)
         .args(["ls", "--json"])

@@ -6,12 +6,12 @@ license = "MIT"
 description = "knowcraft 命令行接口"
 
 [[bin]]
-name = "knowcraft-cli"
+name = "kc"
 path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "unicode", "wrap_help"] }
 knowcraft-core = { path = "../knowcraft-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

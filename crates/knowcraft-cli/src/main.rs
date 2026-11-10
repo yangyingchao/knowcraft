@@ -19,8 +19,18 @@ use knowcraft_core::tags::Tags;
 use knowcraft_core::workflow::Workflow;
 use knowcraft_core::write_lock::WriteLock;
 
+/// knowcraft 知识库命令行接口
 #[derive(Parser)]
-#[command(name = "knowcraft", version = knowcraft_core::VERSION, about = "knowcraft 知识库命令行接口")]
+#[command(
+    name = "kc",
+    version = knowcraft_core::VERSION,
+    long_about = "knowcraft 知识库命令行接口\n\n所有子命令作用于同一个数据目录：默认为 `~/Knowledge`，可用 \
+        `KNOWCRAFT_DATA_DIR` 或 `~/.config/knowcraft/config.toml` 覆盖；写入经该目录下的 \
+        `.write.lock` 串行，失败以非零退出码结束。\n\n`ls`、`delete` 与 `index --path` 的路径参数支持 \
+        `inbox:/`、`library:/`、`notes:/`、`captures:/`、`archived:/`、`root:/` 别名，\
+        `trash:/` 指向回收站。其余命令把相对路径按当前工作目录解析为绝对路径。\n\n输出默认面向终端；`--json` 输出整个数组或对象，\
+        `--jsonl` 每行一个对象，供脚本与 Emacs 消费。"
+)]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -42,26 +52,51 @@ struct SearchHit {
 #[derive(Subcommand)]
 enum AnnotationsCmd {
     /// 列出某文档的注释：nm page kind note
-    List { id: i64 },
+    #[command(
+        long_about = "列出某文档的注释：nm page kind note\n\n每行四个字段以空格分隔；note 为空时该字段留空。"
+    )]
+    List {
+        /// 文档 id，取自 search 或 archive 的输出
+        id: i64,
+    },
     /// 扫描全部 PDF，把文件中的注释同步进数据库
+    #[command(
+        long_about = "扫描全部 PDF，把文件中的注释同步进数据库\n\n逐个 PDF 读取注释并写入，输出同步的条目总数。"
+    )]
     Sync,
 }
 
 #[derive(Subcommand)]
 enum TagsCmd {
     /// 从文档移除标签；标签无剩余引用时一并清理
-    Remove { id: i64, tag: String },
+    #[command(
+        long_about = "从文档移除标签；标签无剩余引用时一并清理\n\n输出移除的关联数（removed）。"
+    )]
+    Remove {
+        /// 文档 id，取自 search 或 archive 的输出
+        id: i64,
+        /// 要移除的标签名
+        tag: String,
+    },
 }
 
 #[derive(Subcommand)]
 enum SendtoCmd {
     /// 列出可用插件：每行 id 与显示名
+    #[command(
+        long_about = "列出可用插件：每行 id 与显示名\n\n文本模式每行 `id<TAB>name`，无插件时无输出；`--json` 输出 id 与 name 的对象数\
+        组。"
+    )]
     List {
         /// 输出 JSON 数组，供脚本与 Emacs 消费
         #[arg(long)]
         json: bool,
     },
     /// 把文件发送给指定插件，自动选择唯一的发送动作
+    #[command(
+        long_about = "把文件发送给指定插件，自动选择唯一的发送动作\n\n`--plugin` 取自 `sendto list` 的第一列；路径必须已存在，按绝对路径传给插件。\
+        \n\n输出 provider、action、accepted 与 total。"
+    )]
     Send {
         /// 插件 id，取自 sendto list 的第一列
         #[arg(long)]
@@ -74,7 +109,11 @@ enum SendtoCmd {
 
 #[derive(Subcommand)]
 enum TrashCmd {
-    /// 列出回收站条目：每行 uuid、原路径与标题
+    /// 列出回收站条目：每行 uuid 与原路径，JSON 含标题
+    #[command(
+        long_about = "列出回收站条目：每行 uuid 与原路径，JSON 含标题\n\n原路径取自回收站记录的 `.trashinfo`，缺失时回退为回收站内路径。\
+        `--json` 输出数组，`--jsonl` 每行一个对象，字段为 uuid、path 与 title。"
+    )]
     List {
         /// 输出 JSON 数组，供脚本与 Emacs 消费
         #[arg(long, conflicts_with = "jsonl")]
@@ -84,6 +123,10 @@ enum TrashCmd {
         jsonl: bool,
     },
     /// 清空回收站：删除文件、记录与索引条目，不可恢复
+    #[command(
+        long_about = "清空回收站：删除文件、记录与索引条目，不可恢复\n\n`--yes` 跳过确认；终端下未传时提示 y/N，非终端未传时拒绝执行，避免脚本误删。\
+        `--json` 输出 documents 与 files 计数，文本模式输出 emptied 计数。"
+    )]
     Empty {
         /// 跳过交互确认；非终端环境必须显式传入
         #[arg(long)]
@@ -93,14 +136,23 @@ enum TrashCmd {
         json: bool,
     },
     /// 按 uuid 从回收站恢复
-    Restore { uuid: String },
+    #[command(long_about = "按 uuid 从回收站恢复\n\n按记录的原路径写回，输出 restored 的路径。")]
+    Restore {
+        /// 回收站条目 uuid，取自 trash list
+        uuid: String,
+    },
 }
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// 全文搜索，返回命中的文档 id 与路径。
-    /// 支持前缀：name: 文件名子串、kind: 文档类型、tags: 标签（空格分隔为 AND）
+    /// 全文搜索，返回命中的文档 id 与路径
+    #[command(
+        long_about = "全文搜索，返回命中的文档 id 与路径\n\n查询作用于 tantivy 索引，支持 name: 文件名子串、kind: 文档类型、tags: 标签三类\
+        前缀；多个前缀以空格分隔，按 AND 组合。--limit 默认 50，0 与 -1 表示全部，上限 10000。\n\n文本模式每行输出“id 路径”，\
+        库内尚无已登记文档时报错；--json 输出数组、--jsonl 逐行输出对象，字段均为 id、path、title、snippet、tags；空库视为没有命中。"
+    )]
     Search {
+        /// 搜索查询，支持 name:/kind:/tags: 前缀
         query: String,
         /// 输出 JSON 数组，供脚本与 Emacs 消费
         #[arg(long, conflicts_with = "jsonl")]
@@ -113,6 +165,11 @@ enum Cmd {
         limit: i64,
     },
     /// 列出目录条目：已登记文档显示库内标题，未登记文件加标记
+    #[command(
+        long_about = "列出目录条目：已登记文档显示库内标题，未登记文件加标记\n\n省略目录时列出当前工作目录，路径支持 inbox:/ 等别名，trash:/ 列出回收站。\
+        相对路径按当前工作目录显示，不在该目录下时保留绝对路径；未登记文件在文本模式追加 [unregistered]。\n\n--json 输出数组，\
+        --jsonl 每行一个对象，字段为 path、title 与可选的 registered。"
+    )]
     Ls {
         /// 目录；省略时使用当前工作目录
         dir: Option<PathBuf>,
@@ -124,12 +181,22 @@ enum Cmd {
         jsonl: bool,
     },
     /// 查看数据目录、索引文档数与 inbox 计数
+    #[command(
+        long_about = "查看数据目录、索引文档数与 inbox 计数\n\n索引文档数统计 lifecycle 为 pending 与 archived 的已登记文档；\
+        inbox 计数取自 inbox 目录。\n\n--json 输出 data_dir、indexed、inbox 三个字段。"
+    )]
     Status {
         /// 输出 JSON 对象，供脚本与 Emacs 消费
         #[arg(long)]
         json: bool,
     },
     /// 重建搜索索引；无参数增量，指定路径只重建范围内文档
+    #[command(
+        long_about = "重建搜索索引；无参数增量，指定路径只重建范围内文档\n\n默认扫描全部已登记文档，校验和未变的跳过；--reindex 丢弃现有索引后全量重建。\
+        --path 只重建该文件或目录范围内的文档，必须位于数据目录内，支持 inbox:/ 等别名。--threads 指定正文提取的并行线程数，省略时用 \
+        CPU 核心数。--verbose 逐文档输出完成状态。\n\n结束时输出 indexed、unchanged、skipped_unregistered、\
+        missing、failed 与 orphans_removed 计数。"
+    )]
     Index {
         /// 彻底重建整个索引，不能与路径同时使用
         #[arg(long, conflicts_with = "path")]
@@ -144,41 +211,105 @@ enum Cmd {
         verbose: bool,
     },
     /// 清理数据库中文件已不存在的失效条目
+    #[command(
+        long_about = "清理数据库中文件已不存在的失效条目\n\n跳过隐藏路径与回收站条目，文件缺失的记录先从索引、再从数据库移除；随后与索引对账，清掉索引孤儿并为路径复用的条\
+        目补建索引。\n\n终端下重绘扫描进度，非终端不输出。结束时输出 scanned、removed、index_removed 与 reindexed 计\
+        数。"
+    )]
     Cleanup,
     /// 迁移数据库 schema 并报告回填数量
+    #[command(
+        long_about = "迁移数据库 schema 并报告回填数量\n\n打开数据库时执行迁移，输出 from、to 与 backfilled 计数，随后退出，不执行其他操作。"
+    )]
     Upgrade,
     /// 导入文件或目录到 inbox
-    Add { path: PathBuf },
+    #[command(
+        long_about = "导入文件或目录到 inbox\n\n文件复制进 inbox 并登记；目录逐文件导入，已存在的按路径跳过，内容重复的按校验和跳过。\n\n单文件输出 \
+        added 的 id 与库内路径，目录输出 imported、skipped_existing 与 skipped_duplicate 计数。"
+    )]
+    Add {
+        /// 本地路径或库内路径；支持 inbox:/ 等别名
+        path: PathBuf,
+    },
     /// 在库内新建空文件或目录并登记
+    #[command(
+        long_about = "在库内新建空文件或目录并登记\n\n只允许在受管位置（inbox、library、notes、captures、archived）内新建，父目录必须已存\
+        在，数据目录与其一级根目录不可作为目标。\n\n--dir 创建目录；文件登记为文档后输出 created 的路径与 id，目录不登记，id 输出为 \
+        `-`。"
+    )]
     Create {
+        /// 新文件或目录路径；支持 inbox:/ 等别名
         path: PathBuf,
         /// 创建目录
         #[arg(long)]
         dir: bool,
     },
     /// 在库内复制文件或目录，副本登记为独立文档
-    Copy { src: PathBuf, dst: PathBuf },
+    #[command(
+        long_about = "在库内复制文件或目录，副本登记为独立文档\n\n源与目标都必须位于受管位置内且不能是根目录，目标不能已存在，也不能位于源之内。\n\n输出 copied \
+        的文件数与新登记文档数。"
+    )]
+    Copy {
+        /// 源路径；支持 inbox:/ 等别名
+        src: PathBuf,
+        /// 目标路径；支持 inbox:/ 等别名
+        dst: PathBuf,
+    },
     /// 在库内移动或改名文件/目录
-    Move { src: PathBuf, dst: PathBuf },
+    #[command(
+        long_about = "在库内移动或改名文件/目录\n\n目标不能已存在，同目录改名等价于移动。\n\n输出 moved 的文档数与索引失败数（index_failed）。"
+    )]
+    Move {
+        /// 源路径；支持 inbox:/ 等别名
+        src: PathBuf,
+        /// 目标路径；支持 inbox:/ 等别名
+        dst: PathBuf,
+    },
     /// 把库内文件或目录移入回收站
+    #[command(
+        long_about = "把库内文件或目录移入回收站\n\n回收站是数据目录下的 .trash，不走系统 GIO 回收站。单个条目输出 trashed 的原路径与 uuid，多个\
+        条目输出 count。\n\n--permanent 跳过回收站，直接删除文件、记录与索引条目，不可恢复。"
+    )]
     Delete {
+        /// 库内路径；支持 inbox:/ 等别名
         path: PathBuf,
         /// 跳过回收站，彻底删除文件、记录与索引条目
         #[arg(long)]
         permanent: bool,
     },
     /// 回收站：列出、清空与恢复
+    #[command(
+        long_about = "回收站：列出、清空与恢复\n\n条目保存在数据目录下的 .trash，并记录原路径，恢复时写回原路径。"
+    )]
     Trash {
         #[command(subcommand)]
         cmd: TrashCmd,
     },
     /// 将文档归入 library 下的分类目录
-    Dispatch { id: i64, category: String },
+    #[command(
+        long_about = "将文档归入 library 下的分类目录\n\n按文档 id 取路径，移动到 library/<category>/ 下并保持文件名不变，\
+        lifecycle 置为 archived。\n\n输出 dispatched 的 id 与新路径。"
+    )]
+    Dispatch {
+        /// 文档 id，取自 search 或 archive 的输出
+        id: i64,
+        /// library 下的分类目录名
+        category: String,
+    },
     /// 归档文件：--category 保留路径，--record 写入 UUID 存储
+    #[command(
+        long_about = "归档文件：--category 保留路径，--record 写入 UUID 存储\n\n未登记的文件先登记：位于 inbox 的按 inbox 登记，其\
+        余按库内文件登记。\n\n--category 移动到 library/<category> 并保留数据目录内的相对路径；--record 移动到 \
+        archived/<扩展名>/<uuid>.<扩展名>，两者必须给出一个。\n\n默认输出 uuid、原始文件名与内部路径，--uuid 只输出 \
+        uuid 与内部路径。"
+    )]
     Archive {
+        /// 一个或多个待归档的本地路径
         paths: Vec<PathBuf>,
+        /// 分类目录名，归档到 library/<category>
         #[arg(long, group = "mode")]
         category: Option<String>,
+        /// 写入 UUID 存储，归档到 archived/<扩展名>/<uuid>
         #[arg(long, group = "mode")]
         record: bool,
         /// 只输出 UUID 与内部路径
@@ -186,18 +317,32 @@ enum Cmd {
         uuid: bool,
     },
     /// 抓取网页入库到 captures
-    Capture { url: String },
+    #[command(
+        long_about = "抓取网页入库到 captures\n\n取给定 URL 的正文存入 captures 并登记，输出 captured 的 id 与标题。"
+    )]
+    Capture {
+        /// 待抓取的网页地址
+        url: String,
+    },
     /// 文档标签：移除
+    #[command(long_about = "文档标签：移除\n\n详见 tags remove。")]
     Tags {
         #[command(subcommand)]
         cmd: TagsCmd,
     },
     /// PDF 注释：列出或从文件同步
+    #[command(
+        long_about = "PDF 注释：列出或从文件同步\n\nannotations list 输出单篇文档的注释，annotations sync 扫描全部 PDF 回写。"
+    )]
     Annotations {
         #[command(subcommand)]
         cmd: AnnotationsCmd,
     },
     /// 外部 send-to 插件：列出可用插件或发送文件
+    #[command(
+        long_about = "外部 send-to 插件：列出可用插件或发送文件\n\n插件由外部注册；发送时自动选择唯一的发送动作。\n\n该组命令只读插件清单与发送文件，不打开数\
+        据库。"
+    )]
     Sendto {
         #[command(subcommand)]
         cmd: SendtoCmd,
@@ -878,5 +1023,56 @@ mod tests {
             String::from_utf8(output).expect("utf8"),
             "/elsewhere/a.md: a.md [unregistered]\n"
         );
+    }
+
+    /// `-h` 只显示摘要，`--help` 显示摘要与细节；每个命令都要有两份。
+    #[test]
+    fn every_command_documents_longer_help() {
+        use clap::CommandFactory;
+
+        fn check(command: &clap::Command, path: &str) {
+            assert!(
+                command.get_long_about().is_some(),
+                "{path} lacks long_about"
+            );
+            for sub in command.get_subcommands() {
+                // clap 生成的 help 子命令没有长描述，不在检查范围内。
+                if sub.get_name() != "help" {
+                    check(sub, format!("{path} {}", sub.get_name()).as_str());
+                }
+            }
+        }
+
+        let mut cmd = Cli::command();
+        check(&cmd, "kc");
+        let short = cmd.clone().render_help().to_string();
+        let long = cmd.render_long_help().to_string();
+        assert!(
+            long.len() > short.len(),
+            "`--help` must tell more than `-h`"
+        );
+    }
+
+    /// 每个参数都要有 help 文本，否则 `--help` 里只留下一个空行。
+    #[test]
+    fn every_argument_documents_help() {
+        use clap::CommandFactory;
+
+        fn check(command: &clap::Command, path: &str) {
+            for arg in command.get_arguments() {
+                assert!(
+                    arg.get_help().is_some(),
+                    "{path} argument {} lacks help",
+                    arg.get_id()
+                );
+            }
+            for sub in command.get_subcommands() {
+                if sub.get_name() != "help" {
+                    check(sub, format!("{path} {}", sub.get_name()).as_str());
+                }
+            }
+        }
+
+        check(&Cli::command(), "kc");
     }
 }
