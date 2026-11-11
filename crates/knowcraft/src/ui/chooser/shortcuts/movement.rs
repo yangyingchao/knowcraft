@@ -100,7 +100,7 @@ impl ChooserShortcuts {
         } else if press.is(PARENT_FOLDER.ignoring(FOCUS_MODIFIERS)) {
             context.browser.parent();
         } else if press.is(HOME_FOLDER.ignoring(FOCUS_MODIFIERS)) {
-            context.browser.navigate(Location::local(home_directory()));
+            context.browser.navigate(home_folder_location());
         } else {
             return None;
         }

@@ -11,13 +11,13 @@ use gtk::{
 use super::{Dispatcher, KeyEvent, KeyResult};
 use crate::{
     app::Browser,
-    model::Location,
     ui::{
         browser_modes::BrowserMode,
         keys::{Binding, Command, KeyPress, Map, Match, bindings::*},
         preview::preview_target,
         window::{
-            SinglePaneArrow, home_directory, sidebar_focus_direction, single_pane_arrow_action,
+            SinglePaneArrow, home_folder_location, sidebar_focus_direction,
+            single_pane_arrow_action,
         },
     },
 };
@@ -468,7 +468,7 @@ fn history_jump(browser: &Rc<Browser>, press: &KeyPress) -> bool {
     } else if press.is(PARENT_FOLDER.ignoring(SHIFT)) {
         browser.parent();
     } else if press.is(HOME_FOLDER.ignoring(SHIFT)) {
-        browser.navigate(Location::local(home_directory()));
+        browser.navigate(home_folder_location());
     } else {
         return false;
     }

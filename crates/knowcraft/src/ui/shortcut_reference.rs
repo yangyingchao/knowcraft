@@ -495,7 +495,7 @@ const BACK_BUTTON_HISTORY: Shortcut = within(
 /// Navigation every default-map view shares, after the history rows.
 const DEFAULT_GO_TO: &[Shortcut] = &[
     row(One(PARENT_FOLDER.shown()), "Go to the parent folder"),
-    row(One(HOME_FOLDER.shown()), "Go to Home"),
+    row(One(HOME_FOLDER.shown()), "Go to the knowledge base root"),
     row(Any(shown![FIRST_ITEM, LAST_ITEM]), "First / last item"),
     row(
         Any(shown![FIRST_ITEM_UP, LAST_ITEM_DOWN]),
@@ -597,6 +597,7 @@ const DEFAULT_TOOLS: &[Shortcut] = &[
     ),
     SELECT_TAB,
     row(One(TERMINAL.shown()), "Open a terminal"),
+    row(One(FILE_MANAGER.shown()), "Open a file manager"),
     row(One(REFRESH.shown()), "Refresh"),
     row(One(HIDDEN_FILES.shown()), "Show or hide hidden files"),
     row(TEXT_SIZE, "Increase / decrease / reset text size"),

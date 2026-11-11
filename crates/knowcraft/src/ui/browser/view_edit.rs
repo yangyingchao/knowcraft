@@ -207,10 +207,11 @@ impl BrowserView {
         }
     }
 
-    pub fn open_terminal(&self) {
-        self.state.sync_mode_selection();
+    /// The folder a folder-scoped action targets: a selected folder, or the
+    /// folder of the active column. The selection must be synced already.
+    fn folder_action_location(&self) -> Option<Location> {
         let selected = self.state.browser.selected_entries();
-        let location = selected_terminal_location(&selected).or_else(|| {
+        selected_terminal_location(&selected).or_else(|| {
             if self.view_mode() != BrowserMode::Columns {
                 let depth = self.state.browser.active_depth()?;
                 return self.state.browser.location_at(depth);
@@ -236,11 +237,23 @@ impl BrowserView {
                 }
                 _ => directory,
             }
-        });
-        let Some(location) = location else {
+        })
+    }
+
+    pub fn open_terminal(&self) {
+        self.state.sync_mode_selection();
+        let Some(location) = self.folder_action_location() else {
             return;
         };
         launch_terminal(&location, &self.state.overlay);
+    }
+
+    pub fn open_file_manager(&self) {
+        self.state.sync_mode_selection();
+        let Some(location) = self.folder_action_location() else {
+            return;
+        };
+        launch_file_manager(&location, &self.state.overlay);
     }
 
     /// A user Reload also retries Trash on mounts that refused it earlier.

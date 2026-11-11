@@ -57,6 +57,9 @@ pub(super) struct ShortcutFooter {
     current: CurrentHit,
     filter_source: FilterSource,
     filter_retry: Rc<Cell<bool>>,
+    /// Set once the footer's tab or window is closing; deferred refreshes then
+    /// stop before they touch disposed widgets.
+    disposed: Rc<Cell<bool>>,
     observed: Rc<RefCell<std::rc::Weak<crate::app::Browser>>>,
     reference_scope: Rc<Cell<ReferenceScope>>,
 }
@@ -138,9 +141,16 @@ impl ShortcutFooter {
         });
     }
 
+    /// Stops deferred filter work once the footer's tab or window is closing.
+    /// The pending idle keeps a clone of this footer alive, so the clone must
+    /// check this before reading widgets that were already disposed.
+    pub(in crate::ui) fn dispose(&self) {
+        self.disposed.set(true);
+    }
+
     /// Refreshes once on idle, after focus settles on the cursor row.
     pub(in crate::ui) fn schedule_filter_refresh(&self) {
-        if self.filter_retry.replace(true) {
+        if self.disposed.get() || self.filter_retry.replace(true) {
             return;
         }
         let footer = self.clone();
@@ -172,6 +182,9 @@ impl ShortcutFooter {
     }
 
     pub(in crate::ui) fn refresh_filter(&self) {
+        if self.disposed.get() {
+            return;
+        }
         let Some(status) = self.read_filter() else {
             self.schedule_filter_refresh();
             return;

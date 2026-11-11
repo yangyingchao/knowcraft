@@ -103,7 +103,7 @@ pub(super) fn build_chooser_hosted(
             footer: &footer,
         },
     );
-    release_on_unrealize(&window, &state, &browser, panes.sidebar);
+    release_on_unrealize(&window, &state, &browser, panes.sidebar, &footer);
     register_chooser_window(&state, &window);
     if cancelled.load(Ordering::SeqCst) {
         state.cancel();
@@ -630,7 +630,9 @@ fn release_on_unrealize(
     state: &Rc<ChooserState>,
     browser: &Rc<crate::app::Browser>,
     sidebar: SidebarView,
+    footer: &ShortcutFooter,
 ) {
+    footer.dispose();
     let browser_for_close = browser.clone();
     let closing_state = Rc::downgrade(state);
     window.connect_unrealize(move |window| {

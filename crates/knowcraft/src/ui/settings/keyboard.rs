@@ -993,7 +993,7 @@ const NAMES: &[(Command, &str)] = &[
     (HISTORY_BACK, "Back"),
     (HISTORY_FORWARD, "Forward"),
     (PARENT_FOLDER, "Go to the parent folder"),
-    (HOME_FOLDER, "Go to Home"),
+    (HOME_FOLDER, "Go to the knowledge base root"),
     (OPEN_IN_NEW_TAB, "Open in a new tab"),
     (OPEN_IN_NEW_WINDOW, "Open in a new window"),
     (PREVIEW, "Focus the preview panel"),
@@ -1041,6 +1041,7 @@ const NAMES: &[(Command, &str)] = &[
     (TAB_MOVE_RIGHT, "Move tab right"),
     (JUMP_TO_FOLDER, "Jump to a folder"),
     (TERMINAL, "Open a terminal"),
+    (FILE_MANAGER, "Open a file manager"),
     (ARROW_SCOPE, "Keep arrows in the file list on or off"),
     (
         OPEN_CONTAINING_FOLDER,

@@ -268,6 +268,8 @@ impl Dispatcher {
             browser.toggle_hidden();
         } else if event.press.is(TERMINAL) {
             self.view.open_terminal();
+        } else if event.press.is(FILE_MANAGER) {
+            self.view.open_file_manager();
         } else if event.press.is(REFRESH.ignoring(SHORTCUT_MODIFIERS)) {
             self.view.refresh();
         } else if event.press.is(DISPATCH) {

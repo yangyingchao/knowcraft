@@ -46,10 +46,11 @@ type KeyResult = Option<Propagation>;
 
 /// Window actions that run once every other stage yields the key, wherever
 /// the active table binds them.
-const WINDOW_ACTIONS: [(Command, &str); 5] = [
+const WINDOW_ACTIONS: [(Command, &str); 6] = [
     (SEARCH, "search"),
     (JUMP_TO_FOLDER, "jump-folder"),
     (TERMINAL, "open-terminal"),
+    (FILE_MANAGER, "open-file-manager"),
     (REFRESH, "refresh"),
     (ARROW_SCOPE, "toggle-arrow-scope"),
 ];

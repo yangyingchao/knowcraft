@@ -181,6 +181,7 @@ impl WindowContent {
             }
         }
         self.footer.shortcuts.dismiss_prompt();
+        self.footer.shortcuts.dispose();
         self.footer.disconnect_clipboard();
         self.preview.clear_target();
         let browser = self.browser.browser();
@@ -238,6 +239,17 @@ fn install_browser_actions(
     add_guarded_window_action(window, actions, "open-terminal", browser, None, move || {
         terminal_view.open_terminal();
     });
+    let file_manager_view = browser.clone();
+    add_guarded_window_action(
+        window,
+        actions,
+        "open-file-manager",
+        browser,
+        None,
+        move || {
+            file_manager_view.open_file_manager();
+        },
+    );
     let refresh_view = browser.clone();
     add_guarded_window_action(window, actions, "refresh", browser, None, move || {
         refresh_view.refresh();

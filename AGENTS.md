@@ -12,7 +12,7 @@
 
 - **唯一写者 + 写锁**：GUI 进程持有 SQLite/tantivy 写权限；无 GUI 时 CLI 自持锁降级，所有写入经 `data_dir/.write.lock` 串行（见 `docs/adr/0001`）。
 - 数据根目录默认 `~/Knowledge`，`KNOWCRAFT_DATA_DIR` 环境变量或 `~/.config/knowcraft/config.toml` 覆盖。内部：`inbox/ library/ notes/ captures/` + `.trash/` 回收站 + `knowcraft.db` + `.index/`。
-- **GUI 锁定浏览 data_dir**：地址栏、导航、对话框、搜索根全部钳制在 data_dir 内；库外文件只经拖拽导入（复制进 inbox，走 `workflow::add_to_inbox` 登记 + 去重）。`Location::is_within` 是钳制判定原语。
+- **GUI 可浏览库外路径**：地址栏、导航、递归搜索按当前目录工作，不再钳制在 data_dir；侧边栏仍只显示 Knowcraft 分组。库外文件可预览，但不做知识库登记，删除、移动、标签等写入仍受 core 的 `validate_inside` 约束。
 - 侧边栏只显示 Knowcraft 分组（Inbox/Library/Notes/Captures/回收站）。设备、书签、系统位置链路已删除，勿复活。
 - 回收站 = `data_dir/.trash` 目录移动（非系统 GIO trash）：删除 = 移到 `.trash`，支持清空与恢复。
 - 索引/提取/watcher 接入由另一台机器负责，GUI 不触发索引。

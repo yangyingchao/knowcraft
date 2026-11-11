@@ -64,7 +64,7 @@ use super::{
     top_bar_navigation::TopBarNavigation,
     window::{
         ChooserKeys, ChooserPolicy, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, SidebarView,
-        build_appearance_menu, build_sidebar, edit_focused_text, home_directory,
+        build_appearance_menu, build_sidebar, edit_focused_text, home_folder_location,
         install_modal_focus_trap, visible_modal_layer,
     },
 };

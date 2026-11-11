@@ -368,6 +368,43 @@ pub(super) fn selected_terminal_location(entries: &[FileEntry]) -> Option<Locati
     entry.is_directory().then(|| entry.location.clone())
 }
 
+pub(in crate::ui) fn launch_file_manager(location: &Location, parent: &impl IsA<gtk::Widget>) {
+    if location.native_path().is_none() {
+        show_error_dialog(
+            parent,
+            &crate::i18n::tr("Unable to open the file manager"),
+            &crate::i18n::tr("This location is not a local folder"),
+        );
+        return;
+    }
+    if is_trash_location(location) {
+        show_error_dialog(
+            parent,
+            &crate::i18n::tr("Unable to open the file manager"),
+            &crate::i18n::tr("The file manager cannot be opened in Trash"),
+        );
+        return;
+    }
+    tracing::debug!(
+        location = %location.diagnostic_path(),
+        "opening file manager"
+    );
+    let file = gio_file_for_location(location);
+    let context = crate::child_environment::launch_context(&parent.as_ref().display());
+    let parent = parent.as_ref().downgrade();
+    glib::MainContext::default().spawn_local(async move {
+        let uri = file.uri();
+        let result = gio::AppInfo::launch_default_for_uri_future(&uri, Some(&context)).await;
+        if let (Err(error), Some(parent)) = (result, parent.upgrade()) {
+            show_error_dialog(
+                &parent,
+                &crate::i18n::tr("Unable to open the file manager"),
+                &crate::services::gio_error_message(&error),
+            );
+        }
+    });
+}
+
 pub(in crate::ui) fn launch_terminal(location: &Location, parent: &impl IsA<gtk::Widget>) {
     let Some(path) = location.native_path() else {
         show_error_dialog(

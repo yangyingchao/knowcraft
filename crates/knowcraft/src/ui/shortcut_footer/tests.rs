@@ -74,3 +74,28 @@ fn settle() {
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
 }
+
+/// Closing a tab disposes its footer while a deferred refresh may still be
+/// queued; the queued clone must not read the disposed widgets.
+#[test]
+fn a_disposed_footer_stops_its_queued_filter_refresh() {
+    crate::test_support::gtk_test(
+        "ui::shortcut_footer::tests::a_disposed_footer_stops_its_queued_filter_refresh",
+        || {
+            let footer = ShortcutFooter::new(crate::ui::browser_modes::BrowserMode::Columns);
+            let calls = Rc::new(Cell::new(0));
+            let counted = calls.clone();
+            footer.observe_filter(move || {
+                counted.set(counted.get() + 1);
+                Some(None)
+            });
+            assert_eq!(calls.get(), 1, "observe_filter refreshes once");
+            footer.schedule_filter_refresh();
+            footer.dispose();
+            while glib::MainContext::default().pending() {
+                glib::MainContext::default().iteration(false);
+            }
+            assert_eq!(calls.get(), 1, "a disposed footer never refreshes again");
+        },
+    );
+}

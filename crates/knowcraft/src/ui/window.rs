@@ -69,6 +69,7 @@ pub(super) use key_routing::{
 };
 pub(in crate::ui) use keyboard::{ChooserKeys, ChooserPolicy, edit_focused_text};
 pub(crate) use launch::home_directory;
+pub(crate) use launch::home_folder_location;
 pub use launch::present;
 pub(super) use launch::present_target;
 use launch::{browser_for_window, open_checked, open_default_folder, schedule_after_first_paint};

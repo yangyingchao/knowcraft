@@ -162,6 +162,14 @@ pub(crate) fn home_directory() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("/"))
 }
 
+/// The location the Home jump opens: the knowledge base root, or Home while
+/// the store is unavailable.
+pub(crate) fn home_folder_location() -> Location {
+    crate::knowledge::data_dir()
+        .map(|directory| Location::local(directory))
+        .unwrap_or_else(|| Location::local(home_directory()))
+}
+
 #[expect(
     dead_code,
     reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
@@ -206,8 +214,8 @@ pub(super) fn open_checked(
 }
 
 pub(super) fn open_default_folder(browser: &Rc<Browser>, _manager: &Rc<PreferenceManager>) {
-    // The shell is locked to the knowledge base: startup always opens its root,
-    // never a remembered default directory or the home folder.
+    // Startup always opens the knowledge base root, never a remembered default
+    // directory or the home folder.
     let start = crate::knowledge::data_dir()
         .map(|dir| Location::local(&dir))
         .unwrap_or_else(|| Location::local(home_directory()));
