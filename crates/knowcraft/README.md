@@ -4,7 +4,7 @@
 
 # Knowcraft
 
-**Navigate every layer.** A fast, keyboard-first file manager for modern Linux desktops.
+**Turn files into knowledge.** A fast, keyboard-first GTK4 file manager with an indexed knowledge base underneath.
 
 [![CI](https://github.com/yangyingchao/knowcraft/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/yangyingchao/knowcraft/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/yangyingchao/knowcraft?display_name=tag&sort=semver)](https://github.com/yangyingchao/knowcraft/releases/latest)

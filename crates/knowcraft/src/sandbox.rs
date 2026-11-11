@@ -59,6 +59,8 @@ const TEMPORARY_STORAGE_LIMIT_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_RASTER_INPUT_BYTES: u64 = 512 * 1024 * 1024;
 pub(crate) const MAX_OUTPUT_BYTES: u64 = 32 * 1024 * 1024;
 pub(crate) const MAX_TEXT_LAYER_BYTES: u64 = 8 * 1024 * 1024;
+/// Most pages one Word batch render produces, including the requested page.
+pub(crate) const WORD_BATCH_MAX: u32 = 4;
 
 #[derive(Clone, Default)]
 pub(crate) struct Cancellation(Arc<AtomicBool>);
@@ -77,14 +79,29 @@ impl Cancellation {
     pub(crate) fn is_cancelled(&self) -> bool {
         self.0.load(Ordering::Acquire)
     }
+
+    /// Whether both handles watch the same flag.
+    pub(crate) fn same(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+/// One page of a multi-page helper output.
+#[derive(Clone)]
+pub(crate) struct PagedOutput {
+    pub(crate) page: i32,
+    pub(crate) png: Vec<u8>,
+    pub(crate) text_layer: Option<crate::services::PageTextLayer>,
 }
 
 pub(crate) struct ParseOutput {
     pub(crate) data: Vec<u8>,
     pub(crate) page: i32,
     pub(crate) pages: i32,
-    pub(crate) text_layer: Option<crate::services::PdfTextLayer>,
+    pub(crate) text_layer: Option<crate::services::PageTextLayer>,
     pub(crate) model_mesh: Option<crate::services::ModelMesh>,
+    /// Remaining pages of a multi-page parse, excluding the first (`data`).
+    pub(crate) batch: Vec<PagedOutput>,
 }
 
 /// One sandboxed parse: the input, what to produce from it, and how to stop.
@@ -248,6 +265,8 @@ fn renderer_timeout(operation: &ParseOperation) -> Duration {
         ParseOperation::DocumentImage
         | ParseOperation::DocumentMermaid
         | ParseOperation::DocumentMath { .. } => Duration::from_secs(3),
+        // A batch lays out the whole document and rasterises several pages.
+        ParseOperation::PreviewWordPages { .. } => Duration::from_secs(30),
         _ => WALL_TIME_LIMIT,
     }
 }
@@ -353,8 +372,11 @@ fn read_output_data(operation: &ParseOperation, output: &Path) -> Result<Vec<u8>
 fn read_text_layer(
     operation: &ParseOperation,
     output: &Path,
-) -> Option<crate::services::PdfTextLayer> {
-    if !matches!(operation, ParseOperation::PreviewPdf(_)) {
+) -> Option<crate::services::PageTextLayer> {
+    if !matches!(
+        operation,
+        ParseOperation::PreviewPdf(_) | ParseOperation::PreviewWordPage { .. }
+    ) {
         return None;
     }
     read_private_output(&output.join("result.text"), MAX_TEXT_LAYER_BYTES)
@@ -363,6 +385,17 @@ fn read_text_layer(
 }
 
 fn read_parse_output(operation: ParseOperation, output: &Path) -> Result<ParseOutput, String> {
+    if matches!(operation, ParseOperation::PreviewWordPages { .. }) {
+        let batch = read_paged_batch(&operation, output)?;
+        return Ok(ParseOutput {
+            data: batch.first.png,
+            page: batch.first.page,
+            pages: batch.pages,
+            text_layer: batch.first.text_layer,
+            model_mesh: None,
+            batch: batch.rest,
+        });
+    }
     let data = read_output_data(&operation, output)?;
     let (page, pages) = read_metadata(&output.join("result.meta"));
     let model_mesh = if let ParseOperation::PreviewModel(render) = operation {
@@ -379,6 +412,88 @@ fn read_parse_output(operation: ParseOperation, output: &Path) -> Result<ParseOu
         pages,
         text_layer,
         model_mesh,
+        batch: Vec::new(),
+    })
+}
+
+/// The first page plus the remaining pages of a multi-page helper output.
+struct PagedBatch {
+    first: PagedOutput,
+    pages: i32,
+    rest: Vec<PagedOutput>,
+}
+
+#[derive(serde::Deserialize)]
+struct BatchEntry {
+    page: i32,
+    png: String,
+    #[serde(default)]
+    text: Option<String>,
+}
+
+/// The output index a `result.*` file name names, or `None` for anything else.
+/// Only `result.png` / `result.text` (index 0) and `result.<n>.*` below
+/// [`WORD_BATCH_MAX`] are accepted; paths and subdirectories never are.
+fn batch_index(name: &str, extension: &str) -> Option<usize> {
+    let plain = format!("result.{extension}");
+    if name == plain {
+        return Some(0);
+    }
+    let numbered = name
+        .strip_prefix("result.")?
+        .strip_suffix(&format!(".{extension}"))?;
+    let index = numbered.parse::<usize>().ok()?;
+    (1..WORD_BATCH_MAX as usize)
+        .contains(&index)
+        .then_some(index)
+}
+
+/// Reads one multi-page Word helper output, validating every file it names.
+fn read_paged_batch(operation: &ParseOperation, output: &Path) -> Result<PagedBatch, String> {
+    let (first_page, pages) = read_metadata(&output.join("result.meta"));
+    let entries: Vec<BatchEntry> = serde_json::from_slice(
+        &read_private_output(&output.join("result.pages"), MAX_OUTPUT_BYTES / 16)
+            .map_err(|error| error.message())?,
+    )
+    .map_err(|_| "The preview renderer produced invalid page data".to_owned())?;
+    if entries.is_empty() || entries.len() > WORD_BATCH_MAX as usize {
+        return Err("The preview renderer produced an invalid page batch".to_owned());
+    }
+    let mut rendered = Vec::with_capacity(entries.len());
+    for (index, entry) in entries.into_iter().enumerate() {
+        if entry.page != first_page + index as i32 || entry.page < 0 || entry.page >= pages {
+            return Err("The preview renderer produced an invalid page batch".to_owned());
+        }
+        if batch_index(&entry.png, "png") != Some(index) {
+            return Err("The preview renderer produced an invalid page batch".to_owned());
+        }
+        let png = read_private_output(&output.join(&entry.png), MAX_OUTPUT_BYTES)
+            .map_err(|error| error.message())?;
+        if !valid_output(operation.clone(), &png) {
+            return Err("The preview renderer produced invalid image data".to_owned());
+        }
+        let text_layer = match entry.text.as_deref() {
+            Some(name) => {
+                if batch_index(name, "text") != Some(index) {
+                    return Err("The preview renderer produced an invalid page batch".to_owned());
+                }
+                read_private_output(&output.join(name), MAX_TEXT_LAYER_BYTES)
+                    .ok()
+                    .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            }
+            None => None,
+        };
+        rendered.push(PagedOutput {
+            page: entry.page,
+            png,
+            text_layer,
+        });
+    }
+    let first = rendered.remove(0);
+    Ok(PagedBatch {
+        first,
+        pages,
+        rest: rendered,
     })
 }
 
@@ -389,6 +504,7 @@ fn browser_output(data: Vec<u8>) -> ParseOutput {
         pages: 0,
         text_layer: None,
         model_mesh: None,
+        batch: Vec::new(),
     }
 }
 

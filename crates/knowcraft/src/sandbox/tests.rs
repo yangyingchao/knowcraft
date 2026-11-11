@@ -13,6 +13,7 @@ mod command;
 mod gpu;
 mod lifecycle;
 mod output;
+mod paged_batch;
 mod secrets;
 mod validation;
 

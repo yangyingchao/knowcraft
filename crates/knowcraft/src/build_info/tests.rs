@@ -24,13 +24,12 @@ fn default_release_tag_omits_the_short_hash() {
 }
 
 /// A tagged build parses to `VERSION`; an untagged build (`v0.1.1-N`) does
-/// not match the release-channel grammar, so `installed_version()` falls
-/// back to the `0.0.0` floor rather than panicking.
+/// not match the release-channel grammar, so callers that need a comparable
+/// version fall back to the `0.0.0` floor rather than panicking.
 #[test]
-fn installed_version_handles_tagged_and_untagged_builds() {
-    match crate::services::Version::parse(RELEASE_TAG) {
-        Some(parsed) => assert_eq!(parsed.to_string(), VERSION),
-        None => assert_eq!(installed_version().to_string(), "0.0.0"),
+fn release_tag_matches_the_core_version_when_tagged() {
+    if let Some(parsed) = crate::services::Version::parse(RELEASE_TAG) {
+        assert_eq!(parsed.to_string(), VERSION);
     }
 }
 

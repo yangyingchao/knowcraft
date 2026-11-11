@@ -27,6 +27,8 @@ mod operations;
 pub(crate) mod package_manager;
 mod path_match;
 mod preview;
+// The updater is not wired up yet; its parsers stay unit-tested until then.
+#[allow(dead_code)]
 mod release_channel;
 mod remote_download;
 pub(crate) mod route_preview;
@@ -88,7 +90,7 @@ pub use operations::{
 pub(crate) use path_match::{PathMatcher, PathQuery};
 pub use preview::{
     ArchiveDirectory, ArchiveFileEntry, ArchiveNode, ArchivePreviewTree, MediaPreviewSize,
-    ModelPreviewStage, PdfTextLayer, Preview, PreviewContent, PreviewEvent, PreviewProvider,
+    ModelPreviewStage, PageTextLayer, Preview, PreviewContent, PreviewEvent, PreviewProvider,
     PreviewRequest, PreviewRequestId, SandboxedMedia, SecretString, archive_preview_tree,
 };
 pub(crate) use preview::{
@@ -98,7 +100,9 @@ pub(crate) use preview::{
     model_format, normalize_preview_text, read_head_sample, read_supports_named_family,
     reconcile_with_sample, refine_reported_content_type, split_archive_name, supports_remote_video,
 };
-pub(crate) use release_channel::{BuildKind, Version};
+pub(crate) use release_channel::BuildKind;
+#[cfg(test)]
+pub(crate) use release_channel::Version;
 pub(crate) use remote_download::{
     RemoteDownload, download_remote, remote_file_name, remote_file_url,
 };

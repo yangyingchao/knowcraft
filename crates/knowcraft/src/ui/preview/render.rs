@@ -57,8 +57,6 @@ impl PreviewState {
                         .is_some();
                 self.render_rendered(document, warnings, word_processor);
             }
-            PreviewContent::DocumentPage { png, page, pages } => self
-                .render_document_page(entry, document_page::DocumentPageFirst { png, page, pages }),
             PreviewContent::Route { preview } => self.render_route(preview),
             PreviewContent::Model { png, mesh } => self.render_model(png, mesh),
             PreviewContent::Rasterized { png } => self.render_rasterized(&entry, png),
@@ -76,21 +74,38 @@ impl PreviewState {
                     &crate::i18n::tr("The sandboxed renderer returned no preview"),
                 );
             }
-            PreviewContent::Pdf {
+            PreviewContent::Paged {
                 png,
                 page,
                 pages,
                 text_layer,
             } => {
-                self.render_pdf_viewer(
-                    entry,
-                    pdf::PdfFirstPage {
-                        png,
-                        page,
-                        text_layer,
-                    },
-                    pages,
-                );
+                let word =
+                    crate::sandbox::DocumentFormat::for_file(&content_type, &entry.native_name);
+                if word.is_some() {
+                    paged::render_paged(
+                        self,
+                        entry,
+                        paged::PagedFirstPage {
+                            png,
+                            page,
+                            text_layer,
+                        },
+                        pages,
+                        paged::PagedHooks::default(),
+                    );
+                } else {
+                    pdf::render_pdf_paged(
+                        self,
+                        entry,
+                        pdf::PdfFirstPage {
+                            png,
+                            page,
+                            text_layer,
+                        },
+                        pages,
+                    );
+                }
             }
             PreviewContent::Archive { tree } => {
                 let focus = self.focus_archive_request.get() == Some(request_id);
@@ -200,7 +215,7 @@ impl PreviewState {
         self.source_preview.virtual_state.borrow_mut().take();
         self.document_view_button.set_visible(false);
         self.document_preview.borrow_mut().take();
-        self.document_page.borrow_mut().take();
+        self.paged.borrow_mut().take();
         let audio = self.audio.borrow_mut().take();
         if let Some(audio) = audio.as_ref() {
             audio.view.detach();

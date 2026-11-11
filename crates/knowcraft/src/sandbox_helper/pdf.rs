@@ -182,7 +182,7 @@ fn pdf_text_layer(
     if text.is_empty() || text.chars().count() != glyphs.len() || lines.len() != glyphs.len() {
         return None;
     }
-    let layer = crate::services::PdfTextLayer {
+    let layer = crate::services::PageTextLayer {
         width: width as f32,
         height: height as f32,
         text,

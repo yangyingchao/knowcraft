@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 
-use crate::services::PdfTextLayer;
+use crate::services::PageTextLayer;
 
-pub(super) struct PdfLine {
+pub(super) struct TextLine {
     pub(super) top: f32,
     pub(super) bottom: f32,
     pub(super) start: usize,
     pub(super) end: usize,
 }
 
-fn solid(layer: &PdfTextLayer, index: usize) -> Option<[f32; 4]> {
+fn solid(layer: &PageTextLayer, index: usize) -> Option<[f32; 4]> {
     let rect = layer.glyphs.get(index)?;
     (rect[2] > rect[0] && rect[3] > rect[1]).then_some(*rect)
 }
 
-pub(super) fn lines(layer: &PdfTextLayer) -> Vec<PdfLine> {
+pub(super) fn lines(layer: &PageTextLayer) -> Vec<TextLine> {
     let len = len(layer);
     let mut lines = Vec::new();
     let mut start = 0;
@@ -30,7 +30,7 @@ pub(super) fn lines(layer: &PdfTextLayer) -> Vec<PdfLine> {
     lines
 }
 
-fn push_line(lines: &mut Vec<PdfLine>, layer: &PdfTextLayer, start: usize, end: usize) {
+fn push_line(lines: &mut Vec<TextLine>, layer: &PageTextLayer, start: usize, end: usize) {
     let mut top = f32::MAX;
     let mut bottom = f32::MIN;
     for index in start..end {
@@ -43,9 +43,9 @@ fn push_line(lines: &mut Vec<PdfLine>, layer: &PdfTextLayer, start: usize, end: 
         // Empty lines carry no ink; inherit height so caret hit-testing can land there.
         let (top, bottom) = lines
             .last()
-            .map(|line: &PdfLine| (line.bottom, line.bottom + line.bottom - line.top))
+            .map(|line: &TextLine| (line.bottom, line.bottom + line.bottom - line.top))
             .unwrap_or((0.0, 0.0));
-        lines.push(PdfLine {
+        lines.push(TextLine {
             top,
             bottom,
             start,
@@ -53,7 +53,7 @@ fn push_line(lines: &mut Vec<PdfLine>, layer: &PdfTextLayer, start: usize, end: 
         });
         return;
     }
-    lines.push(PdfLine {
+    lines.push(TextLine {
         top,
         bottom,
         start,
@@ -63,20 +63,20 @@ fn push_line(lines: &mut Vec<PdfLine>, layer: &PdfTextLayer, start: usize, end: 
 
 /// The letterboxed image rect of the page inside a widget of `width` x `height`
 /// plus the pixel scale, matching gtk::Picture's ContentFit::Contain layout.
-pub(super) fn image_bounds(layer: &PdfTextLayer, width: f64, height: f64) -> (f64, f64, f64) {
+pub(super) fn image_bounds(layer: &PageTextLayer, width: f64, height: f64) -> (f64, f64, f64) {
     let scale = (width / f64::from(layer.width)).min(height / f64::from(layer.height));
     let x = (width - f64::from(layer.width) * scale) / 2.0;
     let y = (height - f64::from(layer.height) * scale) / 2.0;
     (x, y, scale)
 }
 
-pub(super) fn len(layer: &PdfTextLayer) -> usize {
+pub(super) fn len(layer: &PageTextLayer) -> usize {
     layer.text.chars().count().min(layer.glyphs.len())
 }
 
 /// Whether the point lands near real glyphs. Presses in the page margins or
 /// mid-line gaps beyond the text span keep the pan gesture.
-pub(super) fn hit_text(layer: &PdfTextLayer, x: f32, y: f32) -> bool {
+pub(super) fn hit_text(layer: &PageTextLayer, x: f32, y: f32) -> bool {
     lines(layer).iter().any(|line| {
         let height = (line.bottom - line.top).max(1.0);
         if y < line.top - height * 0.5 || y > line.bottom + height * 0.5 {
@@ -94,7 +94,7 @@ pub(super) fn hit_text(layer: &PdfTextLayer, x: f32, y: f32) -> bool {
     })
 }
 
-pub(super) fn caret_at(layer: &PdfTextLayer, x: f32, y: f32) -> usize {
+pub(super) fn caret_at(layer: &PageTextLayer, x: f32, y: f32) -> usize {
     let lines = lines(layer);
     let len = len(layer);
     let Some(line) = lines.iter().min_by(|a, b| {
@@ -132,7 +132,7 @@ pub(super) fn caret_at(layer: &PdfTextLayer, x: f32, y: f32) -> usize {
 /// full font box there reads as a bottom-heavy highlight. Non-ASCII chars take
 /// the full box: missing a descender (ç, ţ, ς) clips ink, while a false
 /// positive only shows the taller band Preview.app draws anyway.
-fn has_descender(layer: &PdfTextLayer, start: usize, end: usize) -> bool {
+fn has_descender(layer: &PageTextLayer, start: usize, end: usize) -> bool {
     layer.text.chars().skip(start).take(end - start).any(|ch| {
         !ch.is_ascii()
             || matches!(
@@ -155,7 +155,7 @@ fn has_descender(layer: &PdfTextLayer, start: usize, end: usize) -> bool {
     })
 }
 
-pub(super) fn selection_runs(layer: &PdfTextLayer, start: usize, end: usize) -> Vec<[f32; 4]> {
+pub(super) fn selection_runs(layer: &PageTextLayer, start: usize, end: usize) -> Vec<[f32; 4]> {
     let (start, end) = (start.min(end), start.max(end));
     lines(layer)
         .iter()
@@ -182,7 +182,7 @@ pub(super) fn selection_runs(layer: &PdfTextLayer, start: usize, end: usize) -> 
         .collect()
 }
 
-pub(super) fn word_range(layer: &PdfTextLayer, index: usize) -> (usize, usize) {
+pub(super) fn word_range(layer: &PageTextLayer, index: usize) -> (usize, usize) {
     let len = len(layer);
     let index = index.min(len);
     let blank = |i: usize| layer.text.chars().nth(i).is_none_or(char::is_whitespace);
@@ -200,7 +200,7 @@ pub(super) fn word_range(layer: &PdfTextLayer, index: usize) -> (usize, usize) {
     (start, end)
 }
 
-pub(super) fn line_range(layer: &PdfTextLayer, index: usize) -> (usize, usize) {
+pub(super) fn line_range(layer: &PageTextLayer, index: usize) -> (usize, usize) {
     let index = index.min(len(layer));
     let all = lines(layer);
     let Some(line) = all.iter().find(|line| index < line.end).or(all.last()) else {
@@ -213,7 +213,7 @@ pub(super) fn line_range(layer: &PdfTextLayer, index: usize) -> (usize, usize) {
     (line.start, end)
 }
 
-pub(super) fn selection_text(layer: &PdfTextLayer, start: usize, end: usize) -> String {
+pub(super) fn selection_text(layer: &PageTextLayer, start: usize, end: usize) -> String {
     let (start, end) = (start.min(end), start.max(end).min(len(layer)));
     layer.text.chars().skip(start).take(end - start).collect()
 }

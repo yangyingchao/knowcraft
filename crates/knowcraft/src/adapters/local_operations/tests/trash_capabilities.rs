@@ -102,7 +102,7 @@ fn isolated_trash_supports_read_copy_move_restore_and_delete() {
             },
             text_byte_limit: 100,
             render_document: false,
-            pdf_page: 0,
+            page: 0,
             media_size: crate::services::MediaPreviewSize::new(1280, 1280),
             model_palette: crate::services::ModelPalette::default(),
             model_view: Default::default(),

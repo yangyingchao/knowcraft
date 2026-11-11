@@ -121,7 +121,7 @@ fn classifies_common_preview_content_types() {
     assert_eq!(content_family("video/mp4"), PreviewContent::Media);
     assert!(matches!(
         content_family("application/pdf"),
-        PreviewContent::Pdf { .. }
+        PreviewContent::Paged { .. }
     ));
     assert!(matches!(
         content_family("text/x-rust"),
@@ -671,7 +671,7 @@ fn password_request(password: Option<&str>) -> super::PreviewRequest {
         },
         text_byte_limit: 1024,
         render_document: false,
-        pdf_page: 0,
+        page: 0,
         media_size: MediaPreviewSize::new(640, 800),
         model_palette: crate::services::ModelPalette::default(),
         model_view: Default::default(),
@@ -763,7 +763,7 @@ fn family(content: &PreviewContent) -> &'static str {
         PreviewContent::Text { .. } => "text",
         PreviewContent::Image => "image",
         PreviewContent::Media => "media",
-        PreviewContent::Pdf { .. } => "pdf",
+        PreviewContent::Paged { .. } => "pdf",
         PreviewContent::Unsupported => "unsupported",
         _ => "other",
     }
@@ -806,7 +806,7 @@ fn preview_family_follows_bytes_when_names_disagree() {
             assert!(
                 !matches!(
                     content_family(&content_type),
-                    PreviewContent::Image | PreviewContent::Media | PreviewContent::Pdf { .. }
+                    PreviewContent::Image | PreviewContent::Media | PreviewContent::Paged { .. }
                 ),
                 "{name} kept visual type {content_type}"
             );

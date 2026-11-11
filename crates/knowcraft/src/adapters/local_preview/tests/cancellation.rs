@@ -61,7 +61,7 @@ fn cancelled_in_flight_document_renders_keep_the_permit_and_emit_no_stale_events
             let (started, receive_started) = oneshot::channel();
             let (finish, receive_finish) = std::sync::mpsc::channel();
             let request = PreviewRequest {
-                pdf_page: 1,
+                page: 1,
                 ..preview_request(crate::model::Location::local(filename), filename)
             };
             let handle = provider.load_with_renderer(
@@ -72,7 +72,7 @@ fn cancelled_in_flight_document_renders_keep_the_permit_and_emit_no_stale_events
             context.block_on(async {
                 receive_started.await.expect("renderer started");
                 drop(handle);
-                let mut next = request_heavy_preview_permit();
+                let mut next = request_heavy_preview_permit(Prio::Interactive);
                 assert!(
                     heavy_preview_is_waiting(&mut next),
                     "cancellation must not release the permit before the helper exits"

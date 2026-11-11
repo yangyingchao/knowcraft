@@ -5,8 +5,8 @@
     "zh-CN": "交互式安装程序"
   },
   "installer.tagline": {
-    "en": "Navigate every layer.",
-    "zh-CN": "穿梭每一层文件夹。"
+    "en": "Turn files into knowledge.",
+    "zh-CN": "把文件整理成知识。"
   },
   "installer.partial": {
     "en": "Knowcraft is installed, but setup did not finish.",

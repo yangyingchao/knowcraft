@@ -9,6 +9,7 @@ mod cover_preview;
 mod heavy_queue;
 mod model_preview;
 mod pdf;
+mod prefetch;
 mod remote_preview;
 mod resolution;
 mod route_preview;
@@ -46,7 +47,7 @@ fn preview_request(location: crate::model::Location, name: &str) -> PreviewReque
         entry: preview_entry(location, name),
         text_byte_limit: 1024,
         render_document: false,
-        pdf_page: 0,
+        page: 0,
         media_size: MediaPreviewSize::new(640, 800),
         model_palette: crate::services::ModelPalette::default(),
         model_view: Default::default(),
@@ -65,6 +66,7 @@ fn parse_output(data: Vec<u8>, page: i32, pages: i32) -> crate::sandbox::ParseOu
         pages,
         text_layer: None,
         model_mesh: None,
+        batch: Vec::new(),
     }
 }
 

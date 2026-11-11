@@ -24,7 +24,7 @@ impl PreviewState {
         self.focus_archive_on_ready.set(false);
         self.current_request.set(None);
         self.load.borrow_mut().take();
-        self.pdf_loads.borrow_mut().clear();
+        self.paged_loads.borrow_mut().clear();
         self.raw_metadata_load.borrow_mut().take();
         self.raw_details.reset();
         // Keep the displayed target during debounce: split synchronization must
@@ -144,7 +144,7 @@ impl PreviewState {
             self.current_request.set(None);
             self.load.borrow_mut().take();
             self.cancel_loading();
-            self.pdf_loads.borrow_mut().clear();
+            self.paged_loads.borrow_mut().clear();
             self.clear_raw_details();
             self.clear_content();
             self.sizing.defer_load();

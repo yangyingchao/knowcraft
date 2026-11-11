@@ -46,11 +46,11 @@ fn pdf_text_keys_select_and_copy_only_on_their_exact_chords() {
                     request_id: pending.request.id,
                     entry: pending.request.entry.clone(),
                     content_type: "application/pdf".into(),
-                    content: PreviewContent::Pdf {
+                    content: PreviewContent::Paged {
                         png: Vec::new(),
                         page: 0,
                         pages: 1,
-                        text_layer: Some(Arc::new(PdfTextLayer {
+                        text_layer: Some(Arc::new(PageTextLayer {
                             width: 100.0,
                             height: 20.0,
                             text: text.into(),
@@ -60,7 +60,7 @@ fn pdf_text_keys_select_and_copy_only_on_their_exact_chords() {
                                     [x, 0.0, x + 10.0, 12.0]
                                 })
                                 .collect(),
-                            ..PdfTextLayer::default()
+                            ..PageTextLayer::default()
                         })),
                     },
                 }));
@@ -88,6 +88,43 @@ fn pdf_text_keys_select_and_copy_only_on_their_exact_chords() {
             assert_eq!(clipboard_text(&clipboard), "kept");
             assert!(press(Key::c, M::CONTROL_MASK));
             assert_eq!(clipboard_text(&clipboard), text);
+            drawer.close();
+        },
+    );
+}
+
+#[test]
+fn pdf_without_a_text_layer_ignores_select_and_copy_chords() {
+    crate::test_support::gtk_test(
+        "ui::preview::tests::pdf::pdf_without_a_text_layer_ignores_select_and_copy_chords",
+        || {
+            let provider = Rc::new(Provider::default());
+            let drawer = PreviewDrawer::new(provider.clone(), false, false);
+            drawer.show(entry("scan.pdf"), None);
+            {
+                let pending = provider.0.borrow();
+                let pending = &pending[0];
+                (pending.emit)(PreviewEvent::Ready(Preview {
+                    request_id: pending.request.id,
+                    entry: pending.request.entry.clone(),
+                    content_type: "application/pdf".into(),
+                    content: PreviewContent::Paged {
+                        png: Vec::new(),
+                        page: 0,
+                        pages: 1,
+                        text_layer: None,
+                    },
+                }));
+            }
+            let keys = pdf_keys(&drawer);
+            let press = |key: Key, modifiers: M| {
+                keys.emit_by_name::<bool>("key-pressed", &[&key, &0u32, &modifiers])
+            };
+            let clipboard = drawer.widget().clipboard();
+            clipboard.set_text("kept");
+            assert!(!press(Key::a, M::CONTROL_MASK));
+            assert!(!press(Key::c, M::CONTROL_MASK));
+            assert_eq!(clipboard_text(&clipboard), "kept");
             drawer.close();
         },
     );

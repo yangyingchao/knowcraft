@@ -15,7 +15,7 @@ use crate::{
     app::{Browser, BrowserEvent},
     model::{EntryKind, FileEntry, MetadataValue},
     services::{
-        ArchivePreviewTree, DocumentLayout, LoadHandle, MediaPreviewSize, PdfTextLayer, Preview,
+        ArchivePreviewTree, DocumentLayout, LoadHandle, MediaPreviewSize, PageTextLayer, Preview,
         PreviewContent, PreviewEvent, PreviewProvider, PreviewRequest, PreviewRequestId,
         SecretString,
         file_activity::{self, Notice},
@@ -37,7 +37,6 @@ mod archive_view;
 pub(super) mod audio;
 mod components;
 mod document;
-mod document_page;
 mod drawer;
 mod ease_in;
 mod feedback;
@@ -50,6 +49,7 @@ mod media_content;
 mod media_controls;
 mod media_render;
 mod media_session;
+mod paged;
 mod pdf;
 mod render;
 mod source_view;
@@ -65,14 +65,12 @@ use media_session::{
     AudioPreview, MediaFamily, MediaTrack, PlaybackContinuation, VideoPreview, entry_family,
     media_family,
 };
-#[cfg(test)]
-use pdf::{pdf_apply_ranges, pdf_desired_ranges, pdf_drop_unselected_layer, pdf_selected_text};
 use source_view::{PendingSourcePreview, SourcePreviewView};
 pub(in crate::ui) mod media_layout;
 mod model;
+mod page_text;
 #[cfg(test)]
 mod pdf_ranges_tests;
-mod pdf_text;
 mod player_layout;
 mod route;
 mod session;
@@ -126,7 +124,7 @@ pub(crate) fn entry_supports_quick_preview(entry: &FileEntry) -> bool {
         return native_path.is_some();
     }
     if native_path.is_none()
-        && (matches!(content, PreviewContent::Pdf { .. })
+        && (matches!(content, PreviewContent::Paged { .. })
             || (matches!(content, PreviewContent::Media)
                 && !crate::services::supports_remote_video(&entry.native_name)))
     {
@@ -172,7 +170,7 @@ struct PreviewState {
     document_view_icon: gtk::Image,
     document_view: Cell<DocumentView>,
     document_preview: RefCell<Option<DocumentPreview>>,
-    document_page: RefCell<Option<Rc<document_page::DocumentPageViewer>>>,
+    paged: RefCell<Option<Rc<paged::PagedViewer>>>,
     source_preview: SourcePreviewView,
     rendered_text: RefCell<Option<Rc<super::virtual_preview::VirtualPreviewState>>>,
     find: find::PreviewFind,
@@ -208,7 +206,7 @@ struct PreviewState {
     pending_show: RefCell<Option<glib::SourceId>>,
     load: RefCell<Option<LoadHandle>>,
     loading_delay: RefCell<Option<glib::SourceId>>,
-    pdf_loads: Rc<RefCell<HashMap<i32, LoadHandle>>>,
+    paged_loads: Rc<RefCell<HashMap<i32, LoadHandle>>>,
     current_request: Cell<Option<PreviewRequestId>>,
     next_request: Cell<u64>,
     // Only explicit opens claim keyboard focus; implicit preview updates must not steal it.

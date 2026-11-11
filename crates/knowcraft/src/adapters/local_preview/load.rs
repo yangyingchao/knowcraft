@@ -10,8 +10,8 @@ use std::{
 use gtk::{gio, glib, prelude::*};
 
 use super::{
-    PREVIEW_CACHE, PreviewCacheKey, pdf_render_size, remote, remote::StagedPreview,
-    request_heavy_preview_permit,
+    PREVIEW_CACHE, PreviewCacheKey, Prio, cached_paged, cancel_prefetches, pdf_render_size,
+    remember_paged, remote, remote::StagedPreview, request_heavy_preview_permit,
 };
 use crate::{
     adapters::{
@@ -436,26 +436,46 @@ impl PreviewLoad {
                 "Copy this file locally before previewing it".into(),
             ));
         };
+        let is_word_page = matches!(operation, ParseOperation::PreviewWordPage { .. });
+        let cache_key = is_word_page
+            .then(|| {
+                page_key(
+                    &self.entry,
+                    self.request.page,
+                    pdf_render_size(self.request.media_size),
+                )
+            })
+            .flatten();
+        if let Some(key) = cache_key.as_ref()
+            && let Some(cached) = cached_paged(key)
+        {
+            self.content = cached;
+            return Ok(());
+        }
         // Share the full-document parser slot with PDF rendering. Keep it
         // until the cancelled helper exits, not merely until the UI closes.
-        let Some(permit) = request_heavy_preview_permit().acquire().await else {
+        cancel_prefetches();
+        let Some(permit) = request_heavy_preview_permit(Prio::Interactive)
+            .acquire()
+            .await
+        else {
             return Err(Stop::Silent);
         };
         self.check_cancelled()?;
         self.abort_safe.set(false);
         let cancellation = self.cancellation.clone();
         let backend = self.backend;
-        let requested_page = self.request.pdf_page;
+        let requested_page = self.request.page;
         let result = gio::spawn_blocking(move || {
             let is_workbook = matches!(operation, ParseOperation::PreviewWorkbook);
-            let is_word_page = matches!(operation, ParseOperation::PreviewWordPage { .. });
             let value = if is_word_page { requested_page } else { 0 };
             let output = render(&path, operation, value, backend, &cancellation)?;
             if is_word_page {
-                return Ok(PreviewContent::DocumentPage {
+                return Ok(PreviewContent::Paged {
                     png: output.data,
                     page: output.page,
                     pages: output.pages,
+                    text_layer: output.text_layer.map(std::sync::Arc::new),
                 });
             }
             let parsed = if is_workbook {
@@ -476,6 +496,9 @@ impl PreviewLoad {
         drop(permit);
         self.check_cancelled()?;
         self.content = self.settle_worker(result)?;
+        if let Some(key) = cache_key {
+            remember_paged(key, self.content.clone());
+        }
         Ok(())
     }
 
@@ -556,7 +579,7 @@ impl PreviewLoad {
 
     fn content_operation(&self) -> Option<ParseOperation> {
         match self.content {
-            PreviewContent::Pdf { .. } => Some(ParseOperation::PreviewPdf(pdf_render_size(
+            PreviewContent::Paged { .. } => Some(ParseOperation::PreviewPdf(pdf_render_size(
                 self.request.media_size,
             ))),
             PreviewContent::Image
@@ -571,7 +594,6 @@ impl PreviewLoad {
             | PreviewContent::Route { .. }
             | PreviewContent::Document { .. }
             | PreviewContent::Rendered { .. }
-            | PreviewContent::DocumentPage { .. }
             | PreviewContent::Rasterized { .. }
             | PreviewContent::SandboxedMedia { .. }
             | PreviewContent::Archive { .. }
@@ -617,11 +639,10 @@ impl PreviewLoad {
 
     /// Remote originals are not written to persistent thumbnail caches.
     fn cache_modified(&self, staged: bool) -> Option<i64> {
-        match self.entry.modified_unix_seconds {
-            _ if staged => None,
-            MetadataValue::Known(m) => Some(m),
-            MetadataValue::Unknown | MetadataValue::Unavailable => None,
+        if staged {
+            return None;
         }
+        modified_key(&self.entry)
     }
 
     async fn acquire_heavy_permit(
@@ -631,7 +652,11 @@ impl PreviewLoad {
         if !plan.is_heavy() {
             return Ok(None);
         }
-        let Some(permit) = request_heavy_preview_permit().acquire().await else {
+        cancel_prefetches();
+        let Some(permit) = request_heavy_preview_permit(Prio::Interactive)
+            .acquire()
+            .await
+        else {
             return Err(Stop::Silent);
         };
         self.check_cancelled()?;
@@ -672,11 +697,11 @@ impl PreviewLoad {
         }
         if matches!(plan.operation, ParseOperation::PreviewPdf(_)) {
             if let Some(mtime) = modified
-                && self.request.pdf_page == 0
+                && self.request.page == 0
             {
                 self.thumbnail = Some((path.to_path_buf(), mtime, output.data.clone()));
             }
-            return Ok(PreviewContent::Pdf {
+            return Ok(PreviewContent::Paged {
                 png: output.data,
                 page: output.page,
                 pages: output.pages,
@@ -703,7 +728,7 @@ impl PreviewLoad {
         let cache_key = modified.map(|modified| PreviewCacheKey {
             path: path.clone(),
             modified,
-            pdf_page: plan.pdf_page(self.request.pdf_page),
+            page: plan.pdf_page(self.request.page),
             model: plan.model,
             route: plan.route,
         });
@@ -717,7 +742,7 @@ impl PreviewLoad {
         self.check_cancelled()?;
         let heavy_permit = self.acquire_heavy_permit(&plan).await?;
         self.abort_safe.set(heavy_permit.is_none());
-        let value = self.request.pdf_page;
+        let value = self.request.page;
         let cancellation = self.cancellation.clone();
         let backend = self.backend;
         let spawn_path = path.clone();
@@ -803,4 +828,27 @@ impl PreviewLoad {
             Err(reason) => plain_document(source, Some(reason), truncated),
         })
     }
+}
+
+/// The entry's modification stamp, or `None` when the entry cannot be cached.
+pub(super) fn modified_key(entry: &FileEntry) -> Option<i64> {
+    match entry.modified_unix_seconds {
+        MetadataValue::Known(modified) => Some(modified),
+        MetadataValue::Unknown | MetadataValue::Unavailable => None,
+    }
+}
+
+/// The cache key for one rendered page at one render size.
+pub(super) fn page_key(
+    entry: &FileEntry,
+    page: i32,
+    size: crate::sandbox::PdfRenderSize,
+) -> Option<PreviewCacheKey> {
+    Some(PreviewCacheKey {
+        path: entry.location.native_path()?.to_path_buf(),
+        modified: modified_key(entry)?,
+        page: Some((page, size)),
+        model: None,
+        route: None,
+    })
 }

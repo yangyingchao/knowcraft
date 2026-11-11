@@ -29,7 +29,7 @@ fn request(path: &Path, name: &str) -> PreviewRequest {
         },
         text_byte_limit: 1024,
         render_document: false,
-        pdf_page: 0,
+        page: 0,
         media_size: MediaPreviewSize::new(640, 800),
         model_palette: crate::services::ModelPalette::default(),
         model_view: Default::default(),
@@ -186,6 +186,7 @@ fn uri_images_stage_private_inputs_and_remove_them_after_rendering() {
                                     pages: 2,
                                     text_layer: None,
                                     model_mesh: None,
+                                    batch: Vec::new(),
                                 })
                             }
                         },

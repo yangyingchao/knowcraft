@@ -154,6 +154,8 @@ pub(super) struct Rendered {
     png: Vec<u8>,
     metadata: Option<String>,
     text_layer: Option<Vec<u8>>,
+    /// When non-empty, one output file per page instead of a single PNG.
+    batch: Vec<word_page::RenderedPage>,
 }
 
 impl From<Vec<u8>> for Rendered {
@@ -167,6 +169,13 @@ impl From<Vec<u8>> for Rendered {
 
 impl Rendered {
     pub(super) fn write(self, output: &Path) -> Result<(), String> {
+        if self.batch.is_empty() {
+            return self.write_single(output);
+        }
+        self.write_batch(output)
+    }
+
+    fn write_single(self, output: &Path) -> Result<(), String> {
         write_output(output, self.png)?;
         if let Some(metadata) = self.metadata {
             write_output(&output.with_file_name("result.meta"), metadata)?;
@@ -175,6 +184,48 @@ impl Rendered {
             write_output(&output.with_file_name("result.text"), text_layer)?;
         }
         Ok(())
+    }
+
+    fn write_batch(self, output: &Path) -> Result<(), String> {
+        #[derive(serde::Serialize)]
+        struct PageEntry {
+            page: i32,
+            png: String,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            text: Option<String>,
+        }
+        let mut entries = Vec::with_capacity(self.batch.len());
+        for (index, page) in self.batch.into_iter().enumerate() {
+            let png_name = page_name(index, "png");
+            write_output(&output.with_file_name(&png_name), page.png)?;
+            let text = match page.text {
+                Some(text) => {
+                    let name = page_name(index, "text");
+                    write_output(&output.with_file_name(&name), text)?;
+                    Some(name)
+                }
+                None => None,
+            };
+            entries.push(PageEntry {
+                page: page.page,
+                png: png_name,
+                text,
+            });
+        }
+        if let Some(metadata) = self.metadata {
+            write_output(&output.with_file_name("result.meta"), metadata)?;
+        }
+        let pages = serde_json::to_vec(&entries).map_err(|error| error.to_string())?;
+        write_output(&output.with_file_name("result.pages"), pages)
+    }
+}
+
+/// `result.png` / `result.text` for the first output, `result.N.png` after it.
+fn page_name(index: usize, extension: &str) -> String {
+    if index == 0 {
+        format!("result.{extension}")
+    } else {
+        format!("result.{index}.{extension}")
     }
 }
 
@@ -218,6 +269,7 @@ const RENDERS: &[(&[&str], Render)] = &[
     }),
     (&["preview-pdf"], preview_pdf),
     (&["preview-word-page"], preview_word_page),
+    (&["preview-word-pages"], preview_word_pages),
     (&["preview-route"], |request| {
         Ok(request
             .report(route::render(request.input, request.value))?
@@ -248,15 +300,26 @@ fn preview_pdf(request: &Request<'_>) -> Result<Rendered, String> {
         png,
         metadata: Some(metadata),
         text_layer,
+        ..Rendered::default()
     })
 }
 
 fn preview_word_page(request: &Request<'_>) -> Result<Rendered, String> {
-    let (png, metadata) = word_page::preview(request.input, request.value)?;
+    let (png, metadata, text_layer) = word_page::preview(request.input, request.value)?;
     Ok(Rendered {
         png,
         metadata: Some(metadata),
-        text_layer: None,
+        text_layer,
+        ..Rendered::default()
+    })
+}
+
+fn preview_word_pages(request: &Request<'_>) -> Result<Rendered, String> {
+    let (batch, metadata) = word_page::preview_pages(request.input, request.value)?;
+    Ok(Rendered {
+        batch,
+        metadata: Some(metadata),
+        ..Rendered::default()
     })
 }
 

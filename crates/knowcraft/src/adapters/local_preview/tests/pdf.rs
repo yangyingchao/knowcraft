@@ -102,7 +102,7 @@ fn pdf_preview_emits_a_text_layer_matching_the_rendered_page() {
         "render PDF page with text",
     );
     let (png_width, _) = rendered.dimensions();
-    let layer: crate::services::PdfTextLayer =
+    let layer: crate::services::PageTextLayer =
         serde_json::from_slice(&rendered.sidecar).expect("parse text layer");
 
     assert_eq!(layer.text.trim_end_matches('\n'), "selectable helper text");

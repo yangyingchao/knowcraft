@@ -53,7 +53,7 @@ fn route_requests_bypass_text_and_cache_by_palette() {
                 entry: entry.clone(),
                 text_byte_limit: 1024,
                 render_document: false,
-                pdf_page: 0,
+                page: 0,
                 media_size: MediaPreviewSize::new(400, 300),
                 model_palette: palette,
                 model_view: ModelView::default(),
@@ -98,6 +98,7 @@ fn route_requests_bypass_text_and_cache_by_palette() {
                     pages: 0,
                     text_layer: None,
                     model_mesh: None,
+                    batch: Vec::new(),
                 })
             },
         );

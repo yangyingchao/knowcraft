@@ -94,7 +94,7 @@ fn version_line_is_the_package_name_and_installed_version() {
         "the --version line should start with the package name"
     );
     assert!(
-        line.contains(&crate::build_info::installed_version().to_string()),
+        line.contains(crate::build_info::VERSION),
         "the --version line should include the installed version"
     );
     assert_eq!(

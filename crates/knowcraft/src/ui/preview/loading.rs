@@ -50,14 +50,14 @@ impl PreviewState {
         }
     }
 
-    pub(super) fn load(self: &Rc<Self>, entry: FileEntry, pdf_page: i32) {
-        self.load_with_password(entry, pdf_page, None);
+    pub(super) fn load(self: &Rc<Self>, entry: FileEntry, page: i32) {
+        self.load_with_password(entry, page, None);
     }
 
     pub(super) fn load_with_password(
         self: &Rc<Self>,
         entry: FileEntry,
-        pdf_page: i32,
+        page: i32,
         archive_password: Option<SecretString>,
     ) {
         let render_document =
@@ -67,7 +67,7 @@ impl PreviewState {
         } else {
             DocumentView::Source
         });
-        self.load_request(entry, pdf_page, render_document, archive_password);
+        self.load_request(entry, page, render_document, archive_password);
     }
 
     pub(super) fn clear_raw_details(&self) {
@@ -79,7 +79,7 @@ impl PreviewState {
     pub(super) fn load_request(
         self: &Rc<Self>,
         entry: FileEntry,
-        pdf_page: i32,
+        page: i32,
         render_document: bool,
         archive_password: Option<SecretString>,
     ) {
@@ -97,7 +97,7 @@ impl PreviewState {
         self.load_raw_details(&entry);
         self.show_identity(&entry);
         self.load.borrow_mut().take();
-        self.pdf_loads.borrow_mut().clear();
+        self.paged_loads.borrow_mut().clear();
 
         let request_id = self.begin_request();
         self.retain_pending_playback(&entry);
@@ -121,7 +121,7 @@ impl PreviewState {
                 entry,
                 text_byte_limit: TEXT_BYTE_LIMIT,
                 render_document,
-                pdf_page,
+                page,
                 media_size: self.media_preview_size(),
                 model_palette: super::super::theme::ThemeManager::shared().active_model_palette(),
                 model_view: self.model_view.get(),
@@ -190,6 +190,17 @@ impl PreviewState {
             }
             PreviewEvent::Ready(preview) if preview.request_id == expected => {
                 self.cancel_loading();
+                if let PreviewContent::Paged { page, pages, .. } = &preview.content
+                    && crate::sandbox::DocumentFormat::for_file("", &preview.entry.native_name)
+                        .is_some()
+                {
+                    self.provider.prefetch(
+                        &preview.entry,
+                        *page,
+                        *pages,
+                        self.media_preview_size(),
+                    );
+                }
                 self.render(preview);
             }
             PreviewEvent::Failed {

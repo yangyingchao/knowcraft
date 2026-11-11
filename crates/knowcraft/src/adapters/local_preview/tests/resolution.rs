@@ -145,7 +145,7 @@ fn resolve<'a>(content: &'a PreviewContent, path: &Path, name: &str) -> Resolved
             assert_eq!(media.path, path);
             Resolved::Media
         }
-        PreviewContent::Pdf { .. } => Resolved::Pdf,
+        PreviewContent::Paged { .. } => Resolved::Pdf,
         PreviewContent::Unsupported => Resolved::Unsupported,
         other => panic!("{name} resolved to {other:?}"),
     }

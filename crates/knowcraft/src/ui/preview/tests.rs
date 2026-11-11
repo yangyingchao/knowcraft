@@ -11,6 +11,7 @@ mod operations;
 mod pdf;
 mod route;
 mod video;
+mod word;
 
 struct Pending {
     request: PreviewRequest,

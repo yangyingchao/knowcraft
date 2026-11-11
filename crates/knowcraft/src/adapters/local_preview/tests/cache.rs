@@ -14,7 +14,7 @@ fn cache_key(path: &str, modified: i64) -> PreviewCacheKey {
     PreviewCacheKey {
         path: PathBuf::from(path),
         modified,
-        pdf_page: None,
+        page: None,
         model: None,
         route: None,
     }
@@ -22,13 +22,13 @@ fn cache_key(path: &str, modified: i64) -> PreviewCacheKey {
 
 fn pdf_page_key(page: i32, size: PdfRenderSize) -> PreviewCacheKey {
     PreviewCacheKey {
-        pdf_page: Some((page, size)),
+        page: Some((page, size)),
         ..cache_key("doc.pdf", 300)
     }
 }
 
 fn pdf_page(png: Vec<u8>, page: i32, pages: i32) -> PreviewContent {
-    PreviewContent::Pdf {
+    PreviewContent::Paged {
         png,
         page,
         pages,

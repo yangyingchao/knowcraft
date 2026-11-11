@@ -62,7 +62,7 @@ fn model_requests_reuse_only_matching_size_palette_and_view_without_ui_state() {
                 entry: entry.clone(),
                 text_byte_limit: 1024,
                 render_document: false,
-                pdf_page: 0,
+                page: 0,
                 media_size: MediaPreviewSize::new(width, 200),
                 model_palette: palette,
                 model_view: view,
@@ -88,6 +88,7 @@ fn model_requests_reuse_only_matching_size_palette_and_view_without_ui_state() {
                         encoding: ModelEncoding::ThreeMf,
                         triangles: 17,
                     }),
+                    batch: Vec::new(),
                 })
             },
         );
@@ -196,7 +197,7 @@ fn load_gcode(
             entry,
             text_byte_limit: 1024,
             render_document: false,
-            pdf_page: 0,
+            page: 0,
             media_size: MediaPreviewSize::new(200, 200),
             model_palette: palette,
             model_view: ModelView::FrontLeft,

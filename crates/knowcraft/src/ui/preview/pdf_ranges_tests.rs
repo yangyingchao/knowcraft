@@ -2,27 +2,25 @@
 
 use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
-use super::{
-    PdfTextLayer, pdf_apply_ranges, pdf_desired_ranges, pdf_drop_unselected_layer,
-    pdf_selected_text,
-};
+use super::PageTextLayer;
+use super::paged::ranges::{apply_ranges, desired_ranges, drop_unselected_layer, selected_text};
 
-fn layer(text: &str) -> Arc<PdfTextLayer> {
+fn layer(text: &str) -> Arc<PageTextLayer> {
     let glyphs = text
         .chars()
         .enumerate()
         .map(|(i, _)| [i as f32 * 10.0, 0.0, i as f32 * 10.0 + 10.0, 12.0])
         .collect();
-    Arc::new(PdfTextLayer {
+    Arc::new(PageTextLayer {
         width: 800.0,
         height: 600.0,
         text: text.to_owned(),
         glyphs,
-        ..PdfTextLayer::default()
+        ..PageTextLayer::default()
     })
 }
 
-fn layers() -> HashMap<i32, Arc<PdfTextLayer>> {
+fn layers() -> HashMap<i32, Arc<PageTextLayer>> {
     HashMap::from([
         (1, layer("one two\nthree")),
         (2, layer("four five")),
@@ -32,13 +30,13 @@ fn layers() -> HashMap<i32, Arc<PdfTextLayer>> {
 
 #[test]
 fn char_granularity_selects_between_endpoints() {
-    let desired = pdf_desired_ranges(&layers(), (1, 1), (1, 5), 1);
+    let desired = desired_ranges(&layers(), (1, 1), (1, 5), 1);
     assert_eq!(desired, HashMap::from([(1, (1, 5))]));
 }
 
 #[test]
 fn cross_page_drag_fills_intermediate_pages() {
-    let desired = pdf_desired_ranges(&layers(), (1, 4), (3, 2), 1);
+    let desired = desired_ranges(&layers(), (1, 4), (3, 2), 1);
     assert_eq!(
         desired,
         HashMap::from([(1, (4, 13)), (2, (0, 9)), (3, (0, 2))])
@@ -47,25 +45,25 @@ fn cross_page_drag_fills_intermediate_pages() {
 
 #[test]
 fn backward_drag_covers_the_anchor_word_fully() {
-    let desired = pdf_desired_ranges(&layers(), (2, 6), (1, 5), 2);
+    let desired = desired_ranges(&layers(), (2, 6), (1, 5), 2);
     assert_eq!(desired, HashMap::from([(1, (4, 13)), (2, (0, 9))]));
 }
 
 #[test]
 fn word_granularity_snaps_endpoints_to_words() {
-    let desired = pdf_desired_ranges(&layers(), (1, 1), (1, 5), 2);
+    let desired = desired_ranges(&layers(), (1, 1), (1, 5), 2);
     assert_eq!(desired, HashMap::from([(1, (0, 7))]));
 }
 
 #[test]
 fn line_granularity_snaps_to_whole_lines() {
-    let desired = pdf_desired_ranges(&layers(), (1, 1), (1, 9), 3);
+    let desired = desired_ranges(&layers(), (1, 1), (1, 9), 3);
     assert_eq!(desired, HashMap::from([(1, (0, 13))]));
 }
 
 #[test]
 fn same_page_backward_drag_selects_upward() {
-    let desired = pdf_desired_ranges(&layers(), (1, 9), (1, 1), 1);
+    let desired = desired_ranges(&layers(), (1, 9), (1, 1), 1);
     assert_eq!(desired, HashMap::from([(1, (1, 9))]));
 }
 
@@ -75,20 +73,17 @@ fn selected_unbound_page_remains_copyable_until_selection_changes() {
     let ranges = RefCell::new(HashMap::from([(1, (0, 3)), (2, (0, 4))]));
     let visible = HashMap::new();
 
-    pdf_drop_unselected_layer(&layers, &ranges, 1);
+    drop_unselected_layer(&layers, &ranges, 1);
     assert_eq!(
-        pdf_selected_text(&layers.borrow(), &ranges.borrow()),
+        selected_text(&layers.borrow(), &ranges.borrow()),
         "one\nfour"
     );
 
-    pdf_apply_ranges(&ranges, &layers, &visible, HashMap::from([(2, (0, 4))]));
+    apply_ranges(&ranges, &layers, &visible, HashMap::from([(2, (0, 4))]));
     assert!(!layers.borrow().contains_key(&1));
-    assert_eq!(
-        pdf_selected_text(&layers.borrow(), &ranges.borrow()),
-        "four"
-    );
+    assert_eq!(selected_text(&layers.borrow(), &ranges.borrow()), "four");
 
-    pdf_apply_ranges(&ranges, &layers, &visible, HashMap::new());
+    apply_ranges(&ranges, &layers, &visible, HashMap::new());
     assert!(!layers.borrow().contains_key(&2));
 }
 
@@ -101,6 +96,6 @@ fn select_all_replaces_stale_unbound_ranges() {
         .iter()
         .map(|(page, layer)| (*page, (0, layer.glyphs.len())))
         .collect();
-    pdf_apply_ranges(&ranges, &layers, &HashMap::new(), desired);
+    apply_ranges(&ranges, &layers, &HashMap::new(), desired);
     assert!(!ranges.borrow().contains_key(&4));
 }

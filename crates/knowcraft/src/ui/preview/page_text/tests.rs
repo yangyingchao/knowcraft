@@ -2,17 +2,17 @@
 
 use super::*;
 
-fn layer(text: &str, glyphs: Vec<[f32; 4]>) -> PdfTextLayer {
-    PdfTextLayer {
+fn layer(text: &str, glyphs: Vec<[f32; 4]>) -> PageTextLayer {
+    PageTextLayer {
         width: 400.0,
         height: 600.0,
         text: text.to_owned(),
         glyphs,
-        ..PdfTextLayer::default()
+        ..PageTextLayer::default()
     }
 }
 
-fn two_line_layer() -> PdfTextLayer {
+fn two_line_layer() -> PageTextLayer {
     layer(
         "ab\ncd",
         vec![

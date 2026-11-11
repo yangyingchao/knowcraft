@@ -36,7 +36,7 @@ pub(super) fn about_page() -> gtk::Widget {
         heading.append(&badge);
     }
     copy.append(&heading);
-    let description = gtk::Label::new(Some(&crate::i18n::tr("Navigate every layer.")));
+    let description = gtk::Label::new(Some(&crate::i18n::tr("Turn files into knowledge.")));
     description.set_xalign(0.0);
     description.set_wrap(true);
     description.add_css_class("about-description");
@@ -118,7 +118,7 @@ pub(super) fn toolkit_version() -> String {
 }
 
 fn version_info() -> String {
-    rust_i18n::t!("Knowcraft %{value1}\n%{value2}\nCommit: %{value3}\nToolkit: %{value4}\nAuthor: %{value5}\nLicense: MIT", value1 = crate::build_info::displayed_version(), value2 = crate::i18n::tr("Navigate every layer."), value3 = crate::build_info::COMMIT, value4 = toolkit_version(), value5 = crate::build_info::AUTHOR).into_owned()
+    rust_i18n::t!("Knowcraft %{value1}\n%{value2}\nCommit: %{value3}\nToolkit: %{value4}\nAuthor: %{value5}\nLicense: MIT", value1 = crate::build_info::displayed_version(), value2 = crate::i18n::tr("Turn files into knowledge."), value3 = crate::build_info::COMMIT, value4 = toolkit_version(), value5 = crate::build_info::AUTHOR).into_owned()
 }
 
 fn append_about_detail(container: &gtk::Box, label: &str, value: &str) {

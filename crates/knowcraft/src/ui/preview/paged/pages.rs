@@ -4,7 +4,7 @@ use super::*;
 
 /// Renders list pages on bind, starting from the page the preview opened with.
 pub(super) struct PageLoader {
-    pub(super) viewer: Rc<PdfViewer>,
+    pub(super) viewer: Rc<PagedViewer>,
     pub(super) provider: Rc<dyn PreviewProvider>,
     pub(super) loads: Rc<RefCell<HashMap<i32, LoadHandle>>>,
     pub(super) entry: FileEntry,
@@ -111,7 +111,7 @@ impl PageLoader {
             ),
         );
         if let Some(png) = self.take_initial(page_index) {
-            set_pdf_page_texture(
+            set_page_texture(
                 &page.overlay,
                 &page.picture,
                 png,
@@ -206,7 +206,7 @@ impl PageLoader {
                 entry: self.entry.clone(),
                 text_byte_limit: TEXT_BYTE_LIMIT,
                 render_document: false,
-                pdf_page: page_index,
+                page: page_index,
                 media_size: self.render_size,
                 model_palette: super::super::super::theme::ThemeManager::shared()
                     .active_model_palette(),
@@ -221,12 +221,12 @@ impl PageLoader {
     fn unbind(&self, page: i32) {
         self.loads.borrow_mut().remove(&page);
         self.viewer.pages.borrow_mut().remove(&page);
-        pdf_drop_unselected_layer(&self.viewer.layers, &self.viewer.ranges, page);
+        drop_unselected_layer(&self.viewer.layers, &self.viewer.ranges, page);
     }
 }
 
 /// Paints the selection runs of `page_index` over its rendered image.
-fn draw_selection(text_area: &gtk::DrawingArea, page_index: i32, viewer: &PdfViewer) {
+fn draw_selection(text_area: &gtk::DrawingArea, page_index: i32, viewer: &PagedViewer) {
     let layers = viewer.layers.clone();
     let ranges = viewer.ranges.clone();
     text_area.set_draw_func(move |_, cr, width, height| {
@@ -239,17 +239,17 @@ fn draw_selection(text_area: &gtk::DrawingArea, page_index: i32, viewer: &PdfVie
         if start == end {
             return;
         }
-        let Some(color) = pdf_selection_color() else {
+        let Some(color) = selection_color() else {
             return;
         };
-        let (ox, oy, s) = pdf_text::image_bounds(&layer, f64::from(width), f64::from(height));
+        let (ox, oy, s) = page_text::image_bounds(&layer, f64::from(width), f64::from(height));
         cr.set_source_rgba(
             f64::from(color.red()),
             f64::from(color.green()),
             f64::from(color.blue()),
             0.42,
         );
-        for [x1, y1, x2, y2] in pdf_text::selection_runs(&layer, start, end) {
+        for [x1, y1, x2, y2] in page_text::selection_runs(&layer, start, end) {
             let (rx, ry) = (ox + f64::from(x1) * s, oy + f64::from(y1) * s);
             let (rw, rh) = (f64::from(x2 - x1) * s, f64::from(y2 - y1) * s);
             let pad = rh * 0.06;
@@ -263,7 +263,7 @@ fn draw_selection(text_area: &gtk::DrawingArea, page_index: i32, viewer: &PdfVie
     });
 }
 
-fn pdf_selection_color() -> Option<gtk::gdk::RGBA> {
+fn selection_color() -> Option<gtk::gdk::RGBA> {
     crate::ui::theme::ThemeManager::shared()
         .current_tokens()
         .and_then(|tokens| gtk::gdk::RGBA::parse(&tokens.accent).ok())
@@ -289,7 +289,7 @@ struct PageTarget {
     picture: glib::WeakRef<gtk::Picture>,
     spinner: glib::WeakRef<gtk::Spinner>,
     text_area: glib::WeakRef<gtk::DrawingArea>,
-    layers: Rc<RefCell<PdfLayers>>,
+    layers: Rc<RefCell<PagedLayers>>,
     page_width: Rc<Cell<i32>>,
     scroll: Option<glib::WeakRef<gtk::ScrolledWindow>>,
     restore: Option<(f64, f64)>,
@@ -308,7 +308,7 @@ impl PageTarget {
             PreviewEvent::Ready(Preview {
                 request_id: response_id,
                 content:
-                    PreviewContent::Pdf {
+                    PreviewContent::Paged {
                         png,
                         page,
                         text_layer,
@@ -342,7 +342,7 @@ impl PageTarget {
         &self,
         overlay: &gtk::Overlay,
         png: Vec<u8>,
-        text_layer: Option<Arc<PdfTextLayer>>,
+        text_layer: Option<Arc<PageTextLayer>>,
     ) {
         if let Some(layer) = text_layer {
             self.layers.borrow_mut().insert(self.page_index, layer);
@@ -351,7 +351,7 @@ impl PageTarget {
             }
         }
         if let Some(picture) = self.picture.upgrade() {
-            set_pdf_page_texture(overlay, &picture, png, self.page_width.get());
+            set_page_texture(overlay, &picture, png, self.page_width.get());
         }
         if let Some((horizontal, vertical)) = self.restore
             && let Some(scroll) = self.scroll.as_ref().and_then(|weak| weak.upgrade())

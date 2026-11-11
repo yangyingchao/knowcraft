@@ -5,36 +5,36 @@ use super::*;
 /// A point on a page's text layer, in layer units.
 pub(super) struct LayerPoint {
     pub(super) page: i32,
-    pub(super) layer: Arc<PdfTextLayer>,
+    pub(super) layer: Arc<PageTextLayer>,
     pub(super) x: f32,
     pub(super) y: f32,
 }
 
-pub(super) fn layer_position(
+pub(crate) fn layer_position(
     scroll: &gtk::ScrolledWindow,
     area: &gtk::DrawingArea,
-    layer: &PdfTextLayer,
+    layer: &PageTextLayer,
     (x, y): (f64, f64),
 ) -> Option<(f64, f64)> {
     let point = scroll.compute_point(area, &gtk::graphene::Point::new(x as f32, y as f32))?;
     let (ox, oy, s) =
-        pdf_text::image_bounds(layer, f64::from(area.width()), f64::from(area.height()));
+        page_text::image_bounds(layer, f64::from(area.width()), f64::from(area.height()));
     Some((
         (f64::from(point.x()) - ox) / s,
         (f64::from(point.y()) - oy) / s,
     ))
 }
 
-fn inside_layer(layer: &PdfTextLayer, px: f64, py: f64) -> bool {
+fn inside_layer(layer: &PageTextLayer, px: f64, py: f64) -> bool {
     let inside_x = px >= 0.0 && px <= f64::from(layer.width);
     inside_x && py >= 0.0 && py <= f64::from(layer.height)
 }
 
 /// The text under `point`, a scroll coordinate.
-pub(super) fn pdf_text_at(
+pub(super) fn text_at(
     scroll: &gtk::ScrolledWindow,
-    pages: &PdfPages,
-    layers: &PdfLayers,
+    pages: &PagedPages,
+    layers: &PagedLayers,
     point: (f64, f64),
 ) -> Option<LayerPoint> {
     for (page, (_, _, area)) in pages {
@@ -44,7 +44,7 @@ pub(super) fn pdf_text_at(
         let Some((px, py)) = layer_position(scroll, area, layer, point) else {
             continue;
         };
-        if inside_layer(layer, px, py) && pdf_text::hit_text(layer, px as f32, py as f32) {
+        if inside_layer(layer, px, py) && page_text::hit_text(layer, px as f32, py as f32) {
             return Some(LayerPoint {
                 page: *page,
                 layer: layer.clone(),
@@ -57,10 +57,10 @@ pub(super) fn pdf_text_at(
 }
 
 /// The closest point on any shown text layer to `point`, a scroll coordinate.
-pub(super) fn pdf_text_near(
+pub(super) fn text_near(
     scroll: &gtk::ScrolledWindow,
-    pages: &PdfPages,
-    layers: &PdfLayers,
+    pages: &PagedPages,
+    layers: &PagedLayers,
     point: (f64, f64),
 ) -> Option<LayerPoint> {
     let mut nearest: Option<(LayerPoint, f64)> = None;
@@ -90,22 +90,22 @@ pub(super) fn pdf_text_near(
     nearest.map(|(point, _)| point)
 }
 
-pub(in crate::ui::preview) fn pdf_desired_ranges(
-    layers: &PdfLayers,
+pub(in crate::ui::preview) fn desired_ranges(
+    layers: &PagedLayers,
     anchor: (i32, usize),
     caret: (i32, usize),
     granularity: u8,
-) -> PdfRanges {
+) -> PagedRanges {
     let (anchor_page, anchor) = anchor;
     let (current_page, caret) = caret;
-    let snap_lo = |layer: &PdfTextLayer, index: usize| match granularity {
-        2 => pdf_text::word_range(layer, index).0,
-        3 => pdf_text::line_range(layer, index).0,
+    let snap_lo = |layer: &PageTextLayer, index: usize| match granularity {
+        2 => page_text::word_range(layer, index).0,
+        3 => page_text::line_range(layer, index).0,
         _ => index,
     };
-    let snap_hi = |layer: &PdfTextLayer, index: usize| match granularity {
-        2 => pdf_text::word_range(layer, index).1,
-        3 => pdf_text::line_range(layer, index).1,
+    let snap_hi = |layer: &PageTextLayer, index: usize| match granularity {
+        2 => page_text::word_range(layer, index).1,
+        3 => page_text::line_range(layer, index).1,
         _ => index,
     };
     let (first, last, first_start, last_end) = if anchor_page <= current_page {
@@ -118,7 +118,7 @@ pub(in crate::ui::preview) fn pdf_desired_ranges(
         let Some(layer) = layers.get(&page) else {
             continue;
         };
-        let len = pdf_text::len(layer);
+        let len = page_text::len(layer);
         let (start, end) = match (page == first, page == last) {
             (true, true) => (
                 snap_lo(layer, first_start.min(last_end)),
@@ -136,9 +136,9 @@ pub(in crate::ui::preview) fn pdf_desired_ranges(
     desired
 }
 
-pub(in crate::ui::preview) fn pdf_drop_unselected_layer(
-    layers: &RefCell<PdfLayers>,
-    ranges: &RefCell<PdfRanges>,
+pub(in crate::ui::preview) fn drop_unselected_layer(
+    layers: &RefCell<PagedLayers>,
+    ranges: &RefCell<PagedRanges>,
     page: i32,
 ) {
     if !ranges.borrow().contains_key(&page) {
@@ -146,11 +146,11 @@ pub(in crate::ui::preview) fn pdf_drop_unselected_layer(
     }
 }
 
-pub(in crate::ui::preview) fn pdf_apply_ranges(
-    ranges: &RefCell<PdfRanges>,
-    layers: &RefCell<PdfLayers>,
-    pages: &PdfPages,
-    desired: PdfRanges,
+pub(in crate::ui::preview) fn apply_ranges(
+    ranges: &RefCell<PagedRanges>,
+    layers: &RefCell<PagedLayers>,
+    pages: &PagedPages,
+    desired: PagedRanges,
 ) {
     let mut selected = ranges.borrow_mut();
     let mut dirty: Vec<i32> = desired
@@ -167,14 +167,14 @@ pub(in crate::ui::preview) fn pdf_apply_ranges(
     *selected = desired;
     drop(selected);
     for page in dirty.iter().filter(|page| !pages.contains_key(*page)) {
-        pdf_drop_unselected_layer(layers, ranges, *page);
+        drop_unselected_layer(layers, ranges, *page);
     }
     for (_, _, area) in dirty.iter().filter_map(|page| pages.get(page)) {
         area.queue_draw();
     }
 }
 
-pub(in crate::ui::preview) fn pdf_selected_text(layers: &PdfLayers, ranges: &PdfRanges) -> String {
+pub(in crate::ui::preview) fn selected_text(layers: &PagedLayers, ranges: &PagedRanges) -> String {
     let mut pages: Vec<_> = ranges.iter().collect();
     pages.sort_by_key(|(page, _)| **page);
     let mut text = String::new();
@@ -182,7 +182,7 @@ pub(in crate::ui::preview) fn pdf_selected_text(layers: &PdfLayers, ranges: &Pdf
         let Some(layer) = layers.get(page) else {
             continue;
         };
-        let part = pdf_text::selection_text(layer, start, end);
+        let part = page_text::selection_text(layer, start, end);
         if part.is_empty() {
             continue;
         }

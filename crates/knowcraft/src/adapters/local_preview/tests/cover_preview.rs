@@ -49,7 +49,7 @@ fn comic_and_epub_requests_render_covers_instead_of_archive_trees() {
                 entry,
                 text_byte_limit: 1024,
                 render_document: false,
-                pdf_page: 0,
+                page: 0,
                 media_size: MediaPreviewSize::new(800, 800),
                 model_palette: ModelPalette::default(),
                 model_view: Default::default(),
@@ -64,6 +64,7 @@ fn comic_and_epub_requests_render_covers_instead_of_archive_trees() {
                     pages: 0,
                     text_layer: None,
                     model_mesh: None,
+                    batch: Vec::new(),
                 })
             },
         );

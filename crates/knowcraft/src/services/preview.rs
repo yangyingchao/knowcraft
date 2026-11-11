@@ -62,7 +62,7 @@ pub struct PreviewRequest {
     pub entry: FileEntry,
     pub text_byte_limit: usize,
     pub render_document: bool,
-    pub pdf_page: i32,
+    pub page: i32,
     pub media_size: MediaPreviewSize,
     pub model_palette: super::ModelPalette,
     pub model_view: super::ModelView,
@@ -136,17 +136,11 @@ pub enum PreviewContent {
     SandboxedMedia {
         media: SandboxedMedia,
     },
-    Pdf {
+    Paged {
         png: Vec<u8>,
         page: i32,
         pages: i32,
-        text_layer: Option<Arc<PdfTextLayer>>,
-    },
-    /// One page of a Word document, rendered to PNG; no selectable text layer.
-    DocumentPage {
-        png: Vec<u8>,
-        page: i32,
-        pages: i32,
+        text_layer: Option<Arc<PageTextLayer>>,
     },
     Archive {
         tree: ArchivePreviewTree,
@@ -169,7 +163,7 @@ fn default_user_unit() -> f64 {
 /// `user_unit` describe the page geometry needed to map a selection back to PDF user
 /// space. `lines[i]` is the renderer's line index for the same character.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct PdfTextLayer {
+pub struct PageTextLayer {
     pub width: f32,
     pub height: f32,
     pub text: String,
@@ -186,7 +180,7 @@ pub struct PdfTextLayer {
     pub lines: Vec<u32>,
 }
 
-impl Default for PdfTextLayer {
+impl Default for PageTextLayer {
     fn default() -> Self {
         Self {
             width: 0.0,
@@ -252,6 +246,10 @@ impl ModelPreviewStage {
 
 pub trait PreviewProvider {
     fn load(&self, request: PreviewRequest, emit: Rc<dyn Fn(PreviewEvent)>) -> LoadHandle;
+
+    /// Renders pages after `page` in the background, for providers that can.
+    fn prefetch(&self, _entry: &FileEntry, _page: i32, _pages: i32, _media_size: MediaPreviewSize) {
+    }
 }
 
 /// Leading bytes read to decide a local file's preview family.
@@ -379,7 +377,7 @@ pub(crate) fn reconcile_with_sample(
     let is_text = matches!(content, PreviewContent::Text { .. });
     let is_visual = matches!(
         content,
-        PreviewContent::Image | PreviewContent::Media | PreviewContent::Pdf { .. }
+        PreviewContent::Image | PreviewContent::Media | PreviewContent::Paged { .. }
     );
     if looks_like_text(sample) {
         if is_text {
@@ -387,7 +385,7 @@ pub(crate) fn reconcile_with_sample(
             if !bytes_uncertain
                 && matches!(
                     bytes_family,
-                    PreviewContent::Image | PreviewContent::Pdf { .. }
+                    PreviewContent::Image | PreviewContent::Paged { .. }
                 )
             {
                 *content_type = from_bytes;
@@ -464,7 +462,7 @@ pub(crate) fn is_non_executable_extensionless_dotfile(
 
 pub(crate) fn content_family(content_type: &str) -> PreviewContent {
     if content_type == "application/pdf" {
-        PreviewContent::Pdf {
+        PreviewContent::Paged {
             png: Vec::new(),
             page: 0,
             pages: 0,

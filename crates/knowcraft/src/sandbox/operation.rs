@@ -178,6 +178,12 @@ pub(crate) enum ParseOperation {
         format: DocumentFormat,
         size: PdfRenderSize,
     },
+    /// Consecutive laid-out pages of a Word document, rendered in one helper run.
+    PreviewWordPages {
+        format: DocumentFormat,
+        size: PdfRenderSize,
+        count: u32,
+    },
     PreviewModel(ModelRender),
     PreviewRoute(crate::services::route_preview::RouteRender),
     PreviewMedia(MediaPreviewSize),
@@ -219,6 +225,7 @@ impl ParseOperation {
             Self::PreviewDocument(_) => "preview-document",
             Self::PreviewPdf(_) => "preview-pdf",
             Self::PreviewWordPage { .. } => "preview-word-page",
+            Self::PreviewWordPages { .. } => "preview-word-pages",
             Self::PreviewModel(_) => "preview-model",
             Self::PreviewRoute(_) => "preview-route",
             Self::PreviewMedia(_) => "preview-media",
@@ -297,7 +304,9 @@ impl ParseOperation {
             | Self::DocumentMermaid
             | Self::DocumentMath { .. } => Some((800, 800, 800 * 800)),
             Self::PreviewPdf(size) => Some(size.image_limits()),
-            Self::PreviewWordPage { size, .. } => Some(size.image_limits()),
+            Self::PreviewWordPage { size, .. } | Self::PreviewWordPages { size, .. } => {
+                Some(size.image_limits())
+            }
             Self::PreviewModel(render) => {
                 let size = MediaPreviewSize::new(render.size.width, render.size.height);
                 Some((size.width as u32, size.height as u32, 1280 * 1280))
@@ -353,12 +362,22 @@ impl ParseOperation {
             Self::PreviewWordPage {
                 format: DocumentFormat::Docx,
                 ..
+            }
+            | Self::PreviewWordPages {
+                format: DocumentFormat::Docx,
+                ..
             } => Some(crate::services::docx::DOCX_BYTE_LIMIT),
             Self::PreviewWordPage {
                 format: DocumentFormat::Doc,
                 ..
+            }
+            | Self::PreviewWordPages {
+                format: DocumentFormat::Doc,
+                ..
             } => Some(crate::services::doc::DOC_BYTE_LIMIT),
-            Self::PreviewWordPage { .. } => Some(crate::services::odt::ODT_BYTE_LIMIT),
+            Self::PreviewWordPage { .. } | Self::PreviewWordPages { .. } => {
+                Some(crate::services::odt::ODT_BYTE_LIMIT)
+            }
             Self::DocumentImage => Some(crate::services::document_media::IMAGE_INPUT_LIMIT),
             Self::DocumentMermaid => {
                 Some(crate::services::document_media::DIAGRAM_INPUT_LIMIT as u64)
