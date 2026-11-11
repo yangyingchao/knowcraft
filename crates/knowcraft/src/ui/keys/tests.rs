@@ -67,7 +67,6 @@ const DE: Layout = &[
 ];
 const DVORAK: Layout = &[(54, [Key::j, Key::J])];
 const LT: Layout = &[(10, [Key::aogonek, Key::Aogonek])];
-const CZ: Layout = &[(10, [Key::plus, Key::_1])];
 const HU: Layout = &[
     (19, [Key::odiaeresis, Key::Odiaeresis]),
     (49, [Key::_0, Key::section]),

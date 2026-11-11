@@ -138,9 +138,6 @@ fn sibling_fixture(
     std::fs::create_dir_all(parent.join("alpha")).expect("first sibling");
     std::fs::create_dir_all(parent.join("beta")).expect("second sibling");
     let (window, tabs) = open_in(application);
-    tabs.preferences
-        .set_browser_mode(crate::ui::browser_modes::BrowserMode::Columns);
-    tabs.preferences.set_columns_mirror_selection(false);
     load(&tabs.active_browser(), Location::local(&parent));
     tabs.new_tab();
     let view = tabs.active_browser();

@@ -7,31 +7,8 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use super::super::*;
-use crate::services::{
-    LoadHandle, Preview, PreviewContent, PreviewEvent, PreviewProvider, PreviewRequest,
-};
 use crate::test_support::gtk_test;
 use crate::ui::browser_modes::{BrowserDensity, DensityScale, FrameDensity};
-use crate::ui::preview::PreviewDrawer;
-
-struct NoPreview;
-
-impl PreviewProvider for NoPreview {
-    fn load(&self, request: PreviewRequest, emit: Rc<dyn Fn(PreviewEvent)>) -> LoadHandle {
-        glib::idle_add_local_once(move || {
-            emit(PreviewEvent::Ready(Preview {
-                request_id: request.id,
-                entry: request.entry,
-                content_type: "text/plain".into(),
-                content: PreviewContent::Text {
-                    content: String::new(),
-                    truncated: false,
-                },
-            }))
-        });
-        LoadHandle::new(|| {})
-    }
-}
 
 fn settles(condition: impl Fn() -> bool) -> bool {
     let deadline = Instant::now() + Duration::from_secs(5);

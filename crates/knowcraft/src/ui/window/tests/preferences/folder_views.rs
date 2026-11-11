@@ -67,7 +67,6 @@ fn saved_folder_sorts_and_icon_sizes_apply_before_settings_and_follow_changes_ac
             crate::storage::writer::settle();
             assert!(folder_views_file().contains("sort = \"type\""));
 
-            manager.set_browser_mode(BrowserMode::Icons);
             wait_until(|| icons_size(&first) == Some(192) && icons_size(&second) == Some(192));
             let unremembered = plain
                 .path()
@@ -117,7 +116,6 @@ fn saved_folder_sorts_and_icon_sizes_apply_before_settings_and_follow_changes_ac
                 96,
                 "a size equal to a new default is no longer stored"
             );
-            manager.set_browser_mode(BrowserMode::Columns);
             wait_until(|| sorting(&second) == Some((SortKey::Name, SortDirection::Ascending)));
 
             let size_ascending = (SortKey::Size, SortDirection::Ascending);

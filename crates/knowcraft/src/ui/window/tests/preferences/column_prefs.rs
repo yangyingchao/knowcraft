@@ -42,12 +42,10 @@ fn columns_size_visibility_loads_and_updates_across_windows_and_rebuilds() {
                     .expect("folder entry");
                 assert_eq!(entry.child_count, crate::model::MetadataValue::Unknown);
             }
-            manager.set_columns_show_sizes(true);
             for open in [&first, &second] {
                 wait_until(|| metadata_visible(open, "file-row", true));
                 assert!(settings_closed(open));
             }
-            manager.set_columns_show_sizes(false);
             for open in [&first, &second] {
                 wait_until(|| metadata_visible(open, "file-row", false));
                 for mode in [BrowserMode::List, BrowserMode::Icons, BrowserMode::Columns] {
@@ -101,7 +99,6 @@ fn columns_size_visibility_loads_and_updates_across_windows_and_rebuilds() {
             wait_until(|| {
                 first.content.browser.rename_is_active() || first.content.browser.begin_rename()
             });
-            manager.set_columns_show_sizes(false);
             assert!(first.content.browser.cancel_rename());
             for open in [&first, &second] {
                 wait_until(|| metadata_visible(open, "file-row", false));
@@ -148,8 +145,6 @@ fn columns_size_visibility_loads_and_updates_across_windows_and_rebuilds() {
                     .is_empty()
                 });
             }
-            manager.set_columns_show_sizes(true);
-            manager.set_columns_show_sizes(false);
             for open in [&first, &second] {
                 wait_until(|| {
                     open.content
@@ -376,7 +371,6 @@ fn list_column_customization_preserves_saved_and_live_folder_sorts() {
             }
 
             for mode in [BrowserMode::Columns, BrowserMode::Icons, BrowserMode::List] {
-                manager.set_browser_mode(mode);
                 for open in [&first, &second] {
                     wait_until(|| open.content.browser.view_mode() == mode);
                     check_sort(open, SortDirection::Descending);

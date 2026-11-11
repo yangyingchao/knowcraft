@@ -376,6 +376,11 @@ impl VirtualPreviewState {
         self.space.clone()
     }
 
+    #[cfg(test)]
+    pub(super) fn has_annotations(&self) -> bool {
+        self.annotations.borrow().is_some()
+    }
+
     /// 绑定标注状态，安装创建工具条与刷新回调。
     pub(super) fn set_annotations(
         self: &Rc<Self>,

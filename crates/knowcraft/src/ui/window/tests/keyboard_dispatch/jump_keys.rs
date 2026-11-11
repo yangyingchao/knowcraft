@@ -148,8 +148,6 @@ fn columns_mirror_the_first_move_after_a_load() {
         "ui::window::tests::keyboard_dispatch::jump_keys::columns_mirror_the_first_move_after_a_load",
         || {
             let fixture = KeyboardFixture::new();
-            let preferences = PreferenceManager::shared();
-            preferences.set_columns_mirror_selection(true);
             let browser = fixture.view.browser();
             let folder = fixture._directory.path().join("folders");
             open_folders(&fixture, &folder, &["a-dir", "b-dir"]);
@@ -168,9 +166,6 @@ fn columns_mirror_does_not_cancel_an_open_that_is_still_validating() {
         "ui::window::tests::keyboard_dispatch::jump_keys::columns_mirror_does_not_cancel_an_open_that_is_still_validating",
         || {
             let fixture = KeyboardFixture::new();
-            let preferences = PreferenceManager::shared();
-            preferences.set_columns_mirror_selection(true);
-            fixture.view.set_columns_mirror_selection(true);
             let browser = fixture.view.browser();
             let folder = fixture._directory.path().join("opening");
             std::fs::create_dir_all(folder.join("a-dir")).expect("fixture folder");
@@ -238,9 +233,6 @@ fn columns_mirror_home_and_end_in_the_default_key_map() {
         "ui::window::tests::keyboard_dispatch::jump_keys::columns_mirror_home_and_end_in_the_default_key_map",
         || {
             let fixture = KeyboardFixture::new();
-            let preferences = PreferenceManager::shared();
-            preferences.set_columns_mirror_selection(true);
-            fixture.view.set_columns_mirror_selection(true);
             fixture.view.set_single_click_previews(false);
             let browser = fixture.view.browser();
             let folder = fixture._directory.path().join("mixed");

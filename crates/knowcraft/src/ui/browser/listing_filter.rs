@@ -545,6 +545,14 @@ impl BrowserView {
         self.state.filter_focus()
     }
 
+    /// The focused listing's filter text, for tests that observe filter state.
+    #[cfg(test)]
+    pub(in crate::ui) fn listing_filter(&self) -> Option<String> {
+        let target = self.filter_target()?;
+        let text = target.entry().text().to_string();
+        (!text.trim().is_empty()).then_some(text)
+    }
+
     /// Filters the focused listing by `query` (an empty query clears it) and
     /// leaves the funnel closed.
     pub(in crate::ui) fn set_listing_filter(&self, query: &str) {

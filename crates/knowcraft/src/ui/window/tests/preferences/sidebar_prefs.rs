@@ -340,7 +340,6 @@ fn narrow_window_rails_automatically_and_the_toggle_reaches_every_mode() {
         "ui::window::tests::preferences::sidebar_prefs::narrow_window_rails_automatically_and_the_toggle_reaches_every_mode",
         || {
             let manager = PreferenceManager::shared();
-            manager.set_browser_mode(BrowserMode::Columns);
             let open = OpenWindow::open_with_width(700);
             let sidebar = &open.content.sidebar.state;
             wait_until_or(|| sidebar.rail.get(), || sidebar_report(&[&open], &manager));

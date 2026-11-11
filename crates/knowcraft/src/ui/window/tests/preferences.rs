@@ -96,71 +96,12 @@ fn load_folder(open: &OpenWindow) -> tempfile::TempDir {
     directory
 }
 
-fn open_child_column(open: &OpenWindow) {
-    open.content.browser.browser().select(0, 0);
-    open.content.browser.activate_focused();
-    wait_until(|| !column_loading(open, 1));
-}
-
 fn column_loading(open: &OpenWindow, depth: usize) -> bool {
     open.content
         .browser
         .browser()
         .column_snapshot(depth)
         .is_none_or(|column| column.loading)
-}
-
-fn assert_operable(control: &gtk::Widget, operable: bool, what: &str) {
-    assert_eq!(
-        control.is_visible() && control.is_sensitive(),
-        operable,
-        "{what}"
-    );
-    if !operable {
-        assert!(!control.is_sensitive(), "{what}");
-    }
-}
-
-fn assert_pane_toolbar(open: &OpenWindow, operable: bool) {
-    let mut required = vec!["Refresh (F5)"];
-    if open.content.browser.view_mode() != BrowserMode::List {
-        required.push("Choose sort field");
-    }
-    for tooltip in required {
-        let controls = controls_in_shown_pane(&open.content.browser.widget(), tooltip);
-        assert!(!controls.is_empty(), "{tooltip}");
-        for control in controls {
-            assert_operable(&control, operable, tooltip);
-        }
-    }
-}
-
-fn assert_filter_controls(open: &OpenWindow, operable: bool) {
-    let filters = [
-        "Filter this pane (Ctrl+F)",
-        "Filter icons (Ctrl+F)",
-        "Filter list (Ctrl+F)",
-    ];
-    let mut found_filter = false;
-    for tooltip in filters {
-        for control in controls_in_shown_pane(&open.content.browser.widget(), tooltip) {
-            found_filter = true;
-            assert_operable(&control, operable, tooltip);
-        }
-    }
-    assert!(found_filter, "shown pane has a filter control");
-}
-
-fn assert_controls(open: &OpenWindow, operable: bool) {
-    if !operable && open.content.browser.view_mode() != BrowserMode::Columns {
-        return;
-    }
-    assert_pane_toolbar(open, operable);
-    assert_filter_controls(open, operable);
-    let browser = open.content.browser.widget();
-    for control in controls_in_shown_pane(&browser, "Close this pane") {
-        assert_operable(&control, operable, "Close this pane");
-    }
 }
 
 /// The first widget below `root`, depth first, that `pick` maps to a value.
@@ -283,28 +224,6 @@ fn filter_buttons(open: &OpenWindow) -> Vec<gtk::ToggleButton> {
         .into_iter()
         .filter_map(|widget| widget.downcast::<gtk::ToggleButton>().ok())
         .collect()
-}
-
-fn assert_icon_only_tooltips(root: &gtk::Widget) {
-    walk(root, &mut |widget| {
-        if !widget.is_visible() || widget.tooltip_text().is_none() {
-            return;
-        }
-        assert!(
-            widget.is::<gtk::Button>() || widget.is::<gtk::MenuButton>(),
-            "non-button tooltip: {}",
-            widget.type_().name()
-        );
-        walk(widget, &mut |child| {
-            if let Some(label) = child.downcast_ref::<gtk::Label>() {
-                assert!(
-                    !label.is_visible() || label.text().is_empty(),
-                    "labelled control has a tooltip: {}",
-                    label.text()
-                );
-            }
-        });
-    });
 }
 
 fn controls_in_shown_pane(root: &gtk::Widget, tooltip: &str) -> Vec<gtk::Widget> {

@@ -285,6 +285,11 @@ impl BrowserView {
     }
 
     #[cfg(test)]
+    pub fn focus_search_results(&self) -> bool {
+        self.state.mode_views.borrow().focus_search_results()
+    }
+
+    #[cfg(test)]
     pub fn focus_search_result(&self, path: &std::path::Path) -> bool {
         self.state.mode_views.borrow().focus_search_result(path)
     }

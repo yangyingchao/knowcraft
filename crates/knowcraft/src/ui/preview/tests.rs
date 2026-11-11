@@ -241,8 +241,6 @@ fn an_explicit_close_blocks_automatic_previews_until_reopened() {
             );
             drawer.close();
 
-            crate::ui::preferences::PreferenceManager::shared()
-                .set_browser_mode(crate::ui::browser_modes::BrowserMode::Columns);
             let view = crate::ui::browser::BrowserView::new(
                 Rc::new(EmptySource),
                 crate::ui::browser::PeekBehavior::default(),
@@ -273,7 +271,6 @@ fn preview_loads_on_first_show_when_sidebar_rails_in_narrow_split() {
             let provider = Rc::new(Provider::default());
             let preview = PreviewDrawer::new(provider.clone(), false, false);
             let preferences = crate::ui::preferences::PreferenceManager::shared();
-            preferences.set_browser_mode(crate::ui::browser_modes::BrowserMode::List);
             let browser = crate::ui::browser::BrowserView::new(
                 Rc::new(crate::adapters::LocalFileSource),
                 crate::ui::browser::PeekBehavior::default(),
@@ -338,8 +335,6 @@ fn keyboard_divider_moves_lower_the_columns_session_minimum_without_moving_the_p
         || {
             let provider = Rc::new(Provider::default());
             let preview = PreviewDrawer::new(provider, false, false);
-            crate::ui::preferences::PreferenceManager::shared()
-                .set_browser_mode(crate::ui::browser_modes::BrowserMode::Columns);
             let root = tempfile::tempdir().expect("preview fixture");
             std::fs::write(root.path().join("sample.txt"), b"sample").expect("fixture file");
             let browser = crate::ui::browser::BrowserView::new(
@@ -404,8 +399,6 @@ fn only_a_docked_preview_offers_its_divider_for_resizing() {
         || {
             let provider = Rc::new(Provider::default());
             let preview = PreviewDrawer::new(provider, false, false);
-            crate::ui::preferences::PreferenceManager::shared()
-                .set_browser_mode(crate::ui::browser_modes::BrowserMode::Columns);
             let browser = crate::ui::browser::BrowserView::new(
                 Rc::new(crate::adapters::LocalFileSource),
                 crate::ui::browser::PeekBehavior::default(),

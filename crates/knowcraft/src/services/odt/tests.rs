@@ -7,7 +7,7 @@ use zip::{ZipWriter, write::SimpleFileOptions};
 use super::*;
 use crate::{
     sandbox::{Cancellation, DocumentFormat},
-    services::DocumentBlock,
+    services::document::DocumentBlock,
 };
 
 fn fixture() -> PathBuf {

@@ -40,7 +40,7 @@ use responsive::{ResponsiveBin, ResponsiveContent};
 use restart::restart;
 
 #[cfg(test)]
-use self::restart::{close_windows_for_restart, restart_waiter, restart_with};
+use self::restart::close_windows_for_restart;
 #[cfg(test)]
 use gtk::gio;
 

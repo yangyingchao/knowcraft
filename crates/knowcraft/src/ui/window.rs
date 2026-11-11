@@ -102,7 +102,6 @@ use {
     device_actions::DeviceRowActions,
     device_menu::attach_device_actions_menu,
     gtk::prelude::*,
-    sidebar_devices::sidebar_eject_button,
     sidebar_pins::{move_pinned_place, pin_gap_index, pin_locations_at},
     sidebar_rows::sidebar_button,
     std::time::{Duration, Instant},

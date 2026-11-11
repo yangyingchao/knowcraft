@@ -202,11 +202,6 @@ impl ViewState {
 }
 
 impl BrowserView {
-    #[cfg(test)]
-    pub(in crate::ui) fn find_highlighted(&self) -> bool {
-        self.state.find_highlight().is_some()
-    }
-
     pub(in crate::ui) fn find_query(&self) -> Option<String> {
         let find = self.state.find.borrow();
         (!find.query.is_empty()).then(|| find.query.clone())

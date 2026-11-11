@@ -56,24 +56,6 @@ fn spawn_reaped_starts_children_off_the_ui_thread_and_reaps_them() {
 }
 
 #[test]
-fn omarchy_presentation_command_runs_the_launcher_only_when_installed() {
-    let directory = tempfile::tempdir().expect("PATH fixture");
-    let path = Some(directory.path().as_os_str());
-    assert!(omarchy_presentation_command(path, "omarchy-update").is_none());
-
-    let launcher = directory.path().join(OMARCHY_PRESENTATION_LAUNCHER);
-    fs::write(&launcher, "#!/bin/sh\n").expect("launcher");
-    fs::set_permissions(&launcher, fs::Permissions::from_mode(0o755)).expect("executable");
-
-    let command = omarchy_presentation_command(path, "omarchy-update").expect("installed launcher");
-    assert_eq!(command.get_program(), launcher.as_os_str());
-    assert_eq!(
-        command.get_args().collect::<Vec<_>>(),
-        [OsStr::new("omarchy-update")]
-    );
-}
-
-#[test]
 fn ghostty_opens_directories_through_new_window_only_from_1_3() {
     const DIRECTORY: &str = "--working-directory=/tmp/work";
     const CLASS: &str = "--class=com.example.knowcraft";

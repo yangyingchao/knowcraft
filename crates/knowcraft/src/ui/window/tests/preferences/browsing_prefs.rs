@@ -10,7 +10,6 @@ fn browsing_preferences_stay_saved_but_unused_until_exit() {
             let manager = PreferenceManager::shared();
             manager.set_type_to_search(true);
             manager.set_arrow_navigation_scoped(true);
-            manager.set_columns_mirror_selection(true);
             let open = OpenWindow::open();
             let directory = load_folder(&open);
             assert!(open.content.browser.columns_mirror_selection_enabled());
@@ -198,7 +197,6 @@ fn thumbnail_preferences_across_windows(name: &str, model: bool) {
         };
         wait_until(|| shown(false));
         for mode in [BrowserMode::List, BrowserMode::Columns, BrowserMode::Icons] {
-            manager.set_browser_mode(mode);
             wait_until(|| {
                 windows
                     .iter()

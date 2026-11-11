@@ -185,7 +185,6 @@ fn history_prompts_end_without_opening_the_chosen_folder() {
             enable_prompts(&fixture);
             let places = seed_history(&fixture);
             let browser = fixture.view.browser();
-            let origin = browser.active_location();
 
             open(&fixture, Key::z);
             press(&fixture, Key::Down);

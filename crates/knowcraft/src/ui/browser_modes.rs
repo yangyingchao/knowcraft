@@ -235,6 +235,15 @@ fn mode_stack(
 }
 
 impl ModeViews {
+    #[cfg(test)]
+    pub(super) fn pane_searches(&self) -> Vec<crate::ui::inline_search::InlineSearch> {
+        self.icons_panes
+            .iter()
+            .chain(self.list_pane.iter())
+            .map(|pane| pane.search.clone())
+            .collect()
+    }
+
     pub fn new(
         columns: &gtk::ScrolledWindow,
         browser: Rc<Browser>,

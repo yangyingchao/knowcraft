@@ -347,7 +347,7 @@ fn search_in_folder(fixture: &KeyboardFixture, mode: BrowserMode, searched: &Pat
 fn open_hit_beside_the_search(fixture: &KeyboardFixture, hit: &Path) {
     let browser = fixture.view.browser();
     wait_results(fixture, &ALL_REPORTS);
-    fixture.view.open_hit_column(0, Location::local(hit));
+    browser.show_child(0, Location::local(hit));
     wait_loaded(&browser, 1);
     browser.set_active_column(1);
     browser.focus_active();

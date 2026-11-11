@@ -34,22 +34,6 @@ impl ShortcutFooter {
     }
 }
 
-fn press_reference(footer: &ShortcutFooter, key: gdk::Key) {
-    let controllers = footer.panel.observe_controllers();
-    let controller = (0..controllers.n_items())
-        .filter_map(|index| {
-            controllers
-                .item(index)
-                .and_downcast::<gtk::EventControllerKey>()
-        })
-        .next()
-        .expect("reference key controller");
-    assert!(
-        controller.emit_by_name::<bool>("key-pressed", &[&key, &0u32, &gdk::ModifierType::empty()]),
-        "{key:?} should be handled by the open reference"
-    );
-}
-
 fn reference_pairs(labels: &[String], key: &str, action: &str) -> bool {
     labels
         .windows(2)
@@ -58,16 +42,6 @@ fn reference_pairs(labels: &[String], key: &str, action: &str) -> bool {
 
 fn has_label(labels: &[String], text: &str) -> bool {
     labels.iter().any(|label| label == text)
-}
-
-/// The reference shows every `present` label and none of the `absent` ones.
-fn assert_rows(labels: &[String], present: &[&str], absent: &[&str]) {
-    for text in present {
-        assert!(has_label(labels, text), "missing {text:?}: {labels:?}");
-    }
-    for text in absent {
-        assert!(!has_label(labels, text), "unexpected {text:?}: {labels:?}");
-    }
 }
 
 fn reference_labels(footer: &ShortcutFooter) -> Vec<String> {
@@ -85,18 +59,6 @@ fn collect_label_text(widget: &gtk::Widget, labels: &mut Vec<String>) {
         collect_label_text(&current, labels);
         child = current.next_sibling();
     }
-}
-
-fn category_named(footer: &ShortcutFooter, name: &str) -> gtk::Button {
-    footer
-        .category_buttons()
-        .into_iter()
-        .find(|button| {
-            let mut labels = Vec::new();
-            collect_label_text(button.upcast_ref(), &mut labels);
-            has_label(&labels, name)
-        })
-        .unwrap_or_else(|| panic!("{name} category"))
 }
 
 fn focus_within(window: &gtk::Window, widget: &impl IsA<gtk::Widget>) -> bool {

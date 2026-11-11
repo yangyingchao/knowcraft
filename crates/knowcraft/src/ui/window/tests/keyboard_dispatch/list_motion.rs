@@ -35,7 +35,6 @@ impl ListMotion {
         default_recorder_app("text/plain", &glib::user_data_dir().join("launched"));
         let fixture = KeyboardFixture::new();
         let preferences = PreferenceManager::shared();
-        preferences.set_columns_mirror_selection(true);
         preferences.set_group_by_type(false);
         let browser = fixture.view.browser();
         let root = fixture._directory.path().to_path_buf();
@@ -283,10 +282,6 @@ impl ListMotion {
         self.press_and_load(Key::h, NONE);
         assert!(self.at_origin());
         assert!(!self.sidebar_focused());
-    }
-
-    fn files_keep_focus_off_the_preview(&self) -> bool {
-        self.fixture.view.item_view_has_focus() && !preview_has_focus(&self.fixture)
     }
 
     fn the_cursor_folder_mirrors_into_the_next_column(&self) {

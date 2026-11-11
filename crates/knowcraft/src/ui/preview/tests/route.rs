@@ -73,12 +73,12 @@ fn route_media_commands_restart_at_the_end_and_stop_on_replacement_or_close() {
                 drawer.has_video(),
                 "route participates in the media shortcut dispatcher"
             );
-            assert!(drawer.media_key(MediaCommand::PlayPause));
+            assert!(drawer.state.media_command(MediaCommand::PlayPause));
             assert!(player.play.is_active());
-            assert!(!drawer.media_key(MediaCommand::Mute));
+            assert!(!drawer.state.media_command(MediaCommand::Mute));
             player.hover(PlotKind::Route, 10.0, 20.0);
             assert!(!player.play.is_active(), "pointer movement pauses playback");
-            assert!(drawer.media_key(MediaCommand::PlayPause));
+            assert!(drawer.state.media_command(MediaCommand::PlayPause));
             player.hover(PlotKind::Route, 10.0, 20.0);
             assert!(
                 player.play.is_active(),
@@ -89,7 +89,11 @@ fn route_media_commands_restart_at_the_end_and_stop_on_replacement_or_close() {
                 !player.play.is_active(),
                 "a new pointer position pauses again"
             );
-            assert!(drawer.media_key(MediaCommand::Seek(MediaSeek::End)));
+            assert!(
+                drawer
+                    .state
+                    .media_command(MediaCommand::Seek(MediaSeek::End))
+            );
             assert!(!player.play.is_active());
             assert_eq!(
                 player
@@ -99,7 +103,7 @@ fn route_media_commands_restart_at_the_end_and_stop_on_replacement_or_close() {
                     .distance_m,
                 1000.0
             );
-            assert!(drawer.media_key(MediaCommand::PlayPause));
+            assert!(drawer.state.media_command(MediaCommand::PlayPause));
             assert_eq!(
                 player
                     .position
@@ -127,10 +131,10 @@ fn route_media_commands_restart_at_the_end_and_stop_on_replacement_or_close() {
                 .borrow()
                 .clone()
                 .expect("replacement route player");
-            assert!(drawer.media_key(MediaCommand::PlayPause));
+            assert!(drawer.state.media_command(MediaCommand::PlayPause));
             drawer.close();
             assert!(!player.play.is_active());
-            assert!(!drawer.media_key(MediaCommand::PlayPause));
+            assert!(!drawer.state.media_command(MediaCommand::PlayPause));
         },
     );
 }
@@ -153,8 +157,12 @@ fn route_units_load_before_settings_and_update_across_drawers_and_files() {
             assert!(labels(first.widget().upcast_ref()).contains(&"-16–328 ft".into()));
             assert!(labels(second.widget().upcast_ref()).contains(&"0–100 ft".into()));
             assert!(labels(first.widget().upcast_ref()).contains(&"0.6 mi".into()));
-            first.media_key(MediaCommand::Seek(MediaSeek::End));
-            first.media_key(MediaCommand::Seek(MediaSeek::By(-7_500_000)));
+            first
+                .state
+                .media_command(MediaCommand::Seek(MediaSeek::End));
+            first
+                .state
+                .media_command(MediaCommand::Seek(MediaSeek::By(-7_500_000)));
             let player = first
                 .state
                 .route
@@ -171,7 +179,7 @@ fn route_units_load_before_settings_and_update_across_drawers_and_files() {
             );
             player.hover(PlotKind::Elevation, 10.0, 20.0);
             assert!(labels(first.widget().upcast_ref()).contains(&"156 ft".into()));
-            first.media_key(MediaCommand::PlayPause);
+            first.state.media_command(MediaCommand::PlayPause);
             assert!(labels(first.widget().upcast_ref()).contains(&"156 ft".into()));
             manager.set_unit_system(UnitSystem::Metric);
             assert!(player.play.is_active(), "unit changes preserve playback");

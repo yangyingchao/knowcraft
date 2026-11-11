@@ -38,15 +38,6 @@ impl InstallSource {
         })
     }
 
-    #[cfg(test)]
-    pub(crate) fn seed_for_test(marker: &str) {
-        let managed = toml::from_str::<ManagedInstall>(marker).expect("install marker");
-        assert!(
-            DETECTED.set(Self::Managed(managed.normalized())).is_ok(),
-            "the install source was already detected"
-        );
-    }
-
     fn from_marker_path(marker: Option<PathBuf>) -> Self {
         match marker {
             Some(path) => Self::load(&path),

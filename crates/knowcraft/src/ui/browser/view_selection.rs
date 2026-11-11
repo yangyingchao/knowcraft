@@ -4,6 +4,11 @@
 
 use super::*;
 
+#[cfg(test)]
+use super::file_commands::KeyboardRefocus;
+#[cfg(test)]
+use crate::model::{SortDirection, SortKey};
+
 /// Focus is in the column's filter field or its listing.
 fn column_filter_holds_focus(column: &ColumnView, focused: &gtk::Widget) -> bool {
     let in_filter = focused.is_ancestor(&column.filter_entry)
@@ -163,6 +168,16 @@ impl BrowserView {
                 .or_else(|| self.state.browser.active_depth())
         } else {
             self.state.browser.active_depth()
+        }
+    }
+
+    #[cfg(test)]
+    pub fn sort_focused_pane(&self, key: SortKey, direction: SortDirection) {
+        if let Some(depth) = self.focused_listing_depth() {
+            self.state.browser.set_sort(depth, key, direction);
+            self.state
+                .keyboard_refocus
+                .set(Some(KeyboardRefocus::Sort(depth)));
         }
     }
 

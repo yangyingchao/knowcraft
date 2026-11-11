@@ -15,7 +15,6 @@ struct Seen {
 
 #[derive(Clone, Copy, Debug)]
 enum Effect {
-    Copied,
     Pinned,
     WindowAction,
 }
@@ -23,21 +22,8 @@ enum Effect {
 impl Effect {
     /// What the press changed that this effect shows, if anything.
     fn outcome(self, before: &Seen, after: &Seen) -> Option<String> {
-        let changed = |value: &dyn Fn(&Seen) -> String| {
-            let value_after = value(after);
-            (value(before) != value_after).then_some(value_after)
-        };
         let grew = |count: fn(&Seen) -> usize| (count(after) > count(before)).then(String::new);
         match self {
-            Self::Copied => changed(&|seen| {
-                format!(
-                    "{:?}",
-                    seen.names
-                        .iter()
-                        .filter(|name| !before.names.contains(name))
-                        .collect::<Vec<_>>()
-                )
-            }),
             Self::Pinned => grew(|seen| seen.pins),
             Self::WindowAction => grew(|seen| seen.window_actions),
         }
@@ -209,10 +195,7 @@ impl Direct {
         let deadline = Instant::now() + Duration::from_secs(3);
         loop {
             let outcome = row.effect.outcome(&before, &self.seen());
-            // A copy or an extraction is done once its progress dialog closes.
-            let settled =
-                !matches!(row.effect, Effect::Copied) || !modal_visible(&self.fixture.overlay);
-            if (outcome.is_some() && settled) || Instant::now() > deadline {
+            if outcome.is_some() || Instant::now() > deadline {
                 return outcome;
             }
             pump(10);

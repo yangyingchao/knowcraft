@@ -45,32 +45,3 @@ pub(super) fn sidebar_device_row(
     }
     shell
 }
-
-/// Test-only row control builder; the Devices section no longer renders.
-#[cfg(test)]
-pub(super) fn sidebar_eject_button(
-    action: super::device_actions::MediaRelease,
-    on_release: impl Fn() + 'static,
-) -> gtk::Button {
-    device_action_button(
-        &crate::i18n::tr(super::device_actions::media_release_label(action)),
-        crate::assets::icons::EJECT,
-        on_release,
-    )
-}
-
-#[cfg(test)]
-fn device_action_button(label: &str, icon: &str, on_click: impl Fn() + 'static) -> gtk::Button {
-    let button = gtk::Button::new();
-    crate::ui::accessibility::set_tooltip_and_label(&button, label);
-    button.set_child(Some(&crate::assets::primary_icon(icon, 14)));
-    button.add_css_class("sidebar-eject");
-    button.add_css_class("sidebar-device-action");
-    button.set_cursor_from_name(Some("pointer"));
-    button.set_has_frame(false);
-    button.set_hexpand(false);
-    button.set_valign(gtk::Align::Center);
-    button.set_width_request(24);
-    button.connect_clicked(move |_| on_click());
-    button
-}

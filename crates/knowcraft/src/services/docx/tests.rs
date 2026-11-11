@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use super::*;
-use crate::services::DocumentBlock;
+use crate::services::document::DocumentBlock;
 
 fn fixture() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/documents/report.docx")

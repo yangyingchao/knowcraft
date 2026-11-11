@@ -3,26 +3,6 @@
 use super::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-fn selected_entry(path: &str) -> FileEntry {
-    FileEntry {
-        location: Location::local(path),
-        native_name: Path::new(path).file_name().unwrap_or_default().to_owned(),
-        thumbnail_path: None,
-        display_name: path.to_owned(),
-        kind: crate::model::EntryKind::File,
-        size: crate::model::MetadataValue::Unknown,
-        modified_unix_seconds: crate::model::MetadataValue::Unknown,
-        mode: crate::model::MetadataValue::Unknown,
-        recent_unix_seconds: crate::model::MetadataValue::Unknown,
-        is_hidden: false,
-        image_dimensions: crate::model::MetadataValue::Unknown,
-        child_count: crate::model::MetadataValue::Unknown,
-        duration_seconds: crate::model::MetadataValue::Unknown,
-        listable: crate::model::MetadataValue::Unknown,
-        recent_uri: None,
-    }
-}
-
 struct NoopTree {
     root: Location,
     source: Location,

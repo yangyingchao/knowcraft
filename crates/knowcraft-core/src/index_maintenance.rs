@@ -251,7 +251,7 @@ impl IndexMaintenance {
         }
         let workers = self.threads.min(docs.len()).max(1);
         let next = AtomicUsize::new(0);
-        let outcomes: Mutex<Vec<(usize, Result<String>)>> =
+        let outcomes: Mutex<Vec<(usize, Result<(String, Option<String>)>)>> =
             Mutex::new(Vec::with_capacity(docs.len()));
         std::thread::scope(|scope| {
             for _ in 0..workers {
@@ -260,7 +260,12 @@ impl IndexMaintenance {
                     if index >= docs.len() {
                         break;
                     }
-                    let content = Indexer::content(&self.store, &docs[index]);
+                    let content = Indexer::content(&self.store, &docs[index]).map(|content| {
+                        (
+                            content,
+                            crate::extract::extract_title(Path::new(&docs[index].path)),
+                        )
+                    });
                     outcomes
                         .lock()
                         .unwrap_or_else(|error| error.into_inner())
@@ -277,7 +282,15 @@ impl IndexMaintenance {
         for (index, content) in outcomes {
             let doc = &docs[index];
             match content {
-                Ok(content) => prepared.push((doc.clone(), content)),
+                Ok((content, title)) => {
+                    let mut doc = doc.clone();
+                    if let Some(title) = title {
+                        if title != doc.title && self.store.update_title(doc.id, &title).is_ok() {
+                            doc.title = title;
+                        }
+                    }
+                    prepared.push((doc, content));
+                }
                 Err(error) => {
                     eprintln!("index: content failed for {}: {error}", doc.path);
                     let _ = self.store.set_index_status(doc.id, "error");
