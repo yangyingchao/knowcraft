@@ -20,7 +20,7 @@ use crate::{
     ui::{
         accessibility,
         browser::{self, ClipboardMark, ClipboardMarks, mark_in},
-        thumbnail,
+        hover_tooltip, thumbnail,
     },
 };
 
@@ -113,6 +113,13 @@ impl ListFactory {
             Some((self.positions.index.clone(), self.positions.view.clone())),
             self.state.clone(),
             (&content_click, true, slow_click),
+        );
+        install_name_tooltip(
+            row.widget.upcast_ref(),
+            item,
+            self.browser.clone(),
+            self.depth,
+            self.positions.index.clone(),
         );
     }
 
@@ -341,4 +348,48 @@ pub(super) fn refresh_list_section(
         row.icon.set_base_opacity(1.0);
         crate::ui::index_badge::apply(row.widget.upcast_ref(), &entry.location);
     });
+}
+
+/// The name the file carries on disk, which a knowledge-base title can hide.
+fn file_name(entry: &FileEntry) -> Option<String> {
+    let name = entry.native_name.to_string_lossy().into_owned();
+    (!name.is_empty()).then_some(name)
+}
+
+/// Reveals the file name once the pointer rests on a row.
+fn install_name_tooltip(
+    row: &gtk::Widget,
+    item: &gtk::ListItem,
+    browser: Weak<Browser>,
+    depth: usize,
+    index: SourceIndexMap,
+) {
+    let item = item.downgrade();
+    hover_tooltip::install(
+        row,
+        Rc::new(hover_tooltip::RestGate::default()),
+        move |_, _, _, _| {
+            let item = item.upgrade()?;
+            let position = item.item().and_then(|value| index.of_item(&value))?;
+            let entry = browser.upgrade()?.entry_at(depth, position)?;
+            file_name(&entry)
+        },
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::EntryKind;
+
+    #[test]
+    fn the_hover_name_is_the_disk_name_not_the_row_title() {
+        let mut entry =
+            crate::ui::browser_modes::tests::typed_entry("q3-report.pdf", EntryKind::File);
+        entry.display_name = "季度报告".into();
+        assert_eq!(file_name(&entry).as_deref(), Some("q3-report.pdf"));
+
+        entry.native_name = std::ffi::OsString::new();
+        assert_eq!(file_name(&entry), None);
+    }
 }

@@ -20,6 +20,7 @@ mod file_providers;
 mod focus_navigation;
 mod folder_picker;
 mod frame;
+mod hover_tooltip;
 mod icons_cell;
 mod index_badge;
 mod inline_search;
