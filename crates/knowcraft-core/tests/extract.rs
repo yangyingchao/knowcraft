@@ -118,6 +118,30 @@ fn pdf_with_info(text: &str, title: Option<&str>) -> Vec<u8> {
 }
 
 #[test]
+fn extract_markdown_title_with_and_without_bom() {
+    let plain = std::env::temp_dir().join("kc-ext-title.md");
+    std::fs::write(&plain, "# 标题一\n\n正文\n").unwrap();
+    assert_eq!(
+        knowcraft_core::extract::extract_title(&plain).as_deref(),
+        Some("标题一")
+    );
+
+    let bom = std::env::temp_dir().join("kc-ext-title-bom.md");
+    std::fs::write(&bom, "\u{feff}# 标题二\n\n正文\n").unwrap();
+    assert_eq!(
+        knowcraft_core::extract::extract_title(&bom).as_deref(),
+        Some("标题二")
+    );
+
+    let org_bom = std::env::temp_dir().join("kc-ext-title-bom.org");
+    std::fs::write(&org_bom, "\u{feff}#+TITLE: org 标题\n").unwrap();
+    assert_eq!(
+        knowcraft_core::extract::extract_title(&org_bom).as_deref(),
+        Some("org 标题")
+    );
+}
+
+#[test]
 fn extract_org_title_prefers_file_keyword() {
     let f = std::env::temp_dir().join("kc-ext-title.org");
     std::fs::write(&f, "#+TITLE: 我的研究笔记\n\n* 引言\n").unwrap();

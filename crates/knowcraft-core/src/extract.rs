@@ -234,6 +234,7 @@ fn html_title(html: &str) -> Option<String> {
 }
 
 fn markdown_title(md: &str) -> Option<String> {
+    let md = strip_bom(md);
     md.lines().find_map(|line| {
         line.trim_start()
             .strip_prefix("# ")
@@ -241,8 +242,15 @@ fn markdown_title(md: &str) -> Option<String> {
     })
 }
 
+/// 去掉文件开头的 UTF-8 BOM（U+FEFF）。`trim_start` 不把 BOM 视为空白，
+/// 带 BOM 的文件首行会因此匹配失败。
+fn strip_bom(text: &str) -> &str {
+    text.strip_prefix('\u{feff}').unwrap_or(text)
+}
+
 /// org 标题：优先 `#+TITLE:`，否则第一个一级标题 `* ...`。
 fn org_title(org: &str) -> Option<String> {
+    let org = strip_bom(org);
     for line in org.lines() {
         let trimmed = line.trim_start();
         if let Some((key, value)) = trimmed.split_once(':') {
