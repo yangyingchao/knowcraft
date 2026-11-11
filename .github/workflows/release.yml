@@ -1,0 +1,118 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_RUST_VERSION: 1.99.1
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-24.04
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install native development libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libfontconfig1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libgtk-4-dev libssl-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: ${{ env.RELEASE_RUST_VERSION }}
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: release-fat-${{ matrix.target }}
+
+      - name: Resolve build kind from the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          case "$TAG" in
+            *-rc*) kind=rc ;;
+            *-beta*) kind=beta ;;
+            *-alpha*) kind=alpha ;;
+            *) kind=stable ;;
+          esac
+          echo "KNOWCRAFT_BUILD_KIND=$kind" >> "$GITHUB_ENV"
+
+      - name: Build release binaries
+        env:
+          KNOWCRAFT_RELEASE_TAG: ${{ github.ref_name }}
+        run: cargo build --profile release-fat --locked --target "${{ matrix.target }}"
+
+      - name: Package binaries
+        env:
+          TAG: ${{ github.ref_name }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          version="${TAG#v}"
+          package="knowcraft-${version}-${TARGET}"
+          mkdir -p "dist/$package"
+          install -m 755 "target/$TARGET/release-fat/knowcraft" "dist/$package/knowcraft"
+          install -m 755 "target/$TARGET/release-fat/kc" "dist/$package/kc"
+          install -m 644 LICENSE "dist/$package/LICENSE"
+          tar --format=ustar -C dist -czf "dist/$package.tar.gz" "$package"
+          (cd dist && sha256sum "$package.tar.gz" > "$package.tar.gz.sha256")
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: knowcraft-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download release archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: knowcraft-*
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          case "$TAG" in
+            *-rc*|*-beta*|*-alpha*) prerelease=(--prerelease) ;;
+            *) prerelease=() ;;
+          esac
+          gh release create "$TAG" dist/* --verify-tag --generate-notes \
+            --title "Knowcraft $TAG" "${prerelease[@]}"
