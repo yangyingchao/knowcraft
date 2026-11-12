@@ -32,12 +32,11 @@ impl PreferenceManager {
     }
 
     pub fn browser_list_columns(&self) -> Option<ListColumns> {
-        self.preferences.borrow().browser_list_columns
+        ui_state::browser_list_columns()
     }
 
     pub fn set_browser_list_columns(&self, columns: Option<ListColumns>) {
-        self.preferences.borrow_mut().browser_list_columns = columns.filter(ListColumns::is_valid);
-        self.save_preferences();
+        ui_state::set_browser_list_columns(columns.filter(ListColumns::is_valid));
     }
 
     pub fn chooser_list_columns(&self) -> Option<ListColumns> {

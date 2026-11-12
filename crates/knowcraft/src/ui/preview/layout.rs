@@ -85,7 +85,7 @@ impl SplitSizing {
 
     /// Reads the last window's preview width; only the resident window calls this.
     pub(super) fn load_saved_width(&self) {
-        let Some(width) = super::width::load_from(&super::width::path()) else {
+        let Some(width) = crate::ui::preferences::preview_width() else {
             return;
         };
         self.saved_width.set(Some(width));
@@ -103,7 +103,7 @@ impl SplitSizing {
         if self.saved_width.replace(Some(width)) == Some(width) {
             return;
         }
-        super::width::save(width);
+        crate::ui::preferences::set_preview_width(width);
     }
 }
 

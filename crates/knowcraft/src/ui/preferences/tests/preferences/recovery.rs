@@ -113,12 +113,6 @@ fn one_malformed_entry_keeps_the_rest_of_its_collection() {
         "volume:fixture-kingston" = ["Academia/2026", 7, "Teaching"]
         "volume:broken" = "not a list"
         "volume:fixture-sandisk" = ["Backup"]
-
-        [browser_list_columns]
-        mode = "wide"
-        size = 80
-        type = 95
-        modified = 140
         "#,
     )
     .expect("fixture TOML");
@@ -151,7 +145,6 @@ fn one_malformed_entry_keeps_the_rest_of_its_collection() {
                     vec![PathBuf::from("Backup")]
                 ),
             ]),
-            browser_list_columns: None,
             ..non_default_preferences()
         }
     );

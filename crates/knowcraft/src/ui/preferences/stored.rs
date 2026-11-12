@@ -129,7 +129,6 @@ impl Preferences {
         self.chooser_column_width = self.chooser_column_width.filter(|width| *width > 0);
         self.browser_column_width = self.browser_column_width.filter(|width| *width > 0);
         self.chooser_list_columns = self.chooser_list_columns.filter(ListColumns::is_valid);
-        self.browser_list_columns = self.browser_list_columns.filter(ListColumns::is_valid);
         self.list_column_order = sanitize_list_column_order(&self.list_column_order);
         self.list_hidden_columns = sanitize_list_hidden_columns(&self.list_hidden_columns);
         self.interface_font = normalized_font_family(self.interface_font.take());

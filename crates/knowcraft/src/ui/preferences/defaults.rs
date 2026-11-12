@@ -73,7 +73,6 @@ impl Default for Preferences {
             send_to_recent_destinations: HashMap::new(),
             device_labels: HashMap::new(),
             chooser_list_columns: None,
-            browser_list_columns: None,
             list_column_order: default_list_column_order(),
             list_hidden_columns: Vec::new(),
             keymap: KeymapOverrides::default(),

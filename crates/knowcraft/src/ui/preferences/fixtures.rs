@@ -84,13 +84,6 @@ pub(in crate::ui) fn non_default_preferences() -> Preferences {
                 vec![PathBuf::from("Backup")],
             ),
         ]),
-        browser_list_columns: Some(ListColumns {
-            name: None,
-            mode: 110,
-            size: 80,
-            kind: 95,
-            modified: 140,
-        }),
         chooser_list_columns: Some(ListColumns {
             name: Some(280),
             mode: 100,

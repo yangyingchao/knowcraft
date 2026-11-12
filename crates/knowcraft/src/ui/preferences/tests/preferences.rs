@@ -35,6 +35,7 @@ mod saved_fixture;
 mod saving;
 mod setters;
 mod themes;
+mod window_state;
 
 fn assert_recovered_preferences_survive_save(
     corrupt: impl FnOnce(&mut toml::Table),

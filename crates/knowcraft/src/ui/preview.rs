@@ -54,7 +54,6 @@ mod pdf;
 mod render;
 mod source_view;
 mod tags_bar;
-mod width;
 pub(super) use document::document_notice;
 use document::{DocumentPreview, DocumentView};
 pub(in crate::ui) use layout::{separator, separator_width};

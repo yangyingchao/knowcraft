@@ -44,7 +44,7 @@ fn parse_preferences_checked(contents: &str) -> io::Result<(Preferences, BTreeSe
 const SETTINGS_LOCK_WAIT: Duration = Duration::from_millis(500);
 
 /// Dropped by every save.
-pub(super) const RETIRED_SETTINGS: [&str; 1] = ["auto_refresh_interval"];
+pub(super) const RETIRED_SETTINGS: [&str; 2] = ["auto_refresh_interval", "browser_list_columns"];
 
 /// A changed key, or one entry of a key in [`ENTRY_MERGED_SETTINGS`].
 pub(super) type SettingKey = (String, Option<String>);

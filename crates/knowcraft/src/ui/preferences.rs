@@ -49,6 +49,7 @@ mod sidebar_settings;
 mod stored;
 mod text_size;
 mod trashed;
+mod ui_state;
 pub(in crate::ui) use bindings::notify_live;
 pub use corner_roundness::CornerRoundness;
 use defaults::{
@@ -73,6 +74,7 @@ use persistence::{
     SettingKey, parse_preferences, read_loaded_preferences, read_state_file, record_changes,
     settings_path,
 };
+pub(in crate::ui) use ui_state::{preview_width, set_preview_width};
 pub(in crate::ui) use stored::{SEARCH_ENTRY_LIMIT_CHOICES, SEARCH_TIME_LIMIT_CHOICES};
 use stored::{
     configured_hardware_acceleration, configured_video_preview_backend, normalized_search_limit,
@@ -252,8 +254,6 @@ pub(in crate::ui) struct Preferences {
     device_labels: HashMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     chooser_list_columns: Option<ListColumns>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    browser_list_columns: Option<ListColumns>,
     #[serde(
         default = "default_list_column_order",
         skip_serializing_if = "is_default_list_column_order"
@@ -351,6 +351,7 @@ impl PreferenceManager {
             preferences: RefCell::new(preferences),
         });
         manager.folder_view_store();
+        ui_state::prime();
         manager
     }
 
