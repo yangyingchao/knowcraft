@@ -22,10 +22,12 @@ mod run;
 
 #[cfg(test)]
 use disconnect::leave_share_and_unmount;
-pub(super) use keys::{key_for_drive, key_for_mount, key_for_volume};
+pub(super) use disconnect::disconnect_share;
+pub(super) use keys::{
+    ids_for_drive, ids_for_mount, ids_for_volume, key_for_drive, key_for_mount, key_for_volume,
+};
 use overlay::ReleaseOverlay;
 pub(super) use overlay::mount_operation;
-#[cfg(test)]
 pub(super) use overlay::pending_device_shell;
 #[cfg(test)]
 pub(super) use overlay::{note_unmount_progress, present_release_overlay};

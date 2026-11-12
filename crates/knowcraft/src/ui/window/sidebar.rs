@@ -5,7 +5,7 @@ use std::{
     rc::Rc,
 };
 
-use gtk::{glib, prelude::*};
+use gtk::{gio, glib, prelude::*};
 
 use crate::{
     model::Location,
@@ -13,7 +13,7 @@ use crate::{
 };
 
 use super::{
-    RailPolicy, SIDEBAR_WIDTH, SidebarState, SidebarView, TrashContents,
+    RailPolicy, RecentAvailability, SIDEBAR_WIDTH, SidebarState, SidebarView, TrashContents,
     event_changes_trash_contents, install_sidebar_file_drop, select_sidebar_row,
 };
 
@@ -135,13 +135,34 @@ pub(in crate::ui) fn build_sidebar(
 ) -> SidebarView {
     let shell = SidebarShell::new();
     let state = SidebarState::new(shell.places, view, preferences, local_only);
+    state.bind_section_states();
+    let bookmark_watch = super::bookmarks::watch_sidebar(&state);
     state.observe_navigation_and_trash();
+    let (handlers, mount_handler) = connect_device_changes(&state);
+    let recent_setting_handler = connect_recent_setting_changes(&state);
+    reveal_empty_pins_during_file_drags(&state, &shell.widget);
+    // The first-paint callback rebuilds the sidebar into its final layout;
+    // device discovery is deferred to it.
+    state.append_knowcraft_places();
+    state.append_places_rows();
+    state.append_pinned_places();
     state.sync_active_place();
-    // The first-paint callback rebuilds the sidebar into its final Knowcraft
-    // layout; device discovery no longer feeds it.
+    let release_watch = {
+        let weak = Rc::downgrade(&state);
+        super::device_release::watch_sidebars(Some(&state.browser), move || {
+            if let Some(state) = weak.upgrade() {
+                state.rebuild();
+            }
+        })
+    };
     SidebarView {
         widget: shell.widget.upcast(),
         state,
+        handlers: RefCell::new(handlers),
+        mount_handler: RefCell::new(mount_handler),
+        recent_setting_handler: RefCell::new(recent_setting_handler),
+        release_watch,
+        bookmark_watch: RefCell::new(Some(bookmark_watch)),
     }
 }
 
@@ -183,6 +204,8 @@ impl SidebarState {
             widget,
             browser: view.browser(),
             view,
+            volume_monitor: gio::VolumeMonitor::get(),
+            mount_monitor: gio_unix::MountMonitor::get(),
             preference_manager,
             pinned_places: Rc::new(RefCell::new(crate::adapters::bookmarks::current())),
             place_rows: RefCell::new(Vec::new()),
@@ -192,7 +215,9 @@ impl SidebarState {
             trash_probe_running: Cell::new(false),
             trash_probe_pending: Cell::new(false),
             local_only,
+            recent_availability: Cell::new(RecentAvailability::from_runtime()),
             pending_scroll: Cell::new(None),
+            rebuild_queued: Cell::new(false),
             scroll_restore_queued: Cell::new(false),
             rail: Cell::new(false),
             policy: RailPolicy::default(),
@@ -200,8 +225,35 @@ impl SidebarState {
             rail_changed: RefCell::new(None),
             keycaps: RefCell::new(Vec::new()),
             keycaps_shown: Cell::new(false),
+            visible_pins: RefCell::new(Vec::new()),
+            knowcraft_section: RefCell::new(None),
+            places_section: RefCell::new(None),
+            pinned_section: RefCell::new(None),
+            devices_section: RefCell::new(None),
+            empty_pinned_section: RefCell::new(Vec::new()),
+            file_drag_over: Cell::new(false),
             drop_feedback,
         })
+    }
+
+    fn bind_section_states(self: &Rc<Self>) {
+        let weak = Rc::downgrade(self);
+        self.preference_manager.bind_preference(
+            &self.widget,
+            |manager| {
+                (
+                    manager.sidebar_knowcraft_collapsed(),
+                    manager.sidebar_places_collapsed(),
+                    manager.sidebar_pinned_collapsed(),
+                    manager.sidebar_devices_collapsed(),
+                )
+            },
+            move |_, _| {
+                if let Some(state) = weak.upgrade() {
+                    state.sync_section_states();
+                }
+            },
+        );
     }
 
     fn observe_navigation_and_trash(self: &Rc<Self>) {
@@ -266,3 +318,83 @@ pub(super) enum PlaceNavigation {
     Direct,
     Validate,
 }
+
+fn connect_device_changes(
+    state: &Rc<SidebarState>,
+) -> (Vec<glib::SignalHandlerId>, Option<glib::SignalHandlerId>) {
+    // Tests share the host's mount table, which other processes change at any
+    // moment (each container start does); a rebuild then replaces the rows a
+    // test holds. Tests build device rows directly instead.
+    if cfg!(test) {
+        return (Vec::new(), None);
+    }
+    let monitor = &state.volume_monitor;
+    let handlers = vec![
+        monitor.connect_mount_added(rebuild_on_change(state)),
+        monitor.connect_mount_removed(rebuild_on_change(state)),
+        monitor.connect_mount_changed(rebuild_on_change(state)),
+        monitor.connect_volume_added(rebuild_on_change(state)),
+        monitor.connect_volume_removed(rebuild_on_change(state)),
+        monitor.connect_volume_changed(rebuild_on_change(state)),
+        monitor.connect_drive_connected(rebuild_on_change(state)),
+        monitor.connect_drive_disconnected(rebuild_on_change(state)),
+        monitor.connect_drive_changed(rebuild_on_change(state)),
+    ];
+    let weak = Rc::downgrade(state);
+    let mount_handler = state.mount_monitor.connect_mounts_changed(move |_| {
+        if let Some(state) = weak.upgrade() {
+            state.queue_rebuild();
+        }
+    });
+    (handlers, Some(mount_handler))
+}
+
+fn rebuild_on_change<T: 'static>(
+    state: &Rc<SidebarState>,
+) -> impl Fn(&gio::VolumeMonitor, &T) + 'static {
+    let weak = Rc::downgrade(state);
+    move |_, _| {
+        if let Some(state) = weak.upgrade() {
+            state.queue_rebuild();
+        }
+    }
+}
+
+fn connect_recent_setting_changes(
+    state: &Rc<SidebarState>,
+) -> Option<(gtk::Settings, glib::SignalHandlerId)> {
+    let settings = gtk::Settings::default()?;
+    let weak = Rc::downgrade(state);
+    let handler = settings.connect_gtk_recent_files_enabled_notify(move |_| {
+        if let Some(state) = weak.upgrade() {
+            state
+                .recent_availability
+                .set(RecentAvailability::from_runtime());
+            state.queue_rebuild();
+        }
+    });
+    Some((settings, handler))
+}
+
+fn reveal_empty_pins_during_file_drags(state: &Rc<SidebarState>, sidebar: &gtk::Box) {
+    let motion = gtk::DropControllerMotion::new();
+    let weak = Rc::downgrade(state);
+    motion.connect_enter(move |motion, _, _| {
+        let offers_files = motion.drop().is_some_and(|drop| {
+            drop.formats()
+                .union_deserialize_types()
+                .contains_type(gtk::gdk::FileList::static_type())
+        });
+        if let Some(state) = weak.upgrade() {
+            state.set_file_drag_over(offers_files);
+        }
+    });
+    let weak = Rc::downgrade(state);
+    motion.connect_leave(move |_| {
+        if let Some(state) = weak.upgrade() {
+            state.set_file_drag_over(false);
+        }
+    });
+    sidebar.add_controller(motion);
+}
+

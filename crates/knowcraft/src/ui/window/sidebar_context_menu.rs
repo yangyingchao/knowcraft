@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-#![expect(
-    dead_code,
-    reason = "reached only from the removed sidebar place rows; stage 7 cleanup"
-)]
-
 //! The context menu attached to sidebar places.
 
 use std::{path::PathBuf, rc::Rc};
@@ -29,16 +24,16 @@ impl SidebarState {
             location,
             extra: None,
         };
-        self.attach_place_context_menu_with(row, place, on_unpin);
+        self.attach_place_context_menu_with(row, place, Some(on_unpin));
     }
 
     /// Like [`Self::attach_place_context_menu`], with the place's extra item above the
-    /// standard items.
-    pub(super) fn attach_place_context_menu_with(
+    /// standard items. Without `on_unpin` the menu offers no unpin entry.
+    pub(super) fn attach_place_context_menu_with<F: Fn(&Rc<Self>) + 'static>(
         self: &Rc<Self>,
         row: &gtk::Button,
         place: PlaceMenu,
-        on_unpin: impl Fn(&Rc<Self>) + 'static,
+        on_unpin: Option<F>,
     ) {
         let menu = crate::ui::accessibility::menu_box();
         menu.add_css_class("folder-context-menu");
@@ -47,9 +42,12 @@ impl SidebarState {
             menu.append(&button);
             (button, extra.action)
         });
-        let unpin = sidebar_context_option(crate::assets::icons::PIN, "Unpin", false);
+        let unpin = on_unpin.map(|on_unpin| {
+            let button = sidebar_context_option(crate::assets::icons::PIN, "Unpin", false);
+            menu.append(&button);
+            (button, on_unpin)
+        });
         let properties = sidebar_context_option(crate::assets::icons::INFO, "Properties", false);
-        menu.append(&unpin);
         let customize = place.location.native_path().map(|path| {
             let button = sidebar_context_option(crate::assets::icons::PALETTE, "Customize…", false);
             menu.append(&button);
@@ -64,7 +62,9 @@ impl SidebarState {
         if let Some((customize, path)) = customize {
             connect_customize(&customize, &popover, row, path);
         }
-        self.connect_state_item(&unpin, &popover, on_unpin);
+        if let Some((unpin, action)) = unpin {
+            self.connect_state_item(&unpin, &popover, action);
+        }
         connect_properties(&properties, &popover, &self.view, place.location);
         open_on_secondary_click(row, &popover);
     }

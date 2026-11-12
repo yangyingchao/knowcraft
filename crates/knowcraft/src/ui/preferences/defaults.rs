@@ -39,6 +39,7 @@ impl Default for Preferences {
             sidebar_expanded: true,
             sidebar_pinned_collapsed: false,
             sidebar_devices_collapsed: false,
+            sidebar_places_collapsed: false,
             sidebar_knowcraft_collapsed: false,
             sidebar_compact: false,
             show_hidden: false,

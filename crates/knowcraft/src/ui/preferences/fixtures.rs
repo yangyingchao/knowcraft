@@ -39,6 +39,7 @@ pub(in crate::ui) fn non_default_preferences() -> Preferences {
         sidebar_expanded: false,
         sidebar_pinned_collapsed: true,
         sidebar_devices_collapsed: true,
+        sidebar_places_collapsed: true,
         sidebar_knowcraft_collapsed: true,
         sidebar_compact: true,
         show_hidden: true,

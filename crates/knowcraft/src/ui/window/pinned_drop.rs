@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-#![expect(
-    dead_code,
-    reason = "drop gaps and drag handling for the removed sidebar Pins rows; stage 7 cleanup"
-)]
-
 #[cfg(test)]
 mod tests;
 

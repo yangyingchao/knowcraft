@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-#![expect(
-    dead_code,
-    reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
-)]
-
 //! Storage properties, Knowcraft-only display labels, and removable-only formatting.
 
 use std::{cell::Cell, future::Future, path::PathBuf, rc::Rc};

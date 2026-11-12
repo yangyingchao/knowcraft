@@ -1,13 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
-    )
-)]
-
 //! The actions menu of a sidebar device row.
 
 use std::rc::Rc;

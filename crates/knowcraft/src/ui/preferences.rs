@@ -185,6 +185,8 @@ pub(in crate::ui) struct Preferences {
     #[serde(default)]
     sidebar_devices_collapsed: bool,
     #[serde(default)]
+    sidebar_places_collapsed: bool,
+    #[serde(default)]
     sidebar_knowcraft_collapsed: bool,
     #[serde(default)]
     sidebar_compact: bool,

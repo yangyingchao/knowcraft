@@ -146,10 +146,6 @@ pub(super) fn schedule_after_first_paint(window: &gtk::ApplicationWindow, sideba
     });
 }
 
-#[expect(
-    dead_code,
-    reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
-)]
 pub(super) fn navigate_to_gio_file(browser: &Rc<Browser>, file: &gio::File) {
     if let Some(location) = location_for_file(file) {
         browser.navigate(location);

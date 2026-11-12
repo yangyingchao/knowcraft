@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-#![expect(
-    dead_code,
-    reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
-)]
-
 //! Locking encrypted devices and forgetting their cached passwords.
 
 use std::{

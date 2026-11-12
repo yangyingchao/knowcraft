@@ -54,10 +54,6 @@ pub(super) fn sync_keycap(keycap: &gtk::Label, visible: bool) {
 
 /// Moves `widgets` into `container` in order, right after `anchor` or at the
 /// start, without dropping keyboard focus from a row that changes parent.
-#[expect(
-    dead_code,
-    reason = "reached only from the removed sidebar Pins rows; stage 7 cleanup"
-)]
 pub(super) fn reparent_in_order(
     container: &gtk::Box,
     widgets: &[gtk::Widget],

@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-#![expect(
-    dead_code,
-    reason = "reached only from the removed sidebar Pins rows; stage 7 cleanup"
-)]
-
 //! Pinning, unpinning and moving the user's pinned folders.
 
 use std::rc::Rc;

@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-#![expect(
-    dead_code,
-    reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
-)]
-
 //! Ejecting, unmounting and safely removing sidebar devices.
 
 use std::{cell::Cell, rc::Rc};

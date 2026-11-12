@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-#![expect(
-    dead_code,
-    reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
-)]
-
 use crate::ui::preferences::PreferenceManager;
 use gtk::prelude::*;
 use std::rc::Rc;

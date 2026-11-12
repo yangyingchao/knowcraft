@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-#![expect(
-    dead_code,
-    reason = "reached only from the removed sidebar Devices rows; stage 7 cleanup"
-)]
-
 //! Connect-to-server dialog, which stays open until the location opens or fails.
 
 use std::cell::{Cell, RefCell};
