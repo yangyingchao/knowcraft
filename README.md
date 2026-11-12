@@ -234,6 +234,18 @@ model = "llama3"
 
 鉴权凭证只存放在数据目录的 `.token`，不写入配置文件。
 
+## 致谢
+
+Knowcraft 建立在以下开源项目之上：
+
+| 项目 | 说明 | 仓库 |
+| --- | --- | --- |
+| strata | GTK4 文件管理器，Knowcraft GUI 层由它 fork 深改造而来 | <https://github.com/lgse/strata> |
+| pdfcraft | 纯 Rust PDF 工具与库，提供文本提取、渲染与标注能力 | <https://github.com/storytold/pdfcraft> |
+| wordcraft | 纯 Rust 文字处理库，提供 DOCX、DOC 文档的读取与文本提取 | <https://github.com/storytold/wordcraft> |
+
+派生来源与完整第三方许可证清单见 `crates/knowcraft/THIRD_PARTY_LICENSES.md`。
+
 ## 文档
 
 - 设计：`docs/superpowers/specs/`
