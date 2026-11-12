@@ -33,6 +33,7 @@ mod overlay_focus;
 mod pane_focus;
 mod preview_ownership;
 mod reload_cursor;
+mod sidebar_sections;
 mod structural_aliases;
 mod thumbnail_size;
 mod video_clips;

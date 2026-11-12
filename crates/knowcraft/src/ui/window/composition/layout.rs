@@ -11,7 +11,7 @@ use crate::{
     adapters::LocalPreviewProvider,
     assets::{self, icons},
     ui::{
-        browser::BrowserView,
+        browser::{BrowserView, ImportKind},
         marquee::OriginClick,
         preferences::PreferenceManager,
         preview::PreviewDrawer,
@@ -288,17 +288,30 @@ fn bind_knowledge_handlers(
                 Rc::new(move |text| feedback.show_feedback(text)),
             );
         }),
-        Rc::new(move |start| {
+        Rc::new(move |kind, start| {
             let view = import_browser.clone();
             let feedback = import_shortcuts.clone();
             let overlay = import_browser.overlay();
-            super::super::knowledge_dispatch::present_import_folder_dialog(
-                import_window.upcast_ref(),
-                start,
-                Rc::new(move || view.refresh()),
-                Rc::new(move |text| feedback.show_feedback(text)),
-                overlay,
-            );
+            match kind {
+                ImportKind::Files => {
+                    super::super::knowledge_dispatch::present_import_files_dialog(
+                        import_window.upcast_ref(),
+                        start,
+                        Rc::new(move || view.refresh()),
+                        Rc::new(move |text| feedback.show_feedback(text)),
+                        overlay,
+                    );
+                }
+                ImportKind::Folder => {
+                    super::super::knowledge_dispatch::present_import_folder_dialog(
+                        import_window.upcast_ref(),
+                        start,
+                        Rc::new(move || view.refresh()),
+                        Rc::new(move |text| feedback.show_feedback(text)),
+                        overlay,
+                    );
+                }
+            }
         }),
         Rc::new(move |path| {
             let view = reindex_browser.clone();

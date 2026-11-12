@@ -222,6 +222,9 @@ impl TabWindow {
             return;
         }
         match self.active_browser().browser().active_location() {
+            Some(location) if inside_knowledge(&location) => {
+                self.add(Some(Location::local(super::super::home_directory())))
+            }
             Some(location) => self.add(Some(location)),
             None => {
                 self.add(None);
@@ -796,6 +799,16 @@ impl TabWindow {
         });
         window.add_controller(keys);
     }
+}
+
+/// Whether the location sits inside the knowledge directory, where a new tab
+/// would otherwise open the same managed folder again.
+fn inside_knowledge(location: &Location) -> bool {
+    crate::knowledge::data_dir_path().is_some_and(|root| {
+        location
+            .native_path()
+            .is_some_and(|path| path.starts_with(root))
+    })
 }
 
 fn operations_active() -> crate::ui::close_guard::CloseBlocker {

@@ -27,7 +27,7 @@ use crate::{
     ui::actions::{action_icon, folder_input, inputs_for_entries, native_paths, run_action},
 };
 
-use super::super::ViewState;
+use super::super::{ImportKind, ViewState};
 
 pub(super) struct ActionMenuSection {
     popover: gtk::PopoverMenu,
@@ -124,10 +124,12 @@ impl ActionMenuSection {
         if let Some(header) = header {
             append_header_item(&root, header);
         }
+        // The knowledge operations section leads the menu, right under the
+        // file header; the built-in file actions follow it.
+        root.append_section(None, &model);
         for section in &commands.before {
             root.append_section(None, section);
         }
-        root.append_section(None, &model);
         let provider_model = gio::Menu::new();
         let provider_group = gio::SimpleActionGroup::new();
         let provider_epoch = Rc::new(std::cell::Cell::new(0));
@@ -307,6 +309,7 @@ impl ActionMenuSection {
         };
         self.watch_providers(paths.clone(), false);
         let catalog = crate::ui::actions::shared().catalog();
+        let builtin = self.kc_selection_items(state, entries);
         self.rebuild_custom_actions(
             state,
             &catalog.matches(&inputs),
@@ -315,6 +318,7 @@ impl ActionMenuSection {
                 parent,
                 source: InvocationSource::Selection,
             },
+            builtin,
         );
     }
 
@@ -348,6 +352,7 @@ impl ActionMenuSection {
         };
         self.watch_providers(vec![path.to_path_buf()], true);
         let catalog = crate::ui::actions::shared().catalog();
+        let builtin = self.kc_folder_items(state, location);
         self.rebuild_custom_actions(
             state,
             &catalog.matches(std::slice::from_ref(&input)),
@@ -356,6 +361,7 @@ impl ActionMenuSection {
                 parent: path.to_path_buf(),
                 source: InvocationSource::Background,
             },
+            builtin,
         );
     }
 
@@ -447,8 +453,12 @@ impl ActionMenuSection {
         state: &Rc<ViewState>,
         matched: &[MatchedAction],
         invocation: CustomInvocation,
+        builtin: Vec<gio::MenuItem>,
     ) {
         let submenu = gio::Menu::new();
+        for item in &builtin {
+            submenu.append_item(item);
+        }
         for (index, matched) in matched.iter().enumerate() {
             let item = self.custom_action_item(state, (index, matched), &invocation);
             let model = if matched.placement == MenuPlacement::Top {
@@ -459,7 +469,7 @@ impl ActionMenuSection {
             model.append_item(&item);
         }
         if submenu.n_items() > 0 {
-            let item = gio::MenuItem::new_submenu(Some(&crate::i18n::tr("Actions")), &submenu);
+            let item = gio::MenuItem::new_submenu(Some(&crate::i18n::tr("KC Actions")), &submenu);
             item.set_icon(&gio::ThemedIcon::new(icons::PLAY));
             self.model.append_item(&item);
         }
@@ -508,6 +518,144 @@ impl ActionMenuSection {
         if let Some(hint) = hint {
             item.set_attribute_value("x-knowcraft-description", Some(&hint.to_variant()));
         }
+        item
+    }
+
+    /// Built-in knowledge operations listed before the custom actions.
+    fn kc_selection_items(
+        &self,
+        state: &Rc<ViewState>,
+        entries: &[FileEntry],
+    ) -> Vec<gio::MenuItem> {
+        let knowledge = crate::knowledge::init();
+        let trash = crate::knowledge::trash_files_dir();
+        let in_trash = entries.iter().any(|entry| {
+            entry
+                .location
+                .native_path()
+                .is_some_and(|path| trash.as_deref().is_some_and(|dir| path.starts_with(dir)))
+        });
+        let all_in_knowledge = entries.iter().all(|entry| {
+            entry
+                .location
+                .native_path()
+                .is_some_and(|path| knowledge.is_some_and(|knowledge| knowledge.contains(path)))
+        });
+        let any_directory = entries.iter().any(FileEntry::is_directory);
+        let archivable = all_in_knowledge && !any_directory && !in_trash;
+        let paths: Vec<PathBuf> = entries
+            .iter()
+            .filter(|entry| !entry.is_directory())
+            .filter_map(|entry| entry.location.native_path().map(PathBuf::from))
+            .collect();
+        let mut items = Vec::new();
+        if archivable {
+            let record_paths = paths.clone();
+            items.push(self.kc_action_item(
+                state,
+                "kc-record",
+                &crate::i18n::tr("Archive as record"),
+                icons::FILE_ARCHIVE,
+                move |state| {
+                    if let Some(handler) = state.record_handler.borrow().as_ref() {
+                        handler(record_paths.clone());
+                    }
+                },
+            ));
+            let archive_paths = paths.clone();
+            items.push(self.kc_action_item(
+                state,
+                "kc-archive",
+                &crate::i18n::tr("Archive"),
+                icons::FOLDER_ARCHIVE,
+                move |state| {
+                    if let Some(handler) = state.dispatch_handler.borrow().as_ref() {
+                        handler(archive_paths.clone());
+                    }
+                },
+            ));
+        }
+        if entries.len() == 1
+            && !any_directory
+            && all_in_knowledge
+            && !in_trash
+            && let Some(path) = paths.first().cloned()
+        {
+            items.push(self.kc_action_item(
+                state,
+                "kc-reindex",
+                &crate::i18n::tr("Reindex"),
+                icons::REFRESH,
+                move |state| {
+                    if let Some(handler) = state.reindex_handler.borrow().as_ref() {
+                        handler(path.clone());
+                    }
+                },
+            ));
+        }
+        items
+    }
+
+    fn kc_folder_items(&self, state: &Rc<ViewState>, location: &Location) -> Vec<gio::MenuItem> {
+        let Some(path) = location.native_path().map(PathBuf::from) else {
+            return Vec::new();
+        };
+        if crate::knowledge::init().is_none() || location.is_recent_location() {
+            return Vec::new();
+        }
+        let files_path = path.clone();
+        let folder_path = path;
+        vec![
+            self.kc_action_item(
+                state,
+                "kc-import-files",
+                &crate::i18n::tr("Import Files…"),
+                icons::FOLDER_PLUS,
+                move |state| {
+                    if let Some(handler) = state.import_handler.borrow().as_ref() {
+                        handler(ImportKind::Files, Some(files_path.clone()));
+                    }
+                },
+            ),
+            self.kc_action_item(
+                state,
+                "kc-import-folder",
+                &crate::i18n::tr("Import Folder…"),
+                icons::FOLDER_PLUS,
+                move |state| {
+                    if let Some(handler) = state.import_handler.borrow().as_ref() {
+                        handler(ImportKind::Folder, Some(folder_path.clone()));
+                    }
+                },
+            ),
+        ]
+    }
+
+    fn kc_action_item(
+        &self,
+        state: &Rc<ViewState>,
+        name: &str,
+        label: &str,
+        icon: &str,
+        run: impl Fn(&ViewState) + 'static,
+    ) -> gio::MenuItem {
+        let action = gio::SimpleAction::new(name, None);
+        let weak = Rc::downgrade(state);
+        let dispatch = self.dispatch.clone();
+        let run = Rc::new(run);
+        action.connect_activate(move |_, _| {
+            let weak = weak.clone();
+            let dispatch = dispatch.clone();
+            let run = run.clone();
+            dispatch.defer(move || {
+                if let Some(state) = weak.upgrade() {
+                    run(&state);
+                }
+            });
+        });
+        self.actions.add_action(&action);
+        let item = gio::MenuItem::new(Some(label), Some(&format!("custom.{name}")));
+        item.set_icon(&gio::ThemedIcon::new(icon));
         item
     }
 }

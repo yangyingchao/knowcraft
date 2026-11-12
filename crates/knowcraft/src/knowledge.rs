@@ -102,15 +102,6 @@ pub(crate) struct WarmReport {
     pub(crate) failed: usize,
 }
 
-/// One step of a UI-visible indexing run.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum IndexProgress {
-    Begin { total: usize },
-    Started { path: PathBuf },
-    Finished { path: PathBuf, ok: bool },
-    Done { ok: usize, failed: usize },
-}
-
 /// A library category recommended for an incoming document.
 #[derive(Debug, Clone)]
 pub(crate) struct CategorySuggestion {
@@ -219,14 +210,15 @@ impl Knowledge {
         self.tags.search(query).unwrap_or_default()
     }
 
-    /// 递归导入外部目录到 `inbox/<目录名>/`（保留层级，同名与 checksum
-    /// 重复的文件跳过）。
-    pub(crate) fn import_directory(
+    /// 批量导入库外文件或目录到 inbox：目录保留内部层级，单文件按文件名
+    /// 复制的 `inbox/<文件名>`；逐项尽力，失败项不中断。
+    pub(crate) fn import_paths(
         &self,
-        src: &Path,
-    ) -> Result<knowcraft_core::workflow::ImportReport, String> {
-        self.workflow
-            .import_directory(src)
+        paths: &[PathBuf],
+    ) -> Result<knowcraft_core::fileops::ImportAllReport, String> {
+        let dest = self.data_dir().join("inbox");
+        self.fileops
+            .import_all(paths, &dest, false)
             .map_err(|error| error.to_string())
     }
 
@@ -362,21 +354,6 @@ impl Knowledge {
             .any(|(folder, _)| path.starts_with(self.data_dir.join(folder)))
     }
 
-    /// Documents whose path is directly under `dir`.
-    pub(crate) fn documents_under(&self, dir: &Path) -> Vec<Document> {
-        self.store
-            .documents_under(&dir.to_string_lossy())
-            .unwrap_or_default()
-    }
-
-    /// Documents under `dir` that still need indexing.
-    pub(crate) fn pending_documents(&self, dir: &Path) -> Vec<Document> {
-        self.documents_under(dir)
-            .into_iter()
-            .filter(|doc| doc.index_status != "indexed")
-            .collect()
-    }
-
     /// 文件或目录移动/改名后同步记录与索引。`from`/`to` 为原生路径。
     pub(crate) fn relocate_path(&self, from: &Path, to: &Path) -> Result<usize, String> {
         let _guard = index_guard();
@@ -475,54 +452,6 @@ impl Knowledge {
             });
         }
         status
-    }
-
-    /// Indexes `docs` one by one, reporting progress. Serialised against every
-    /// other tantivy write in this process.
-    pub(crate) fn index_documents_with_progress(
-        &self,
-        docs: &[Document],
-        mut report: impl FnMut(IndexProgress),
-    ) {
-        let _guard = index_guard();
-        let (mut ok, mut failed) = (0, 0);
-        report(IndexProgress::Begin { total: docs.len() });
-        for doc in docs {
-            let path = PathBuf::from(&doc.path);
-            with_active_index(|active| {
-                active.insert(path.clone(), ());
-            });
-            report(IndexProgress::Started { path: path.clone() });
-            let result = self
-                .index
-                .reindex_document(doc)
-                .and_then(|()| self.store.mark_indexed(doc.id));
-            let succeeded = result.is_ok();
-            match result {
-                Ok(()) => {
-                    with_status_cache(|cache| {
-                        cache.insert(path.clone(), "indexed".to_owned());
-                    });
-                    ok += 1;
-                }
-                Err(error) => {
-                    tracing::warn!(%error, "index failed for {}", doc.path);
-                    let _ = self.store.set_index_status(doc.id, "error");
-                    with_status_cache(|cache| {
-                        cache.insert(path.clone(), "error".to_owned());
-                    });
-                    failed += 1;
-                }
-            }
-            report(IndexProgress::Finished {
-                path: path.clone(),
-                ok: succeeded,
-            });
-            with_active_index(|active| {
-                active.remove(&path);
-            });
-        }
-        report(IndexProgress::Done { ok, failed });
     }
 
     /// Reindexes one knowledge file, registering it first when it is new.

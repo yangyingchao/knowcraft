@@ -145,8 +145,15 @@ type PinStatusHandler = Rc<dyn Fn(&Location) -> PinStatus>;
 type DispatchHandler = Rc<dyn Fn(Vec<std::path::PathBuf>)>;
 /// Archives the given knowledge files as records, without a dialog.
 type RecordHandler = Rc<dyn Fn(Vec<std::path::PathBuf>)>;
-/// Opens a folder picker for importing the picked directory into the inbox.
-type ImportHandler = Rc<dyn Fn(Option<std::path::PathBuf>)>;
+/// Opens the picker for importing files or a folder into the inbox.
+type ImportHandler = Rc<dyn Fn(ImportKind, Option<std::path::PathBuf>)>;
+
+/// What an import picker selects.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ImportKind {
+    Files,
+    Folder,
+}
 /// Rebuilds the search index for one knowledge file.
 type ReindexHandler = Rc<dyn Fn(std::path::PathBuf)>;
 type PreparingTransfer = (

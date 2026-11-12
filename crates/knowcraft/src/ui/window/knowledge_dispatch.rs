@@ -9,7 +9,7 @@ use std::time::Duration;
 use gtk::{glib, prelude::*};
 
 use crate::i18n::tr;
-use crate::knowledge::{CategorySuggestion, IndexProgress};
+use crate::knowledge::CategorySuggestion;
 
 /// 归档对话框的两种模式。
 #[derive(Clone, Copy)]
@@ -159,9 +159,7 @@ fn archive_message(ok: usize, failed: usize) -> String {
     }
 }
 
-/// 弹出目录选择对话框；选定后在后台把所选目录递归导入
-/// `inbox/<目录名>/`，结果经 `feedback` 展示，完成后调用 `refresh`。
-/// `start` 为对话框的起始目录（右键空白处取当前浏览目录）。
+/// 弹出目录选择对话框；选定后把目录导入 `inbox/<目录名>/`。
 pub(crate) fn present_import_folder_dialog(
     parent: &gtk::Window,
     start: Option<PathBuf>,
@@ -182,7 +180,7 @@ pub(crate) fn present_import_folder_dialog(
             && let Some(path) = file.path()
         {
             run_import(
-                path,
+                vec![path],
                 refresh.clone(),
                 feedback.clone(),
                 import_overlay.clone(),
@@ -191,38 +189,52 @@ pub(crate) fn present_import_folder_dialog(
     });
 }
 
-/// One indexing run's events: widget-free so the worker thread can send them.
-enum ImportEvent {
-    Progress(IndexProgress),
-    Finished(Result<String, String>),
-}
-
-fn run_import(
-    src: PathBuf,
+/// 弹出文件选择对话框（可多选）；选定后把文件导入 inbox。
+pub(crate) fn present_import_files_dialog(
+    parent: &gtk::Window,
+    start: Option<PathBuf>,
     refresh: Rc<dyn Fn()>,
     feedback: Rc<dyn Fn(&str)>,
     overlay: gtk::Overlay,
 ) {
-    let (sender, receiver) = std::sync::mpsc::channel::<ImportEvent>();
+    let mut builder = gtk::FileDialog::builder()
+        .title(tr("Select files to import"))
+        .modal(true);
+    if let Some(start) = start {
+        builder = builder.initial_folder(&gio::File::for_path(start));
+    }
+    let dialog = builder.build();
+    let import_overlay = overlay.clone();
+    dialog.open_multiple(Some(parent), gio::Cancellable::NONE, move |result| {
+        if let Ok(files) = result {
+            let paths: Vec<PathBuf> = (0..files.n_items())
+                .filter_map(|index| files.item(index))
+                .filter_map(|item| item.downcast::<gio::File>().ok())
+                .filter_map(|file| file.path())
+                .collect();
+            if !paths.is_empty() {
+                run_import(paths, refresh.clone(), feedback.clone(), import_overlay.clone());
+            }
+        }
+    });
+}
+
+fn run_import(
+    sources: Vec<PathBuf>,
+    refresh: Rc<dyn Fn()>,
+    feedback: Rc<dyn Fn(&str)>,
+    overlay: gtk::Overlay,
+) {
+    crate::ui::notice::show_status(&overlay, &tr("Importing…"), Duration::from_secs(10));
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<String, String>>();
     std::thread::spawn(move || {
         let result = crate::knowledge::init()
             .ok_or_else(|| "知识库不可用".to_owned())
-            .and_then(|knowledge| {
-                let report = knowledge
-                    .import_directory(&src)
-                    .map_err(|error| error.to_string())?;
-                let pending = knowledge.pending_documents(&knowledge.data_dir().join("inbox"));
-                if !pending.is_empty() {
-                    let sender = sender.clone();
-                    knowledge.index_documents_with_progress(&pending, |progress| {
-                        let _ = sender.send(ImportEvent::Progress(progress));
-                    });
-                }
-                Ok(import_message(report))
-            });
-        let _ = sender.send(ImportEvent::Finished(result));
+            .and_then(|knowledge| knowledge.import_paths(&sources))
+            .map(import_message);
+        let _ = sender.send(result);
     });
-    poll_import(receiver, refresh, feedback, overlay);
+    poll_result(receiver, refresh, feedback);
 }
 
 /// Reindexes one knowledge file in the background, reporting on the dock.
@@ -257,78 +269,38 @@ pub(crate) fn reindex_file(
     });
 }
 
-fn poll_import(
-    receiver: std::sync::mpsc::Receiver<ImportEvent>,
-    refresh: Rc<dyn Fn()>,
-    feedback: Rc<dyn Fn(&str)>,
-    overlay: gtk::Overlay,
-) {
-    let done = std::rc::Rc::new(std::cell::Cell::new(0usize));
-    let total = std::rc::Rc::new(std::cell::Cell::new(0usize));
-    glib::timeout_add_local(Duration::from_millis(50), move || {
-        loop {
-            match receiver.try_recv() {
-                Ok(ImportEvent::Progress(progress)) => match progress {
-                    IndexProgress::Begin { total: count } => total.set(count),
-                    IndexProgress::Started { path } => {
-                        let name = path
-                            .file_name()
-                            .map(|name| name.to_string_lossy().into_owned())
-                            .unwrap_or_default();
-                        let text = rust_i18n::t!(
-                            "Indexing %{done}/%{total}: %{name}",
-                            done = done.get() + 1,
-                            total = total.get().max(1),
-                            name = name
-                        )
-                        .into_owned();
-                        crate::ui::notice::show_status(&overlay, &text, Duration::from_secs(10));
-                    }
-                    IndexProgress::Finished { .. } => done.set(done.get() + 1),
-                    IndexProgress::Done { ok, failed } => {
-                        let text = if failed == 0 {
-                            rust_i18n::t!("Indexed %{count} files", count = ok).into_owned()
-                        } else {
-                            rust_i18n::t!(
-                                "Indexed %{ok} files, %{failed} failed",
-                                ok = ok,
-                                failed = failed
-                            )
-                            .into_owned()
-                        };
-                        crate::ui::notice::show_status(&overlay, &text, Duration::from_secs(3));
-                    }
-                },
-                Ok(ImportEvent::Finished(result)) => {
-                    match result {
-                        Ok(message) => feedback(&message),
-                        Err(error) => feedback(&error),
-                    }
-                    refresh();
-                    return glib::ControlFlow::Break;
-                }
-                Err(std::sync::mpsc::TryRecvError::Empty) => return glib::ControlFlow::Continue,
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    return glib::ControlFlow::Break;
-                }
+/// 导入报告文案：全零时提示无可导入文件，否则汇报导入、跳过与失败数。
+fn import_message(report: knowcraft_core::fileops::ImportAllReport) -> String {
+    use knowcraft_core::fileops::Imported;
+    let mut imported = 0usize;
+    let mut skipped = 0usize;
+    for entry in &report.entries {
+        match &entry.outcome {
+            Imported::File(_) | Imported::Updated(_) => imported += 1,
+            Imported::Directory(report) => {
+                imported += report.imported + report.updated;
+                skipped += report.skipped_existing + report.skipped_duplicate;
             }
+            Imported::SkippedExisting | Imported::SkippedDuplicate => skipped += 1,
         }
-    });
-}
-
-/// 导入报告文案：全零时提示无可导入文件，否则汇报导入数与跳过数。
-fn import_message(report: knowcraft_core::workflow::ImportReport) -> String {
-    if report.imported == 0 && report.skipped_existing == 0 && report.skipped_duplicate == 0 {
+    }
+    let failed = report.failed.len();
+    if imported == 0 && skipped == 0 && failed == 0 {
         return tr("No importable files in the selected folder");
     }
     let mut message =
-        rust_i18n::t!("Imported %{count} files", count = report.imported).into_owned();
-    let skipped = report.skipped_existing + report.skipped_duplicate;
+        rust_i18n::t!("Imported %{count} files", count = imported).into_owned();
     if skipped > 0 {
         message.push_str("; ");
         message.push_str(
             &rust_i18n::t!("Skipped %{count} (existing or duplicate)", count = skipped)
                 .into_owned(),
+        );
+    }
+    if failed > 0 {
+        message.push_str("; ");
+        message.push_str(
+            &rust_i18n::t!("Failed %{count} files", count = failed).into_owned(),
         );
     }
     message

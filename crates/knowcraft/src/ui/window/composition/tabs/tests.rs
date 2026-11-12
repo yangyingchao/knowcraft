@@ -165,6 +165,54 @@ fn sibling_fixture(
 }
 
 #[test]
+fn new_tab_inside_the_knowledge_base_opens_the_home_folder() {
+    let root = tempfile::tempdir().expect("knowledge fixture");
+    let knowledge = root.path().join("Knowledge");
+    std::fs::create_dir_all(knowledge.join("inbox")).expect("inbox");
+    crate::test_support::gtk_test_with_env(
+        "ui::window::composition::tabs::tests::new_tab_inside_the_knowledge_base_opens_the_home_folder",
+        [("KNOWCRAFT_DATA_DIR", knowledge.clone().into_os_string())],
+        {
+            let knowledge = knowledge.clone();
+            move || {
+                crate::knowledge::init().expect("knowledge base");
+                let (window, tabs) = open();
+                load(
+                    &tabs.active_browser(),
+                    Location::local(knowledge.join("inbox")),
+                );
+                tabs.new_tab();
+                let home = Location::local(crate::ui::window::home_directory());
+                wait_until(|| {
+                    tabs.active_browser().browser().active_location() == Some(home.clone())
+                });
+                window.destroy();
+            }
+        },
+    );
+}
+
+#[test]
+fn new_tab_outside_the_knowledge_base_keeps_the_active_folder() {
+    gtk_test(
+        "ui::window::composition::tabs::tests::new_tab_outside_the_knowledge_base_keeps_the_active_folder",
+        || {
+            let root = tempfile::tempdir().expect("tab fixture");
+            let outside = root.path().join("outside");
+            std::fs::create_dir_all(&outside).expect("outside folder");
+            let (window, tabs) = open();
+            load(&tabs.active_browser(), Location::local(&outside));
+            tabs.new_tab();
+            let outside = Location::local(&outside);
+            wait_until(|| {
+                tabs.active_browser().browser().active_location() == Some(outside.clone())
+            });
+            window.destroy();
+        },
+    );
+}
+
+#[test]
 fn remote_root_tab_labels_name_the_server_or_share_like_their_headings() {
     for (uri, label) in [
         ("smb://host/", "host".to_owned()),

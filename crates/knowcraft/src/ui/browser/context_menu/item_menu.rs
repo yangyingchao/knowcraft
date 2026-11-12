@@ -240,53 +240,6 @@ impl ItemMenu {
                 handler(entry.location, entry.display_name, Box::new(|_| {}));
             }
         });
-        self.on_entry(&single.record, |state, _, entry| {
-            if let Some(path) = entry.location.native_path().map(PathBuf::from)
-                && let Some(handler) = state.record_handler.borrow().as_ref()
-            {
-                handler(vec![path]);
-            }
-        });
-        self.on_entry(&single.dispatch, |state, _, entry| {
-            if let Some(path) = entry.location.native_path().map(PathBuf::from)
-                && let Some(handler) = state.dispatch_handler.borrow().as_ref()
-            {
-                handler(vec![path]);
-            }
-        });
-        self.on_entry(&single.reindex, |state, _, entry| {
-            if let Some(path) = entry.location.native_path().map(PathBuf::from)
-                && let Some(handler) = state.reindex_handler.borrow().as_ref()
-            {
-                handler(path);
-            }
-        });
-        self.on_selection(&options.multiple.record, |state, entries| {
-            let paths: Vec<PathBuf> = entries
-                .iter()
-                .filter(|entry| !entry.is_directory())
-                .filter_map(|entry| entry.location.native_path().map(PathBuf::from))
-                .collect();
-            if paths.is_empty() {
-                return;
-            }
-            if let Some(handler) = state.record_handler.borrow().as_ref() {
-                handler(paths);
-            }
-        });
-        self.on_selection(&options.multiple.dispatch, |state, entries| {
-            let paths: Vec<PathBuf> = entries
-                .iter()
-                .filter(|entry| !entry.is_directory())
-                .filter_map(|entry| entry.location.native_path().map(PathBuf::from))
-                .collect();
-            if paths.is_empty() {
-                return;
-            }
-            if let Some(handler) = state.dispatch_handler.borrow().as_ref() {
-                handler(paths);
-            }
-        });
         self.on_entry(&single.copy_path, |_, _, entry| copy_locations(&[entry]));
         self.on_entry(&single.copy_name, |_, _, entry| copy_names(&[entry]));
         self.on_entry(&single.rename, move |state, position, entry| {
@@ -638,33 +591,6 @@ impl ItemMenuOptions {
             .pin
             .set_visible(entry.is_directory() && !is_trash_location(&entry.location));
         self.single.pin.set_sensitive(target.pin_available());
-        // 归档对知识库内任意文件开放（排除回收站），已归档的文件也可重新归档。
-        let knowledge = crate::knowledge::init();
-        let native_path = entry.location.native_path();
-        let in_knowledge = knowledge
-            .is_some_and(|knowledge| native_path.is_some_and(|path| knowledge.contains(path)));
-        self.single
-            .dispatch
-            .set_visible(in_knowledge && !entry.is_directory() && !self.in_trash);
-        self.single
-            .record
-            .set_visible(in_knowledge && !entry.is_directory() && !self.in_trash);
-        let all_in_knowledge = target.entries.iter().all(|entry| {
-            entry
-                .location
-                .native_path()
-                .is_some_and(|path| knowledge.is_some_and(|knowledge| knowledge.contains(path)))
-        });
-        let any_directory = target.entries.iter().any(|entry| entry.is_directory());
-        self.multiple
-            .dispatch
-            .set_visible(all_in_knowledge && !any_directory && !self.in_trash);
-        self.multiple
-            .record
-            .set_visible(all_in_knowledge && !any_directory && !self.in_trash);
-        self.single
-            .reindex
-            .set_visible(in_knowledge && !self.in_trash);
         self.single.customize.set_visible(
             !self.in_trash && target.entries.len() == 1 && entry.location.native_path().is_some(),
         );
