@@ -351,17 +351,21 @@ impl ChooserDetails {
         let details = gtk::Box::new(gtk::Orientation::Vertical, 8);
         details.add_css_class("chooser-details");
         let filename = name_row(&request.kind, &details);
+        if let (Some(entry), Some(name)) = (filename.as_ref(), request.initial_name.as_ref()) {
+            entry.set_text(name);
+        }
         let options = chooser_options();
         details.append(&options);
         let filter_dropdown = filter_row(filters, selected_filter, source, view, &options);
         let choices = build_choices(&request.choices, &options);
-        let read_only = matches!(
-            &request.kind,
-            ChooserKind::Open {
-                directory: false,
-                ..
-            }
-        )
+        let read_only = (!request.save
+            && matches!(
+                &request.kind,
+                ChooserKind::Open {
+                    directory: false,
+                    ..
+                }
+            ))
         .then(|| {
             let check = form_check_button(&crate::i18n::tr("Open files read-only"));
             append_option(&options, &check);

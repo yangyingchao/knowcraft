@@ -397,4 +397,3 @@ fn reveal_empty_pins_during_file_drags(state: &Rc<SidebarState>, sidebar: &gtk::
     });
     sidebar.add_controller(motion);
 }
-

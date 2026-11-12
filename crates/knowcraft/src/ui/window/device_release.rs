@@ -20,9 +20,9 @@ mod overlay;
 mod probes;
 mod run;
 
+pub(super) use disconnect::disconnect_share;
 #[cfg(test)]
 use disconnect::leave_share_and_unmount;
-pub(super) use disconnect::disconnect_share;
 pub(super) use keys::{
     ids_for_drive, ids_for_mount, ids_for_volume, key_for_drive, key_for_mount, key_for_volume,
 };

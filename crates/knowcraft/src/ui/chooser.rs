@@ -112,3 +112,29 @@ pub(crate) fn destination_chooser_for(parent: &gtk::Window) -> Option<(gtk::Wind
             .map(|state| (state.window.clone(), state.view.clone()))
     })
 }
+
+/// Opens the file chooser for a portal request from another application.
+pub(crate) fn present_portal_request(
+    request: ChooserRequest,
+    completion: impl FnOnce(ashpd::backend::Result<SelectedFiles>) + 'static,
+) {
+    crate::ensure_assets();
+    let directory_only = matches!(
+        &request.kind,
+        ChooserKind::Open {
+            directory: true,
+            ..
+        }
+    );
+    let source = Rc::new(ChooserFileSource {
+        root_limit: None,
+        source: Rc::new(LocalFileSource),
+        filter: Rc::new(RefCell::new(None)),
+        directory_only: Rc::new(Cell::new(directory_only)),
+    });
+    let cancelled = Arc::new(AtomicBool::new(false));
+    glib::MainContext::default().spawn_local(async move {
+        crate::portal::prepare_chooser_placement().await;
+        build_chooser_hosted(request, cancelled, completion, source, None);
+    });
+}

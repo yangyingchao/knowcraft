@@ -203,23 +203,19 @@ fn places_section_lists_standard_places_but_not_trash() {
                 count.label().parse::<usize>().unwrap_or(0) >= 1,
                 "PLACES lists at least Home"
             );
-            let home = state
-                .place_rows
-                .borrow()
-                .iter()
-                .any(|(location, _)| location.native_path() == Some(home_directory().as_path()));
+            let home =
+                state.place_rows.borrow().iter().any(|(location, _)| {
+                    location.native_path() == Some(home_directory().as_path())
+                });
             assert!(home, "PLACES lists Home");
-            let trash = crate::knowledge::trash_files_dir()
-                .map(|directory| {
-                    state
-                        .place_rows
-                        .borrow()
-                        .iter()
-                        .any(|(location, _)| {
+            let trash =
+                crate::knowledge::trash_files_dir()
+                    .map(|directory| {
+                        state.place_rows.borrow().iter().any(|(location, _)| {
                             location.native_path() == Some(directory.as_path())
                         })
-                })
-                .unwrap_or(false);
+                    })
+                    .unwrap_or(false);
             assert!(!trash, "Trash stays in KNOWCRAFT, not PLACES");
         },
     );

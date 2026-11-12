@@ -213,7 +213,12 @@ pub(crate) fn present_import_files_dialog(
                 .filter_map(|file| file.path())
                 .collect();
             if !paths.is_empty() {
-                run_import(paths, refresh.clone(), feedback.clone(), import_overlay.clone());
+                run_import(
+                    paths,
+                    refresh.clone(),
+                    feedback.clone(),
+                    import_overlay.clone(),
+                );
             }
         }
     });
@@ -288,8 +293,7 @@ fn import_message(report: knowcraft_core::fileops::ImportAllReport) -> String {
     if imported == 0 && skipped == 0 && failed == 0 {
         return tr("No importable files in the selected folder");
     }
-    let mut message =
-        rust_i18n::t!("Imported %{count} files", count = imported).into_owned();
+    let mut message = rust_i18n::t!("Imported %{count} files", count = imported).into_owned();
     if skipped > 0 {
         message.push_str("; ");
         message.push_str(
@@ -299,9 +303,7 @@ fn import_message(report: knowcraft_core::fileops::ImportAllReport) -> String {
     }
     if failed > 0 {
         message.push_str("; ");
-        message.push_str(
-            &rust_i18n::t!("Failed %{count} files", count = failed).into_owned(),
-        );
+        message.push_str(&rust_i18n::t!("Failed %{count} files", count = failed).into_owned());
     }
     message
 }

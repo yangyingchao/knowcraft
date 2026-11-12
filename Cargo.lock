@@ -3000,6 +3000,7 @@ version = "0.0.0"
 dependencies = [
  "ashpd",
  "async-io",
+ "async-trait",
  "cairo-rs",
  "calamine",
  "csv",
@@ -3009,6 +3010,7 @@ dependencies = [
  "frizbee",
  "futures-channel",
  "futures-lite",
+ "futures-util",
  "gdk-pixbuf",
  "gdk4-wayland",
  "gdk4-x11",
@@ -3089,6 +3091,7 @@ version = "0.0.0"
 dependencies = [
  "dirs",
  "getrandom 0.2.17",
+ "glib",
  "jieba-rs",
  "notify",
  "pdfcraft-annot",

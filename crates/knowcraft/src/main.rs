@@ -12,6 +12,7 @@ mod app;
 mod assets;
 mod build_info;
 mod child_environment;
+mod file_manager1;
 mod i18n;
 mod knowledge;
 mod logging;
@@ -19,6 +20,7 @@ mod media;
 mod metrics;
 mod model;
 mod portal;
+mod portal_backend;
 #[cfg(feature = "qa")]
 mod qa;
 #[cfg(feature = "rar")]
@@ -121,6 +123,11 @@ fn version_line() -> String {
 
 fn main() -> gtk::glib::ExitCode {
     let arguments: Vec<OsString> = std::env::args_os().collect();
+    // DBus activation uses `--gapplication-service`; that instance must register
+    // its services immediately instead of loading preferences and probing GVfs.
+    let service_launch = arguments
+        .iter()
+        .any(|argument| argument == "--gapplication-service");
     let mode = launch_mode(&arguments);
     match mode {
         LaunchMode::BrowserWorker => {
@@ -178,36 +185,36 @@ fn main() -> gtk::glib::ExitCode {
     // Timed from here so `window presented` covers the whole launch, the way
     // the field harness measures mapped from process start.
     let launched = std::time::Instant::now();
-    // Before anything creates GIO's default VFS: a hung gvfsd blocks that for
-    // about 25 s, and loading preferences already creates it.
-    restart_with_local_vfs_if_gvfs_is_unresponsive();
-    tracing::debug!(
-        elapsed_ms = launched.elapsed().as_millis() as u64,
-        "startup gvfs probe finished"
-    );
-    let select_cairo = should_select_cairo(
-        std::env::var_os("GSK_RENDERER").as_deref(),
-        ui::preferences::PreferenceManager::shared().interface_renderer(),
-    );
-    if select_cairo || has_desktop_theme_override() {
-        // Replies already own the original stdout, which a restart would lose.
-        #[cfg(feature = "qa")]
-        if qa_session.is_some() {
-            eprintln!("--qa needs GSK_RENDERER set and GTK_THEME unset");
-            return gtk::glib::ExitCode::FAILURE;
+    if !service_launch {
+        // Before anything creates GIO's default VFS: a hung gvfsd blocks that for
+        // about 25 s, and loading preferences already creates it.
+        restart_with_local_vfs_if_gvfs_is_unresponsive();
+        tracing::debug!(
+            elapsed_ms = launched.elapsed().as_millis() as u64,
+            "startup gvfs probe finished"
+        );
+        let select_cairo = should_select_cairo(
+            std::env::var_os("GSK_RENDERER").as_deref(),
+            ui::preferences::PreferenceManager::shared().interface_renderer(),
+        );
+        if select_cairo || has_desktop_theme_override() {
+            // Replies already own the original stdout, which a restart would lose.
+            #[cfg(feature = "qa")]
+            if qa_session.is_some() {
+                eprintln!("--qa needs GSK_RENDERER set and GTK_THEME unset");
+                return gtk::glib::ExitCode::FAILURE;
+            }
+            return restart_for_gtk_environment(&arguments, select_cairo);
         }
-        return restart_for_gtk_environment(&arguments, select_cairo);
     }
 
-    let assets_started = std::time::Instant::now();
-    if let Err(error) = assets::prepare() {
-        eprintln!("Unable to prepare bundled assets: {error}");
+    // Register the portal backend before GTK initializes. The portal frontend
+    // creates its file-chooser proxy at startup and would otherwise wait for the
+    // name while GTK itself waits for the frontend's settings query.
+    portal_backend::start();
+    if !service_launch {
+        ensure_assets();
     }
-    tracing::debug!(
-        elapsed_ms = assets_started.elapsed().as_millis() as u64,
-        total_elapsed_ms = launched.elapsed().as_millis() as u64,
-        "startup bundled assets prepared"
-    );
 
     let application = gtk::Application::builder()
         .application_id(APPLICATION_ID)
@@ -223,7 +230,13 @@ fn main() -> gtk::glib::ExitCode {
         Some("DEVICE"),
     );
     application.connect_handle_local_options(|_, _| ControlFlow::Continue(()));
+    application.connect_startup(|_| {
+        let _ = glib::idle_add_local_once(portal_backend::mark_ui_ready);
+    });
     application.connect_startup(move |_| {
+        if service_launch {
+            return;
+        }
         VOLUME_MONITOR.with(|monitor| {
             monitor.get_or_init(gio::VolumeMonitor::get);
         });
@@ -238,12 +251,48 @@ fn main() -> gtk::glib::ExitCode {
             .contains(gio::ApplicationFlags::IS_SERVICE)
         {
             leave_launch_folder();
+            // A service instance serves portal requests without a window; hold it
+            // so the application does not exit as soon as startup finishes.
+            std::mem::forget(application.hold());
         }
     });
-    application.connect_startup(|_| install_x11_program_class());
+    application.connect_startup(move |_| {
+        if !service_launch {
+            install_x11_program_class();
+        }
+    });
+    application.connect_startup(|application| {
+        // Portal and file-manager services must start quickly; load the knowledge
+        // base lazily when a real window is activated instead.
+        if !application
+            .flags()
+            .contains(gio::ApplicationFlags::IS_SERVICE)
+        {
+            ensure_knowledge();
+        }
+    });
     application.connect_startup(|_| {
-        knowledge::init();
-        knowledge::spawn_warm_index();
+        std::thread::spawn(|| {
+            let executable = match crate::services::installed_executable() {
+                Ok(executable) => executable,
+                Err(error) => {
+                    tracing::warn!(%error, "unable to locate the Knowcraft executable");
+                    return;
+                }
+            };
+            if let Err(error) =
+                knowcraft_core::desktop_integration::refresh_stale_portal(&executable)
+            {
+                tracing::warn!(%error, "unable to refresh the installed portal backend");
+            }
+            match knowcraft_core::desktop_integration::file_manager_status() {
+                Ok(status) if status.has_service => file_manager1::start(),
+                Ok(_) => {}
+                Err(error) => {
+                    tracing::debug!(%error, "unable to read the file manager integration status");
+                }
+            }
+        });
     });
     application.connect_shutdown(|_| {
         ui::preferences::flush_pending_folder_views();
@@ -251,6 +300,8 @@ fn main() -> gtk::glib::ExitCode {
     });
     application.connect_activate(|application| {
         if let Err(error) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            ensure_assets();
+            ensure_knowledge();
             ui::present(application);
         })) {
             tracing::error!("panic during application activation: {error:?}");
@@ -258,6 +309,8 @@ fn main() -> gtk::glib::ExitCode {
     });
     application.connect_open(|application, files, _| {
         if let Err(error) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            ensure_assets();
+            ensure_knowledge();
             if files.is_empty() {
                 ui::present(application);
             }
@@ -303,6 +356,31 @@ enum CommandLineAction {
     Activate,
     ServiceNoop,
     Usage(&'static str),
+}
+
+static KNOWLEDGE_READY: std::sync::Once = std::sync::Once::new();
+static ASSETS_READY: std::sync::Once = std::sync::Once::new();
+
+fn ensure_knowledge() {
+    KNOWLEDGE_READY.call_once(|| {
+        knowledge::init();
+        knowledge::spawn_warm_index();
+    });
+}
+
+/// Bundled assets register a font through Fontconfig, which can scan fonts for
+/// tens of seconds after login. Services prepare them only when a window is built.
+pub(crate) fn ensure_assets() {
+    ASSETS_READY.call_once(|| {
+        let started = std::time::Instant::now();
+        if let Err(error) = assets::prepare() {
+            eprintln!("Unable to prepare bundled assets: {error}");
+        }
+        tracing::debug!(
+            elapsed_ms = started.elapsed().as_millis() as u64,
+            "startup bundled assets prepared"
+        );
+    });
 }
 
 fn classify_command_line(
@@ -351,6 +429,8 @@ fn handle_command_line(
         cmdline.is_remote(),
     ) {
         CommandLineAction::Unlock(target) => {
+            ensure_assets();
+            ensure_knowledge();
             ui::present_unlock(application, target);
             glib::ExitCode::SUCCESS
         }

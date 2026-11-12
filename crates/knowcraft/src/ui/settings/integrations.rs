@@ -14,6 +14,10 @@ use super::{
     compact_bin::CompactBin, install_command::install_command, page_content, scrollable_page,
     search, settings_group, wrap::WrapRow,
 };
+use knowcraft_core::desktop_integration::{
+    self, Component, Error as DesktopError, ErrorCode, MessageCode, Outcome,
+};
+
 use crate::{
     assets::{self, icons},
     services::{
@@ -91,6 +95,8 @@ pub(super) fn integrations_page_with(source: Source) -> gtk::Widget {
     copy.append(&actions);
     row.append(&copy);
     settings_group(&content, "").append(&row);
+
+    content.append(&desktop_integration_section());
 
     let installed = gtk::Box::new(gtk::Orientation::Vertical, 0);
     search::tag(&installed, TITLE);
@@ -1039,4 +1045,239 @@ fn note(text: &str) -> gtk::Label {
     crate::ui::controls::keep_words_whole(&label);
     label.add_css_class("settings-option-description");
     label
+}
+
+/// Desktop integration: the portal file chooser and the default file manager.
+fn desktop_integration_section() -> gtk::Box {
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 6);
+    search::tag(&content, TITLE);
+    let group = settings_group(&content, "DESKTOP INTEGRATION");
+    let (portal_row, portal_status, portal_button) = desktop_row("File chooser");
+    let (manager_row, manager_status, manager_button) = desktop_row("Default file manager");
+    let message = gtk::Label::new(None);
+    message.set_xalign(0.0);
+    message.set_wrap(true);
+    message.add_css_class("settings-option-description");
+    message.set_visible(false);
+    group.append(&portal_row);
+    group.append(&manager_row);
+    group.append(&message);
+
+    let state = Rc::new(Cell::new(DesktopState::default()));
+    let statuses = (portal_status, manager_status);
+    let buttons = (portal_button.clone(), manager_button.clone());
+    let refresh: Rc<dyn Fn()> = {
+        let statuses = statuses.clone();
+        let buttons = buttons.clone();
+        let state = state.clone();
+        Rc::new(move || refresh_desktop_integration(&statuses, &buttons, &state))
+    };
+    for (button, portal) in [(portal_button, true), (manager_button, false)] {
+        let message = message.clone();
+        let state = state.clone();
+        let refresh = refresh.clone();
+        button.connect_clicked(move |_| {
+            let installed = if portal {
+                state.get().portal
+            } else {
+                state.get().manager
+            };
+            let message = message.clone();
+            let refresh = refresh.clone();
+            run_desktop_job(move || desktop_apply(portal, !installed), message, refresh);
+        });
+    }
+    refresh();
+    content
+}
+
+#[derive(Clone, Copy, Default)]
+struct DesktopState {
+    portal: bool,
+    manager: bool,
+}
+
+fn desktop_row(title: &str) -> (gtk::Box, gtk::Label, gtk::Button) {
+    let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    row.add_css_class("settings-option");
+    search::tag(&row, TITLE);
+    let label = gtk::Label::new(Some(&crate::i18n::tr(title)));
+    label.set_xalign(0.0);
+    label.set_hexpand(true);
+    label.add_css_class("settings-option-title");
+    let status = gtk::Label::new(None);
+    status.set_xalign(1.0);
+    status.add_css_class("settings-option-description");
+    let button = icon_label_button(icons::SETTINGS, "Install");
+    row.append(&label);
+    row.append(&status);
+    row.append(&button);
+    (row, status, button)
+}
+
+fn desktop_apply(portal: bool, install: bool) -> Result<String, String> {
+    let executable = crate::services::installed_executable().map_err(|error| error.to_string())?;
+    if !portal && install {
+        return install_file_manager(&executable).map_err(|error| desktop_error_text(&error));
+    }
+    let result = match (portal, install) {
+        (true, true) => desktop_integration::install(Component::Portal, &executable),
+        (true, false) => desktop_integration::uninstall(Component::Portal),
+        (false, false) => desktop_integration::uninstall(Component::FileManager),
+        (false, true) => unreachable!("handled above"),
+    };
+    result
+        .map(|outcome| desktop_outcome_text(&outcome))
+        .map_err(|error| desktop_error_text(&error))
+}
+
+/// 设置页只提供两行；安装文件管理器前先确保 desktop 入口可用。
+fn install_file_manager(executable: &std::path::Path) -> Result<String, DesktopError> {
+    let mut lines = Vec::new();
+    if !desktop_integration::desktop_status()?.entry_present {
+        let outcome = desktop_integration::install(Component::Desktop, executable)?;
+        lines.push(desktop_message_text(outcome.message.code()));
+    }
+    let outcome = desktop_integration::install(Component::FileManager, executable)?;
+    lines.push(desktop_message_text(outcome.message.code()));
+    if let Some(warning) = outcome.warning {
+        lines.push(desktop_message_text(warning.code()));
+    }
+    Ok(lines.join("\n"))
+}
+
+fn desktop_outcome_text(outcome: &Outcome) -> String {
+    let mut text = desktop_message_text(outcome.message.code());
+    if let Some(warning) = outcome.warning.as_ref() {
+        text.push('\n');
+        text.push_str(&desktop_message_text(warning.code()));
+    }
+    text
+}
+
+fn desktop_message_text(code: MessageCode) -> String {
+    crate::i18n::tr(match code {
+        MessageCode::DesktopInstalled => "Desktop entry and icon installed",
+        MessageCode::DesktopUninstalled => "Desktop entry and icon removed",
+        MessageCode::PortalInstalled => "File chooser backend installed",
+        MessageCode::PortalUninstalled => "File chooser backend removed",
+        MessageCode::FileManagerInstalled => "Knowcraft is now the default file manager",
+        MessageCode::FileManagerUninstalled => "Default file manager integration removed",
+        MessageCode::DesktopFilesPreserved => "Files changed after installation were kept",
+        MessageCode::PortalRestartWarning => {
+            "Portal services could not be fully reloaded. Log out and back in before testing."
+        }
+    })
+}
+
+fn desktop_error_text(error: &DesktopError) -> String {
+    crate::i18n::tr(match error.code() {
+        ErrorCode::Io => "Could not change the desktop integration files",
+        ErrorCode::InvalidExecutable => {
+            "The Knowcraft executable cannot be used for desktop integration"
+        }
+        ErrorCode::PortalConfigParse => "Could not parse the portal configuration",
+        ErrorCode::PortalConfigWrite => "Could not write the portal configuration",
+        ErrorCode::PortalServiceConflict => "Another portal service conflicts with Knowcraft",
+        ErrorCode::FileManagerConflict => {
+            "Another per-user FileManager1 provider is already installed"
+        }
+        ErrorCode::DesktopEntryMissing => "Install the desktop entry first",
+        ErrorCode::CommandUnavailable => "A required system command is unavailable",
+        ErrorCode::CommandFailed => "A system command failed",
+        ErrorCode::InvalidState => "The saved desktop integration state is invalid",
+        ErrorCode::RestoreUnavailable => "Could not restore the previous files",
+    })
+}
+
+fn run_desktop_job(
+    job: impl FnOnce() -> Result<String, String> + Send + 'static,
+    message: gtk::Label,
+    refresh: Rc<dyn Fn()>,
+) {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(job());
+    });
+    glib::timeout_add_local(
+        std::time::Duration::from_millis(50),
+        move || match receiver.try_recv() {
+            Ok(result) => {
+                match result {
+                    Ok(text) => show_desktop_message(&message, &text, false),
+                    Err(error) => show_desktop_message(&message, &error, true),
+                }
+                refresh();
+                glib::ControlFlow::Break
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => glib::ControlFlow::Break,
+        },
+    );
+}
+
+/// Updates the text inside a button built by [`icon_label_button`].
+fn update_action_button(button: &gtk::Button, label: &str) {
+    let text = crate::i18n::tr(label);
+    if let Some(content) = button.child().and_downcast::<gtk::Box>()
+        && let Some(label) = content.last_child().and_downcast::<gtk::Label>()
+    {
+        label.set_text(&text);
+    }
+    accessibility::set_label(button, &text);
+}
+
+fn show_desktop_message(message: &gtk::Label, text: &str, error: bool) {
+    message.set_text(text);
+    message.set_visible(!text.is_empty());
+    if error {
+        message.add_css_class("error");
+    } else {
+        message.remove_css_class("error");
+    }
+}
+
+fn refresh_desktop_integration(
+    statuses: &(gtk::Label, gtk::Label),
+    buttons: &(gtk::Button, gtk::Button),
+    state: &Rc<Cell<DesktopState>>,
+) {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let portal = desktop_integration::portal_status();
+        let manager = desktop_integration::file_manager_status();
+        let _ = sender.send((portal, manager));
+    });
+    let statuses = statuses.clone();
+    let buttons = buttons.clone();
+    let state = state.clone();
+    glib::timeout_add_local(
+        std::time::Duration::from_millis(50),
+        move || match receiver.try_recv() {
+            Ok((portal, manager)) => {
+                let portal = portal
+                    .map(|status| status.has_installation)
+                    .unwrap_or(false);
+                let manager = manager
+                    .map(|status| status.has_service || status.has_installation)
+                    .unwrap_or(false);
+                state.set(DesktopState { portal, manager });
+                statuses.0.set_text(&crate::i18n::tr(if portal {
+                    "Installed"
+                } else {
+                    "Not installed"
+                }));
+                statuses.1.set_text(&crate::i18n::tr(if manager {
+                    "Installed"
+                } else {
+                    "Not installed"
+                }));
+                update_action_button(&buttons.0, if portal { "Uninstall" } else { "Install" });
+                update_action_button(&buttons.1, if manager { "Uninstall" } else { "Install" });
+                glib::ControlFlow::Break
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => glib::ControlFlow::Break,
+        },
+    );
 }

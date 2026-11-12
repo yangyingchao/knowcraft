@@ -5,7 +5,7 @@ use std::{fs, path::Path};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
 use super::{
-    SEARCH_ROOTS, TRUST_ROOTS, command, resolve, resolve_in, resolve_owned_in, search_roots,
+    command, resolve, resolve_in, resolve_owned_in, search_roots, SEARCH_ROOTS, TRUST_ROOTS,
 };
 
 fn scratch() -> tempfile::TempDir {

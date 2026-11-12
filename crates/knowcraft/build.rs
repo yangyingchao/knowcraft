@@ -10,6 +10,7 @@ fn main() {
     println!("cargo::rerun-if-changed=data/locales");
     write_translation_catalogs();
     println!("cargo::rerun-if-changed=integrations");
+    println!("cargo::rerun-if-changed=../knowcraft-core/resources/desktop");
     write_integration_bundle();
     glib_build_tools::compile_resources(
         &["data"],

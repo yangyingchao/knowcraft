@@ -6,7 +6,7 @@ mod annotation;
 mod blur;
 mod browser;
 mod browser_modes;
-mod chooser;
+pub(crate) mod chooser;
 mod close_guard;
 mod collection_edit;
 mod collection_interaction;

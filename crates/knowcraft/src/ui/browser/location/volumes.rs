@@ -120,7 +120,7 @@ impl UnlockDevice {
 }
 
 impl BrowserView {
-        pub(crate) fn mount_volume(&self, volume: gio::Volume) {
+    pub(crate) fn mount_volume(&self, volume: gio::Volume) {
         self.state.mount_device_volume(volume, false, true);
     }
 

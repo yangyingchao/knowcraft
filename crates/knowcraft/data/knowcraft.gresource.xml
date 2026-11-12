@@ -111,7 +111,7 @@
     <file>icons/scalable/actions/knowcraft-wrap-text.svg</file>
     <file>icons/scalable/actions/knowcraft-x.svg</file>
     <file>icons/scalable/actions/knowcraft-panel-right-close.svg</file>
-    <file>icons/scalable/apps/io.github.knowcraft.Knowcraft.svg</file>
+    <file alias="icons/scalable/apps/io.github.knowcraft.Knowcraft.svg">../../knowcraft-core/resources/desktop/icons/scalable/apps/io.github.knowcraft.Knowcraft.svg</file>
     <file>icons/catppuccin/knowcraft-ctp-adonis.svg</file>
     <file>icons/catppuccin/knowcraft-ctp-alex.svg</file>
     <file>icons/catppuccin/knowcraft-ctp-amber.svg</file>

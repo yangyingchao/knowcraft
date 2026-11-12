@@ -139,11 +139,7 @@ impl SidebarState {
             && let Some(path) = glib::user_special_dir(directory)
                 .filter(|path| should_show_standard_place(place, path, &home_directory()))
         {
-            self.append_place(
-                icon,
-                &crate::i18n::tr(name),
-                Location::local(path),
-            );
+            self.append_place(icon, &crate::i18n::tr(name), Location::local(path));
         }
     }
 
@@ -187,13 +183,20 @@ impl SidebarState {
             .collect()
     }
 
-    fn append_numbered_pin(self: &Rc<Self>, _ordinal: usize, (index, location, name): (usize, Location, String)) {
+    fn append_numbered_pin(
+        self: &Rc<Self>,
+        _ordinal: usize,
+        (index, location, name): (usize, Location, String),
+    ) {
         self.visible_pins.borrow_mut().push(location.clone());
         self.append_pinned_place(index, &name, location);
     }
 
     /// The empty Pinned section's widgets, shown only while files are dragged.
-    fn widgets_after(&self, before_section: Option<gtk::Widget>) -> Vec<glib::WeakRef<gtk::Widget>> {
+    fn widgets_after(
+        &self,
+        before_section: Option<gtk::Widget>,
+    ) -> Vec<glib::WeakRef<gtk::Widget>> {
         let first = match before_section {
             Some(widget) => widget.next_sibling(),
             None => self.widget.first_child(),

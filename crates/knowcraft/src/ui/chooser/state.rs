@@ -480,6 +480,16 @@ impl ChooserState {
 
     fn accept_open(self: &Rc<Self>, directory: bool, multiple: bool) {
         self.update_selected_filename();
+        if self.request.save
+            && let Some(name) = self
+                .filename
+                .as_ref()
+                .map(|filename| filename.text().to_string())
+                .filter(|text| !text.is_empty())
+        {
+            self.accept_open_name(&name);
+            return;
+        }
         if let Some(name) = self.edited_open_name(directory) {
             self.accept_open_name(&name);
             return;
@@ -555,6 +565,14 @@ impl ChooserState {
             return;
         };
         let location = Location::local(folder.join(name));
+        if self.request.save {
+            let Some(path) = location.native_path().map(Path::to_path_buf) else {
+                self.show_error(&crate::i18n::tr("Choose an accessible local folder"));
+                return;
+            };
+            self.complete_paths(vec![path], None);
+            return;
+        }
         self.destination_check.set(true);
         self.accept_button.set_sensitive(false);
         let weak = Rc::downgrade(self);

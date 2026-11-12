@@ -4,11 +4,14 @@
 //! 与 GUI/HTTP 共享 `knowcraft-core` 的写者路径（CLI 是当前唯一写者，持有
 //! SQLite/tantivy 写权限）。子命令失败以非零退出码结束。
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
 
+use knowcraft_core::desktop_integration::{
+    self, Component, Error as DesktopError, ErrorCode, Message as DesktopMessage, MessageCode,
+};
 use knowcraft_core::fileops::{DeleteEntry, DeleteOutcome, FileOps, Imported, Touched};
 use knowcraft_core::index::Index;
 use knowcraft_core::index_maintenance::{IndexEvent, IndexMaintenance, IndexRequest, IndexScope};
@@ -86,6 +89,21 @@ enum TagsCmd {
         id: i64,
         /// 要移除的标签名
         tag: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum ActivateCmd {
+    /// 触发桌面集成的 D-Bus 服务激活
+    #[command(
+        long_about = "触发桌面集成的 D-Bus 服务激活\n\n分量：portal、file-manager 或 all；省略时激活两者。默认随后重启当前会话总线上的 portal 前端，使其重新读取 portals.conf；这会关闭已打开的 portal 文件对话框。--no-frontend 只激活后端。"
+    )]
+    Dbus {
+        /// 分量：portal、file-manager 或 all
+        component: Option<String>,
+        /// 只激活后端，不重启 portal 前端
+        #[arg(long)]
+        no_frontend: bool,
     },
 }
 
@@ -194,9 +212,12 @@ enum Cmd {
     /// 查看数据目录、索引文档数与 inbox 计数
     #[command(
         long_about = "查看数据目录、索引文档数与 inbox 计数\n\n索引文档数统计 lifecycle 为 pending 与 archived 的已登记文档；\
-        inbox 计数取自 inbox 目录。\n\n--json 输出 data_dir、indexed、inbox 三个字段。"
+        inbox 计数取自 inbox 目录。\n\n指定桌面集成分量时（desktop、portal、file-manager）改为输出该分量的安装状态，\
+        不打开数据库。\n\n--json 输出结构化对象，供脚本与 Emacs 消费。"
     )]
     Status {
+        /// 桌面集成分量；省略时输出知识库状态
+        component: Option<String>,
         /// 输出 JSON 对象，供脚本与 Emacs 消费
         #[arg(long)]
         json: bool,
@@ -386,6 +407,35 @@ enum Cmd {
         #[command(subcommand)]
         cmd: AnnotationsCmd,
     },
+    /// 安装桌面集成：desktop、portal、file-manager 或 all
+    #[command(
+        long_about = "安装桌面集成\n\n分量：desktop 安装 desktop 入口与图标；portal 安装文件选择器后端；\
+        file-manager 将 Knowcraft 设为默认文件管理器，要求 desktop 已安装；all 依 desktop、portal、\
+        file-manager 顺序安装，单步失败不阻断后续。\n\n服务文件需要 GUI 可执行文件，默认先找 kc 同目录的 \
+        knowcraft，再在 PATH 中查找；可用 --executable 覆盖。"
+    )]
+    Install {
+        /// 分量：desktop、portal、file-manager 或 all
+        component: String,
+        /// GUI 可执行文件路径；省略时自动查找 knowcraft
+        #[arg(long, value_name = "PATH")]
+        executable: Option<PathBuf>,
+    },
+    /// 卸载桌面集成：desktop、portal、file-manager 或 all
+    #[command(
+        long_about = "卸载桌面集成\n\nall 依 file-manager、portal、desktop 顺序卸载。卸载 file-manager 时恢复\
+        之前的默认处理程序；卸载 desktop 时恢复或删除安装前的文件。"
+    )]
+    Uninstall {
+        /// 分量：desktop、portal、file-manager 或 all
+        component: String,
+    },
+    /// 触发桌面集成 D-Bus 服务的按需激活
+    #[command(long_about = "触发桌面集成 D-Bus 服务的按需激活\n\n见 activate dbus。")]
+    Activate {
+        #[command(subcommand)]
+        cmd: ActivateCmd,
+    },
     /// 外部 send-to 插件：列出可用插件或发送文件
     #[command(
         long_about = "外部 send-to 插件：列出可用插件或发送文件\n\n插件由外部注册；发送时自动选择唯一的发送动作。\n\n该组命令只读插件清单与发送文件，不打开数\
@@ -410,6 +460,21 @@ fn main() -> anyhow::Result<()> {
     if let Cmd::Sendto { cmd } = &cli.cmd {
         return run_sendto_group(cmd);
     }
+    if let Cmd::Activate { cmd } = &cli.cmd {
+        return run_activate_group(cmd);
+    }
+    match &cli.cmd {
+        Cmd::Install {
+            component,
+            executable,
+        } => return run_desktop_install(component, executable.as_deref()),
+        Cmd::Uninstall { component } => return run_desktop_uninstall(component),
+        Cmd::Status {
+            component: Some(component),
+            json,
+        } => return run_desktop_status(component, *json),
+        _ => {}
+    }
     let cfg = knowcraft_core::config::Config::load()?;
     if matches!(&cli.cmd, Cmd::Upgrade) {
         let (_, report) = knowcraft_core::store::Store::open_with_report(&cfg.data_dir)?;
@@ -425,6 +490,12 @@ fn main() -> anyhow::Result<()> {
         // Upgrade 与 Sendto 在上面已提前返回。
         Cmd::Upgrade => {}
         Cmd::Sendto { .. } => {}
+        Cmd::Activate { .. } => {}
+        Cmd::Install { .. }
+        | Cmd::Uninstall { .. }
+        | Cmd::Status {
+            component: Some(_), ..
+        } => {}
         Cmd::Search {
             query,
             json,
@@ -863,7 +934,10 @@ fn main() -> anyhow::Result<()> {
             let doc = cap.fetch(&url)?;
             println!("captured: id={} title={}", doc.id, doc.title);
         }
-        Cmd::Status { json } => {
+        Cmd::Status {
+            component: None,
+            json,
+        } => {
             let inbox = wf.list_inbox()?;
             let docs = indexed_documents(&store)?;
             if json {
@@ -1366,4 +1440,397 @@ mod tests {
 
         check(&Cli::command(), "kc");
     }
+}
+
+fn run_desktop_install(component: &str, executable: Option<&Path>) -> anyhow::Result<()> {
+    let executable = resolve_gui_executable(executable)?;
+    if component == "all" {
+        let mut failed = false;
+        for (component, result) in desktop_integration::install_all(&executable) {
+            match result {
+                Ok(outcome) => report_desktop_outcome(&outcome),
+                Err(error) => {
+                    failed = true;
+                    eprintln!(
+                        "{}: failed: {}",
+                        component.as_str(),
+                        desktop_error_text(&error)
+                    );
+                }
+            }
+        }
+        if failed {
+            anyhow::bail!("{}", desktop_all_failed_text());
+        }
+        return Ok(());
+    }
+    let component = desktop_component(component)?;
+    match desktop_integration::install(component, &executable) {
+        Ok(outcome) => {
+            report_desktop_outcome(&outcome);
+            Ok(())
+        }
+        Err(error) => {
+            eprintln!(
+                "{}: failed: {}",
+                component.as_str(),
+                desktop_error_text(&error)
+            );
+            anyhow::bail!("{}", desktop_all_failed_text());
+        }
+    }
+}
+
+fn run_desktop_uninstall(component: &str) -> anyhow::Result<()> {
+    if component == "all" {
+        let mut failed = false;
+        for (component, result) in desktop_integration::uninstall_all() {
+            match result {
+                Ok(outcome) => report_desktop_outcome(&outcome),
+                Err(error) => {
+                    failed = true;
+                    eprintln!(
+                        "{}: failed: {}",
+                        component.as_str(),
+                        desktop_error_text(&error)
+                    );
+                }
+            }
+        }
+        if failed {
+            anyhow::bail!("{}", desktop_all_failed_text());
+        }
+        return Ok(());
+    }
+    let component = desktop_component(component)?;
+    match desktop_integration::uninstall(component) {
+        Ok(outcome) => {
+            report_desktop_outcome(&outcome);
+            Ok(())
+        }
+        Err(error) => {
+            eprintln!(
+                "{}: failed: {}",
+                component.as_str(),
+                desktop_error_text(&error)
+            );
+            anyhow::bail!("{}", desktop_all_failed_text());
+        }
+    }
+}
+
+fn run_desktop_status(component: &str, json: bool) -> anyhow::Result<()> {
+    let component = desktop_component(component)?;
+    let payload = match component {
+        Component::Desktop => {
+            let status = desktop_integration::desktop_status()
+                .map_err(|error| anyhow::anyhow!(desktop_error_text(&error)))?;
+            if json {
+                serde_json::json!({
+                    "component": "desktop",
+                    "entry": status.entry,
+                    "icon": status.icon,
+                    "entry_present": status.entry_present,
+                })
+            } else {
+                println!(
+                    "desktop: entry={} icon={} present={}",
+                    status.entry, status.icon, status.entry_present
+                );
+                return Ok(());
+            }
+        }
+        Component::Portal => {
+            let status = desktop_integration::portal_status()
+                .map_err(|error| anyhow::anyhow!(desktop_error_text(&error)))?;
+            if json {
+                serde_json::json!({
+                    "component": "portal",
+                    "configured": status.configured,
+                    "installed": status.has_installation,
+                })
+            } else {
+                println!(
+                    "portal: configured={} installed={}",
+                    status.configured, status.has_installation
+                );
+                return Ok(());
+            }
+        }
+        Component::FileManager => {
+            let status = desktop_integration::file_manager_status()
+                .map_err(|error| anyhow::anyhow!(desktop_error_text(&error)))?;
+            if json {
+                serde_json::json!({
+                    "component": "file-manager",
+                    "default": status.default,
+                    "service": status.has_service,
+                    "installed": status.has_installation,
+                    "desktop_entry": status.desktop_entry,
+                })
+            } else {
+                println!(
+                    "file-manager: default={} service={} installed={} desktop-entry={}",
+                    status.default,
+                    status.has_service,
+                    status.has_installation,
+                    status.desktop_entry
+                );
+                return Ok(());
+            }
+        }
+    };
+    let mut output = serde_json::to_vec(&payload)?;
+    output.push(b'\n');
+    std::io::Write::write_all(&mut std::io::stdout().lock(), &output)?;
+    Ok(())
+}
+
+fn desktop_component(value: &str) -> anyhow::Result<Component> {
+    Component::parse(value).ok_or_else(|| {
+        anyhow::anyhow!(
+            "{}",
+            if locale_is_chinese() {
+                format!("未知的桌面集成分量：{value}；可用 desktop、portal、file-manager、all")
+            } else {
+                format!(
+                    "unknown desktop integration component: {value}; use desktop, portal, file-manager, or all"
+                )
+            }
+        )
+    })
+}
+
+fn resolve_gui_executable(explicit: Option<&Path>) -> anyhow::Result<PathBuf> {
+    if let Some(path) = explicit {
+        return Ok(path.to_path_buf());
+    }
+    if let Some(sibling) = std::env::current_exe().ok().and_then(|executable| {
+        executable
+            .parent()
+            .map(|directory| directory.join("knowcraft"))
+    }) {
+        if sibling.is_file() {
+            return Ok(sibling);
+        }
+    }
+    if let Some(paths) = std::env::var_os("PATH") {
+        for directory in std::env::split_paths(&paths) {
+            let candidate = directory.join("knowcraft");
+            if candidate.is_file() {
+                return Ok(candidate);
+            }
+        }
+    }
+    anyhow::bail!(
+        "{}",
+        if locale_is_chinese() {
+            "找不到 knowcraft 可执行文件；请用 --executable 指定"
+        } else {
+            "could not locate the knowcraft executable; pass --executable"
+        }
+    )
+}
+
+fn report_desktop_outcome(outcome: &desktop_integration::Outcome) {
+    println!(
+        "{}: {}",
+        outcome.component.as_str(),
+        desktop_message_text(&outcome.message)
+    );
+    if let Some(warning) = outcome.warning.as_ref() {
+        eprintln!(
+            "{}: warning: {}",
+            outcome.component.as_str(),
+            desktop_message_text(warning)
+        );
+    }
+}
+
+fn locale_is_chinese() -> bool {
+    ["LC_ALL", "LC_MESSAGES", "LANG"]
+        .into_iter()
+        .filter_map(|key| std::env::var(key).ok())
+        .find(|value| !value.is_empty())
+        .is_some_and(|value| value.to_ascii_lowercase().starts_with("zh"))
+}
+
+fn desktop_detail<'a>(error: &'a DesktopError, key: &str) -> &'a str {
+    error.details().get(key).unwrap_or_default()
+}
+
+fn desktop_message_detail<'a>(message: &'a DesktopMessage, key: &str) -> &'a str {
+    message.details().get(key).unwrap_or_default()
+}
+
+fn desktop_error_text(error: &DesktopError) -> String {
+    if !locale_is_chinese() {
+        return error.english().to_owned();
+    }
+    match error.code() {
+        ErrorCode::Io => {
+            let path = desktop_detail(error, "path");
+            let detail = desktop_detail(error, "error");
+            if path.is_empty() {
+                format!("文件操作失败：{detail}")
+            } else {
+                format!("文件操作失败：{path}（{detail}）")
+            }
+        }
+        ErrorCode::InvalidExecutable => {
+            let path = desktop_detail(error, "path");
+            if path.is_empty() {
+                "Knowcraft 可执行文件无效".to_owned()
+            } else {
+                format!("Knowcraft 可执行文件无效：{path}")
+            }
+        }
+        ErrorCode::PortalConfigParse => "无法解析门户配置".to_owned(),
+        ErrorCode::PortalConfigWrite => "无法写入门户配置".to_owned(),
+        ErrorCode::PortalServiceConflict => "门户服务与其他提供者冲突".to_owned(),
+        ErrorCode::FileManagerConflict => {
+            format!(
+                "已存在其他用户级 FileManager1 提供者：{}",
+                desktop_detail(error, "path")
+            )
+        }
+        ErrorCode::DesktopEntryMissing => "请先安装 desktop 入口：kc install desktop".to_owned(),
+        ErrorCode::CommandUnavailable => {
+            format!("找不到命令：{}", desktop_detail(error, "command"))
+        }
+        ErrorCode::CommandFailed => {
+            let command = desktop_detail(error, "command");
+            if command.is_empty() {
+                "系统命令执行失败".to_owned()
+            } else {
+                format!("系统命令执行失败：{command}")
+            }
+        }
+        ErrorCode::InvalidState => "安装状态无效".to_owned(),
+        ErrorCode::RestoreUnavailable => "无法恢复安装前的文件".to_owned(),
+    }
+}
+
+fn desktop_message_text(message: &DesktopMessage) -> String {
+    if !locale_is_chinese() {
+        return message.english().to_owned();
+    }
+    match message.code() {
+        MessageCode::DesktopInstalled => "已安装 desktop 入口与图标".to_owned(),
+        MessageCode::DesktopUninstalled => "已移除 desktop 入口与图标".to_owned(),
+        MessageCode::PortalInstalled => "已安装文件选择器后端".to_owned(),
+        MessageCode::PortalUninstalled => "已移除文件选择器后端".to_owned(),
+        MessageCode::FileManagerInstalled => "已将 Knowcraft 设为默认文件管理器".to_owned(),
+        MessageCode::FileManagerUninstalled => {
+            let restored = desktop_message_detail(message, "restored");
+            if restored.is_empty() {
+                "已移除默认文件管理器集成".to_owned()
+            } else {
+                format!("已移除默认文件管理器集成，恢复为：{restored}")
+            }
+        }
+        MessageCode::PortalRestartWarning => {
+            "门户服务未能完全重启，注销并重新登录后再测试".to_owned()
+        }
+        MessageCode::DesktopFilesPreserved => "安装后修改过的文件已保留".to_owned(),
+    }
+}
+
+fn desktop_all_failed_text() -> &'static str {
+    if locale_is_chinese() {
+        "部分桌面集成操作失败"
+    } else {
+        "some desktop integration operations failed"
+    }
+}
+
+fn run_activate_group(cmd: &ActivateCmd) -> anyhow::Result<()> {
+    let ActivateCmd::Dbus {
+        component,
+        no_frontend,
+    } = cmd;
+    let components = match component.as_deref() {
+        None | Some("all") => vec![Component::Portal, Component::FileManager],
+        Some(value) => {
+            let component = desktop_component(value)?;
+            if component == Component::Desktop {
+                anyhow::bail!(
+                    "{}",
+                    if locale_is_chinese() {
+                        "desktop 分量没有对应的 D-Bus 服务"
+                    } else {
+                        "the desktop component has no D-Bus service"
+                    }
+                );
+            }
+            vec![component]
+        }
+    };
+    let mut failed = false;
+    for component in components {
+        match desktop_integration::activate(component) {
+            Ok(activation) => {
+                let state = match activation.state {
+                    knowcraft_core::desktop_integration::ActivationState::Started => {
+                        if locale_is_chinese() {
+                            "已启动"
+                        } else {
+                            "started"
+                        }
+                    }
+                    knowcraft_core::desktop_integration::ActivationState::AlreadyRunning => {
+                        if locale_is_chinese() {
+                            "已在运行"
+                        } else {
+                            "already running"
+                        }
+                    }
+                };
+                match activation.pid {
+                    Some(pid) => println!("{}: {} pid={pid}", component.as_str(), state),
+                    None => println!("{}: {}", component.as_str(), state),
+                }
+            }
+            Err(error) => {
+                failed = true;
+                eprintln!(
+                    "{}: failed: {}",
+                    component.as_str(),
+                    desktop_error_text(&error)
+                );
+            }
+        }
+    }
+    if !no_frontend {
+        match desktop_integration::refresh_portal_frontend() {
+            Ok(refresh) => {
+                let state = if refresh.previous_pid.is_some() {
+                    if locale_is_chinese() {
+                        "已重启"
+                    } else {
+                        "restarted"
+                    }
+                } else if locale_is_chinese() {
+                    "已启动"
+                } else {
+                    "started"
+                };
+                match (refresh.pid, refresh.previous_pid) {
+                    (Some(pid), Some(previous)) => {
+                        println!("frontend: {state} pid={pid} (previous={previous})");
+                    }
+                    (Some(pid), None) => println!("frontend: {state} pid={pid}"),
+                    (None, _) => println!("frontend: {state}"),
+                }
+            }
+            Err(error) => {
+                failed = true;
+                eprintln!("frontend: failed: {}", desktop_error_text(&error));
+            }
+        }
+    }
+    if failed {
+        anyhow::bail!("{}", desktop_all_failed_text());
+    }
+    Ok(())
 }

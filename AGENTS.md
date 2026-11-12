@@ -1,4 +1,4 @@
-# knowcraft
+#  knowcraft
 
 基于 strata（GTK4 文件管理器）深改造的知识管理软件原型
 

@@ -75,6 +75,8 @@ pub(crate) fn present_destination_chooser(
             directory: true,
             multiple: false,
         },
+        save: false,
+        initial_name: None,
         filters: Vec::new(),
         current_filter: None,
         choices: Vec::new(),

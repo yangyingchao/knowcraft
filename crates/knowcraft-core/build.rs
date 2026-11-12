@@ -6,9 +6,12 @@
 //! `KNOWCRAFT_VERSION` 是去掉 `v` 前缀的纯版本，`KNOWCRAFT_RELEASE_TAG`
 //! 保留 `v` 前缀；未打 tag 的提交带提交数后缀，如 `v0.1.1-3`。
 
-use std::{env, process::Command};
+use std::{env, path::Path, process::Command};
 
 fn main() {
+    println!("cargo::rerun-if-env-changed=KNOWCRAFT_TRUSTED_COMMAND_PATH");
+    validate_trusted_command_path();
+
     // tag 创建/移动不一定改变 HEAD；跟踪 tag 与 HEAD 引用以便刷新版本。
     for path in ["HEAD", "packed-refs", "refs/tags"] {
         if let Some(path) = git_output(&["rev-parse", "--git-path", path]) {
@@ -67,4 +70,21 @@ fn git_output(arguments: &[&str]) -> Option<String> {
         .success()
         .then(|| String::from_utf8(output.stdout).ok())
         .flatten()
+}
+
+/// Extra host helper directories are embedded verbatim, so a relative or empty
+/// entry would be an unsearchable mistake; reject it where the packager sees it.
+fn validate_trusted_command_path() {
+    let Some(value) = env::var_os("KNOWCRAFT_TRUSTED_COMMAND_PATH") else {
+        return;
+    };
+    let value = value
+        .to_str()
+        .expect("KNOWCRAFT_TRUSTED_COMMAND_PATH must be valid UTF-8");
+    for directory in value.split(':') {
+        assert!(
+            Path::new(directory).is_absolute(),
+            "KNOWCRAFT_TRUSTED_COMMAND_PATH entry {directory:?} must be an absolute directory"
+        );
+    }
 }

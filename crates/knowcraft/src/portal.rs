@@ -34,6 +34,10 @@ pub(crate) struct ChooserRequest {
     pub parent_size_hint: Option<(i32, i32)>,
     pub initial_directory: PathBuf,
     pub kind: ChooserKind,
+    /// A save request: the typed name may name a file that does not exist yet.
+    pub save: bool,
+    /// The file name a save request starts with.
+    pub initial_name: Option<String>,
     pub filters: Vec<FileFilter>,
     pub current_filter: Option<FileFilter>,
     pub choices: Vec<Choice>,
