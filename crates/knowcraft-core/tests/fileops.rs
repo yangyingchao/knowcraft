@@ -1107,3 +1107,51 @@ fn register_all_is_idempotent_for_repeated_paths() {
         "重复登记保留同一条记录"
     );
 }
+
+#[test]
+fn owns_path_reports_knowledge_membership() {
+    let fixture = Fixture::new("owns-path");
+    let inside = fixture.path("inbox/inside.md");
+    write_file(&inside, "inside");
+    let outside = outside_dir("owns-path");
+    let outside_file = outside.join("outside.md");
+    write_file(&outside_file, "outside");
+
+    assert!(
+        fixture.ops.owns_path(&inside).unwrap(),
+        "inbox 内的文件归属知识库"
+    );
+    assert!(
+        fixture.ops.owns_path(&fixture.dir).unwrap(),
+        "data_dir 自身归属知识库"
+    );
+    assert!(
+        !fixture.ops.owns_path(&outside_file).unwrap(),
+        "库外文件不归属知识库"
+    );
+    assert!(
+        !fixture
+            .ops
+            .owns_path(&fixture.path("inbox/../../../etc/passwd"))
+            .unwrap(),
+        "'..' 规范化后落到库外"
+    );
+    let _ = std::fs::remove_dir_all(&outside);
+}
+
+#[test]
+fn owns_path_follows_a_symlinked_data_dir() {
+    let fixture = Fixture::new("owns-path-link");
+    let alias = std::env::temp_dir().join(format!("kc-fileops-alias-{}", std::process::id()));
+    let _ = std::fs::remove_file(&alias);
+    std::os::unix::fs::symlink(&fixture.dir, &alias).unwrap();
+
+    assert!(
+        fixture
+            .ops
+            .owns_path(&alias.join("inbox/inside.md"))
+            .unwrap(),
+        "经符号链接进入知识库的路径仍归属知识库"
+    );
+    let _ = std::fs::remove_file(&alias);
+}

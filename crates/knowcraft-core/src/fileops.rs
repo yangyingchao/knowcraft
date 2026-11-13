@@ -1133,6 +1133,31 @@ impl FileOps {
         Ok(copied)
     }
 
+    /// 路径是否归属本知识库：最深的已存在祖先规范化后位于 `data_dir` 内。
+    ///
+    /// `Err` 表示无法判定（祖先规范化失败），调用方不得把它当作库外处理。
+    pub fn owns_path(&self, path: &Path) -> Result<bool> {
+        let canonical = self.resolved_ancestor(path)?;
+        Ok(canonical.starts_with(&self.canonical_data_dir))
+    }
+
+    /// 最深的已存在祖先的规范形式，供归属判定与 `validate_inside` 共用。
+    fn resolved_ancestor(&self, path: &Path) -> Result<PathBuf> {
+        let mut ancestor = path;
+        loop {
+            if ancestor.exists() {
+                break;
+            }
+            match ancestor.parent() {
+                Some(parent) => ancestor = parent,
+                None => break,
+            }
+        }
+        ancestor.canonicalize().map_err(|e| {
+            Error::FileOps(format!("canonicalizing {} failed: {e}", ancestor.display()))
+        })
+    }
+
     /// 校验路径：绝对、不含 `..`、最深的已存在祖先规范化后位于 `data_dir` 内、
     /// 叶节点不是符号链接。
     fn validate_inside(&self, path: &Path) -> Result<()> {
@@ -1148,19 +1173,7 @@ impl FileOps {
                 path.display()
             )));
         }
-        let mut ancestor = path;
-        loop {
-            if ancestor.exists() {
-                break;
-            }
-            match ancestor.parent() {
-                Some(parent) => ancestor = parent,
-                None => break,
-            }
-        }
-        let canonical = ancestor.canonicalize().map_err(|e| {
-            Error::FileOps(format!("canonicalizing {} failed: {e}", ancestor.display()))
-        })?;
+        let canonical = self.resolved_ancestor(path)?;
         if !canonical.starts_with(&self.canonical_data_dir) {
             return Err(Error::FileOps(format!(
                 "path resolves outside the data directory: {}",

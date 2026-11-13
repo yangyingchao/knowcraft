@@ -22,7 +22,13 @@ use std::{
 };
 
 pub(super) trait FsEnvironment: Send + Sync {
-    fn can_trash(&self, path: &Path) -> bool;
+    /// 路径是否归属本知识库；`Err` 表示判定失败，调用方不得当作库外。
+    fn owns(&self, path: &Path) -> Result<bool, glib::Error>;
+    /// 能否用知识库自己的回收站。替换与合并的撤销依赖 `.trash` 内的条目，
+    /// 所以库外路径即使能进系统回收站，这里也返回 false。
+    fn can_trash(&self, path: &Path) -> bool {
+        self.owns(path).unwrap_or(false)
+    }
     /// GLib's own result: `Ok(false)` is a failure without an error (GLib #4060).
     fn trash(&self, path: &Path, cancellable: &gio::Cancellable) -> Result<bool, glib::Error>;
     fn mount_type(&self, fd: BorrowedFd<'_>) -> Option<(MountType, MountSite)>;
@@ -48,13 +54,19 @@ pub(super) trait FsEnvironment: Send + Sync {
 }
 
 impl FsEnvironment for System {
-    fn can_trash(&self, path: &Path) -> bool {
+    fn owns(&self, path: &Path) -> Result<bool, glib::Error> {
         assert_off_main_thread();
-        crate::knowledge::data_dir_path().is_some_and(|root| path.starts_with(root))
+        crate::knowledge::owns_path(path)
+            .map_err(|error| glib::Error::new(gio::IOErrorEnum::Failed, &error))
     }
 
-    fn trash(&self, path: &Path, _cancellable: &gio::Cancellable) -> Result<bool, glib::Error> {
+    fn trash(&self, path: &Path, cancellable: &gio::Cancellable) -> Result<bool, glib::Error> {
         assert_off_main_thread();
+        if !self.owns(path)? {
+            return gio::File::for_path(path)
+                .trash(Some(cancellable))
+                .map(|()| true);
+        }
         let Some(knowledge) = crate::knowledge::init() else {
             return Err(glib::Error::new(
                 gio::IOErrorEnum::Failed,

@@ -22,7 +22,6 @@ pub(crate) enum Op {
     Names,
     MountKey,
     Statfs,
-    CanTrash,
     Trash,
     OpenSource,
     OpenTmpfile,

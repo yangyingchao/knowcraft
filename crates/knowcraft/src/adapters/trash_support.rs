@@ -19,7 +19,6 @@ use crate::services::ItemIdentity;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum TrashFailure {
     /// The location cannot hold a Trash; a confirmed permanent delete is the alternative.
-    #[expect(dead_code, reason = "保留 Unsupported 分类，当前回收站始终可用")]
     Unsupported(UnsupportedReason),
     Cancelled,
     NotFound,
@@ -29,11 +28,11 @@ pub(crate) enum TrashFailure {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[expect(dead_code, reason = "保留 Unsupported 分类，当前回收站始终可用")]
 pub(crate) enum UnsupportedReason {
     /// GIO itself returned `NOT_SUPPORTED`.
     Reported,
     /// A FUSE mount refused a step of the freedesktop trash protocol.
+    #[expect(dead_code, reason = "FUSE 协议拒绝的检测尚未恢复")]
     FuseRefused,
 }
 
@@ -161,6 +160,7 @@ fn classify(error: &glib::Error) -> TrashFailure {
             Io::NotFound => TrashFailure::NotFound,
             Io::ReadOnly => TrashFailure::ReadOnly,
             Io::NoSpace => TrashFailure::NoSpace,
+            Io::NotSupported => TrashFailure::Unsupported(UnsupportedReason::Reported),
             _ => TrashFailure::Other,
         };
     }

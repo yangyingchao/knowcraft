@@ -7,23 +7,9 @@ pub(crate) struct Scoped;
 pub(crate) static SCOPED: Scoped = Scoped;
 
 impl FsEnvironment for Scoped {
-    fn can_trash(&self, path: &Path) -> bool {
+    fn owns(&self, path: &Path) -> Result<bool, glib::Error> {
         assert_off_main_thread();
-        match scope_for_path(path) {
-            Some(scope) => scope
-                .run(Op::CanTrash, &[], |scope| {
-                    Ok(match scope.quirk(|quirks| quirks.trash) {
-                        Trash::Supported => System.can_trash(path),
-                        Trash::Unsupported => false,
-                        Trash::FalseWithoutError
-                        | Trash::SucceedsWithoutMoving
-                        | Trash::Refused
-                        | Trash::ProtocolRefused => true,
-                    })
-                })
-                .unwrap_or(false),
-            None => System.can_trash(path),
-        }
+        System.owns(path)
     }
 
     fn trash(&self, path: &Path, cancellable: &gio::Cancellable) -> Result<bool, glib::Error> {

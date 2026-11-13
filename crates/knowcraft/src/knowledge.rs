@@ -764,6 +764,14 @@ pub(crate) fn fileops() -> Option<&'static FileOps> {
     init().map(|knowledge| &knowledge.fileops)
 }
 
+/// 路径是否归属本知识库。知识库不可用时视为库外：没有知识库就没有归属关系。
+pub(crate) fn owns_path(path: &Path) -> Result<bool, String> {
+    match fileops() {
+        Some(fileops) => fileops.owns_path(path).map_err(|error| error.to_string()),
+        None => Ok(false),
+    }
+}
+
 /// The trash file directory (`data_dir/.trash/files`) used for browsing the trash.
 pub(crate) fn trash_files_dir() -> Option<PathBuf> {
     init().map(|knowledge| knowledge.data_dir.join(".trash").join("files"))
