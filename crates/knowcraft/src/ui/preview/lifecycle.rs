@@ -75,6 +75,7 @@ impl PreviewState {
             self.model.borrow_mut().take();
         }
         self.update_tags(&entry);
+        self.refresh_ai(&entry);
         self.cancel_pending_show();
         self.retain_pending_playback(&entry);
         if self.handed_off.borrow().as_ref() != Some(&entry.location) {

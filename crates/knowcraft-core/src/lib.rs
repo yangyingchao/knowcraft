@@ -1,3 +1,5 @@
+pub mod ai;
+pub mod ai_setup;
 pub mod annotations;
 pub mod archive;
 pub mod capture;

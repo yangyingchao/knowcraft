@@ -1148,5 +1148,9 @@
   "Adjust range": "调整范围",
   "Delete stale annotations": "删除失效标注",
   "Some annotations no longer match this document": "部分标注已不再匹配本文档",
-  "Select text to annotate": "选中文本以添加标注"
+  "Select text to annotate": "选中文本以添加标注",
+  "AI": "AI",
+  "Generate and view summary": "生成并查看摘要",
+  "Document summary": "文档摘要",
+  "Unable to generate summary": "无法生成摘要"
 }

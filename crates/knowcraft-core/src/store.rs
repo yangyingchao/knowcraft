@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -419,6 +419,18 @@ impl Store {
             states.insert(id, state);
         }
         Ok(states)
+    }
+
+    pub fn set_ai_summary(&self, id: i64, summary: &str) -> Result<()> {
+        let conn = self.lock();
+        let changed = conn.execute(
+            "UPDATE documents SET ai_summary = ?2, updated_at = ?3 WHERE id = ?1 AND lifecycle <> 'trashed'",
+            params![id, summary, now()],
+        )?;
+        if changed == 0 {
+            return Err(Error::Ai("document is no longer available".into()));
+        }
+        Ok(())
     }
 
     pub fn clear_ai_summary(&self, id: i64) -> Result<()> {

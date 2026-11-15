@@ -155,6 +155,13 @@ impl Knowledge {
             .flatten()
     }
 
+    pub(crate) fn summarizer(&self) -> Result<knowcraft_core::ai::Summarizer, String> {
+        let config = Config::load().map_err(|error| error.to_string())?.ai;
+        Ok(knowcraft_core::ai::Summarizer::new(
+            self.store.clone(), self.data_dir.clone(), self.write_lock.clone(), config,
+        ))
+    }
+
     /// 文档的注释缓存，供 PDF 预览绘制命中区域。
     pub(crate) fn annotations_for_document(&self, document_id: i64) -> Vec<Annotation> {
         self.pdf_annotations().list(document_id).unwrap_or_default()

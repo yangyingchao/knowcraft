@@ -32,6 +32,7 @@ use super::keys::{
 };
 use super::{browser::format_file_size, controls::form_password_entry};
 
+mod ai;
 mod archive;
 mod archive_view;
 pub(super) mod audio;
@@ -179,6 +180,9 @@ struct PreviewState {
     raw_details_scroll: gtk::ScrolledWindow,
     raw_metadata_load: RefCell<Option<super::raw_details::MetadataLoad>>,
     open: gtk::Button,
+    ai: gtk::MenuButton,
+    ai_busy: Cell<bool>,
+    ai_generation: Cell<u64>,
     allow_external_open: bool,
     wrap: gtk::ToggleButton,
     text_view: RefCell<Option<gtk::TextView>>,

@@ -1544,5 +1544,9 @@
   "Enter a URL to capture": "输入要抓取的网址",
   "Removed %{count} stale entries": "已移除 %{count} 条失效条目",
   "Remove database entries whose files no longer exist.": "移除数据库中文件已不存在的条目。",
-  "The knowledge base is unavailable": "知识库不可用"
+  "The knowledge base is unavailable": "知识库不可用",
+  "AI": "AI",
+  "Generate and view summary": "生成并查看摘要",
+  "Document summary": "文档摘要",
+  "Unable to generate summary": "无法生成摘要"
 }

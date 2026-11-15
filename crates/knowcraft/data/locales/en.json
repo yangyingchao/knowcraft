@@ -1544,5 +1544,9 @@
   "Enter a URL to capture": "Enter a URL to capture",
   "Removed %{count} stale entries": "Removed %{count} stale entries",
   "Remove database entries whose files no longer exist.": "Remove database entries whose files no longer exist.",
-  "The knowledge base is unavailable": "The knowledge base is unavailable"
+  "The knowledge base is unavailable": "The knowledge base is unavailable",
+  "AI": "AI",
+  "Generate and view summary": "Generate and view summary",
+  "Document summary": "Document summary",
+  "Unable to generate summary": "Unable to generate summary"
 }

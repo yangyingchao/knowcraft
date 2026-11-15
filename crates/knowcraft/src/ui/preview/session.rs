@@ -77,6 +77,10 @@ impl PreviewState {
         self.current_request.set(None);
         self.current_depth.set(None);
         self.current.borrow_mut().take();
+        self.ai_generation
+            .set(self.ai_generation.get().wrapping_add(1));
+        self.ai.set_sensitive(false);
+        self.ai.popdown();
         self.load.borrow_mut().take();
         self.clear_raw_details();
         self.cancel_loading();

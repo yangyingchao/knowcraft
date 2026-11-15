@@ -10,6 +10,8 @@ pub(super) struct Header {
     pub(super) title: gtk::Label,
     pub(super) metadata: Metadata,
     pub(super) open: gtk::Button,
+    pub(super) ai: gtk::MenuButton,
+    pub(super) ai_summary: gtk::Button,
     pub(super) model_spinner: gtk::Spinner,
     pub(super) document_view_icon: gtk::Image,
     pub(super) document_view_button: gtk::Button,
@@ -32,6 +34,7 @@ impl Header {
         let icon = crate::assets::chrome_icon(crate::assets::icons::DOCUMENTS);
         let title = title_label();
         let open = open_button(allow_external_open);
+        let (ai, ai_summary) = ai_menu();
         let model_spinner = model_spinner();
         let document_view_icon = crate::assets::primary_icon(crate::assets::icons::FILE_CODE, 16);
         let document_view_button = document_view_button(&document_view_icon);
@@ -57,6 +60,7 @@ impl Header {
         row.append(&document_view_button);
         row.append(&find_button);
         row.append(&model_spinner);
+        row.append(&ai);
         row.append(&open);
         row.append(&wrap);
         row.append(&close);
@@ -67,6 +71,8 @@ impl Header {
             title,
             metadata,
             open,
+            ai,
+            ai_summary,
             model_spinner,
             document_view_icon,
             document_view_button,
@@ -125,6 +131,34 @@ fn open_button(allow_external_open: bool) -> gtk::Button {
     open
 }
 
+fn ai_menu() -> (gtk::MenuButton, gtk::Button) {
+    let label = crate::i18n::tr("Generate and view summary");
+    let summary = gtk::Button::with_label(&label);
+    summary.add_css_class("appearance-option");
+    summary.set_has_frame(false);
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    content.add_css_class("appearance-menu");
+    content.append(&summary);
+    let popover = gtk::Popover::builder()
+        .has_arrow(false)
+        .halign(gtk::Align::End)
+        .position(gtk::PositionType::Bottom)
+        .child(&content)
+        .build();
+    popover.add_css_class("appearance-popover");
+    let button = gtk::MenuButton::builder()
+        .tooltip_text(crate::i18n::tr("AI"))
+        .popover(&popover)
+        .sensitive(false)
+        .build();
+    button.set_child(Some(&crate::assets::chrome_icon(
+        crate::assets::icons::SPARKLES,
+    )));
+    button.add_css_class("preview-header-action");
+    super::super::super::accessibility::set_label(&button, &crate::i18n::tr("AI"));
+    (button, summary)
+}
+
 fn model_spinner() -> gtk::Spinner {
     let model_spinner = gtk::Spinner::builder()
         .valign(gtk::Align::Center)
@@ -181,4 +215,38 @@ fn close_button() -> gtk::Button {
     close.add_css_class("preview-close");
     close.add_css_class("preview-header-action");
     close
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support::gtk_test;
+
+    #[test]
+    fn ai_menu_is_left_of_open_and_has_one_action() {
+        gtk_test(
+            "ui::preview::drawer::header::tests::ai_menu_is_left_of_open_and_has_one_action",
+            || {
+                let header = Header::new(true, true);
+                assert!(!header.ai.is_sensitive());
+                assert!(header.ai.child().is_some_and(|child| child.is::<gtk::Image>()));
+                let resource = gtk::gio::resources_lookup_data(
+                    "/io/github/knowcraft/Knowcraft/icons/scalable/actions/knowcraft-sparkles.svg",
+                    gtk::gio::ResourceLookupFlags::NONE,
+                );
+                assert!(resource.is_ok(), "AI icon must be bundled");
+                let menu = header.ai.popover().expect("AI popover");
+                let content = menu.child().expect("popover content");
+                assert_eq!(
+                    content.first_child().as_ref(),
+                    Some(header.ai_summary.upcast_ref())
+                );
+                assert!(header.ai_summary.next_sibling().is_none());
+                assert_eq!(
+                    header.ai.next_sibling().as_ref(),
+                    Some(header.open.upcast_ref())
+                );
+            },
+        );
+    }
 }

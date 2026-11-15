@@ -2745,7 +2745,8 @@ paned > separator {
   font-weight: 700;
 }
 
-.preview-header-action {
+.preview-header-action,
+menubutton.preview-header-action > button {
   background: transparent;
   background-image: none;
   border: none;
@@ -2758,30 +2759,35 @@ paned > separator {
   transition: transform 160ms ease-out, background 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out;
 }
 
-.preview-header-action:hover {
+.preview-header-action:hover,
+menubutton.preview-header-action > button:hover {
   background: alpha(@knowcraft_accent, 0.15);
   border-color: alpha(@knowcraft_border, 0.42);
   color: @knowcraft_accent;
 }
 
-.preview-header-action:checked {
+.preview-header-action:checked,
+menubutton.preview-header-action > button:checked {
   background: alpha(@knowcraft_accent, 0.22);
   color: @knowcraft_accent;
 }
 
-.preview-header-action:active {
+.preview-header-action:active,
+menubutton.preview-header-action > button:active {
   background: alpha(@knowcraft_accent, 0.22);
   border-color: @knowcraft_accent;
   color: @knowcraft_accent;
   transform: scale(0.97);
 }
 
-.preview-header-action:focus-visible {
+.preview-header-action:focus-visible,
+menubutton.preview-header-action > button:focus-visible {
   outline: 2px solid alpha(@knowcraft_accent, 0.52);
   outline-offset: 1px;
 }
 
-.preview-header-action:disabled {
+.preview-header-action:disabled,
+menubutton.preview-header-action:disabled > button {
   background: transparent;
   border-color: transparent;
   color: @knowcraft_dim_text;

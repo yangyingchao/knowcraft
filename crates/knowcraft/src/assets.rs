@@ -110,6 +110,7 @@ pub mod icons {
     pub const SHREDDER: &str = "knowcraft-shredder";
     pub const SLIDERS: &str = "knowcraft-sliders-horizontal";
     pub const SMARTPHONE: &str = "knowcraft-smartphone";
+    pub const SPARKLES: &str = "knowcraft-sparkles";
     pub const STETHOSCOPE: &str = "knowcraft-stethoscope";
     pub const TERMINAL: &str = "knowcraft-terminal";
     pub const TRASH: &str = "knowcraft-trash";

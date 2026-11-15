@@ -108,6 +108,20 @@ enum ActivateCmd {
 }
 
 #[derive(Subcommand)]
+enum AiCmd {
+    /// 准备 Hermes 默认 profile 的 API Server，必要时重启 Gateway
+    #[command(long_about = "准备 Hermes 默认 profile 的 API Server；从 Gateway 外的终端运行，必要时重启 Gateway。")]
+    Prepare,
+}
+
+#[derive(Subcommand)]
+enum LaunchCmd {
+    /// 使用同目录的 knowcraft 在私有 D-Bus 会话中启动 GUI
+    #[command(long_about = "在私有 D-Bus 会话启动 kc 同目录的 knowcraft；必须先运行 kc ai prepare。")]
+    Gui,
+}
+
+#[derive(Subcommand)]
 enum SendtoCmd {
     /// 列出可用插件：每行 id 与显示名
     #[command(
@@ -393,6 +407,12 @@ enum Cmd {
         /// 待抓取的网页地址
         url: String,
     },
+    /// 生成或查看已登记文档的 AI 摘要
+    #[command(long_about = "生成或查看已登记文档的 AI 摘要\n\n只接受知识库内已登记的本地文档；已有摘要直接输出，否则提取正文并请求 Hermes API Server。KNOWCRAFT_HERMES_API_KEY 提供鉴权密钥；地址和模型从 Knowcraft 配置的 [ai] 读取。正文不超过 128 KiB 时直送，超过则分段摘要并合并。")]
+    Summary {
+        /// 已登记的本地文档路径
+        path: PathBuf,
+    },
     /// 文档标签：移除
     #[command(long_about = "文档标签：移除\n\n详见 tags remove。")]
     Tags {
@@ -406,6 +426,18 @@ enum Cmd {
     Annotations {
         #[command(subcommand)]
         cmd: AnnotationsCmd,
+    },
+    /// Hermes AI 原型配置
+    #[command(long_about = "Hermes AI 原型配置；见 ai prepare。")]
+    Ai {
+        #[command(subcommand)]
+        cmd: AiCmd,
+    },
+    /// 启动本地构建的 GUI
+    #[command(long_about = "启动本地构建的 GUI；见 launch gui。")]
+    Launch {
+        #[command(subcommand)]
+        cmd: LaunchCmd,
     },
     /// 安装桌面集成：desktop、portal、file-manager 或 all
     #[command(
@@ -463,6 +495,12 @@ fn main() -> anyhow::Result<()> {
     if let Cmd::Activate { cmd } = &cli.cmd {
         return run_activate_group(cmd);
     }
+    if let Cmd::Ai { cmd } = &cli.cmd {
+        return run_ai_group(cmd);
+    }
+    if let Cmd::Launch { cmd } = &cli.cmd {
+        return run_launch_group(cmd);
+    }
     match &cli.cmd {
         Cmd::Install {
             component,
@@ -491,6 +529,7 @@ fn main() -> anyhow::Result<()> {
         Cmd::Upgrade => {}
         Cmd::Sendto { .. } => {}
         Cmd::Activate { .. } => {}
+        Cmd::Ai { .. } | Cmd::Launch { .. } => {}
         Cmd::Install { .. }
         | Cmd::Uninstall { .. }
         | Cmd::Status {
@@ -1004,6 +1043,15 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
+        Cmd::Summary { path } => {
+            let summarizer = knowcraft_core::ai::Summarizer::new(
+                store.clone(),
+                cfg.data_dir.clone(),
+                Arc::new(WriteLock::new(&cfg.data_dir)),
+                cfg.ai.clone(),
+            );
+            println!("{}", summarizer.summarize(&path)?);
+        }
         Cmd::Tags { cmd } => match cmd {
             TagsCmd::Remove { id, tag } => {
                 let removed = Tags::new(store.clone()).remove(id, &tag)?;
@@ -1440,6 +1488,28 @@ mod tests {
 
         check(&Cli::command(), "kc");
     }
+}
+
+fn run_ai_group(cmd: &AiCmd) -> anyhow::Result<()> {
+    match cmd {
+        AiCmd::Prepare => {
+            let env_path = knowcraft_core::ai_setup::hermes_env_path()?;
+            let config = knowcraft_core::config::Config::load()?;
+            knowcraft_core::ai_setup::prepare(&env_path, &config.ai.api_base)?;
+            println!("Hermes API Server ready");
+        }
+    }
+    Ok(())
+}
+
+fn run_launch_group(cmd: &LaunchCmd) -> anyhow::Result<()> {
+    match cmd {
+        LaunchCmd::Gui => {
+            let env_path = knowcraft_core::ai_setup::hermes_env_path()?;
+            knowcraft_core::ai_setup::launch_gui(&std::env::current_exe()?, &env_path)?;
+        }
+    }
+    Ok(())
 }
 
 fn run_desktop_install(component: &str, executable: Option<&Path>) -> anyhow::Result<()> {

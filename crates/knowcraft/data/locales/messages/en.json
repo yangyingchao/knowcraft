@@ -1148,5 +1148,9 @@
   "Adjust range": "Adjust range",
   "Delete stale annotations": "Delete stale annotations",
   "Some annotations no longer match this document": "Some annotations no longer match this document",
-  "Select text to annotate": "Select text to annotate"
+  "Select text to annotate": "Select text to annotate",
+  "AI": "AI",
+  "Generate and view summary": "Generate and view summary",
+  "Document summary": "Document summary",
+  "Unable to generate summary": "Unable to generate summary"
 }

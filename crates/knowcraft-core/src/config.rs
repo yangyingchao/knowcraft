@@ -7,6 +7,7 @@ use crate::error::{Error, Result};
 #[serde(default)]
 pub struct AiConfig {
     pub api_base: String,
+    #[serde(skip_serializing)]
     pub api_key: String,
     pub model: String,
 }
@@ -14,9 +15,9 @@ pub struct AiConfig {
 impl Default for AiConfig {
     fn default() -> Self {
         Self {
-            api_base: "http://localhost:11434/v1".into(),
+            api_base: "http://127.0.0.1:8642/v1".into(),
             api_key: String::new(),
-            model: "llama3".into(),
+            model: "hermes-agent".into(),
         }
     }
 }
@@ -155,13 +156,16 @@ mod tests {
         let config = Config {
             data_dir: root.join("library"),
             http_token: "secret-token".into(),
-            ai: AiConfig::default(),
+            ai: AiConfig {
+                api_key: "secret-ai-key".into(),
+                ..AiConfig::default()
+            },
         };
         config.persist_to(&path).expect("persist");
         let body = std::fs::read_to_string(&path).expect("read back");
         assert!(
-            !body.contains("secret-token"),
-            "token must not reach config.toml"
+            !body.contains("secret-token") && !body.contains("secret-ai-key"),
+            "credentials must not reach config.toml"
         );
         let parsed: Config = toml::from_str(&body).expect("parse");
         assert_eq!(parsed.data_dir, config.data_dir);

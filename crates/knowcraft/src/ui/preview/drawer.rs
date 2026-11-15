@@ -58,6 +58,12 @@ impl PreviewDrawer {
         state.install_keyboard_ownership();
         state.install_find();
         let weak = Rc::downgrade(&state);
+        header.ai_summary.connect_clicked(move |_| {
+            if let Some(state) = weak.upgrade() {
+                state.start_summary();
+            }
+        });
+        let weak = Rc::downgrade(&state);
         header.document_view_button.connect_clicked(move |_| {
             if let Some(state) = weak.upgrade() {
                 state.toggle_document_view();
@@ -316,6 +322,9 @@ impl PreviewState {
             raw_details_scroll: parts.raw_details_scroll,
             raw_metadata_load: RefCell::new(None),
             open: header.open.clone(),
+            ai: header.ai.clone(),
+            ai_busy: Cell::new(false),
+            ai_generation: Cell::new(0),
             allow_external_open: parts.allow_external_open,
             wrap: header.wrap.clone(),
             text_view: RefCell::new(None),
