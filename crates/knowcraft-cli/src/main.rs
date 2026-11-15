@@ -408,10 +408,13 @@ enum Cmd {
         url: String,
     },
     /// 生成或查看已登记文档的 AI 摘要
-    #[command(long_about = "生成或查看已登记文档的 AI 摘要\n\n只接受知识库内已登记的本地文档；已有摘要直接输出，否则提取正文并请求 Hermes API Server。KNOWCRAFT_HERMES_API_KEY 提供鉴权密钥；地址和模型从 Knowcraft 配置的 [ai] 读取。正文不超过 128 KiB 时直送，超过则分段摘要并合并。")]
+    #[command(long_about = "生成或查看已登记文档的 AI 摘要\n\n只接受知识库内已登记的本地文档；已有摘要直接输出，否则提取正文并请求 Hermes API Server。KNOWCRAFT_HERMES_API_KEY 提供鉴权密钥；地址和模型从 Knowcraft 配置的 [ai] 读取。正文不超过 128 KiB 时直送，超过则分段摘要并合并。--note 另把摘要写成 notes/ 下的 Markdown 笔记并登记。")]
     Summary {
         /// 已登记的本地文档路径
         path: PathBuf,
+        /// 同时把摘要导出为 notes/ 下的 Markdown 笔记
+        #[arg(long)]
+        note: bool,
     },
     /// 文档标签：移除
     #[command(long_about = "文档标签：移除\n\n详见 tags remove。")]
@@ -1043,14 +1046,19 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        Cmd::Summary { path } => {
+        Cmd::Summary { path, note } => {
             let summarizer = knowcraft_core::ai::Summarizer::new(
                 store.clone(),
                 cfg.data_dir.clone(),
                 Arc::new(WriteLock::new(&cfg.data_dir)),
                 cfg.ai.clone(),
             );
-            println!("{}", summarizer.summarize(&path)?);
+            let summary = summarizer.summarize(&path)?;
+            println!("{summary}");
+            if note {
+                let saved = summarizer.export_note(&path, &summary)?;
+                println!("note: {}", saved.path);
+            }
         }
         Cmd::Tags { cmd } => match cmd {
             TagsCmd::Remove { id, tag } => {

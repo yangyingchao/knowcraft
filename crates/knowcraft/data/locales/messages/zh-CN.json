@@ -1152,5 +1152,8 @@
   "AI": "AI",
   "Generate and view summary": "生成并查看摘要",
   "Document summary": "文档摘要",
-  "Unable to generate summary": "无法生成摘要"
+  "Unable to generate summary": "无法生成摘要",
+  "Export to note": "导出成笔记",
+  "Exported to": "已导出到",
+  "Unable to export the note": "无法导出笔记"
 }

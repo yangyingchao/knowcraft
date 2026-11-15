@@ -14,7 +14,9 @@ use crate::{
     config::AiConfig,
     error::{Error, Result},
     extract::extract_text,
-    store::Store,
+    model::Document,
+    store::{Store, now},
+    util::{collapse_whitespace, safe_file_stem},
     write_lock::WriteLock,
 };
 
@@ -116,6 +118,101 @@ impl Summarizer {
         self.store.set_ai_summary(document.id, &summary)?;
         Ok(summary)
     }
+
+    /// 把摘要写成 `notes/` 下的 Markdown 笔记，并登记为知识库文档。
+    ///
+    /// 源文档必须位于知识库且已登记、未进回收站；重名笔记按 `-2`、`-3` 递增。
+    pub fn export_note(&self, source: &Path, summary: &str) -> Result<Document> {
+        let summary = summary.trim();
+        if summary.is_empty() {
+            return Err(Error::Ai("the summary is empty".into()));
+        }
+        let source = fs::canonicalize(source)?;
+        let data_dir = fs::canonicalize(&self.data_dir)?;
+        if !source.starts_with(&data_dir) {
+            return Err(Error::Ai("document is outside the knowledge base".into()));
+        }
+        let document = self
+            .store
+            .find_by_path(&source.to_string_lossy())?
+            .ok_or_else(|| {
+                Error::Ai("only registered knowledge-base documents can be exported".into())
+            })?;
+        if document.lifecycle == "trashed" {
+            return Err(Error::Ai("document is in Trash".into()));
+        }
+
+        let notes_dir = self.data_dir.join("notes");
+        fs::create_dir_all(&notes_dir)?;
+        let title = collapse_whitespace(&document.title);
+        let label = source
+            .strip_prefix(&data_dir)
+            .unwrap_or(&source)
+            .to_string_lossy()
+            .into_owned();
+        let body = note_markdown(&title, &label, summary);
+
+        let _guard = self.write_lock.acquire()?;
+        let note_path = unique_note_path(&notes_dir, &format!("{} 摘要", safe_file_stem(&title)));
+        write_atomically(&note_path, body.as_bytes())?;
+
+        let ts = now();
+        let note = Document {
+            id: 0,
+            uuid: uuid::Uuid::new_v4().to_string(),
+            storage: "linked".to_string(),
+            original_name: note_path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            path: note_path.to_string_lossy().into_owned(),
+            doc_type: "md".into(),
+            title: format!("{title} 摘要"),
+            source_url: Some(source.to_string_lossy().into_owned()),
+            size: body.len() as i64,
+            created_at: ts.clone(),
+            updated_at: ts,
+            checksum: String::new(),
+            ai_summary: None,
+            lifecycle: "pending".into(),
+            index_status: "pending".into(),
+        };
+        let id = self.store.insert_document(&note)?;
+        self.store
+            .get_document(id)?
+            .ok_or_else(|| Error::Store("missing note after insert".into()))
+    }
+}
+
+fn note_markdown(title: &str, source: &str, summary: &str) -> String {
+    format!("# {title} 摘要\n\n{summary}\n\n---\n来源：`{source}`\n生成时间：{}\n", now())
+}
+
+/// 不覆盖已有笔记：同名文件按 `-2`、`-3` 递增。
+fn unique_note_path(notes: &Path, stem: &str) -> PathBuf {
+    let mut candidate = notes.join(format!("{stem}.md"));
+    let mut index = 2;
+    while candidate.exists() {
+        candidate = notes.join(format!("{stem}-{index}.md"));
+        index += 1;
+    }
+    candidate
+}
+
+fn write_atomically(path: &Path, contents: &[u8]) -> Result<()> {
+    let directory = path
+        .parent()
+        .ok_or_else(|| Error::Ai("note path has no parent directory".into()))?;
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let temp = directory.join(format!(".{name}.{}.tmp", std::process::id()));
+    fs::write(&temp, contents)?;
+    fs::rename(&temp, path).inspect_err(|_| {
+        let _ = fs::remove_file(&temp);
+    })?;
+    Ok(())
 }
 
 fn split_text(text: &str, max_bytes: usize) -> Vec<&str> {
@@ -776,5 +873,91 @@ mod tests {
             AiConfig::default(),
         );
         assert!(summarizer.summarize(&path).is_err());
+    }
+
+    /// A registered document inside the temporary knowledge base.
+    fn registered(
+        root: &Path,
+        name: &str,
+        title: &str,
+    ) -> (Summarizer, PathBuf, Store, i64) {
+        let path = root.join(name);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "sample text").unwrap();
+        let store = Store::open(root).unwrap();
+        let id = store
+            .insert_document(&crate::model::Document {
+                id: 0,
+                uuid: format!("note-{name}"),
+                storage: "linked".into(),
+                original_name: name.into(),
+                path: path.to_string_lossy().into_owned(),
+                doc_type: "txt".into(),
+                title: title.into(),
+                source_url: None,
+                size: 11,
+                created_at: String::new(),
+                updated_at: String::new(),
+                checksum: checksum(&path).unwrap(),
+                ai_summary: None,
+                lifecycle: "pending".into(),
+                index_status: "pending".into(),
+            })
+            .unwrap();
+        let summarizer = Summarizer::new(
+            store.clone(),
+            root.to_path_buf(),
+            Arc::new(WriteLock::new(root)),
+            AiConfig::default(),
+        );
+        (summarizer, path, store, id)
+    }
+
+    #[test]
+    fn export_note_writes_markdown_and_registers_it() {
+        let root = tempfile::tempdir().unwrap();
+        let (summarizer, path, store, _) = registered(root.path(), "inbox/report.txt", "季度 报告");
+
+        let note = summarizer.export_note(&path, "  这是摘要  ").unwrap();
+
+        assert_eq!(note.title, "季度 报告 摘要");
+        assert_eq!(note.path, root.path().join("notes/季度 报告 摘要.md").to_string_lossy());
+        assert_eq!(note.doc_type, "md");
+        assert_eq!(note.storage, "linked");
+        assert_eq!(note.lifecycle, "pending");
+        assert_eq!(store.find_by_path(&note.path).unwrap().map(|doc| doc.id), Some(note.id));
+        let body = fs::read_to_string(&note.path).unwrap();
+        assert!(body.starts_with("# 季度 报告 摘要\n\n这是摘要\n\n---\n来源：`inbox/report.txt`\n生成时间："));
+        assert_eq!(note.size, body.len() as i64);
+    }
+
+    #[test]
+    fn export_note_keeps_an_existing_note() {
+        let root = tempfile::tempdir().unwrap();
+        let (summarizer, path, _, _) = registered(root.path(), "inbox/report.txt", "report");
+
+        let first = summarizer.export_note(&path, "第一次").unwrap();
+        let second = summarizer.export_note(&path, "第二次").unwrap();
+
+        assert_eq!(first.path, root.path().join("notes/report 摘要.md").to_string_lossy());
+        assert_eq!(second.path, root.path().join("notes/report 摘要-2.md").to_string_lossy());
+        assert!(fs::read_to_string(&first.path).unwrap().contains("第一次"));
+        assert!(fs::read_to_string(&second.path).unwrap().contains("第二次"));
+    }
+
+    #[test]
+    fn export_note_requires_a_registered_live_document() {
+        let root = tempfile::tempdir().unwrap();
+        let (summarizer, path, _, id) = registered(root.path(), "inbox/report.txt", "report");
+        let unknown = root.path().join("inbox/other.txt");
+        fs::write(&unknown, "not registered").unwrap();
+        assert!(summarizer.export_note(&unknown, "摘要").is_err());
+        assert!(summarizer.export_note(&path, "   ").is_err());
+        summarizer
+            .store
+            .set_lifecycle(id, "trashed")
+            .unwrap();
+        assert!(summarizer.export_note(&path, "摘要").is_err());
+        assert!(!root.path().join("notes").exists());
     }
 }

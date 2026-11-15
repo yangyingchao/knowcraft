@@ -1152,5 +1152,8 @@
   "AI": "AI",
   "Generate and view summary": "Generate and view summary",
   "Document summary": "Document summary",
-  "Unable to generate summary": "Unable to generate summary"
+  "Unable to generate summary": "Unable to generate summary",
+  "Export to note": "Export to note",
+  "Exported to": "Exported to",
+  "Unable to export the note": "Unable to export the note"
 }

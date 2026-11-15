@@ -14,3 +14,32 @@ pub fn is_hidden_path(path: &Path) -> bool {
         _ => false,
     })
 }
+
+/// 合并连续空白为一个空格。
+pub fn collapse_whitespace(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// 转换为合法文件 stem：非法字符替换为下划线，处理空标题与保留名。
+pub fn safe_file_stem(title: &str) -> String {
+    let cleaned: String = title
+        .chars()
+        .map(|c| {
+            if matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control() {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect();
+    let name: String = collapse_whitespace(&cleaned)
+        .trim_matches(['.', ' '])
+        .chars()
+        .take(120)
+        .collect();
+    if name.is_empty() {
+        "untitled".to_string()
+    } else {
+        name
+    }
+}

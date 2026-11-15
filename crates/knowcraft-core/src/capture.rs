@@ -54,8 +54,8 @@ impl Capture {
 
         let cap_dir = self.data_dir.join("captures");
         std::fs::create_dir_all(&cap_dir)?;
-        let md_path = cap_dir.join(format!("{}.md", sanitize(&title)));
-        let tmp_path = cap_dir.join(format!(".{}.{}.tmp", sanitize(&title), std::process::id()));
+        let md_path = cap_dir.join(format!("{}.md", crate::util::safe_file_stem(&title)));
+        let tmp_path = cap_dir.join(format!(".{}.{}.tmp", crate::util::safe_file_stem(&title), std::process::id()));
         std::fs::write(&tmp_path, markdown.as_bytes())?;
         std::fs::rename(&tmp_path, &md_path)?;
 
@@ -203,7 +203,7 @@ pub fn extract_article(html: &str, _base: &Url) -> Result<(String, String)> {
             None => "Untitled".to_string(),
         },
     };
-    let title = collapse(&title);
+    let title = crate::util::collapse_whitespace(&title);
     let title = if title.is_empty() {
         "Untitled".to_string()
     } else {
@@ -216,7 +216,7 @@ pub fn extract_article(html: &str, _base: &Url) -> Result<(String, String)> {
         if Some(el.id()) == title_id {
             continue;
         }
-        let text = collapse(&node_text(el));
+        let text = crate::util::collapse_whitespace(&node_text(el));
         if text.is_empty() {
             continue;
         }
@@ -237,34 +237,6 @@ pub fn extract_article(html: &str, _base: &Url) -> Result<(String, String)> {
 
 fn node_text(el: ElementRef<'_>) -> String {
     el.text().collect::<Vec<_>>().join(" ")
-}
-
-fn collapse(s: &str) -> String {
-    s.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-/// 转换为合法文件 stem：非法字符替换为下划线，处理空标题与保留名。
-fn sanitize(title: &str) -> String {
-    let cleaned: String = title
-        .chars()
-        .map(|c| {
-            if matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control() {
-                '_'
-            } else {
-                c
-            }
-        })
-        .collect();
-    let name: String = collapse(&cleaned)
-        .trim_matches(['.', ' '])
-        .chars()
-        .take(120)
-        .collect();
-    if name.is_empty() {
-        "untitled".to_string()
-    } else {
-        name
-    }
 }
 
 #[cfg(test)]
