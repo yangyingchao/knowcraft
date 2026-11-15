@@ -4,6 +4,9 @@
 
 use super::*;
 
+/// Preferences live in the `[gui]` table of `settings.toml`; other sections belong to core.
+pub(in crate::ui) const GUI_SECTION: &str = "gui";
+
 pub(super) fn read_state_file(path: &Path) -> io::Result<Option<String>> {
     match fs::read_to_string(path) {
         Ok(contents) => Ok(Some(contents)),
@@ -19,10 +22,22 @@ pub(super) fn read_preferences() -> io::Result<Preferences> {
 
 /// Also returns the keys salvage had to repair.
 fn read_preferences_checked() -> io::Result<(Preferences, BTreeSet<String>)> {
+    if let Err(error) = knowcraft_core::config::Config::migrate_settings() {
+        tracing::warn!(%error, "unable to organize settings.toml");
+    }
     let Some(contents) = read_state_file(&settings_path())? else {
         return Ok((Preferences::default(), BTreeSet::new()));
     };
     parse_preferences_checked(&contents)
+}
+
+/// Keeps the old top-level layout readable until core's migration has run.
+fn gui_table(table: &toml::Table) -> toml::Table {
+    match table.get(GUI_SECTION) {
+        Some(toml::Value::Table(entries)) => entries.clone(),
+        Some(_) => toml::Table::new(),
+        None => table.clone(),
+    }
 }
 
 pub(super) fn parse_preferences(contents: &str) -> io::Result<Preferences> {
@@ -30,8 +45,9 @@ pub(super) fn parse_preferences(contents: &str) -> io::Result<Preferences> {
 }
 
 fn parse_preferences_checked(contents: &str) -> io::Result<(Preferences, BTreeSet<String>)> {
-    let table: toml::Table = toml::from_str(contents)
+    let document: toml::Table = toml::from_str(contents)
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    let table = gui_table(&document);
     match table.clone().try_into() {
         Ok(preferences) => Ok((preferences, BTreeSet::new())),
         Err(error) => {
@@ -101,11 +117,7 @@ fn merged_settings(
     snapshot: &toml::Table,
     changed: &BTreeSet<SettingKey>,
 ) -> io::Result<(Vec<u8>, Option<fs::File>)> {
-    let lock = folder_view_settings::lock_saves(path, SETTINGS_LOCK_WAIT)
-        .inspect_err(|error| {
-            tracing::debug!(%error, path = %path.display(), "saving settings unlocked");
-        })
-        .ok();
+    let lock = folder_view_settings::lock_saves(path, SETTINGS_LOCK_WAIT)?;
     // Anything but a file is left for the write to report.
     let on_disk = if path.is_file() {
         read_state_file(path)?
@@ -113,18 +125,33 @@ fn merged_settings(
         None
     };
     let merged = match on_disk {
-        None => snapshot.clone(),
+        None => {
+            let mut document = toml::Table::new();
+            document.insert(GUI_SECTION.into(), toml::Value::Table(snapshot.clone()));
+            document
+        }
         Some(contents) => {
-            let mut table: toml::Table = toml::from_str(&contents)
+            let mut document: toml::Table = toml::from_str(&contents)
                 .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+            let mut table = match document.remove(GUI_SECTION) {
+                Some(toml::Value::Table(entries)) => entries,
+                Some(_) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "settings.toml `gui` must be a table",
+                    ));
+                }
+                None => toml::Table::new(),
+            };
             for (key, entry) in changed {
                 merge_setting(&mut table, snapshot, key, entry.as_ref());
             }
-            table
+            document.insert(GUI_SECTION.into(), toml::Value::Table(table));
+            document
         }
     };
     let contents = toml::to_string_pretty(&merged).map_err(io::Error::other)?;
-    Ok((contents.into_bytes(), lock))
+    Ok((contents.into_bytes(), Some(lock)))
 }
 
 fn record_entry_changes(

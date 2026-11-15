@@ -55,9 +55,9 @@ fn recent_sort_is_not_stored_as_an_ordinary_folder_default() {
 
             assert_eq!(*manager.preferences.borrow(), saved);
             crate::storage::writer::settle();
-            let persisted: Preferences =
-                toml::from_str(&fs::read_to_string(settings_path()).expect("saved preferences"))
-                    .expect("persisted preferences");
+            let persisted = read_saved_preferences(
+                &fs::read_to_string(settings_path()).expect("saved preferences"),
+            );
             assert_eq!(persisted, saved);
         },
     );

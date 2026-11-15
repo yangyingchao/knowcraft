@@ -8,15 +8,17 @@ fn a_save_keeps_the_settings_another_process_wrote() {
         "ui::preferences::tests::preferences::saving::a_save_keeps_the_settings_another_process_wrote",
         || {
             seed_saved_preferences_for_test();
-            let read = || {
-                toml::from_str::<toml::Table>(
-                    &fs::read_to_string(settings_path()).expect("saved file"),
-                )
-                .expect("saved table")
-            };
+            let read = || saved_gui_table();
             let write = |table: &toml::Table| {
-                fs::write(settings_path(), toml::to_string(table).expect("settings"))
-                    .expect("other process saves");
+                let document = toml::Table::from_iter([(
+                    GUI_SECTION.to_owned(),
+                    toml::Value::Table(table.clone()),
+                )]);
+                fs::write(
+                    settings_path(),
+                    toml::to_string(&document).expect("settings"),
+                )
+                .expect("other process saves");
             };
             let mut repairable = read();
             repairable.insert("search_time_limit".into(), toml::Value::Integer(45));
@@ -269,9 +271,7 @@ fn symlinked_settings_save_through_to_the_target() {
                 fs::read_link(settings_path()).expect("settings link"),
                 target
             );
-            let saved: Preferences =
-                toml::from_str(&fs::read_to_string(&target).expect("dotfiles settings"))
-                    .expect("dotfiles settings parse");
+            let saved = read_saved_preferences(&fs::read_to_string(&target).expect("dotfiles settings"));
             assert!(!saved.folder_peeking);
             drop(manager);
             crate::storage::writer::settle();

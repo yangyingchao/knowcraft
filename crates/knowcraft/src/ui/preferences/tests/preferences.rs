@@ -20,7 +20,8 @@ use crate::{
         browser_modes::{BrowserDensity, BrowserMode, ClickCount, DensityScale, FrameDensity},
         keys::{Binding, Map, bindings},
         preferences::fixtures::{
-            non_default_preferences, seed_omarchy_colors_for_test, seed_omarchy_for_test,
+            non_default_preferences, read_saved_preferences, saved_gui_table,
+            seed_omarchy_colors_for_test, seed_omarchy_for_test,
             seed_saved_preferences_for_test,
         },
         theme::ThemeManager,
@@ -51,22 +52,16 @@ fn assert_recovered_preferences_survive_save(
     let manager = PreferenceManager::shared();
     assert_eq!(*manager.preferences.borrow(), expected);
     crate::storage::writer::settle();
-    assert_eq!(
-        fs::read_to_string(settings_path()).expect("unchanged settings file"),
-        malformed
-    );
+    let on_disk = saved_gui_table();
+    assert_eq!(on_disk, saved, "startup only moves the values under [gui]");
     expected.folder_peeking = false;
     manager.set_folder_peeking(false);
     crate::storage::writer::settle();
 
     let saved = fs::read_to_string(settings_path()).expect("saved file");
-    let persisted: Preferences = toml::from_str(&saved).expect("save repairs invalid preferences");
+    let persisted = read_saved_preferences(&saved);
     assert_eq!(persisted, expected);
-    let saved_keys: BTreeSet<String> = toml::from_str::<toml::Table>(&saved)
-        .expect("saved TOML")
-        .into_iter()
-        .map(|(key, _)| key)
-        .collect();
+    let saved_keys: BTreeSet<String> = saved_gui_table().into_iter().map(|(key, _)| key).collect();
     let every_key = toml::Table::try_from(non_default_preferences()).expect("every preference");
     let kept_keys: BTreeSet<String> = toml::Table::try_from(&expected)
         .expect("known preferences")

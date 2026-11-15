@@ -93,9 +93,7 @@ fn legacy_values_move_into_the_state_file() {
             crate::storage::writer::settle();
 
             assert!(!preview.exists(), "the old preview file is removed");
-            let settings: toml::Table =
-                toml::from_str(&fs::read_to_string(settings_path()).expect("saved settings"))
-                    .expect("saved TOML");
+            let settings = saved_gui_table();
             assert!(
                 !settings.contains_key("browser_list_columns"),
                 "the retired setting leaves settings.toml"

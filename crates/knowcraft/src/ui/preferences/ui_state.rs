@@ -132,7 +132,11 @@ fn legacy_preview_width() -> Option<i32> {
 /// `browser_list_columns` was saved in `settings.toml` before this existed.
 fn legacy_browser_list_columns() -> Option<ListColumns> {
     let contents = fs::read_to_string(super::settings_path()).ok()?;
-    let table: toml::Table = toml::from_str(&contents).ok()?;
+    let document: toml::Table = toml::from_str(&contents).ok()?;
+    let table = match document.get(super::GUI_SECTION) {
+        Some(toml::Value::Table(gui)) => gui,
+        _ => &document,
+    };
     let columns: ListColumns = table.get("browser_list_columns")?.clone().try_into().ok()?;
     columns.is_valid().then_some(columns)
 }

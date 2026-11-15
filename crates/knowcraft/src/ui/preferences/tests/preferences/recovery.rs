@@ -61,9 +61,9 @@ fn send_to_history_is_device_scoped_deduplicated_capped_and_persistent() {
                 [PathBuf::from("Backup")]
             );
             crate::storage::writer::settle();
-            let saved: Preferences =
-                toml::from_str(&fs::read_to_string(settings_path()).expect("saved preferences"))
-                    .expect("persisted preferences reload");
+            let saved = read_saved_preferences(
+                &fs::read_to_string(settings_path()).expect("saved preferences"),
+            );
             assert!(
                 !saved
                     .send_to_recent_destinations

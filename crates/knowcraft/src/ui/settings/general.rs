@@ -531,9 +531,7 @@ fn default_data_dir() -> std::path::PathBuf {
 }
 
 fn persist_data_dir(path: std::path::PathBuf) -> Result<(), String> {
-    let mut config = knowcraft_core::config::Config::load().map_err(|error| error.to_string())?;
-    config.data_dir = path;
-    config.persist().map_err(|error| error.to_string())
+    knowcraft_core::config::Config::persist_data_dir(&path).map_err(|error| error.to_string())
 }
 
 pub(crate) fn abbreviate_home(path: &std::path::Path) -> String {

@@ -70,6 +70,7 @@ pub(crate) use list_columns::{sanitize_list_column_order, sanitize_list_hidden_c
 use persistence::read_preferences;
 #[cfg(test)]
 use persistence::{RETIRED_SETTINGS, salvage_preferences};
+pub(in crate::ui) use persistence::GUI_SECTION;
 use persistence::{
     SettingKey, parse_preferences, read_loaded_preferences, read_state_file, record_changes,
     settings_path,

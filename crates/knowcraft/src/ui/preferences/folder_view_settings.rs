@@ -4,8 +4,7 @@ use std::{
     cell::RefCell,
     fs, io,
     path::{Path, PathBuf},
-    thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use gtk::glib;
@@ -111,21 +110,7 @@ pub(in crate::ui) fn folder_views_path() -> PathBuf {
 /// rename, which would drop their changes. Locks the directory, because every
 /// save replaces the file.
 pub(super) fn lock_saves(path: &Path, wait: Duration) -> io::Result<fs::File> {
-    let directory = path
-        .parent()
-        .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
-    fs::create_dir_all(directory)?;
-    let lock = fs::File::open(directory)?;
-    let deadline = Instant::now() + wait;
-    loop {
-        match lock.try_lock() {
-            Ok(()) => return Ok(lock),
-            Err(fs::TryLockError::WouldBlock) if Instant::now() < deadline => {
-                thread::sleep(Duration::from_millis(10));
-            }
-            Err(error) => return Err(error.into()),
-        }
-    }
+    knowcraft_core::config::lock_settings(path, wait)
 }
 
 /// Writes pending folder settings, such as use times, before the process exits.

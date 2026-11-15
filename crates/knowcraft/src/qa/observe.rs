@@ -474,7 +474,11 @@ pub(super) fn preferences() -> Result<Value, String> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(error) => return Err(format!("cannot read {}: {error}", path.display())),
     };
-    let table: toml::Table = toml::from_str(&text)
+    let document: toml::Table = toml::from_str(&text)
         .map_err(|error| format!("cannot parse {}: {error}", path.display()))?;
+    let table = match document.get("gui") {
+        Some(toml::Value::Table(gui)) => gui.clone(),
+        _ => document,
+    };
     serde_json::to_value(table).map_err(|error| error.to_string())
 }

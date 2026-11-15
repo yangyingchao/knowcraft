@@ -131,6 +131,22 @@ pub(in crate::ui) fn seed_saved_preferences_for_test() {
     .expect("persist complete fixture");
 }
 
+/// The `[gui]` table the save writes, for tests that inspect the saved keys.
+pub(in crate::ui) fn saved_gui_table() -> toml::Table {
+    let document: toml::Table =
+        toml::from_str(&fs::read_to_string(settings_path()).expect("saved settings"))
+            .expect("saved settings parse");
+    match document.get(GUI_SECTION) {
+        Some(toml::Value::Table(gui)) => gui.clone(),
+        _ => document,
+    }
+}
+
+/// Parses a saved file the way the GUI loads it, `[gui]` table included.
+pub(in crate::ui) fn read_saved_preferences(contents: &str) -> Preferences {
+    parse_preferences(contents).expect("saved preferences parse")
+}
+
 pub(in crate::ui) fn seed_omarchy_for_test() {
     seed_omarchy_colors_for_test(
         "background = '#112233'\ndark_background = '#0a1520'\nforeground = '#ddeeff'\naccent = '#445566'\n",
