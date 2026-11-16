@@ -291,12 +291,16 @@ enum Cmd {
     #[command(
         long_about = "在库内新建目录\n\n只允许在受管位置（inbox、library、notes、captures、archived）内新建，父目录必须已存\
         在，数据目录与其一级根目录不可作为目标。\n\n每个目录输出 `created: path=<path> id=-`；批量时逐个输出，失败写标准错误，\
-        末尾以 `created: count=<N> failed=<M>` 汇总，存在失败时退出码非零。"
+        末尾以 `created: count=<N> failed=<M>` 汇总，存在失败时退出码非零。\n\n`--date` 只接受一个父目录，\
+        在它下面新建当天日期目录（YYYY-MM-DD）；同名已存在时依次尝试 ` (2)`、` (3)`，最多 100 次。"
     )]
     Mkdir {
         /// 要新建的目录路径；支持 inbox:/ 等别名
         #[arg(required = true, num_args = 1..)]
         paths: Vec<PathBuf>,
+        /// 在给定父目录下新建当天日期目录（YYYY-MM-DD），冲突时依次尝试 ` (2)` 起
+        #[arg(long)]
+        date: bool,
     },
     /// 在库内新建空文件并登记；已存在时幂等处理
     #[command(
@@ -736,12 +740,20 @@ fn main() -> anyhow::Result<()> {
                 anyhow::bail!("{} path(s) failed to add", report.failed.len());
             }
         }
-        Cmd::Mkdir { paths } => {
+        Cmd::Mkdir { paths, date } => {
             let ops = file_ops(&store, &cfg.data_dir)?;
             let paths = paths
                 .into_iter()
                 .map(absolute)
                 .collect::<anyhow::Result<Vec<_>>>()?;
+            if date {
+                let [parent] = paths.as_slice() else {
+                    anyhow::bail!("--date takes exactly one parent directory");
+                };
+                let path = create_dated_folder(&ops, parent)?;
+                println!("created: path={} id=-", path.display());
+                return Ok(());
+            }
             if let [path] = paths.as_slice() {
                 ops.create(path, true)?;
                 println!("created: path={} id=-", path.display());
@@ -1169,6 +1181,25 @@ fn file_ops(store: &Store, data_dir: &std::path::Path) -> anyhow::Result<FileOps
     FileOps::new(store.clone(), index, data_dir.to_path_buf(), lock).map_err(Into::into)
 }
 
+/// 在 `parent` 下建当天日期目录，冲突时按 core 的候选序列递增。
+fn create_dated_folder(ops: &FileOps, parent: &std::path::Path) -> anyhow::Result<std::path::PathBuf> {
+    let day = knowcraft_core::util::date_folder_name()?;
+    for attempt in 0..knowcraft_core::util::DATE_FOLDER_ATTEMPTS {
+        let candidate = parent.join(knowcraft_core::util::date_folder_candidate(&day, attempt));
+        match ops.create(&candidate, true) {
+            Ok(_) => return Ok(candidate),
+            Err(knowcraft_core::error::Error::FileOps(message))
+                if message.starts_with("target already exists") => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    anyhow::bail!(
+        "no free date folder name under {} after {} attempts",
+        parent.display(),
+        knowcraft_core::util::DATE_FOLDER_ATTEMPTS
+    )
+}
+
 /// 列出已注册 provider；文本模式每行 `id<TAB>name`。
 fn render_provider_list(
     providers: &[knowcraft_core::sendto::ProviderSummary],
@@ -1339,6 +1370,28 @@ fn relative_path(path: &std::path::Path, cwd: &std::path::Path) -> String {
 mod tests {
     use super::*;
     use knowcraft_core::sendto::ProviderSummary;
+
+    #[test]
+    fn dated_folder_creation_numbers_collisions() {
+        let root =
+            std::env::temp_dir().join(format!("kc-mkdir-date-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("inbox")).unwrap();
+        let store = Store::open(&root).unwrap();
+        let ops = file_ops(&store, &root).unwrap();
+        let day = knowcraft_core::util::date_folder_name().unwrap();
+        let parent = root.join("inbox");
+
+        let first = create_dated_folder(&ops, &parent).unwrap();
+        assert_eq!(first.file_name().unwrap().to_string_lossy(), day);
+        let second = create_dated_folder(&ops, &parent).unwrap();
+        assert_eq!(
+            second.file_name().unwrap().to_string_lossy(),
+            format!("{day} (2)")
+        );
+        assert!(first.is_dir() && second.is_dir());
+        std::fs::remove_dir_all(&root).ok();
+    }
 
     fn sample() -> Vec<ProviderSummary> {
         vec![

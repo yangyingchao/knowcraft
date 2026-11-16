@@ -138,12 +138,23 @@ pub struct PlaceEntryRequest {
     pub new_item: bool,
 }
 
+/// How a created directory is named, and what the UI does with it afterwards.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum NewEntryMode {
+    /// 普通新建：冲突名从 ` (1)` 起，成功后进入行内改名。
+    #[default]
+    Plain,
+    /// 日期目录：冲突名从 ` (2)` 起，成功后只选中，不改名。
+    DatedFolder,
+}
+
 #[derive(Clone, Debug)]
 pub struct CreateDirectoryRequest {
     pub id: OperationRequestId,
     pub parent: Location,
     pub name: String,
     pub unique_name: bool,
+    pub mode: NewEntryMode,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -11,7 +11,7 @@ use super::{
 use crate::{
     adapters::{gio_file_for_location, location_for_file, volume::NameLimit},
     model::Location,
-    services::{LoadHandle, OperationEvent, OperationRequestId},
+    services::{LoadHandle, NewEntryMode, OperationEvent, OperationRequestId},
 };
 use gtk::{gio, glib, prelude::*};
 use std::{collections::HashSet, ffi::OsStr, rc::Rc};
@@ -21,6 +21,7 @@ pub(super) fn start(
     parent: Location,
     name: String,
     unique_name: bool,
+    mode: NewEntryMode,
     is_directory: bool,
     emit: Rc<dyn Fn(OperationEvent)>,
 ) -> LoadHandle {
@@ -31,9 +32,15 @@ pub(super) fn start(
         let directory = gio_file_for_location(&parent);
         let mut suffix = 0u64;
         let mut limit = NameLimit::default();
+        let attempt_limit = match mode {
+            NewEntryMode::Plain => u64::MAX,
+            NewEntryMode::DatedFolder => knowcraft_core::util::DATE_FOLDER_ATTEMPTS - 1,
+        };
         loop {
             let candidate = if suffix == 0 {
                 name.clone()
+            } else if mode == NewEntryMode::DatedFolder {
+                knowcraft_core::util::date_folder_candidate(&name, suffix)
             } else {
                 let numbered = numbered_name(
                     OsStr::new(&name),
@@ -118,7 +125,7 @@ pub(super) fn start(
                 }
                 // Retry only a collision from atomic creation, never a preflight exists() check.
                 Err(error)
-                    if unique_name && name_taken(&error, is_directory) && suffix < u64::MAX =>
+                    if unique_name && name_taken(&error, is_directory) && suffix < attempt_limit =>
                 {
                     if suffix == 0 {
                         limit = folder_name_limit(&directory).await;

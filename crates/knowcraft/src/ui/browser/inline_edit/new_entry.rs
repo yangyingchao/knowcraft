@@ -19,6 +19,8 @@ pub(in crate::ui::browser) struct PendingEntryRename {
     pub(super) created: RefCell<Option<Location>>,
     /// A group folder takes a single name while its selection moves in.
     pub(super) naming: Naming,
+    /// 日期目录建好后只选中，不打开改名输入框。
+    select_only: bool,
 }
 
 /// The created item a tick callback waits on until its row can take the editor.
@@ -37,6 +39,8 @@ struct NewEntry {
     location: Location,
     is_directory: bool,
     move_sources: Vec<Location>,
+    /// 日期目录只选中，不进入行内改名。
+    select_only: bool,
 }
 
 impl ViewState {
@@ -111,6 +115,11 @@ impl ViewState {
         self.move_selection_into_created(watch, position);
         if !watch.selected.replace(true) {
             self.select_created_entry(pending, position);
+            if pending.select_only {
+                self.pending_new_entry.take();
+                self.scroll_created_into_view(pending.depth, position);
+                return ControlFlow::Break;
+            }
         } else if self.begin_created_rename(watch, &snapshot, position) {
             self.pending_new_entry.take();
             return ControlFlow::Break;
@@ -233,6 +242,7 @@ impl ViewState {
                 location,
                 is_directory: true,
                 move_sources,
+                select_only: false,
             },
         );
         true
@@ -250,6 +260,24 @@ impl ViewState {
                 location,
                 is_directory,
                 move_sources: Vec::new(),
+                select_only: false,
+            },
+        );
+    }
+
+    /// 建当天日期目录，建好只选中，不进入改名。
+    pub(in crate::ui::browser) fn begin_dated_folder(
+        self: &Rc<Self>,
+        depth: usize,
+        location: Location,
+    ) {
+        self.begin_new_entry_inner(
+            depth,
+            NewEntry {
+                location,
+                is_directory: true,
+                move_sources: Vec::new(),
+                select_only: true,
             },
         );
     }
@@ -264,6 +292,7 @@ impl ViewState {
             location,
             is_directory,
             move_sources,
+            select_only,
         } = entry;
         if !self.may_create_in(&location) {
             return;
@@ -286,8 +315,11 @@ impl ViewState {
                 },
                 move_sources: RefCell::new(move_sources),
                 created: RefCell::new(None),
+                select_only,
             })));
-        if is_directory {
+        if select_only {
+            self.browser.create_dated_folder(location);
+        } else if is_directory {
             self.browser.create_new_folder(location);
         } else {
             self.browser.create_new_file(location);
@@ -306,6 +338,7 @@ impl ViewState {
                 created: RefCell::new(None),
                 // A recovered leftover may hold data, so it is not new.
                 naming: Naming::Path,
+                select_only: false,
             })));
     }
 

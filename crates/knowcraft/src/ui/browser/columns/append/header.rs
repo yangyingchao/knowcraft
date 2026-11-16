@@ -7,7 +7,7 @@ use crate::ui::browser::ViewState;
 use crate::ui::browser::filter_mode::FilterModeController;
 use crate::ui::browser::pane_header::{
     column_sort_direction_toggle, column_sort_menu, empty_trash_button, leftovers_button,
-    pane_new_folder_button, pane_refresh_button,
+    pane_new_folder_menu, pane_refresh_button,
 };
 use crate::ui::browser::paths::is_trash_root;
 use crate::ui::browser_modes::{FilterControls, filter_controls};
@@ -124,7 +124,7 @@ impl ViewState {
         empty_trash.set_sensitive(false);
         header_actions.append(&empty_trash);
         if !self.interactive {
-            header_actions.append(&pane_new_folder_button(Rc::downgrade(self), depth));
+            header_actions.append(&pane_new_folder_menu(Rc::downgrade(self), depth));
         }
         header_actions.append(&pane_refresh_button(&self.browser, depth));
         let sort_direction_button = column_sort_direction_toggle(&self.browser, depth);

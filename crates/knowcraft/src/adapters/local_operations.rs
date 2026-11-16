@@ -219,11 +219,11 @@ use crate::{
     model::{Location, hidden_names::HiddenName},
     services::{
         CancelledOperation, CompressRequest, CreateDirectoryRequest, CreateFileRequest,
-        DeleteRequest, ExtractRequest, KeptCause, KeptItem, LoadHandle, NameMode, OperationEvent,
-        OperationProvider, OperationRequestId, PasteItem, PasteRequest, PlaceEntryRequest,
-        RecoverRequest, RenameCause, RenameRequest, RenamedItem, ReplacedOriginal, RestoreRequest,
-        RestoreSource, SkippedItem, SpecialKind, TransferConflict, TransferReport, UndoCopyRequest,
-        UndoMergeRequest, UndoMoveRequest, UndoRenameRequest, validate_basename,
+        DeleteRequest, ExtractRequest, KeptCause, KeptItem, LoadHandle, NameMode, NewEntryMode,
+        OperationEvent, OperationProvider, OperationRequestId, PasteItem, PasteRequest,
+        PlaceEntryRequest, RecoverRequest, RenameCause, RenameRequest, RenamedItem, ReplacedOriginal,
+        RestoreRequest, RestoreSource, SkippedItem, SpecialKind, TransferConflict, TransferReport,
+        UndoCopyRequest, UndoMergeRequest, UndoMoveRequest, UndoRenameRequest, validate_basename,
     },
 };
 
@@ -528,6 +528,7 @@ impl OperationProvider for LocalOperationProvider {
             request.parent,
             request.name,
             request.unique_name,
+            request.mode,
             true,
             emit,
         )
@@ -543,6 +544,7 @@ impl OperationProvider for LocalOperationProvider {
             request.parent,
             request.name,
             request.unique_name,
+            NewEntryMode::Plain,
             false,
             emit,
         )

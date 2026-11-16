@@ -136,7 +136,7 @@ pub(super) fn numbered_name(
 ) -> OsString {
     fix::fit(
         stem,
-        &format!(" ({number})"),
+        &knowcraft_core::util::number_suffix(number),
         extension,
         limit,
         is_directory,

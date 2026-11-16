@@ -2,7 +2,7 @@
 
 use super::fs_quirks::Preset;
 use super::*;
-use crate::services::{CreateDirectoryRequest, CreateFileRequest};
+use crate::services::{CreateDirectoryRequest, CreateFileRequest, NewEntryMode};
 
 fn create(
     parent: &Path,
@@ -10,6 +10,24 @@ fn create(
     unique_name: bool,
     count: usize,
     directory: bool,
+) -> Vec<OperationEvent> {
+    create_with_mode(
+        parent,
+        name,
+        unique_name,
+        count,
+        directory,
+        NewEntryMode::Plain,
+    )
+}
+
+fn create_with_mode(
+    parent: &Path,
+    name: &str,
+    unique_name: bool,
+    count: usize,
+    directory: bool,
+    mode: NewEntryMode,
 ) -> Vec<OperationEvent> {
     let _guard = ASYNC_MAIN_CONTEXT_DEFAULT.lock();
     let context = glib::MainContext::default();
@@ -27,6 +45,7 @@ fn create(
                         parent: Location::local(parent),
                         name: name.to_owned(),
                         unique_name,
+                        mode,
                     },
                     emit,
                 )
@@ -94,6 +113,38 @@ fn unique_creation_retries_atomic_collisions_without_overwriting() {
             }
         }
     }
+}
+
+#[test]
+fn dated_creation_starts_numbering_at_two() {
+    let fixture = tempfile::tempdir().expect("fixture");
+    let name = knowcraft_core::util::date_folder_name().expect("local date");
+
+    let first = create_with_mode(
+        fixture.path(),
+        &name,
+        true,
+        1,
+        true,
+        NewEntryMode::DatedFolder,
+    );
+    assert!(
+        matches!(first.as_slice(), [OperationEvent::EntryCreated { location, .. }] if location == &Location::local(fixture.path().join(&name)))
+    );
+
+    let second = create_with_mode(
+        fixture.path(),
+        &name,
+        true,
+        1,
+        true,
+        NewEntryMode::DatedFolder,
+    );
+    let numbered = format!("{name} (2)");
+    assert!(
+        matches!(second.as_slice(), [OperationEvent::EntryCreated { location, .. }] if location == &Location::local(fixture.path().join(&numbered))),
+        "second dated folder takes the (2) suffix"
+    );
 }
 
 #[test]

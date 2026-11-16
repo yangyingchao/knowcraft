@@ -72,7 +72,7 @@ pub(super) fn build_icons_pane(inputs: &PaneBuild, options: IconsOptions) -> Pan
     if let Some(state) = inputs.new_folder_state.clone() {
         controls
             .actions
-            .prepend(&browser::pane_new_folder_button(state, depth));
+            .prepend(&browser::pane_new_folder_menu(state, depth));
     }
     let base = pane_base(PaneChrome {
         depth,

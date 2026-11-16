@@ -100,7 +100,7 @@ impl ListActions {
         widget.add_css_class("icons-header-actions");
         let content = ContentActions::append(&widget, browser, depth);
         if let Some(state) = inputs.new_folder_state.as_ref() {
-            widget.append(&browser::pane_new_folder_button(state.clone(), depth));
+            widget.append(&browser::pane_new_folder_menu(state.clone(), depth));
         }
         widget.append(&browser::pane_refresh_button(browser, depth));
         let actions = Self { widget, content };

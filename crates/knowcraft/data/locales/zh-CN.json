@@ -1551,5 +1551,6 @@
   "Unable to generate summary": "无法生成摘要",
   "Export to note": "导出成笔记",
   "Exported to": "已导出到",
-  "Unable to export the note": "无法导出笔记"
+  "Unable to export the note": "无法导出笔记",
+  "New Folder for Today": "新建日期文件夹"
 }

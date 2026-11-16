@@ -18,16 +18,64 @@ use gtk::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-pub(in crate::ui) fn pane_new_folder_button(
+/// 新建菜单：普通新建（行内命名）与当天日期目录（直接建好并选中）。
+pub(in crate::ui) fn pane_new_folder_menu(
     state: std::rc::Weak<ViewState>,
     depth: usize,
-) -> gtk::Button {
-    let button = gtk::Button::new();
-    crate::ui::shortcut_reference::follow_tooltip(
-        &button,
-        "New Folder (%{keys})",
-        crate::ui::keys::Keys::One(crate::ui::keys::bindings::NEW_FOLDER.shown()),
-    );
+) -> gtk::MenuButton {
+    let keys = crate::ui::keys::Keys::One(crate::ui::keys::bindings::NEW_FOLDER.shown());
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    content.add_css_class("column-menu");
+    let popover = gtk::Popover::builder()
+        .has_arrow(false)
+        .halign(gtk::Align::End)
+        .position(gtk::PositionType::Bottom)
+        .build();
+    popover.add_css_class("column-popover");
+    crate::ui::scrolling::popover::dismiss_on_outside_scroll(&popover);
+
+    let folder_label = crate::i18n::tr("New Folder");
+    let folder_detail = crate::ui::shortcut_reference::with_keys("New Folder (%{keys})", keys);
+    let folder = menu_action_with_detail(&folder_label, &folder_detail);
+    crate::ui::accessibility::describe_menu_item(&folder, &folder_label, &folder_detail);
+
+    let today_label = crate::i18n::tr("New Folder for Today");
+    let today_detail = knowcraft_core::util::date_folder_name().unwrap_or_default();
+    let today = menu_action_with_detail(&today_label, &today_detail);
+    crate::ui::accessibility::describe_menu_item(&today, &today_label, &today_detail);
+
+    let folder_state = state.clone();
+    let folder_popover = popover.downgrade();
+    folder.connect_clicked(move |_| {
+        if let Some(popover) = folder_popover.upgrade() {
+            popover.popdown();
+        }
+        if let Some(state) = folder_state.upgrade()
+            && let Some(location) = state.browser.location_at(depth)
+        {
+            state.begin_new_entry(depth, location, true);
+        }
+    });
+    let today_state = state.clone();
+    let today_popover = popover.downgrade();
+    today.connect_clicked(move |_| {
+        if let Some(popover) = today_popover.upgrade() {
+            popover.popdown();
+        }
+        if let Some(state) = today_state.upgrade()
+            && let Some(location) = state.browser.location_at(depth)
+        {
+            state.begin_dated_folder(depth, location);
+        }
+    });
+
+    content.append(&folder);
+    content.append(&today);
+    popover.set_child(Some(&content));
+    install_menu_keys(&popover);
+
+    let button = gtk::MenuButton::builder().popover(&popover).build();
+    crate::ui::shortcut_reference::follow_tooltip(&button, "New Folder (%{keys})", keys);
     button.set_child(Some(&crate::assets::chrome_icon(
         crate::assets::icons::FOLDER_PLUS,
     )));
@@ -44,13 +92,6 @@ pub(in crate::ui) fn pane_new_folder_button(
         }
     }
     crate::ui::accessibility::set_label(&button, &crate::i18n::tr("New Folder"));
-    button.connect_clicked(move |_| {
-        if let Some(state) = state.upgrade()
-            && let Some(location) = state.browser.location_at(depth)
-        {
-            state.begin_new_entry(depth, location, true);
-        }
-    });
     button
 }
 

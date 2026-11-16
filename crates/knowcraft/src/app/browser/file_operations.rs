@@ -6,10 +6,10 @@ use crate::{
     model::{FileEntry, Location},
     services::{
         ArchiveFormat, CompressRequest, CreateDirectoryRequest, CreateFileRequest, DeleteRequest,
-        ExtractRequest, MoveRecord, OperationEvent, OperationProvider, OperationRequestId,
-        PasteItem, PasteRequest, PlaceEntryRequest, RenameRecord, RenameRequest, RestoreRequest,
-        RestoreSource, RestoreTrashItem, TransferConflict, TransferReport, TypedPath,
-        validate_basename,
+        ExtractRequest, MoveRecord, NewEntryMode, OperationEvent, OperationProvider,
+        OperationRequestId, PasteItem, PasteRequest, PlaceEntryRequest, RenameRecord, RenameRequest,
+        RestoreRequest, RestoreSource, RestoreTrashItem, TransferConflict, TransferReport,
+        TypedPath, validate_basename,
     },
 };
 
@@ -227,6 +227,18 @@ impl Browser {
         self.create_directory_with_naming(parent, crate::i18n::tr("new folder"), true);
     }
 
+    /// 按当天本地日期直接建目录，冲突时从 ` (2)` 起编号，成功后由 UI 选中。
+    pub fn create_dated_folder(self: &Rc<Self>, parent: Location) {
+        let name = match knowcraft_core::util::date_folder_name() {
+            Ok(name) => name,
+            Err(error) => {
+                self.emit_operation_failed(error.to_string());
+                return;
+            }
+        };
+        self.create_entry(NewEntry::dated(parent, name));
+    }
+
     pub(super) fn create_directory_with_naming(
         self: &Rc<Self>,
         parent: Location,
@@ -277,6 +289,7 @@ impl Browser {
             name,
             unique_name,
             directory,
+            mode,
         } = entry;
         let emit = self.operation_callback(request_id, false, refresh);
         let load = if directory {
@@ -285,6 +298,7 @@ impl Browser {
                 parent,
                 name,
                 unique_name,
+                mode,
             };
             provider.create_directory(request, emit)
         } else {
@@ -591,6 +605,7 @@ struct NewEntry {
     name: String,
     unique_name: bool,
     directory: bool,
+    mode: NewEntryMode,
 }
 
 impl NewEntry {
@@ -600,6 +615,17 @@ impl NewEntry {
             name,
             unique_name,
             directory,
+            mode: NewEntryMode::Plain,
+        }
+    }
+
+    fn dated(parent: Location, name: String) -> Self {
+        Self {
+            parent,
+            name,
+            unique_name: true,
+            directory: true,
+            mode: NewEntryMode::DatedFolder,
         }
     }
 }
