@@ -97,12 +97,71 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Download release archives
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: knowcraft-*
           path: dist
           merge-multiple: true
+
+      - name: Extract changelog section
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 - "$TAG" > notes.md <<'PY'
+          import re
+          import sys
+
+          tag = sys.argv[1]
+          version = tag[1:] if tag.startswith("v") else tag
+          names = (tag, version)
+          link = re.compile(r"^\[[^\]]+\]:")
+
+
+          def is_head(line, name):
+              if not line.startswith("## "):
+                  return False
+              rest = line[3:].strip()
+              if rest.startswith("["):
+                  return rest.startswith("[%s]" % name)
+              return rest == name or rest.startswith(name + " -")
+
+
+          with open("CHANGELOG.md", encoding="utf-8") as handle:
+              lines = handle.read().splitlines()
+
+          start = None
+          for index, line in enumerate(lines):
+              if any(is_head(line, name) for name in names):
+                  start = index + 1
+                  break
+
+          if start is not None:
+              body = []
+              for line in lines[start:]:
+                  if line.startswith("## ") or link.match(line):
+                      break
+                  body.append(line)
+              while body and not body[0].strip():
+                  body.pop(0)
+              while body and not body[-1].strip():
+                  body.pop()
+              if any(line.startswith("- ") for line in body):
+                  print("\n".join(body))
+          PY
+          if [ -s notes.md ] && grep -q '^- ' notes.md; then
+            echo "KNOWCRAFT_RELEASE_NOTES=notes.md" >> "$GITHUB_ENV"
+          else
+            echo "::warning::CHANGELOG.md 缺少 $TAG 的版本章节，回退到 GitHub 自动生成的 release notes"
+            {
+              echo "### CHANGELOG 缺少 \`$TAG\` 章节"
+              echo
+              echo "CHANGELOG.md 中没有与 \`$TAG\` 对应的版本章节，或该章节没有任何条目。本次 release notes 由 GitHub 按提交自动生成，发布前请补齐该章节。"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Create GitHub release
         env:
@@ -114,5 +173,10 @@ jobs:
             *-rc*|*-beta*|*-alpha*) prerelease=(--prerelease) ;;
             *) prerelease=() ;;
           esac
-          gh release create "$TAG" dist/* --verify-tag --generate-notes \
-            --title "Knowcraft $TAG" "${prerelease[@]}"
+          if [ -n "${KNOWCRAFT_RELEASE_NOTES:-}" ]; then
+            notes=(--notes-file "$KNOWCRAFT_RELEASE_NOTES")
+          else
+            notes=(--generate-notes)
+          fi
+          gh release create "$TAG" dist/* --verify-tag "${prerelease[@]}" \
+            --title "Knowcraft $TAG" "${notes[@]}"
