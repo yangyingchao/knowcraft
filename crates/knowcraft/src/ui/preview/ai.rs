@@ -163,12 +163,22 @@ impl PreviewState {
                 export_summary(button, &status, source.clone(), summary.clone());
             });
         }
+        let close = gtk::Button::with_label(&crate::i18n::tr("Close"));
+        {
+            let dialog = dialog.clone();
+            close.connect_clicked(move |_| dialog.close());
+        }
         actions.append(&status);
         actions.append(&export);
+        actions.append(&close);
         let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
         content.append(&scroll);
         content.append(&actions);
         dialog.set_child(Some(&content));
+        crate::ui::modal::close_on_escape(&dialog, {
+            let dialog = dialog.clone();
+            move || dialog.close()
+        });
         dialog.present();
     }
 }
