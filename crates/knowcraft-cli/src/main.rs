@@ -115,10 +115,16 @@ enum AiCmd {
 }
 
 #[derive(Subcommand)]
-enum LaunchCmd {
+enum RunCmd {
     /// 使用同目录的 knowcraft 在私有 D-Bus 会话中启动 GUI
-    #[command(long_about = "在私有 D-Bus 会话启动 kc 同目录的 knowcraft；必须先运行 kc ai prepare。")]
-    Gui,
+    #[command(
+        long_about = "在私有 D-Bus 会话启动 kc 同目录的 knowcraft。\n\n--ai 时读取 Hermes 的 API_SERVER_KEY 并设置 AI 相关环境变量，必须先运行 kc ai prepare；不带 --ai 时不读取任何 AI 配置，直接启动。"
+    )]
+    Gui {
+        /// 设置 Hermes AI 相关环境变量；需要先运行 kc ai prepare
+        #[arg(long)]
+        ai: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -441,10 +447,10 @@ enum Cmd {
         cmd: AiCmd,
     },
     /// 启动本地构建的 GUI
-    #[command(long_about = "启动本地构建的 GUI；见 launch gui。")]
-    Launch {
+    #[command(long_about = "启动本地构建的 GUI；见 run gui。")]
+    Run {
         #[command(subcommand)]
-        cmd: LaunchCmd,
+        cmd: RunCmd,
     },
     /// 安装桌面集成：desktop、portal、file-manager 或 all
     #[command(
@@ -505,8 +511,8 @@ fn main() -> anyhow::Result<()> {
     if let Cmd::Ai { cmd } = &cli.cmd {
         return run_ai_group(cmd);
     }
-    if let Cmd::Launch { cmd } = &cli.cmd {
-        return run_launch_group(cmd);
+    if let Cmd::Run { cmd } = &cli.cmd {
+        return run_run_group(cmd);
     }
     match &cli.cmd {
         Cmd::Install {
@@ -536,7 +542,7 @@ fn main() -> anyhow::Result<()> {
         Cmd::Upgrade => {}
         Cmd::Sendto { .. } => {}
         Cmd::Activate { .. } => {}
-        Cmd::Ai { .. } | Cmd::Launch { .. } => {}
+        Cmd::Ai { .. } | Cmd::Run { .. } => {}
         Cmd::Install { .. }
         | Cmd::Uninstall { .. }
         | Cmd::Status {
@@ -1563,11 +1569,15 @@ fn run_ai_group(cmd: &AiCmd) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn run_launch_group(cmd: &LaunchCmd) -> anyhow::Result<()> {
+fn run_run_group(cmd: &RunCmd) -> anyhow::Result<()> {
     match cmd {
-        LaunchCmd::Gui => {
-            let env_path = knowcraft_core::ai_setup::hermes_env_path()?;
-            knowcraft_core::ai_setup::launch_gui(&std::env::current_exe()?, &env_path)?;
+        RunCmd::Gui { ai } => {
+            if *ai {
+                let env_path = knowcraft_core::ai_setup::hermes_env_path()?;
+                knowcraft_core::ai_setup::launch_gui(&std::env::current_exe()?, &env_path)?;
+            } else {
+                knowcraft_core::ai_setup::launch_gui_plain(&std::env::current_exe()?)?;
+            }
         }
     }
     Ok(())

@@ -192,20 +192,29 @@ pub fn gui_sibling(cli: &Path) -> Result<PathBuf> {
     Ok(gui)
 }
 
-pub fn gui_command(cli: &Path, key: &str) -> Result<Command> {
+pub fn gui_command(cli: &Path, key: Option<&str>) -> Result<Command> {
     let gui = gui_sibling(cli)?;
     let mut command = Command::new("dbus-run-session");
-    command
-        .arg("--")
-        .arg(gui)
-        .env("KNOWCRAFT_HERMES_API_KEY", key);
+    command.arg("--").arg(gui);
+    if let Some(key) = key {
+        command.env("KNOWCRAFT_HERMES_API_KEY", key);
+    }
     Ok(command)
 }
 
 pub fn launch_gui(cli: &Path, env_path: &Path) -> Result<()> {
     let key = api_key(env_path)?
         .ok_or_else(|| Error::Ai("API_SERVER_KEY not set; run kc ai prepare first".into()))?;
-    let status = gui_command(cli, &key)?.status()?;
+    let status = gui_command(cli, Some(&key))?.status()?;
+    if !status.success() {
+        return Err(Error::Ai(format!("Knowcraft GUI exited with {status}")));
+    }
+    Ok(())
+}
+
+/// 不带 AI 支持的启动：不读取任何 Hermes 配置，仅以私有 D-Bus 会话启动 GUI。
+pub fn launch_gui_plain(cli: &Path) -> Result<()> {
+    let status = gui_command(cli, None)?.status()?;
     if !status.success() {
         return Err(Error::Ai(format!("Knowcraft GUI exited with {status}")));
     }
@@ -375,9 +384,10 @@ mod tests {
     fn launch_uses_only_sibling_gui_and_private_bus() {
         let root = tempfile::tempdir().unwrap();
         let cli = root.path().join("kc");
-        assert!(gui_command(&cli, "secret").is_err());
+        assert!(gui_command(&cli, None).is_err());
+        assert!(gui_command(&cli, Some("secret")).is_err());
         fs::write(root.path().join("knowcraft"), "gui").unwrap();
-        let command = gui_command(&cli, "secret").unwrap();
+        let command = gui_command(&cli, Some("secret")).unwrap();
         let args: Vec<_> = command.get_args().collect();
         assert_eq!(
             args,
@@ -392,5 +402,22 @@ mod tests {
                 .unwrap(),
             "secret"
         );
+    }
+
+    #[test]
+    fn launch_plain_sets_no_ai_variables() {
+        let root = tempfile::tempdir().unwrap();
+        let cli = root.path().join("kc");
+        fs::write(root.path().join("knowcraft"), "gui").unwrap();
+        let command = gui_command(&cli, None).unwrap();
+        let args: Vec<_> = command.get_args().collect();
+        assert_eq!(
+            args,
+            ["--", root.path().join("knowcraft").to_str().unwrap()]
+        );
+        assert!(command
+            .get_envs()
+            .find(|(name, _)| *name == "KNOWCRAFT_HERMES_API_KEY")
+            .is_none());
     }
 }
