@@ -164,6 +164,12 @@ pub(super) fn show_add_tag_modal(parent: &gtk::Widget, path: PathBuf, on_added: 
     );
     layout.cancel.set_visible(false);
 
+    // 空格分隔的标签 chip 预览区；输入中敲空格即把当前输入段固化为 chip。
+    let chips_box = gtk::FlowBox::new();
+    chips_box.set_selection_mode(gtk::SelectionMode::None);
+    chips_box.add_css_class("preview-tag-entry-chips");
+    layout.body.append(&chips_box);
+
     let entry = gtk::Entry::new();
     entry.add_css_class("preview-tag-entry");
     entry.set_placeholder_text(Some(&crate::i18n::tr("Tag name")));
@@ -210,14 +216,35 @@ pub(super) fn show_add_tag_modal(parent: &gtk::Widget, path: PathBuf, on_added: 
     });
     layer.add_controller(keys);
 
+    let names: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+
+    // 输入中以空格分隔：末尾空格出现时，把已输入的全部段落固化为 chip。
+    let chips_for_split = chips_box.clone();
+    let names_for_split = Rc::clone(&names);
+    entry.connect_changed(move |entry| {
+        if !entry.text().chars().next_back().is_some_and(is_tag_separator) {
+            return;
+        }
+        for name in split_tag_input(&entry.text()) {
+            append_tag_chip(&chips_for_split, &names_for_split, &name);
+        }
+        entry.set_text("");
+    });
+
     let submit: Rc<dyn Fn()> = Rc::new({
         let entry = entry.clone();
+        let chips_box = chips_box.clone();
+        let names = Rc::clone(&names);
         let confirm = confirm.clone();
         let error = error.clone();
         let dismiss = dismiss.clone();
         move || {
-            let name = entry.text().trim().to_owned();
-            if name.is_empty() {
+            // 未以空格结尾的剩余输入也一并提交。
+            for name in split_tag_input(&entry.text()) {
+                append_tag_chip(&chips_box, &names, &name);
+            }
+            let tags: Vec<String> = names.borrow().clone();
+            if tags.is_empty() {
                 return;
             }
             confirm.set_sensitive(false);
@@ -227,7 +254,12 @@ pub(super) fn show_add_tag_modal(parent: &gtk::Widget, path: PathBuf, on_added: 
             std::thread::spawn(move || {
                 let result = crate::knowledge::init()
                     .ok_or_else(|| "知识库不可用".to_owned())
-                    .and_then(|knowledge| knowledge.add_tag(&path, &name));
+                    .and_then(|knowledge| {
+                        for name in &tags {
+                            knowledge.add_tag(&path, name)?;
+                        }
+                        Ok(())
+                    });
                 let _ = sender.send(result);
             });
             let on_added = on_added.clone();
@@ -314,6 +346,56 @@ fn show_remove_error(parent: &gtk::Widget, message: &str) {
     dialog.show(Some(&window));
 }
 
+/// 标签分隔符：空白字符 + 中英文逗号分号。
+fn is_tag_separator(c: char) -> bool {
+    c.is_whitespace() || matches!(c, ',' | '，' | ';' | '；')
+}
+
+/// 按分隔符拆分输入文本为标签名列表；空段与重复项由调用方处理。
+fn split_tag_input(text: &str) -> Vec<String> {
+    text.split(is_tag_separator)
+        .filter(|part| !part.is_empty())
+        .map(|part| part.to_owned())
+        .collect()
+}
+
+/// 把 `name` 加入 chip 集合并渲染到 `chips_box`；同名已存在时跳过。
+fn append_tag_chip(chips_box: &gtk::FlowBox, names: &Rc<RefCell<Vec<String>>>, name: &str) {
+    if names.borrow().iter().any(|existing| existing == name) {
+        return;
+    }
+    names.borrow_mut().push(name.to_owned());
+
+    let chip = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+    chip.add_css_class("preview-tag-chip");
+    chip.set_tooltip_text(Some(name));
+
+    let label = gtk::Label::new(Some(name));
+    chip.append(&label);
+
+    let remove = gtk::Button::new();
+    remove.add_css_class("preview-tag-remove");
+    remove.set_child(Some(&crate::assets::primary_icon(
+        crate::assets::icons::X,
+        10,
+    )));
+    let remove_label = crate::i18n::tr("Remove tag");
+    remove.set_tooltip_text(Some(&remove_label));
+    crate::ui::accessibility::set_own_label(&remove, &remove_label);
+
+    let name = name.to_owned();
+    let names = Rc::clone(names);
+    let chip_for_closure = chip.clone();
+    let chips_box_for_closure = chips_box.clone();
+    remove.connect_clicked(move |_| {
+        names.borrow_mut().retain(|existing| existing != &name);
+        chips_box_for_closure.remove(&chip_for_closure);
+    });
+
+    chip.append(&remove);
+    chips_box.append(&chip);
+}
+
 /// 用既有标签做输入补全。
 #[expect(
     deprecated,
@@ -338,6 +420,51 @@ fn attach_tag_completions(entry: &gtk::Entry) {
 mod tests {
     use super::*;
     use crate::test_support::gtk_test;
+
+    #[test]
+    fn split_tag_input_splits_on_whitespace() {
+        assert_eq!(split_tag_input("设计 文档"), vec!["设计", "文档"]);
+        assert_eq!(split_tag_input("  设计   文档  "), vec!["设计", "文档"]);
+        assert_eq!(split_tag_input("设计"), vec!["设计"]);
+        assert!(split_tag_input("   ").is_empty());
+        assert!(split_tag_input("").is_empty());
+    }
+
+    #[test]
+    fn split_tag_input_splits_on_commas_and_semicolons() {
+        assert_eq!(
+            split_tag_input("设计，文档;备忘，计划"),
+            vec!["设计", "文档", "备忘", "计划"]
+        );
+        assert_eq!(split_tag_input("设计,文档；备忘"), vec!["设计", "文档", "备忘"]);
+        assert_eq!(split_tag_input("设计，,"), vec!["设计"]);
+        // 全角空格（U+3000）也是分隔符。
+        assert_eq!(split_tag_input("设计　文档"), vec!["设计", "文档"]);
+    }
+
+    #[test]
+    fn append_tag_chip_dedups_and_removes() {
+        gtk_test("ui::preview::tags_bar::tests::append_tag_chip_dedups_and_removes", || {
+            let chips = gtk::FlowBox::new();
+            let names: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+            append_tag_chip(&chips, &names, "alpha");
+            append_tag_chip(&chips, &names, "alpha");
+            append_tag_chip(&chips, &names, "beta");
+            assert_eq!(*names.borrow(), vec!["alpha".to_owned(), "beta".to_owned()]);
+
+            let chip_widget = chips.child_at_index(0).expect("first chip exists");
+            // FlowBox 会把 child 包进 FlowBoxChild，先解包拿到 chip Box 本体。
+            let chip_box = chip_widget
+                .first_child()
+                .expect("flowbox child wraps the chip box");
+            let remove = chip_box
+                .last_child()
+                .and_downcast::<gtk::Button>()
+                .expect("chip ends with its remove button");
+            remove.emit_clicked();
+            assert_eq!(*names.borrow(), vec!["beta".to_owned()]);
+        });
+    }
 
     #[test]
     fn chips_offer_a_remove_button_per_tag() {
