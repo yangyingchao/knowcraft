@@ -3,8 +3,12 @@
 ## [Unreleased]
 
 ### Added
+- 添加标签支持分隔符批量输入与实时预览 (4d8ee94)
 ### Changed
+- kc launch 改名 run，gui 支持 --ai 开关 (826afda)
+
 ### Fixed
+- 修复移动/复制目标对话框在库外路径下空白 (826afda)
 
 ## [v0.2.2] - 2026-11-16
 
