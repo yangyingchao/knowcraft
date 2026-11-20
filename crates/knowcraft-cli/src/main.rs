@@ -509,7 +509,10 @@ enum Cmd {
     },
     /// 文档查看服务：pdf-tools 协议常驻 server
     #[command(
-        long_about = "文档查看服务：pdf-tools 的 epdfinfo 后端，协议兼容。\\n\\n从 stdin 逐行读协议命令（open/renderpage/search 等），响应写 stdout，\\\n        quit 或 EOF 后退出；可选 ERROR-LOGFILE 参数把 stderr 追写到该文件（默认 /dev/null）。\\\n        纯文档服务，不初始化知识库、不获取写锁，可与其他 kc 命令并行。"
+        long_about = "文档查看服务：pdf-tools 的 epdfinfo 后端，协议兼容。\n\n\
+        从 stdin 逐行读协议命令（open/renderpage/search 等），响应写 stdout，quit 或 EOF 后退出；\
+        可选 ERROR-LOGFILE 参数把 stderr 追写到该文件（默认 /dev/null）。\n\n \
+        纯文档服务，不初始化知识库、不获取写锁，可与其他 kc 命令并行。"
     )]
     DocServer {
         /// stderr 追写目标；省略时丢弃

@@ -1,7 +1,7 @@
 //! Temporary file creation, mirroring `mktempfile`'s observable behaviour.
 
 use std::ffi::CString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -40,6 +40,6 @@ pub fn create() -> Option<PathBuf> {
     None
 }
 
-pub fn path_string(path: &PathBuf) -> String {
+pub fn path_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }

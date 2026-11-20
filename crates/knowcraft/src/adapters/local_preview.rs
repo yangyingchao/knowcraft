@@ -216,7 +216,7 @@ thread_local! {
         recent: VecDeque::new(),
         byte_count: 0,
     });
-    static PREFETCH_CANCELLATIONS: RefCell<Vec<Cancellation>> = RefCell::new(Vec::new());
+    static PREFETCH_CANCELLATIONS: RefCell<Vec<Cancellation>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Stops in-flight background prefetches so an interactive render can take the slot.

@@ -61,13 +61,14 @@ pub struct PdfDocument {
 
 /// One open document: a PDF, or a Word document rendered by WordCraft.
 pub enum Document {
-    Pdf(PdfDocument),
-    Word(crate::viewer::word::WordDocument),
+    // 两侧都装箱：任何一种按值存放都会把枚举撑到 1.2KB 以上，移动时整体拷贝。
+    Pdf(Box<PdfDocument>),
+    Word(Box<crate::viewer::word::WordDocument>),
 }
 
 fn render_config(password: Option<&str>) -> RenderConfig {
     RenderConfig {
-        password: password.map(|p| Arc::<str>::from(p)),
+        password: password.map(Arc::<str>::from),
         ..RenderConfig::default()
     }
 }
@@ -680,15 +681,13 @@ impl Document {
     pub fn open(filename: &str, password: Option<&str>) -> Result<Self, String> {
         let bytes = std::fs::read(filename).map_err(|e| e.to_string())?;
         if bytes.starts_with(b"%PDF-") {
-            Ok(Document::Pdf(PdfDocument::from_bytes(
+            Ok(Document::Pdf(Box::new(PdfDocument::from_bytes(
                 filename, bytes, password,
-            )?))
+            )?)))
         } else {
-            Ok(Document::Word(crate::viewer::word::WordDocument::from_bytes(
-                filename,
-                &bytes,
-                password,
-            )?))
+            Ok(Document::Word(Box::new(
+                crate::viewer::word::WordDocument::from_bytes(filename, &bytes, password)?,
+            )))
         }
     }
 

@@ -65,6 +65,9 @@ pub enum IndexEvent {
     Done(IndexReport),
 }
 
+/// 单个文档的正文提取结果：正文与可选标题。
+type Extracted = (String, Option<String>);
+
 pub struct IndexMaintenance {
     store: Store,
     index: Index,
@@ -251,7 +254,7 @@ impl IndexMaintenance {
         }
         let workers = self.threads.min(docs.len()).max(1);
         let next = AtomicUsize::new(0);
-        let outcomes: Mutex<Vec<(usize, Result<(String, Option<String>)>)>> =
+        let outcomes: Mutex<Vec<(usize, Result<Extracted>)>> =
             Mutex::new(Vec::with_capacity(docs.len()));
         std::thread::scope(|scope| {
             for _ in 0..workers {

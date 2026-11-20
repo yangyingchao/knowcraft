@@ -226,8 +226,7 @@ fn gdbus(arguments: &[&str]) -> Result<String, Error> {
             ErrorCode::CommandFailed,
             format!(
                 "gdbus failed for {}",
-                arguments
-                    .get(arguments.len() - 1)
+                arguments.last()
                     .copied()
                     .unwrap_or("a D-Bus service")
             ),

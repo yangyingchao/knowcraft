@@ -302,6 +302,9 @@ pub(super) fn prompt_note(parent: &gtk::Widget, initial: &str, on_accept: Rc<dyn
     text.grab_focus();
 }
 
+/// 标注失败时把消息交给 UI 显示。
+type ErrorReport = Rc<dyn Fn(&str)>;
+
 /// 与渲染方式无关的标注状态机。
 pub(super) struct AnnotationController {
     document_id: Cell<Option<i64>>,
@@ -311,7 +314,7 @@ pub(super) struct AnnotationController {
     stale: RefCell<Vec<String>>,
     pending_range: RefCell<Option<String>>,
     on_update: RefCell<Option<Rc<dyn Fn()>>>,
-    on_error: RefCell<Option<Rc<dyn Fn(&str)>>>,
+    on_error: RefCell<Option<ErrorReport>>,
 }
 
 impl AnnotationController {

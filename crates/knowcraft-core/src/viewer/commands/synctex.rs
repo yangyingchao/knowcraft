@@ -64,7 +64,6 @@ pub fn backward_search(session: &mut Session, args: &[ArgValue], out: &mut Respo
     let tag = node.tag();
     let line = node.line();
     let column = node.column();
-    drop(node);
     let filename = scanner
         .name_for_tag(tag)
         .ok_or_else(|| "Destination not found".to_string())?;

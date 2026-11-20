@@ -25,8 +25,8 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             runner: ubuntu-24.04
-          - target: aarch64-unknown-linux-gnu
-            runner: ubuntu-24.04-arm
+          # - target: aarch64-unknown-linux-gnu
+          #   runner: ubuntu-24.04-arm
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -48,18 +48,6 @@ jobs:
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: release-fat-${{ matrix.target }}
-
-      - name: Resolve build kind from the tag
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          case "$TAG" in
-            *-rc*) kind=rc ;;
-            *-beta*) kind=beta ;;
-            *-alpha*) kind=alpha ;;
-            *) kind=stable ;;
-          esac
-          echo "KNOWCRAFT_BUILD_KIND=$kind" >> "$GITHUB_ENV"
 
       - name: Build release binaries
         env:

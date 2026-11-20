@@ -115,7 +115,7 @@ where
                 Poll::Ready(result) => {
                     registered = true;
                     if result.is_err() {
-                        return Poll::Ready(result.map(|()| ()));
+                        return Poll::Ready(result);
                     }
                 }
                 Poll::Pending => {}

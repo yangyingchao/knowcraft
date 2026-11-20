@@ -31,20 +31,6 @@ fn main() {
         .or_else(git_commit)
         .unwrap_or_else(|| "unknown".to_owned());
     println!("cargo::rustc-env=KNOWCRAFT_BUILD_COMMIT={commit}");
-
-    println!("cargo::rerun-if-env-changed=KNOWCRAFT_BUILD_KIND");
-
-    let build_kind = env::var("KNOWCRAFT_BUILD_KIND")
-        .ok()
-        .and_then(|value| value.lines().next().map(str::trim).map(str::to_owned))
-        .filter(|value| {
-            matches!(
-                value.as_str(),
-                "stable" | "alpha" | "beta" | "rc" | "nightly"
-            )
-        })
-        .unwrap_or_else(|| "stable".to_owned());
-    println!("cargo::rustc-env=KNOWCRAFT_BUILD_KIND={build_kind}");
 }
 
 /// Extra host helper directories are embedded verbatim, so a relative or empty

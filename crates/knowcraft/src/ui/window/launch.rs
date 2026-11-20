@@ -162,7 +162,7 @@ pub(crate) fn home_directory() -> PathBuf {
 /// the store is unavailable.
 pub(crate) fn home_folder_location() -> Location {
     crate::knowledge::data_dir()
-        .map(|directory| Location::local(directory))
+        .map(Location::local)
         .unwrap_or_else(|| Location::local(home_directory()))
 }
 

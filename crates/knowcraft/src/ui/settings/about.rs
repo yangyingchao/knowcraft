@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 use super::{page_content, scrollable_page, settings_group};
-use crate::{assets::icons, services};
+use crate::assets::icons;
 use gtk::prelude::*;
 
 pub(super) fn about_page() -> gtk::Widget {
@@ -28,13 +28,6 @@ pub(super) fn about_page() -> gtk::Widget {
     let name = gtk::Label::new(Some("Knowcraft"));
     name.add_css_class("about-name");
     heading.append(&name);
-    let kind = crate::build_info::build_kind();
-    if kind != services::BuildKind::Stable {
-        let badge = gtk::Label::new(Some(&kind.localized_label()));
-        badge.add_css_class("prerelease-badge");
-        badge.set_valign(gtk::Align::Center);
-        heading.append(&badge);
-    }
     copy.append(&heading);
     let description = gtk::Label::new(Some(&crate::i18n::tr("Turn files into knowledge.")));
     description.set_xalign(0.0);

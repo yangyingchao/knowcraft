@@ -1,8 +1,7 @@
 //! The read-only Word backend: `.docx`, Flat OPC, WordML 2003 and `.doc`, laid out and
 //! rasterised by WordCraft.
 
-use wordcraft_doc::{Document as WDocument, StoryRef};
-use wordcraft_layout::para::ParaLayout;
+use wordcraft_doc::Document as WDocument;
 use wordcraft_layout::{
     DocLayout, LayoutCache, LayoutOptions, Page, Placed, ViewMode, layout,
 };
@@ -163,7 +162,7 @@ impl WordDocument {
         let scale = width as f32 / page.w.max(1e-3);
         let rendered = render_page(&self.doc, page, scale, &RenderOptions::default());
         let mut words = Vec::with_capacity(rendered.pixels.len() / 4);
-        for px in rendered.pixels.chunks_exact(4) {
+        for px in rendered.pixels.as_chunks::<4>().0 {
             words.push(u32::from_le_bytes([px[0], px[1], px[2], px[3]]));
         }
         let image = RgbImage::from_words(rendered.width, rendered.height, &words);
@@ -188,25 +187,13 @@ impl WordDocument {
             .chain(page.items.iter())
             .chain(page.footer.iter());
         for item in items {
-            let Placed::Lines {
-                story,
-                path,
-                para,
-                l0,
-                l1,
-                x,
-                y,
-                turn,
-            } = item
-            else {
+            let Placed::Lines { turn, .. } = item else {
                 continue;
             };
             if turn.is_turned() {
                 continue;
             }
-            push_lines(
-                &self.doc, *story, path, para, *l0, *l1, *x, *y, &mut line, &mut out,
-            );
+            push_lines(&self.doc, item, &mut line, &mut out);
         }
         out
     }
@@ -286,22 +273,26 @@ impl WordDocument {
     }
 }
 
-fn push_lines(
-    doc: &WDocument,
-    story: StoryRef,
-    path: &wordcraft_doc::Path,
-    para: &ParaLayout,
-    l0: usize,
-    l1: usize,
-    x: f32,
-    y: f32,
-    line: &mut u32,
-    out: &mut Vec<CharBox>,
-) {
+fn push_lines(doc: &WDocument, item: &Placed, line: &mut u32, out: &mut Vec<CharBox>) {
+    let Placed::Lines {
+        story,
+        path,
+        para,
+        l0,
+        l1,
+        x,
+        y,
+        ..
+    } = item
+    else {
+        return;
+    };
+    let (l0, l1) = (*l0, *l1);
+    let (x, y) = (*x, *y);
     let Some(first_top) = para.lines.get(l0).map(|l| l.top) else {
         return;
     };
-    let Some(text) = doc.para(story, path).map(|p| p.text.as_str()) else {
+    let Some(text) = doc.para(*story, path).map(|p| p.text.as_str()) else {
         return;
     };
     for (n, li) in (l0..l1).enumerate() {

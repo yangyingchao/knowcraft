@@ -127,9 +127,9 @@ pub fn epoch_seconds(value: &str) -> Option<i64> {
 /// `ctime` output without its trailing newline, in local time.
 pub fn ctime(seconds: i64) -> String {
     let mut buf = [0i8; 64];
-    let mut t: libc::time_t = seconds as libc::time_t;
+    let t: libc::time_t = seconds as libc::time_t;
     // SAFETY: `buf` has room for the 26 byte ctime string, `t` is a valid time value.
-    let p = unsafe { libc::ctime_r(&mut t, buf.as_mut_ptr()) };
+    let p = unsafe { libc::ctime_r(&t, buf.as_mut_ptr()) };
     if p.is_null() {
         return String::new();
     }

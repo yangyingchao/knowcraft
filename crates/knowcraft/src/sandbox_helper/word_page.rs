@@ -20,12 +20,12 @@ pub(super) struct RenderedPage {
     pub(super) text: Option<Vec<u8>>,
 }
 
+/// 一页的渲染结果：PNG、`page pages` 元数据与可选文本层 JSON。
+pub(super) type PagePreview = (Vec<u8>, String, Option<Vec<u8>>);
+
 /// Renders the requested page of `format:page:WxH`, returning its PNG, its
 /// `page pages` metadata and the optional text layer JSON.
-pub(super) fn preview(
-    input: &Path,
-    value: &str,
-) -> Result<(Vec<u8>, String, Option<Vec<u8>>), String> {
+pub(super) fn preview(input: &Path, value: &str) -> Result<PagePreview, String> {
     let (format, page, size) = render_request(value)?;
     let document = read_document(input, format)?;
     let mut cache = LayoutCache::new();

@@ -22,21 +22,3 @@ fn default_release_tag_omits_the_short_hash() {
         "short hash leaked into {RELEASE_TAG:?}"
     );
 }
-
-/// A tagged build parses to `VERSION`; an untagged build (`v0.1.1-N`) does
-/// not match the release-channel grammar, so callers that need a comparable
-/// version fall back to the `0.0.0` floor rather than panicking.
-#[test]
-fn release_tag_matches_the_core_version_when_tagged() {
-    if let Some(parsed) = crate::services::Version::parse(RELEASE_TAG) {
-        assert_eq!(parsed.to_string(), VERSION);
-    }
-}
-
-/// A developer build has no `KNOWCRAFT_BUILD_KIND` override, so it must
-/// report itself as `Stable` -- the fallback that keeps a build unable to
-/// identify itself from silently claiming to be a preview.
-#[test]
-fn developer_build_reports_stable_build_kind() {
-    assert_eq!(build_kind(), BuildKind::Stable);
-}

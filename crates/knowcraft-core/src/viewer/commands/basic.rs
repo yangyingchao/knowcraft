@@ -63,7 +63,7 @@ pub fn getoptions(session: &mut Session, args: &[ArgValue], out: &mut Response) 
 pub fn setoptions(session: &mut Session, args: &[ArgValue], out: &mut Response) -> CmdResult {
     let key = args[0].doc().to_string();
     let rest = args[1].rest();
-    if rest.len() % 2 != 0 {
+    if !rest.len().is_multiple_of(2) {
         return Err("Even number of key/value pairs expected".to_string());
     }
     let mut updates: Vec<(usize, ArgValue)> = Vec::new();

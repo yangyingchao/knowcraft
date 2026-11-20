@@ -125,9 +125,7 @@ pub fn text(doc: &PdfDocument, dict: &pdfcraft_cos::Dict, key: &[u8]) -> Option<
 
 pub fn rect(doc: &PdfDocument, dict: &pdfcraft_cos::Dict, key: &[u8]) -> Option<[f64; 4]> {
     let o = get(doc, dict, key)?;
-    let Some(items) = o.as_array() else {
-        return None;
-    };
+    let items = o.as_array()?;
     if items.len() < 4 {
         return None;
     }
@@ -281,7 +279,7 @@ fn quad_region(doc: &PdfDocument, dict: &pdfcraft_cos::Dict, page: &PageInfo) ->
         .filter_map(|v| number(&resolved(doc, v)))
         .collect();
     let height = page.height as f64;
-    for quad in nums.chunks_exact(8) {
+    for quad in nums.as_chunks::<8>().0 {
         let mut xs = [0.0f64; 4];
         let mut ys = [0.0f64; 4];
         for k in 0..4 {

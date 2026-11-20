@@ -100,7 +100,7 @@ fn recolor_lightness(image: &mut RgbImage, fg: [u16; 3], bg: [u16; 3]) {
         rgb_bg.g - rgb_fg.g,
         rgb_bg.b - rgb_fg.b,
     );
-    for px in image.data.chunks_exact_mut(3) {
+    for px in image.data.as_chunks_mut::<3>().0 {
         let rgb = Color::new(
             px[0] as f64 / 256.0,
             px[1] as f64 / 256.0,
@@ -123,7 +123,7 @@ fn recolor_oklab(image: &mut RgbImage, fg: [u16; 3], bg: [u16; 3]) {
     let oklab_fg = rgb2oklab(rgb_fg);
     let oklab_bg = rgb2oklab(rgb_bg);
     let oklab_diff_l = oklab_fg.r - oklab_bg.r;
-    for px in image.data.chunks_exact_mut(3) {
+    for px in image.data.as_chunks_mut::<3>().0 {
         let rgb = Color::new(
             px[0] as f64 / 256.0,
             px[1] as f64 / 256.0,

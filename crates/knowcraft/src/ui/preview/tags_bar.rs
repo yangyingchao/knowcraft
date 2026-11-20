@@ -14,13 +14,16 @@ use crate::ui::controls::modal_layout;
 use crate::ui::keys::{self, bindings::ESCAPE_ANY};
 use crate::ui::modal::{ModalHost, dismiss_modal_layer, modal_layer, remember_modal_focus};
 
+/// 删除 chip 时回调标签名。
+type RemoveHandler = Rc<dyn Fn(&str)>;
+
 /// 垂直标签条；标题行右侧的「+」弹出添加对话框，chip 悬停时显示删除叉号。
 #[derive(Clone, Default)]
 pub(super) struct TagsBar {
     widget: gtk::Box,
     chips: gtk::Box,
     add_button: gtk::Button,
-    remove_handler: Rc<RefCell<Option<Rc<dyn Fn(&str)>>>>,
+    remove_handler: Rc<RefCell<Option<RemoveHandler>>>,
 }
 
 /// 标签栏宽度；长标签截断显示，悬停看全文。

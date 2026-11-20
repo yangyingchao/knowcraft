@@ -1928,16 +1928,6 @@ menubutton > button arrow.down {
   font-weight: 700;
 }
 
-.prerelease-badge {
-  background: alpha(@knowcraft_danger, 0.14);
-  border: 1px solid @knowcraft_danger;
-  border-radius: 999px;
-  color: @knowcraft_danger;
-  font-size: 0.78em;
-  font-weight: 700;
-  padding: 2px 9px;
-}
-
 .release-notes-content {
   color: @knowcraft_dim_text;
   line-height: 1.3;

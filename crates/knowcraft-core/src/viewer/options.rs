@@ -3,6 +3,7 @@
 use crate::viewer::protocol::encode::escape;
 
 #[derive(Clone, Debug)]
+#[derive(Default)]
 pub struct Options {
     pub usecolors: i64,
     pub printed: bool,
@@ -11,17 +12,6 @@ pub struct Options {
     pub background: [u16; 3],
 }
 
-impl Default for Options {
-    fn default() -> Self {
-        // `document_t` is allocated with g_malloc0, so the colours start black.
-        Self {
-            usecolors: 0,
-            printed: false,
-            foreground: [0, 0, 0],
-            background: [0, 0, 0],
-        }
-    }
-}
 
 pub const NAMES: [&str; 4] = [
     ":render/usecolors",

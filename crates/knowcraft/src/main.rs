@@ -1,5 +1,12 @@
 // SPDX-License-Identifier: MIT
 
+// rust_i18n 宏展开里带出一处多余的 into_owned，span 指向宏调用本身、没有可改源码；
+// 该 lint 在属性上标注会被忽略，只能提到 crate 级。范围限于本 bin。
+#![expect(
+    clippy::unnecessary_to_owned,
+    reason = "rust_i18n 宏展开产生，源码不可改"
+)]
+
 // build.rs embeds data/locales; this path holds no catalogs, so the macro adds none itself.
 rust_i18n::i18n!(
     "src/i18n/no-catalogs",

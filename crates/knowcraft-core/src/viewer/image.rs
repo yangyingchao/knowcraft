@@ -20,10 +20,10 @@ impl RgbImage {
         let height = height as usize;
         let mut data = Vec::with_capacity(width * height * 3);
         for &word in words.iter().take(width * height) {
-            let r = (word & 0xff) as u32;
-            let g = ((word >> 8) & 0xff) as u32;
-            let b = ((word >> 16) & 0xff) as u32;
-            let a = ((word >> 24) & 0xff) as u32;
+            let r = word & 0xff;
+            let g = (word >> 8) & 0xff;
+            let b = (word >> 16) & 0xff;
+            let a = (word >> 24) & 0xff;
             let inv = 255 - a;
             data.push((r + inv).min(255) as u8);
             data.push((g + inv).min(255) as u8);
@@ -47,10 +47,10 @@ impl RgbImage {
         }
         let alpha = alpha.clamp(0.0, 1.0);
         let i = (y * self.width + x) * 3;
-        for c in 0..3 {
-            let old = self.data[i + c] as f64;
-            let new = rgb[c] * 255.0;
-            self.data[i + c] = (old + (new - old) * alpha).round().clamp(0.0, 255.0) as u8;
+        for (slot, channel) in self.data[i..i + 3].iter_mut().zip(rgb) {
+            let old = *slot as f64;
+            let new = channel * 255.0;
+            *slot = (old + (new - old) * alpha).round().clamp(0.0, 255.0) as u8;
         }
     }
 

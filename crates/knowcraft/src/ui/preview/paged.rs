@@ -26,13 +26,16 @@ pub(super) struct PagedFirstPage {
     pub(super) text_layer: Option<Arc<PageTextLayer>>,
 }
 
+/// 先拿到按下的回调：PDF 命中标注时返回 true，使按下不进选择与平移。
+pub(super) type PressCapture = Rc<dyn Fn(&gtk::ScrolledWindow, (f64, f64)) -> bool>;
+
 /// Format-specific behaviour a paged preview can trigger.
 #[derive(Default)]
 pub(super) struct PagedHooks {
     /// Runs after the selection changed; PDF shows or hides its annotation toolbar.
     pub(super) selection_changed: Option<Rc<dyn Fn()>>,
     /// Gets the press first (PDF annotation hits); true keeps it out of selection and panning.
-    pub(super) press_capture: Option<Rc<dyn Fn(&gtk::ScrolledWindow, (f64, f64)) -> bool>>,
+    pub(super) press_capture: Option<PressCapture>,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]

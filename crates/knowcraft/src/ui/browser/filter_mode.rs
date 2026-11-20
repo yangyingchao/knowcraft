@@ -147,13 +147,16 @@ impl ModeView<'_> {
     }
 }
 
+/// 过滤器打开的查询来源；控制器变化后回调一次。
+type QueryListener = Rc<dyn Fn(QuerySource)>;
+
 /// Applies a transition while keeping the other toggle's programmatic flip silent.
 fn apply(
     view: &ModeView<'_>,
     transition: Transition,
     source: QuerySource,
     syncing: &Cell<bool>,
-    listener: &RefCell<Option<Rc<dyn Fn(QuerySource)>>>,
+    listener: &RefCell<Option<QueryListener>>,
 ) {
     match transition {
         Transition::Open | Transition::Switch => {
@@ -172,7 +175,7 @@ fn hide(view: &ModeView<'_>, syncing: &Cell<bool>) {
     syncing.set(false);
 }
 
-fn notify(listener: &RefCell<Option<Rc<dyn Fn(QuerySource)>>>, source: QuerySource) {
+fn notify(listener: &RefCell<Option<QueryListener>>, source: QuerySource) {
     let listener = listener.borrow().clone();
     if let Some(listener) = listener {
         listener(source);
@@ -190,7 +193,7 @@ pub(in crate::ui) struct FilterModeController {
     entry: gtk::Entry,
     filter_placeholder: Rc<RefCell<String>>,
     search_placeholder: String,
-    listener: Rc<RefCell<Option<Rc<dyn Fn(QuerySource)>>>>,
+    listener: Rc<RefCell<Option<QueryListener>>>,
 }
 
 impl FilterModeController {
