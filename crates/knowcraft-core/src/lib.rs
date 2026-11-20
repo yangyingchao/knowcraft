@@ -27,6 +27,7 @@ pub mod text_annotations;
 pub mod trash;
 pub mod trusted_command;
 pub mod util;
+pub mod viewer;
 pub mod watcher;
 pub mod workflow;
 

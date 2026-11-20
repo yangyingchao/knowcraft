@@ -33,6 +33,27 @@ fn main() {
         .unwrap_or(&release_tag)
         .to_owned();
     println!("cargo::rustc-env=KNOWCRAFT_VERSION={version}");
+
+    build_synctex();
+}
+
+/// 编译 vendored 的 SyncTeX 1.21 解析器（viewer 模块的 FFI 绑定使用）。
+fn build_synctex() {
+    let src = Path::new("src/synctex");
+    let mut build = cc::Build::new();
+    build
+        .file(src.join("synctex_parser.c"))
+        .file(src.join("synctex_parser_utils.c"))
+        .include(src)
+        .warnings(false)
+        .define("SYNCTEX_NO_DEPRECATED", None);
+    build.compile("synctex");
+    println!("cargo:rustc-link-lib=z");
+    println!("cargo:rerun-if-changed={}", src.join("synctex_parser.c").display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        src.join("synctex_parser_utils.c").display()
+    );
 }
 
 /// 由 git tag 派生的版本（含 `v` 前缀）：去掉 `git describe --long` 的
