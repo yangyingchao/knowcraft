@@ -6,6 +6,11 @@
 ### Changed
 ### Fixed
 
+## [v0.2.4] - 2026-11-20
+
+### Added
+- 新增 kc doc-server 子命令接管 pdf-tools 后端 (33206cd)
+
 ## [v0.2.3] - 2026-11-20
 
 ### Added
@@ -37,7 +42,8 @@
 - 统一 settings.toml：core 字段留顶层，GUI 偏好移入 [gui] (0c71eaa)
 - 库外文件删除改走系统回收站 (d9718de)
 
-[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.2.4...HEAD
+[v0.2.4]: https://github.com/yangyingchao/knowcraft/compare/v0.2.3...v0.2.4
 [v0.2.3]: https://github.com/yangyingchao/knowcraft/compare/v0.2.2...v0.2.3
 [v0.2.2]: https://github.com/yangyingchao/knowcraft/compare/v0.2.1...v0.2.2
 [v0.2.1]: https://github.com/yangyingchao/knowcraft/compare/v0.2.0...v0.2.1
