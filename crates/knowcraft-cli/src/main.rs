@@ -507,6 +507,15 @@ enum Cmd {
         #[command(subcommand)]
         cmd: ActivateCmd,
     },
+    /// 文档查看服务：pdf-tools 协议常驻 server
+    #[command(
+        long_about = "文档查看服务：pdf-tools 的 epdfinfo 后端，协议兼容。\\n\\n从 stdin 逐行读协议命令（open/renderpage/search 等），响应写 stdout，\\\n        quit 或 EOF 后退出；可选 ERROR-LOGFILE 参数把 stderr 追写到该文件（默认 /dev/null）。\\\n        纯文档服务，不初始化知识库、不获取写锁，可与其他 kc 命令并行。"
+    )]
+    DocServer {
+        /// stderr 追写目标；省略时丢弃
+        #[arg(value_name = "ERROR-LOGFILE")]
+        error_log: Option<String>,
+    },
     /// 外部 send-to 插件：列出可用插件或发送文件
     #[command(
         long_about = "外部 send-to 插件：列出可用插件或发送文件\n\n插件由外部注册；发送时自动选择唯一的发送动作。\n\n该组命令只读插件清单与发送文件，不打开数\
@@ -524,6 +533,10 @@ fn main() -> anyhow::Result<()> {
         let mut cmd = Cli::command();
         generate(Shell::from(*shell), &mut cmd, "kc", &mut std::io::stdout());
         return Ok(());
+    }
+    if let Cmd::DocServer { error_log } = &cli.cmd {
+        // 纯文档服务：不加载配置、不开 store、不碰写锁，须在 Config::load 之前返回。
+        return run_doc_server(error_log.as_deref());
     }
     if let Cmd::Search { limit, .. } = &cli.cmd {
         if *limit < -1 {
@@ -571,6 +584,7 @@ fn main() -> anyhow::Result<()> {
     match cli.cmd {
         // Init、Upgrade 与 Sendto 等在上面已提前返回。
         Cmd::Init { .. } => {}
+        Cmd::DocServer { .. } => {}
         Cmd::Upgrade => {}
         Cmd::Sendto { .. } => {}
         Cmd::Activate { .. } => {}
@@ -1156,6 +1170,91 @@ fn main() -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+/// 文档查看服务主循环：逐行读协议命令，响应写 stdout。
+///
+/// 行为与 pdf-tools 的 epdfinfo 一致：`quit` 或 stdin EOF 后退出码 0，
+/// 读错误退出码 2；命令出错返回 ERR 记录并继续。
+fn run_doc_server(error_log: Option<&str>) -> anyhow::Result<()> {
+    use std::io::{BufRead, Write};
+
+    use knowcraft_core::viewer::commands::Flow;
+    use knowcraft_core::viewer::protocol::encode::Response;
+    use knowcraft_core::viewer::protocol::ParsedLine;
+
+    if !redirect_stderr(error_log.unwrap_or("/dev/null")) {
+        eprintln!("kc doc-server: Unable to redirect stderr");
+        std::process::exit(2);
+    }
+
+    let mut session = knowcraft_core::viewer::Session::new();
+    let stdin = std::io::stdin();
+    let mut reader = std::io::BufReader::new(stdin.lock());
+    let stdout = std::io::stdout();
+    let mut writer = stdout.lock();
+
+    loop {
+        let mut line: Vec<u8> = Vec::new();
+        match reader.read_until(b'\n', &mut line) {
+            Ok(0) => break,
+            Ok(n) => {
+                if n <= 1 || line.last() != Some(&b'\n') {
+                    eprintln!(
+                        "Skipped parts of a line: `{}'",
+                        String::from_utf8_lossy(&line)
+                    );
+                    continue;
+                }
+                line.pop();
+                let text = String::from_utf8_lossy(&line).into_owned();
+                let Some(parsed) = ParsedLine::parse(&text) else {
+                    continue;
+                };
+                match knowcraft_core::viewer::commands::run(&mut session, &parsed.name, &parsed.args) {
+                    Ok((response, flow)) => {
+                        let _ = writer.write_all(&response.buf);
+                        let _ = writer.flush();
+                        if matches!(flow, Flow::Quit) {
+                            std::process::exit(0);
+                        }
+                    }
+                    Err(message) => {
+                        let mut response = Response::new();
+                        response.err(&message);
+                        let _ = writer.write_all(&response.buf);
+                        let _ = writer.flush();
+                    }
+                }
+            }
+            Err(_) => std::process::exit(2),
+        }
+    }
+    Ok(())
+}
+
+/// 把 stderr 重定向到 `path`（O_APPEND 追写），与 epdfinfo 行为一致。
+fn redirect_stderr(path: &str) -> bool {
+    use std::ffi::CString;
+    let Ok(c) = CString::new(path) else {
+        return false;
+    };
+    // SAFETY: `c` 是有效的 NUL 结尾路径。
+    let fd = unsafe {
+        libc::open(
+            c.as_ptr(),
+            libc::O_WRONLY | libc::O_APPEND | libc::O_CREAT,
+            0o666,
+        )
+    };
+    if fd < 0 {
+        return false;
+    }
+    // SAFETY: 两个描述符都有效；复制替换 stderr。
+    let ok = unsafe { libc::dup2(fd, libc::STDERR_FILENO) } >= 0;
+    // SAFETY: `fd` 是上面刚打开的，复制后不再需要。
+    unsafe { libc::close(fd) };
+    ok
 }
 
 /// 收集需要索引进 tantivy 的文档：inbox（pending）与 library（archived）。
