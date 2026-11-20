@@ -7,6 +7,17 @@
 ### Fixed
 
 
+## [v0.3.0] - 2026-11-20
+
+### Added
+- 新增 kc doc-server 子命令接管 pdf-tools 后端 (228702c)
+- 新增 kc init 子命令生成 shell 补全脚本 (9bb539a)
+- 添加标签支持分隔符批量输入与实时预览 (4d8ee94)
+
+### Changed
+- 清理 clippy 警告并移除未接线的更新通道 (d4c239b)
+- kc launch 改为 run 并支持 --ai，修复移动对话框库外空白 (826afda)
+
 ## [v0.2.2] - 2026-11-16
 
 ### Added
@@ -26,8 +37,7 @@
 - 统一 settings.toml：core 字段留顶层，GUI 偏好移入 [gui] (0c71eaa)
 - 库外文件删除改走系统回收站 (d9718de)
 
-[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.2.4...HEAD
-[v0.2.4]: https://github.com/yangyingchao/knowcraft/compare/v0.2.3...v0.2.4
-[v0.2.3]: https://github.com/yangyingchao/knowcraft/compare/v0.2.2...v0.2.3
+[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.3.0...HEAD
+[v0.3.0]: https://github.com/yangyingchao/knowcraft/compare/v0.2.2...v0.3.0
 [v0.2.2]: https://github.com/yangyingchao/knowcraft/compare/v0.2.1...v0.2.2
 [v0.2.1]: https://github.com/yangyingchao/knowcraft/compare/v0.2.0...v0.2.1
