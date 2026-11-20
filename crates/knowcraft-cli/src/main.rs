@@ -7,7 +7,8 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
+use clap_complete::{generate, Shell};
 
 use knowcraft_core::desktop_integration::{
     self, Component, Error as DesktopError, ErrorCode, Message as DesktopMessage, MessageCode,
@@ -190,8 +191,33 @@ enum TrashCmd {
     },
 }
 
+#[derive(Clone, Copy, ValueEnum)]
+enum CompletionShell {
+    Bash,
+    Zsh,
+    Fish,
+}
+
+impl From<CompletionShell> for Shell {
+    fn from(value: CompletionShell) -> Self {
+        match value {
+            CompletionShell::Bash => Shell::Bash,
+            CompletionShell::Zsh => Shell::Zsh,
+            CompletionShell::Fish => Shell::Fish,
+        }
+    }
+}
+
 #[derive(Subcommand)]
 enum Cmd {
+    /// 生成 shell 补全脚本，配合 `source <(kc init zsh)` 使用
+    #[command(
+        long_about = "生成 shell 补全脚本，配合 `source <(kc init <shell>)` 使用。\n\n支持 bash、zsh、fish 三种 shell。脚本直接输出到标准输出，无需连接知识库。"
+    )]
+    Init {
+        /// 目标 shell：bash、zsh 或 fish
+        shell: CompletionShell,
+    },
     /// 全文搜索，返回命中的文档 id 与路径
     #[command(
         long_about = "全文搜索，返回命中的文档 id 与路径\n\n查询支持 name: 文件名子串、tags: 标签、kind: 文档类型、fts: 全文四类\
@@ -494,6 +520,11 @@ enum Cmd {
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    if let Cmd::Init { shell } = &cli.cmd {
+        let mut cmd = Cli::command();
+        generate(Shell::from(*shell), &mut cmd, "kc", &mut std::io::stdout());
+        return Ok(());
+    }
     if let Cmd::Search { limit, .. } = &cli.cmd {
         if *limit < -1 {
             anyhow::bail!("--limit must be 0, -1, or a positive number");
@@ -538,7 +569,8 @@ fn main() -> anyhow::Result<()> {
     let store = knowcraft_core::store::Store::open(&cfg.data_dir)?;
     let wf = Workflow::new(store.clone(), cfg.data_dir.clone())?;
     match cli.cmd {
-        // Upgrade 与 Sendto 在上面已提前返回。
+        // Init、Upgrade 与 Sendto 等在上面已提前返回。
+        Cmd::Init { .. } => {}
         Cmd::Upgrade => {}
         Cmd::Sendto { .. } => {}
         Cmd::Activate { .. } => {}

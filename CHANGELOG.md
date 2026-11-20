@@ -3,7 +3,15 @@
 ## [Unreleased]
 
 ### Added
+### Changed
+### Fixed
+
+## [v0.2.3] - 2026-11-20
+
+### Added
 - 添加标签支持分隔符批量输入与实时预览 (4d8ee94)
+- 新增 kc init 子命令生成 shell 补全脚本 (28e20b6)
+
 ### Changed
 - kc launch 改名 run，gui 支持 --ai 开关 (826afda)
 
@@ -29,6 +37,7 @@
 - 统一 settings.toml：core 字段留顶层，GUI 偏好移入 [gui] (0c71eaa)
 - 库外文件删除改走系统回收站 (d9718de)
 
-[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.2.3...HEAD
+[v0.2.3]: https://github.com/yangyingchao/knowcraft/compare/v0.2.2...v0.2.3
 [v0.2.2]: https://github.com/yangyingchao/knowcraft/compare/v0.2.1...v0.2.2
 [v0.2.1]: https://github.com/yangyingchao/knowcraft/compare/v0.2.0...v0.2.1
