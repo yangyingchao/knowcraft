@@ -3,20 +3,23 @@
 基于 strata（GTK4 文件管理器）深改造的知识管理软件原型。Rust workspace，界面上是文件管理器，
 底层维护一个带索引、标签与归档工作流的知识库。
 
-当前处于原型阶段：核心层与 GUI 已打通的部分可直接使用，部分能力（网页捕获、注释、AI）只在 `knowcraft-core` 提供接口，GUI 尚未接入。
+当前处于原型阶段：检索、标签、注释、网页捕获与文档摘要均已接入 GUI；文档摘要依赖 Hermes API Server。
 
 ## 功能
 
 ### 知识库
 
-- 数据根目录固定四个逻辑分区：`inbox/`（收件箱）、`library/`（归档库）、`notes/`（笔记）、`captures/`（网页捕获）。
+- 数据根目录包含四个常规分区：`inbox/`（收件箱）、`library/`（归档库）、`notes/`（笔记）、`captures/`（网页捕获）；按记录归档的文件存放在 `archived/`。
 - 每个文件同时登记为数据库记录（SQLite，WAL 模式），含 UUID、原始文件名、校验和、生命周期状态与索引状态。
 - 导入：文件或目录复制进 `inbox/`，按校验和去重，重复文件不重复登记。
 - 归档：右键菜单提供两种模式。
   - `Archive`：归档到 `library/<分类>`，保留可读目录结构。
-  - `Archive as record`：归档为记录，按 UUID 写入内部存储，文件不再依赖原始路径。
-- 回收站：删除即移入 `<数据根>/.trash`，支持恢复与清空，不经过系统 GIO trash。
-- 标签：预览区标签栏展示当前文档标签并支持添加；标签参与检索。
+  - `Archive as record`：归档为记录，写入 `archived/<扩展名>/<uuid>.<扩展名>`，文件不再依赖原始路径。
+- 回收站：库内删除移入 `<数据根>/.trash/files`，原路径记录在 `.trash/info`，支持恢复与清空，
+  不经过系统 GIO trash；库外文件删除走系统回收站。
+- 标签：预览区标签栏展示当前文档标签并支持添加，输入按空白、中英文逗号或分号批量拆分并实时预览；
+  标签参与检索。
+- 新建：列头的新建按钮为菜单，可新建文件夹或当天日期目录（`YYYY-MM-DD`）；目录右键菜单可新建空文件。
 
 ### 搜索
 
@@ -26,24 +29,27 @@
   - `kind:pdf`：文档类型精确匹配，取值为 `pdf`、`docx`、`md`、`org`、`html`、`image`、`other`。
   - `tags:机器学习`：标签过滤，多个 `tags:` 之间为 AND。
   - `tags:ml*`：标签通配，`*` 匹配任意字符。
+  - `fts:神经网络`：只匹配正文，文件名与标签不参与。
 - 未知前缀按普通词处理；只有过滤条件时按标题排序返回。
-- GUI 搜索面板分「文档内容」与「标签」两个分区，查询按代次丢弃过期结果。
+- 列内过滤栏调用库内检索，结果分「内容」与「标签」两组，查询按代次丢弃过期结果。
 
 ### 浏览与集成
 
 - 继承 strata 的文件浏览、预览抽屉、缩略图缓存与键盘操作。
-- 地址栏、导航、对话框、搜索根均限制在数据根目录内；库外文件只能通过拖拽导入。
-- 侧边栏只保留 knowcraft 分组：Inbox、Library、Notes、Captures、回收站。
+- 地址栏与导航可浏览任意本地路径；库外文件可预览，但不登记、不打标签、不参与检索，
+  删除走系统回收站。库内写入仍受 core 的 `validate_inside` 约束。
+- 侧边栏依次为 KNOWCRAFT（Inbox、Library、Notes、Captures、Archived、回收站）、PLACES、
+  PINNED、DEVICES，各组可折叠。
 - 设置页：General（含知识库位置）、Appearance、Actions、Keyboard、Integrations、Diagnostics、About。
-- 可选桌面集成：系统文件选择器 portal、挂载/解锁相关入口（见 `crates/knowcraft/README.md`）。
+- 可选桌面集成：系统文件选择器 portal、挂载/解锁相关入口（见 `crates/knowcraft/README.md`）；
+  用 `kc install`、`kc uninstall` 与 `kc activate dbus` 安装、卸载与激活。
 
-### 尚未接入 GUI
+### 文档摘要
 
-`knowcraft-core` 已提供以下模块，GUI 尚无对应入口：
-
-- `capture`：抓取网页并提取正文入库（CLI 可用）。
-- `annotations`：文档注释的增删查。
-- `ai`：兼容 OpenAI 接口的 AI 配置（`config.toml` 的 `[ai]` 段）。
+- 预览抽屉可对已登记文档生成摘要并缓存结果；摘要可导出为 `notes/` 下的 Markdown 笔记。
+- 正文不超过 128 KiB 时直接请求，超过则分段摘要后合并。
+- 依赖 Hermes API Server：`kc ai prepare` 准备 `API_SERVER_KEY`，`kc run gui --ai` 注入
+  环境变量后启动 GUI。
 
 ## 目录结构
 
@@ -55,8 +61,9 @@ crates/vendor/           vendored 第三方（pdfcraft 文本提取栈），不�
 ```
 
 `knowcraft-core` 包含：`store`（SQLite）、`index`（tantivy）、`extract`（文本提取）、
-`workflow`（inbox 工作流）、`archive`、`tags`、`annotations`、`capture`、`trash`、
-`search`、`cleanup`、`watcher`、`config`。
+`workflow`（inbox 工作流）、`fileops`（库内文件操作）、`archive`、`tags`、`annotations`
+（PDF 与文本）、`capture`、`trash`、`search`、`listing`、`cleanup`、`watcher`、`config`、
+`ai`、`sendto`、`desktop_integration`。
 
 分层约定：业务逻辑只放在 core；GUI 与 CLI 是薄壳，不复制业务逻辑。
 
@@ -65,16 +72,18 @@ crates/vendor/           vendored 第三方（pdfcraft 文本提取栈），不�
 默认 `~/Knowledge`，优先级从高到低：
 
 1. 环境变量 `KNOWCRAFT_DATA_DIR`
-2. `~/.config/knowcraft/config.toml` 中的 `data_dir`
+2. `~/.config/knowcraft/settings.toml` 中的 `data_dir`
 3. 默认 `~/Knowledge`
 
 目录内容：
 
 ```
 inbox/ library/ notes/ captures/   知识库分区
-.trash/                            回收站
+archived/                          按 UUID 归档的内部存储，按需创建
+.trash/files/ .trash/info/         回收站文件与 .trashinfo
 knowcraft.db                       SQLite 数据库
 .index/                            tantivy 索引
+.write.lock                        跨进程写锁
 ```
 
 GUI 中修改知识库位置后需重启生效，不迁移既有数据。
@@ -91,6 +100,9 @@ cargo run --release -p knowcraft
 
 `knowcraft --version` 输出版本号；带 `--qa` 的脚本化启动仅在启用 `qa` feature 时可用。
 
+`kc run gui` 在私有 D-Bus 会话中启动与 `kc` 同目录的 `knowcraft`；加 `--ai` 时读取
+Hermes 的 `API_SERVER_KEY` 并注入 AI 环境变量，需先运行 `kc ai prepare`。
+
 ### CLI
 
 二进制名为 `kc`：
@@ -103,27 +115,34 @@ cargo run -p knowcraft-cli -- <子命令>
 
 | 子命令 | 说明 |
 | --- | --- |
-| `search <query>` | 全文检索，输出 `文档id 路径`，最多 50 条 |
-| `index` | 重建 tantivy 索引；搜索本身只读，不会触发重建 |
+| `init <shell>` | 输出 bash、zsh 或 fish 补全脚本，配合 `source <(kc init zsh)` 使用 |
+| `search <query>` | 全文检索，输出 `文档id 路径`；`--json`/`--jsonl` 输出结构化结果，`--limit` 设上限（默认 50，0 与 -1 表示全部） |
+| `ls [dir]` | 列出目录条目；支持 `inbox:/` 等别名与 `trash:/`；`--json`/`--jsonl` 输出结构化结果 |
+| `status [component]` | 输出数据目录、已索引文档数、inbox 数量；指定 desktop、portal 或 file-manager 时改为输出安装状态 |
+| `index` | 重建 tantivy 索引；`--reindex` 全量重建，`--path` 限定范围，`--threads` 指定并行数，`--verbose` 逐文档输出 |
+| `cleanup` | 清理数据库中文件已不存在的失效条目 |
+| `upgrade` | 迁移数据库 schema 并报告回填数量 |
 | `add <paths>...` | 批量导入库外文件或目录；`--dest <目录>` 指定库内目标，默认 inbox；`-f/--force` 覆盖同名文件 |
-| `register <paths>...` | 就地登记库内已有文件，不复制不移动；目录递归展开 |
-| `mkdir <paths>...` | 在库内受管位置新建目录 |
+| `mkdir <paths>...` | 在库内受管位置新建目录；`--date` 新建当天日期目录 |
 | `touch <paths>...` | 在库内受管位置新建空文件并登记；已登记时跳过 |
+| `register <paths>...` | 就地登记库内已有文件，不复制不移动；目录递归展开 |
 | `cp <src> <dst>` | 库内复制文件或目录，副本登记为独立文档 |
 | `mv <src> <dst>` | 库内移动或改名文件/目录 |
 | `rm <paths>... [--permanent]` | 把库内条目移入回收站；`--permanent` 彻底删除文件、记录与索引条目 |
+| `trash list\|empty\|restore` | 回收站：列出条目、清空或按 uuid 恢复 |
 | `dispatch <id> <category>` | 将文档归入 library 下的分类目录 |
-| `capture <url>` | 抓取网页入库到 captures |
-| `status` | 输出数据目录、已索引文档数、inbox 数量 |
-| `cleanup` | 清理数据库中文件已不存在的失效条目 |
-| `upgrade` | 迁移数据库 schema 并报告回填数量 |
 | `archive <paths>...` | 归档文件：`--category <名称>` 或 `--record`，加 `--uuid` 只输出 UUID 与内部路径 |
-| `trash list [--json\|--jsonl]` | 列出回收站条目：uuid、原路径与标题 |
-| `trash empty [--yes] [--json]` | 清空回收站：删除文件、记录与索引条目；非终端环境需 `--yes` |
-| `trash restore <uuid>` | 按 uuid 从回收站恢复 |
-| `sendto list [--json]` | 列出已注册的外部 send-to 插件 |
-| `sendto send --plugin <id> <path>...` | 把文件发送给插件，自动选择唯一的发送动作 |
-| `ls [dir]` | 列出目录条目；已登记文档显示库内标题，未登记文件标记 `[unregistered]` |
+| `capture <url>` | 抓取网页入库到 captures |
+| `summary <path> [--note]` | 生成或查看已登记文档的 AI 摘要；`--note` 导出为 notes 下的 Markdown 笔记 |
+| `tags remove <id> <tag>` | 从文档移除标签 |
+| `annotations list <id>\|sync` | 列出文档注释，或扫描全部 PDF 回写注释 |
+| `ai prepare` | 准备 Hermes API Server 的密钥，必要时重启 Gateway |
+| `run gui [--ai]` | 在私有 D-Bus 会话中启动 GUI；`--ai` 注入 Hermes 密钥 |
+| `install <component>` | 安装桌面集成：desktop、portal、file-manager 或 all |
+| `uninstall <component>` | 卸载桌面集成 |
+| `activate dbus [component]` | 触发桌面集成 D-Bus 服务的按需激活 |
+| `doc-server [ERROR-LOGFILE]` | 为 edoc-tools 提供文档查看服务，协议兼容其 `epdfinfo` 后端 |
+| `sendto list\|send` | 列出外部插件，或把文件发送给指定插件 |
 
 示例：
 
@@ -152,6 +171,18 @@ kc sendto send --plugin example ~/Knowledge/inbox/report.pdf
 kc ls
 kc ls --json
 kc ls ~/Knowledge/inbox
+
+# 生成 shell 补全
+source <(kc init zsh)
+
+# 生成摘要并导出为笔记
+kc summary ~/Knowledge/library/report.pdf --note
+
+# 启动 GUI，并注入 Hermes 密钥
+kc run gui --ai
+
+# 作为 pdf-tools 后端运行文档服务
+kc doc-server
 ```
 
 CLI 与 GUI 使用同一写者路径：GUI 进程持有 SQLite/tantivy 写权限；没有 GUI
@@ -221,28 +252,32 @@ GUI 测试通过 `crate::test_support::gtk_test` 运行，需要可用的 GTK �
 
 ## 配置
 
-`~/.config/knowcraft/config.toml`：
+`~/.config/knowcraft/settings.toml`：
 
 ```toml
 data_dir = "/home/user/Knowledge"
 
 [ai]
-api_base = "http://localhost:11434/v1"
+api_base = "http://127.0.0.1:8642/v1"
 api_key = ""
-model = "llama3"
+model = "hermes-agent"
 ```
+
+旧版 `config.toml` 在首次加载时自动迁移为 `settings.toml`；core 字段留在顶层，GUI 偏好写入
+`[gui]` 段。窗口尺寸与列表列宽等临时状态存于同目录的 `state.toml`。
 
 鉴权凭证只存放在数据目录的 `.token`，不写入配置文件。
 
 ## 致谢
 
-Knowcraft 建立在以下开源项目之上：
+knowcraft 建立在以下开源项目之上：
 
 | 项目 | 说明 | 仓库 |
 | --- | --- | --- |
-| strata | GTK4 文件管理器，Knowcraft GUI 层由它 fork 深改造而来 | <https://github.com/lgse/strata> |
+| strata | GTK4 文件管理器，knowcraft GUI 层由它 fork 深改造而来 | <https://github.com/lgse/strata> |
 | pdfcraft | 纯 Rust PDF 工具与库，提供文本提取、渲染与标注能力 | <https://github.com/storytold/pdfcraft> |
 | wordcraft | 纯 Rust 文字处理库，提供 DOCX、DOC 文档的读取与文本提取 | <https://github.com/storytold/wordcraft> |
+| edoc-tools | Emacs PDF 查看器，kc 通过 `kc doc-server` 对接 | <https://github.com/yangyingchao/edoc-tools> |
 
 派生来源与完整第三方许可证清单见 `crates/knowcraft/THIRD_PARTY_LICENSES.md`。
 

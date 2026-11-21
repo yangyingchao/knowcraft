@@ -7,6 +7,15 @@
 ### Fixed
 
 
+## [v0.3.1] - 2026-11-21
+
+### Changed
+- 文档与 CLI 帮助的 doc-server 表述改为对接 edoc-tools
+- 设计文档按 edoc-tools 现状重写，命令表按实现列出
+- AGENTS.md 补上 CLI 分组顺序与数据目录的实际结构
+- README 功能描述追平实现，致谢表补上 edoc-tools
+
+
 ## [v0.3.0] - 2026-11-20
 
 ### Added
@@ -37,7 +46,8 @@
 - 统一 settings.toml：core 字段留顶层，GUI 偏好移入 [gui] (0c71eaa)
 - 库外文件删除改走系统回收站 (d9718de)
 
-[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.3.1...HEAD
+[v0.3.1]: https://github.com/yangyingchao/knowcraft/compare/v0.3.0...v0.3.1
 [v0.3.0]: https://github.com/yangyingchao/knowcraft/compare/v0.2.2...v0.3.0
 [v0.2.2]: https://github.com/yangyingchao/knowcraft/compare/v0.2.1...v0.2.2
 [v0.2.1]: https://github.com/yangyingchao/knowcraft/compare/v0.2.0...v0.2.1

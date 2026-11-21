@@ -29,7 +29,7 @@ use knowcraft_core::write_lock::WriteLock;
     name = "kc",
     version = knowcraft_core::VERSION,
     long_about = "knowcraft 知识库命令行接口\n\n所有子命令作用于同一个数据目录：默认为 `~/Knowledge`，可用 \
-        `KNOWCRAFT_DATA_DIR` 或 `~/.config/knowcraft/config.toml` 覆盖；写入经该目录下的 \
+        `KNOWCRAFT_DATA_DIR` 或 `~/.config/knowcraft/settings.toml` 覆盖；写入经该目录下的 \
         `.write.lock` 串行，失败以非零退出码结束。\n\n`ls`、`rm` 与 `index --path` 的路径参数支持 \
         `inbox:/`、`library:/`、`notes:/`、`captures:/`、`archived:/`、`root:/` 别名，\
         `trash:/` 指向回收站。其余命令把相对路径按当前工作目录解析为绝对路径。\n\n输出默认面向终端；`--json` 输出整个数组或对象，\
@@ -507,9 +507,9 @@ enum Cmd {
         #[command(subcommand)]
         cmd: ActivateCmd,
     },
-    /// 文档查看服务：pdf-tools 协议常驻 server
+    /// 文档查看服务：edoc-tools 协议常驻 server
     #[command(
-        long_about = "文档查看服务：pdf-tools 的 epdfinfo 后端，协议兼容。\n\n\
+        long_about = "文档查看服务：edoc-tools 的 epdfinfo 协议后端，协议兼容。\n\n\
         从 stdin 逐行读协议命令（open/renderpage/search 等），响应写 stdout，quit 或 EOF 后退出；\
         可选 ERROR-LOGFILE 参数把 stderr 追写到该文件（默认 /dev/null）。\n\n \
         纯文档服务，不初始化知识库、不获取写锁，可与其他 kc 命令并行。"
