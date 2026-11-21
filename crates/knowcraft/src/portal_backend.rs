@@ -309,7 +309,7 @@ async fn present(
     let initial_directory = current_directory.unwrap_or_else(home_directory);
     let request = ChooserRequest {
         token: glib::uuid_string_random().to_string(),
-        title: title.to_owned(),
+        title: chooser_title(title, &kind, save),
         accept_label: accept_label.map_or_else(
             || crate::i18n::tr(if save { "Save" } else { "Open" }).to_string(),
             std::string::ToString::to_string,
@@ -338,6 +338,21 @@ async fn present(
     receiver
         .await
         .map_err(|_| PortalError::Cancelled("the file chooser request was cancelled".into()))?
+}
+
+/// portal 请求允许不带标题；空标题会让合成器的窗口规则无从匹配，这里回落一个。
+fn chooser_title(title: &str, kind: &ChooserKind, save: bool) -> String {
+    if !title.is_empty() {
+        return title.to_owned();
+    }
+    let key = if save {
+        "Save File"
+    } else if matches!(kind, ChooserKind::Open { directory: true, .. }) {
+        "Open folder"
+    } else {
+        "Choose a file"
+    };
+    crate::i18n::tr(key).to_string()
 }
 
 fn home_directory() -> PathBuf {

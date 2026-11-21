@@ -667,10 +667,12 @@ fn register_chooser_window(state: &ChooserState, window: &gtk::Window) {
 
 fn present_window(state: &ChooserState, window: &gtk::Window, browser: &Rc<crate::app::Browser>) {
     gtk::prelude::WidgetExt::realize(window);
-    if state.destination_host.is_some()
-        && let Some(surface) = window
-            .surface()
-            .and_downcast::<gdk4_wayland::WaylandToplevel>()
+    // 固定 chooser 的 app_id，供合成器按应用识别窗口。浮动与否由 parent 或
+    // 窗口规则在窗口打开时决定，不靠这里；此处调用在 xdg_toplevel 创建前无效，
+    // 因此下面 map 后再设一次。
+    if let Some(surface) = window
+        .surface()
+        .and_downcast::<gdk4_wayland::WaylandToplevel>()
     {
         surface.set_application_id(crate::portal::CHOOSER_APPLICATION_ID);
     }
@@ -682,6 +684,18 @@ fn present_window(state: &ChooserState, window: &gtk::Window, browser: &Rc<crate
     window.set_default_size(dimensions.0, dimensions.1);
     browser.navigate(Location::local(&state.request.initial_directory));
     window.present();
+    // xdg_toplevel 在首次 commit 时才创建，之前设置的 app id 会被 GTK 用它自己的
+    // 值覆盖（portal 路径窗口无 application，回退到 prgname），因此 map 之后重设一次。
+    let delayed = window.downgrade();
+    glib::idle_add_local_once(move || {
+        if let Some(window) = delayed.upgrade()
+            && let Some(surface) = window
+                .surface()
+                .and_downcast::<gdk4_wayland::WaylandToplevel>()
+        {
+            surface.set_application_id(crate::portal::CHOOSER_APPLICATION_ID);
+        }
+    });
 }
 
 fn focus_initial_widget(
