@@ -14,6 +14,23 @@ use gtk::{gio, glib};
 
 mod lookup_regressions;
 
+/// 没有 gvfs 时分区挂载只能靠 sysfs 判断，磁盘目录才是 `removable` 的所在层。
+#[test]
+fn removable_flag_walks_from_partition_to_disk() {
+    let root = tempfile::tempdir().expect("temp dir");
+    let disk = root.path().join("block").join("sdb");
+    let partition = disk.join("sdb1");
+    fs::create_dir_all(&partition).expect("partition dir");
+
+    assert_eq!(removable_flag(&partition), None);
+
+    fs::write(disk.join("removable"), "1\n").expect("removable flag");
+    assert_eq!(removable_flag(&partition), Some(true));
+
+    fs::write(disk.join("removable"), "0\n").expect("removable flag");
+    assert_eq!(removable_flag(&partition), Some(false));
+}
+
 fn distinct_device_dirs() -> Option<(tempfile::TempDir, tempfile::TempDir)> {
     crate::test_support::distinct_device_dirs("volume identity tests")
 }

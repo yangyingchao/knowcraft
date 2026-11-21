@@ -341,8 +341,51 @@ pub(crate) fn volume_can_unplug(volume: &gio::Volume) -> bool {
 }
 
 pub(crate) fn mount_is_removable(mount: &gio::Mount) -> bool {
-    mount_can_unplug(mount)
-        || mount
-            .volume()
-            .is_some_and(|volume| volume_can_unplug(&volume))
+    if mount_can_unplug(mount) {
+        return true;
+    }
+    if let Some(volume) = mount.volume() {
+        return volume_can_unplug(&volume);
+    }
+    if mount.drive().is_some() {
+        return false;
+    }
+    // 没有 gvfs 时 VolumeMonitor 退化成 GUnixVolumeMonitor：volume 与 drive 都为空、can_eject
+    // 恒为假，可移动性只剩 sysfs 可查。shortcut: 只覆盖本地块设备挂载，网络与 FUSE 挂载不判断。
+    mount
+        .root()
+        .path()
+        .is_some_and(|root| mount_root_is_removable(&root))
+}
+
+/// 按挂载点查它背后块设备的 removable 标记。
+fn mount_root_is_removable(root: &Path) -> bool {
+    let table = MountTable::parse(std::fs::read("/proc/self/mountinfo").unwrap_or_default());
+    let Some(key) = table.mount_for(root) else {
+        return false;
+    };
+    let (major, minor) = key.device;
+    sysfs_device_removable(major, minor).unwrap_or_else(|| {
+        // sysfs 读不到（容器、非 Linux）时退回 udisks 的挂载位置。
+        root.starts_with("/run/media") || root.starts_with("/media")
+    })
+}
+
+fn sysfs_device_removable(major: u32, minor: u32) -> Option<bool> {
+    let link = std::fs::read_link(format!("/sys/dev/block/{major}:{minor}")).ok()?;
+    let base = Path::new("/sys/dev/block");
+    let device = if link.is_absolute() {
+        link
+    } else {
+        base.join(link)
+    };
+    removable_flag(&device)
+}
+
+/// 分区目录本身没有 `removable`，往上找到所属磁盘再读。
+fn removable_flag(device: &Path) -> Option<bool> {
+    device
+        .ancestors()
+        .find_map(|dir| std::fs::read_to_string(dir.join("removable")).ok())
+        .map(|value| value.trim() == "1")
 }
