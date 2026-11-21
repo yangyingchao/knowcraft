@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-use std::{fs, os::unix::fs::symlink, path::Path};
+use std::{
+    fs,
+    os::unix::fs::{symlink, PermissionsExt as _},
+    path::Path,
+};
 
 use super::{
     context::SetupContext, desktop_entry, error::ErrorCode, file_manager, portal, state, Component,
@@ -128,4 +132,19 @@ fn component_round_trips_its_name() {
         assert_eq!(Component::parse(component.as_str()), Some(component));
     }
     assert_eq!(Component::parse("all"), None);
+}
+
+#[test]
+fn secure_executable_keeps_a_symlinked_entry_point() {
+    let root = tempfile::tempdir().expect("root");
+    let target = root.path().join("knowcraft-v1");
+    fs::write(&target, b"#!").expect("target");
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o755)).expect("mode");
+    let link = root.path().join("knowcraft");
+    symlink(&target, &link).expect("link");
+
+    let resolved = super::context::secure_executable_for_user(&link, rustix::process::geteuid().as_raw(), &|_| true)
+        .expect("resolve");
+    assert_eq!(resolved, link);
+    assert!(fs::symlink_metadata(&resolved).expect("metadata").file_type().is_symlink());
 }

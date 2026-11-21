@@ -215,6 +215,11 @@ pub(crate) fn remove_empty_directory(directory: &Path) -> Result<(), Error> {
     }
 }
 
+/// 校验可执行文件本身及其全部父目录都属于当前用户或 root、且不可被他人写入。
+///
+/// 返回**绝对化的原路径**，不跟随符号链接：桌面集成把这个路径写进 D-Bus 服务文件，
+/// 跟随符号链接会把 `~/.local/bin/knowcraft` 固化成 `knowcraft-v0.3.1`，
+/// 升级换版本后服务文件失效。
 pub(crate) fn secure_executable(path: &Path) -> Result<PathBuf, Error> {
     let user = rustix::process::geteuid().as_raw();
     secure_executable_for_user(path, user, &|group| {
@@ -228,7 +233,7 @@ pub(crate) fn secure_executable_for_user(
     effective_user: u32,
     private_group: &dyn Fn(u32) -> bool,
 ) -> Result<PathBuf, Error> {
-    let path = fs::canonicalize(path).map_err(|error| {
+    let path = std::path::absolute(path).map_err(|error| {
         Error::with_details(
             ErrorCode::InvalidExecutable,
             format!(
