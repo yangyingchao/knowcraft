@@ -5,7 +5,7 @@ use super::*;
 fn fixture(name: &str) -> (PathBuf, Knowledge) {
     let dir = std::env::temp_dir().join(format!("kc-gui-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::create_dir_all(&dir).expect("create fixture dir");
     let knowledge = Knowledge::open_at(dir.clone()).expect("open knowledge");
     (dir, knowledge)
 }
@@ -13,7 +13,8 @@ fn fixture(name: &str) -> (PathBuf, Knowledge) {
 #[test]
 fn warm_index_registers_and_indexes_new_files() {
     let (dir, knowledge) = fixture("warm");
-    std::fs::write(dir.join("inbox").join("note.md"), "知识管理工作台全文检索").unwrap();
+    std::fs::write(dir.join("inbox").join("note.md"), "知识管理工作台全文检索")
+        .expect("write note");
     let report = warm_index(&knowledge);
     assert_eq!(report.registered, 1);
     assert_eq!(report.indexed, 1);
@@ -32,7 +33,7 @@ fn warm_index_registers_and_indexes_new_files() {
 fn display_title_falls_back_to_the_file_stem_when_the_stored_title_is_a_placeholder() {
     let (dir, knowledge) = fixture("placeholder-display");
     let path = dir.join("inbox").join("paper.pdf");
-    std::fs::write(&path, b"%PDF-1.4").unwrap();
+    std::fs::write(&path, b"%PDF-1.4").expect("write pdf stub");
     let id = knowledge
         .store
         .insert_document(&Document {

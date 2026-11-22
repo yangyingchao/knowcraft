@@ -229,7 +229,12 @@ mod tests {
             || {
                 let header = Header::new(true, true);
                 assert!(!header.ai.is_sensitive());
-                assert!(header.ai.child().is_some_and(|child| child.is::<gtk::Image>()));
+                assert!(
+                    header
+                        .ai
+                        .child()
+                        .is_some_and(|child| child.is::<gtk::Image>())
+                );
                 let resource = gtk::gio::resources_lookup_data(
                     "/io/github/knowcraft/Knowcraft/icons/scalable/actions/knowcraft-sparkles.svg",
                     gtk::gio::ResourceLookupFlags::NONE,

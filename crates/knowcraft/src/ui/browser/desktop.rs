@@ -174,7 +174,7 @@ async fn resolve_default_application(file: &gio::File) -> Result<DefaultApplicat
     })
 }
 
-async fn show_open_with_fallback(
+pub(in crate::ui) async fn show_open_with_fallback(
     parent: &impl IsA<gtk::Widget>,
     file: gio::File,
     content_type: &str,

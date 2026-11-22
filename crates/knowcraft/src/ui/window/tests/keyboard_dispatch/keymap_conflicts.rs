@@ -466,8 +466,7 @@ fn tab_strip_order_matches_the_conflict_check() {
             let binding = Binding::parse(key).expect("accelerator");
             let enter = || {
                 tabs.active_browser().cancel_rename();
-                let pane = show_root();
-                pane
+                show_root()
             };
             let acts = |pane: &BrowserView| {
                 pane.rename_is_active() || pane.browser().active_location() == home

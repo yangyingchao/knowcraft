@@ -147,11 +147,9 @@ fn assert_saved_browsing(manager: &PreferenceManager) {
         "(mode, density, frame density, group by type)"
     );
     // Opening is always a double click now; older saved values are ignored.
-    for mode in [BrowserMode::List] {
-        let activation = manager.click_activation(mode);
-        assert_eq!(activation.files, ClickCount::Two);
-        assert_eq!(activation.folders, ClickCount::Two);
-    }
+    let activation = manager.click_activation(BrowserMode::List);
+    assert_eq!(activation.files, ClickCount::Two);
+    assert_eq!(activation.folders, ClickCount::Two);
 }
 
 fn assert_saved_sidebar(manager: &PreferenceManager) {
@@ -178,11 +176,7 @@ fn assert_saved_views_and_updates(manager: &PreferenceManager) {
             sort_direction: SortDirection::Descending,
         }
     );
-    assert_eq!(
-        manager.remember_folder_views(),
-        false,
-        "remember folder views"
-    );
+    assert!(manager.remember_folder_views(), "remember folder views");
 }
 
 fn assert_saved_previews(manager: &PreferenceManager) {

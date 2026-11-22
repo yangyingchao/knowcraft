@@ -322,7 +322,7 @@ fn delete_all_handles_multiple_paths_and_permanent_mode() {
 
     let removed = fixture.path("library/removed.md");
     write_file(&removed, "remove permanently");
-    let report = fixture.ops.delete_all(&[removed.clone()], true).unwrap();
+    let report = fixture.ops.delete_all(std::slice::from_ref(&removed), true).unwrap();
     assert_eq!(report.removed.len(), 1);
     assert!(matches!(
         report.removed[0].outcome,
@@ -782,7 +782,7 @@ fn import_all_skips_existing_and_duplicate_until_forced() {
 
     let report = fixture
         .ops
-        .import_all(&[src.clone()], &fixture.path("inbox"), false)
+        .import_all(std::slice::from_ref(&src), &fixture.path("inbox"), false)
         .unwrap();
     assert!(matches!(
         report.entries[0].outcome,
@@ -793,7 +793,7 @@ fn import_all_skips_existing_and_duplicate_until_forced() {
     write_file(&same, "skipv1word");
     let report = fixture
         .ops
-        .import_all(&[same.clone()], &fixture.path("inbox"), false)
+        .import_all(std::slice::from_ref(&same), &fixture.path("inbox"), false)
         .unwrap();
     assert!(matches!(
         report.entries[0].outcome,
@@ -803,7 +803,7 @@ fn import_all_skips_existing_and_duplicate_until_forced() {
     write_file(&src, "skipv2word");
     let report = fixture
         .ops
-        .import_all(&[src.clone()], &fixture.path("inbox"), true)
+        .import_all(std::slice::from_ref(&src), &fixture.path("inbox"), true)
         .unwrap();
     let Imported::Updated(updated) = &report.entries[0].outcome else {
         panic!("--force 应返回更新: {:?}", report.entries[0].outcome);
@@ -837,7 +837,7 @@ fn import_all_rejects_library_sources_and_invalid_destinations() {
 
     let report = fixture
         .ops
-        .import_all(&[inside.clone()], &fixture.path("library"), false)
+        .import_all(std::slice::from_ref(&inside), &fixture.path("library"), false)
         .unwrap();
     assert!(report.entries.is_empty());
     assert_eq!(report.failed.len(), 1);
@@ -852,7 +852,7 @@ fn import_all_rejects_library_sources_and_invalid_destinations() {
     let missing = fixture.path("library/missing-dest");
     let error = fixture
         .ops
-        .import_all(&[inside.clone()], &missing, false)
+        .import_all(std::slice::from_ref(&inside), &missing, false)
         .unwrap_err();
     assert!(error.to_string().contains("not accessible"), "{error}");
 
@@ -878,7 +878,7 @@ fn import_all_reports_structural_conflicts_per_source() {
 
     let report = fixture
         .ops
-        .import_all(&[folder.clone()], &fixture.path("library"), false)
+        .import_all(std::slice::from_ref(&folder), &fixture.path("library"), false)
         .unwrap();
     assert!(report.entries.is_empty());
     assert_eq!(report.failed.len(), 1);
@@ -1025,7 +1025,7 @@ fn register_all_expands_directories_and_skips_hidden_entries() {
     let link = root.join("link.org");
     std::os::unix::fs::symlink(&outside_file, &link).unwrap();
 
-    let report = fixture.ops.register_all(&[root.clone()]).unwrap();
+    let report = fixture.ops.register_all(std::slice::from_ref(&root)).unwrap();
     assert_eq!(report.registered.len(), 2, "只登记可见普通文件");
     assert!(report.failed.is_empty());
     assert!(report

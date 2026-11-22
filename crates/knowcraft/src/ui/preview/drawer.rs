@@ -33,6 +33,9 @@ impl PreviewDrawer {
 
         let (raw_details, raw_details_scroll) = raw_details_section();
         pane.append(&raw_details_scroll);
+        // 相关文献常驻在预览面板底部，不占用头部按钮，也不要点开才出现。
+        let similar = similar::similar_section();
+        pane.append(&similar.section);
         let (revealer, slot, resize_grip) = drawer_slot(&pane);
         // 标签栏与预览抽屉平级（抽屉右侧），宽度不随预览内容的伸缩变化。
         slot.append(tags_bar.widget());
@@ -48,6 +51,7 @@ impl PreviewDrawer {
             tags_bar,
             raw_details,
             raw_details_scroll,
+            similar,
             revealer,
             slot,
             resize_grip,
@@ -57,6 +61,7 @@ impl PreviewDrawer {
         install_preview_drag(&header.handle, &state);
         state.install_keyboard_ownership();
         state.install_find();
+        state.install_similar_list();
         let weak = Rc::downgrade(&state);
         header.ai_summary.connect_clicked(move |_| {
             if let Some(state) = weak.upgrade() {
@@ -279,6 +284,7 @@ struct DrawerParts<'a> {
     tags_bar: tags_bar::TagsBar,
     raw_details: super::super::raw_details::RawDetails,
     raw_details_scroll: gtk::ScrolledWindow,
+    similar: similar::SimilarSection,
     revealer: gtk::Revealer,
     slot: gtk::Box,
     resize_grip: gtk::Box,
@@ -322,6 +328,9 @@ impl PreviewState {
             raw_details_scroll: parts.raw_details_scroll,
             raw_metadata_load: RefCell::new(None),
             open: header.open.clone(),
+            similar: parts.similar,
+            similar_generation: Cell::new(0),
+            similar_pending: RefCell::new(None),
             ai: header.ai.clone(),
             ai_busy: Cell::new(false),
             ai_generation: Cell::new(0),

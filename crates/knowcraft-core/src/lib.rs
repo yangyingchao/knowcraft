@@ -19,6 +19,7 @@ pub mod model;
 pub mod pdf_annot_file;
 pub mod pdf_annotations;
 pub mod pdf_geometry;
+pub mod recommend;
 pub mod search;
 pub mod sendto;
 pub mod store;

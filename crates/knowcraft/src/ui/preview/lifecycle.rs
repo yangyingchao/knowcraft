@@ -76,6 +76,7 @@ impl PreviewState {
         }
         self.update_tags(&entry);
         self.refresh_ai(&entry);
+        self.refresh_similar(&entry);
         self.cancel_pending_show();
         self.retain_pending_playback(&entry);
         if self.handed_off.borrow().as_ref() != Some(&entry.location) {

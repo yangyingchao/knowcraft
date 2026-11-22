@@ -1551,5 +1551,7 @@
   "Export to note": "导出成笔记",
   "Exported to": "已导出到",
   "Unable to export the note": "无法导出笔记",
-  "New Folder for Today": "新建日期文件夹"
+  "New Folder for Today": "新建日期文件夹",
+  "Related documents": "相关文献",
+  "No related documents": "没有相关文献"
 }

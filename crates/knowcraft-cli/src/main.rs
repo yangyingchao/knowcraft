@@ -54,6 +54,14 @@ struct SearchHit {
     types: Vec<String>,
 }
 
+/// `similar --json` 的输出契约；字段顺序即 JSON 键序。
+#[derive(serde::Serialize)]
+struct SimilarHit {
+    path: String,
+    title: String,
+    score: f32,
+}
+
 fn source_name(source: knowcraft_core::search::Source) -> &'static str {
     match source {
         knowcraft_core::search::Source::Name => "name",
@@ -238,6 +246,23 @@ enum Cmd {
         /// 结果上限；0 与 -1 表示全部
         #[arg(long, default_value_t = 50, allow_negative_numbers = true)]
         limit: i64,
+    },
+    /// 列出与给定文件内容相关的文档
+    #[command(
+        long_about = "列出与给定文件内容相关的已索引文档\n\n用 tantivy 相似度检索该文件标题与正文，返回最多 --limit 条（默认 5，上限 10000），排除文件自身。库外文件也可作为查询输入，但只有已索引的文档出现在结果里。\n\n文本模式每行输出“路径: 标题”；--json 输出数组、--jsonl 逐行输出对象，字段均为 path、title、score。"
+    )]
+    Similar {
+        /// 要查询的文件路径
+        path: PathBuf,
+        /// 结果上限
+        #[arg(long, default_value_t = 5)]
+        limit: i64,
+        /// 输出 JSON 数组，供脚本与 Emacs 消费
+        #[arg(long, conflicts_with = "jsonl")]
+        json: bool,
+        /// 每行输出一个 JSON 对象，适合流式消费
+        #[arg(long, conflicts_with = "json")]
+        jsonl: bool,
     },
     /// 列出目录条目：已登记文档显示库内标题，未登记文件加标记
     #[command(
@@ -549,6 +574,14 @@ fn main() -> anyhow::Result<()> {
             anyhow::bail!("--limit must be at most {MAX_LIMIT}");
         }
     }
+    if let Cmd::Similar { limit, .. } = &cli.cmd {
+        if *limit < 1 {
+            anyhow::bail!("--limit must be a positive number");
+        }
+        if *limit > MAX_LIMIT {
+            anyhow::bail!("--limit must be at most {MAX_LIMIT}");
+        }
+    }
     if let Cmd::Sendto { cmd } = &cli.cmd {
         return run_sendto_group(cmd);
     }
@@ -645,6 +678,44 @@ fn main() -> anyhow::Result<()> {
             } else {
                 for hit in &hits {
                     println!("{} {}", hit.id, hit.path);
+                }
+            }
+        }
+        Cmd::Similar {
+            path,
+            limit,
+            json,
+            jsonl,
+        } => {
+            let index = Index::open(&cfg.data_dir)?;
+            let hits: Vec<SimilarHit> = knowcraft_core::recommend::similar_documents(
+                &index,
+                &cfg.data_dir,
+                &path,
+                knowcraft_core::recommend::Scope::All,
+                limit as usize,
+            )?
+            .into_iter()
+            .map(|hit| SimilarHit {
+                path: hit.path,
+                title: hit.title,
+                score: hit.score,
+            })
+            .collect();
+            if json {
+                let mut output = serde_json::to_vec(&hits)?;
+                output.push(b'\n');
+                std::io::Write::write_all(&mut std::io::stdout().lock(), &output)?;
+            } else if jsonl {
+                let mut output = Vec::new();
+                for hit in &hits {
+                    output.extend_from_slice(&serde_json::to_vec(hit)?);
+                    output.push(b'\n');
+                }
+                std::io::Write::write_all(&mut std::io::stdout().lock(), &output)?;
+            } else {
+                for hit in &hits {
+                    println!("{}: {}", hit.path, hit.title);
                 }
             }
         }
@@ -1506,191 +1577,6 @@ fn relative_path(path: &std::path::Path, cwd: &std::path::Path) -> String {
         .into_owned()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use knowcraft_core::sendto::ProviderSummary;
-
-    #[test]
-    fn dated_folder_creation_numbers_collisions() {
-        let root =
-            std::env::temp_dir().join(format!("kc-mkdir-date-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(root.join("inbox")).unwrap();
-        let store = Store::open(&root).unwrap();
-        let ops = file_ops(&store, &root).unwrap();
-        let day = knowcraft_core::util::date_folder_name().unwrap();
-        let parent = root.join("inbox");
-
-        let first = create_dated_folder(&ops, &parent).unwrap();
-        assert_eq!(first.file_name().unwrap().to_string_lossy(), day);
-        let second = create_dated_folder(&ops, &parent).unwrap();
-        assert_eq!(
-            second.file_name().unwrap().to_string_lossy(),
-            format!("{day} (2)")
-        );
-        assert!(first.is_dir() && second.is_dir());
-        std::fs::remove_dir_all(&root).ok();
-    }
-
-    fn sample() -> Vec<ProviderSummary> {
-        vec![
-            ProviderSummary {
-                id: "a".into(),
-                name: "Alpha".into(),
-            },
-            ProviderSummary {
-                id: "b".into(),
-                name: "Beta".into(),
-            },
-        ]
-    }
-
-    #[test]
-    fn renders_provider_list_as_lines() {
-        let output = render_provider_list(&sample(), false).expect("render");
-        assert_eq!(
-            String::from_utf8(output).expect("utf8"),
-            "a\tAlpha\nb\tBeta\n"
-        );
-    }
-
-    #[test]
-    fn renders_provider_list_as_json() {
-        let output = render_provider_list(&sample(), true).expect("render");
-        let value: serde_json::Value = serde_json::from_slice(&output).expect("json");
-        assert_eq!(
-            value,
-            serde_json::json!([
-                {"id": "a", "name": "Alpha"},
-                {"id": "b", "name": "Beta"}
-            ])
-        );
-    }
-
-    #[test]
-    fn renders_empty_provider_list() {
-        let lines = render_provider_list(&[], false).expect("render");
-        assert!(lines.is_empty());
-        let json = render_provider_list(&[], true).expect("render");
-        assert_eq!(json, b"[]\n");
-    }
-
-    fn ls_entries() -> Vec<knowcraft_core::listing::DirectoryEntry> {
-        vec![
-            knowcraft_core::listing::DirectoryEntry {
-                path: PathBuf::from("/work/notes/a.md"),
-                title: "Alpha".into(),
-                registered: Some(true),
-            },
-            knowcraft_core::listing::DirectoryEntry {
-                path: PathBuf::from("/work/notes/b.md"),
-                title: "b.md".into(),
-                registered: Some(false),
-            },
-            knowcraft_core::listing::DirectoryEntry {
-                path: PathBuf::from("/work/notes/sub"),
-                title: "sub".into(),
-                registered: None,
-            },
-        ]
-    }
-
-    #[test]
-    fn renders_ls_as_relative_lines() {
-        let output =
-            render_ls(&ls_entries(), std::path::Path::new("/work"), false, false).expect("render");
-        assert_eq!(
-            String::from_utf8(output).expect("utf8"),
-            "notes/a.md: Alpha\nnotes/b.md: b.md [unregistered]\nnotes/sub: sub\n"
-        );
-    }
-
-    #[test]
-    fn renders_ls_as_json_and_jsonl() {
-        let json =
-            render_ls(&ls_entries(), std::path::Path::new("/work"), true, false).expect("render");
-        let value: serde_json::Value = serde_json::from_slice(&json).expect("json");
-        assert_eq!(value[0]["path"], "notes/a.md");
-        assert_eq!(value[0]["registered"], true);
-        assert!(value[2].get("registered").is_none());
-
-        let lines =
-            render_ls(&ls_entries(), std::path::Path::new("/work"), false, true).expect("render");
-        let text = String::from_utf8(lines).expect("utf8");
-        assert_eq!(text.lines().count(), 3);
-        assert!(text
-            .lines()
-            .all(|line| serde_json::from_str::<serde_json::Value>(line).is_ok()));
-    }
-
-    #[test]
-    fn ls_paths_outside_cwd_stay_absolute() {
-        let entries = vec![knowcraft_core::listing::DirectoryEntry {
-            path: PathBuf::from("/elsewhere/a.md"),
-            title: "a.md".into(),
-            registered: Some(false),
-        }];
-        let output =
-            render_ls(&entries, std::path::Path::new("/work"), false, false).expect("render");
-        assert_eq!(
-            String::from_utf8(output).expect("utf8"),
-            "/elsewhere/a.md: a.md [unregistered]\n"
-        );
-    }
-
-    /// `-h` 只显示摘要，`--help` 显示摘要与细节；每个命令都要有两份。
-    #[test]
-    fn every_command_documents_longer_help() {
-        use clap::CommandFactory;
-
-        fn check(command: &clap::Command, path: &str) {
-            assert!(
-                command.get_long_about().is_some(),
-                "{path} lacks long_about"
-            );
-            for sub in command.get_subcommands() {
-                // clap 生成的 help 子命令没有长描述，不在检查范围内。
-                if sub.get_name() != "help" {
-                    check(sub, format!("{path} {}", sub.get_name()).as_str());
-                }
-            }
-        }
-
-        let mut cmd = Cli::command();
-        check(&cmd, "kc");
-        let short = cmd.clone().render_help().to_string();
-        let long = cmd.render_long_help().to_string();
-        assert!(
-            long.len() > short.len(),
-            "`--help` must tell more than `-h`"
-        );
-    }
-
-    /// 每个参数都要有 help 文本，否则 `--help` 里只留下一个空行。
-    #[test]
-    fn every_argument_documents_help() {
-        use clap::CommandFactory;
-
-        fn check(command: &clap::Command, path: &str) {
-            for arg in command.get_arguments() {
-                assert!(
-                    arg.get_help().is_some(),
-                    "{path} argument {} lacks help",
-                    arg.get_id()
-                );
-            }
-            for sub in command.get_subcommands() {
-                if sub.get_name() != "help" {
-                    check(sub, format!("{path} {}", sub.get_name()).as_str());
-                }
-            }
-        }
-
-        check(&Cli::command(), "kc");
-    }
-}
-
 fn run_ai_group(cmd: &AiCmd) -> anyhow::Result<()> {
     match cmd {
         AiCmd::Prepare => {
@@ -2108,4 +1994,189 @@ fn run_activate_group(cmd: &ActivateCmd) -> anyhow::Result<()> {
         anyhow::bail!("{}", desktop_all_failed_text());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use knowcraft_core::sendto::ProviderSummary;
+
+    #[test]
+    fn dated_folder_creation_numbers_collisions() {
+        let root =
+            std::env::temp_dir().join(format!("kc-mkdir-date-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("inbox")).unwrap();
+        let store = Store::open(&root).unwrap();
+        let ops = file_ops(&store, &root).unwrap();
+        let day = knowcraft_core::util::date_folder_name().unwrap();
+        let parent = root.join("inbox");
+
+        let first = create_dated_folder(&ops, &parent).unwrap();
+        assert_eq!(first.file_name().unwrap().to_string_lossy(), day);
+        let second = create_dated_folder(&ops, &parent).unwrap();
+        assert_eq!(
+            second.file_name().unwrap().to_string_lossy(),
+            format!("{day} (2)")
+        );
+        assert!(first.is_dir() && second.is_dir());
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    fn sample() -> Vec<ProviderSummary> {
+        vec![
+            ProviderSummary {
+                id: "a".into(),
+                name: "Alpha".into(),
+            },
+            ProviderSummary {
+                id: "b".into(),
+                name: "Beta".into(),
+            },
+        ]
+    }
+
+    #[test]
+    fn renders_provider_list_as_lines() {
+        let output = render_provider_list(&sample(), false).expect("render");
+        assert_eq!(
+            String::from_utf8(output).expect("utf8"),
+            "a\tAlpha\nb\tBeta\n"
+        );
+    }
+
+    #[test]
+    fn renders_provider_list_as_json() {
+        let output = render_provider_list(&sample(), true).expect("render");
+        let value: serde_json::Value = serde_json::from_slice(&output).expect("json");
+        assert_eq!(
+            value,
+            serde_json::json!([
+                {"id": "a", "name": "Alpha"},
+                {"id": "b", "name": "Beta"}
+            ])
+        );
+    }
+
+    #[test]
+    fn renders_empty_provider_list() {
+        let lines = render_provider_list(&[], false).expect("render");
+        assert!(lines.is_empty());
+        let json = render_provider_list(&[], true).expect("render");
+        assert_eq!(json, b"[]\n");
+    }
+
+    fn ls_entries() -> Vec<knowcraft_core::listing::DirectoryEntry> {
+        vec![
+            knowcraft_core::listing::DirectoryEntry {
+                path: PathBuf::from("/work/notes/a.md"),
+                title: "Alpha".into(),
+                registered: Some(true),
+            },
+            knowcraft_core::listing::DirectoryEntry {
+                path: PathBuf::from("/work/notes/b.md"),
+                title: "b.md".into(),
+                registered: Some(false),
+            },
+            knowcraft_core::listing::DirectoryEntry {
+                path: PathBuf::from("/work/notes/sub"),
+                title: "sub".into(),
+                registered: None,
+            },
+        ]
+    }
+
+    #[test]
+    fn renders_ls_as_relative_lines() {
+        let output =
+            render_ls(&ls_entries(), std::path::Path::new("/work"), false, false).expect("render");
+        assert_eq!(
+            String::from_utf8(output).expect("utf8"),
+            "notes/a.md: Alpha\nnotes/b.md: b.md [unregistered]\nnotes/sub: sub\n"
+        );
+    }
+
+    #[test]
+    fn renders_ls_as_json_and_jsonl() {
+        let json =
+            render_ls(&ls_entries(), std::path::Path::new("/work"), true, false).expect("render");
+        let value: serde_json::Value = serde_json::from_slice(&json).expect("json");
+        assert_eq!(value[0]["path"], "notes/a.md");
+        assert_eq!(value[0]["registered"], true);
+        assert!(value[2].get("registered").is_none());
+
+        let lines =
+            render_ls(&ls_entries(), std::path::Path::new("/work"), false, true).expect("render");
+        let text = String::from_utf8(lines).expect("utf8");
+        assert_eq!(text.lines().count(), 3);
+        assert!(text
+            .lines()
+            .all(|line| serde_json::from_str::<serde_json::Value>(line).is_ok()));
+    }
+
+    #[test]
+    fn ls_paths_outside_cwd_stay_absolute() {
+        let entries = vec![knowcraft_core::listing::DirectoryEntry {
+            path: PathBuf::from("/elsewhere/a.md"),
+            title: "a.md".into(),
+            registered: Some(false),
+        }];
+        let output =
+            render_ls(&entries, std::path::Path::new("/work"), false, false).expect("render");
+        assert_eq!(
+            String::from_utf8(output).expect("utf8"),
+            "/elsewhere/a.md: a.md [unregistered]\n"
+        );
+    }
+
+    /// `-h` 只显示摘要，`--help` 显示摘要与细节；每个命令都要有两份。
+    #[test]
+    fn every_command_documents_longer_help() {
+        use clap::CommandFactory;
+
+        fn check(command: &clap::Command, path: &str) {
+            assert!(
+                command.get_long_about().is_some(),
+                "{path} lacks long_about"
+            );
+            for sub in command.get_subcommands() {
+                // clap 生成的 help 子命令没有长描述，不在检查范围内。
+                if sub.get_name() != "help" {
+                    check(sub, format!("{path} {}", sub.get_name()).as_str());
+                }
+            }
+        }
+
+        let mut cmd = Cli::command();
+        check(&cmd, "kc");
+        let short = cmd.clone().render_help().to_string();
+        let long = cmd.render_long_help().to_string();
+        assert!(
+            long.len() > short.len(),
+            "`--help` must tell more than `-h`"
+        );
+    }
+
+    /// 每个参数都要有 help 文本，否则 `--help` 里只留下一个空行。
+    #[test]
+    fn every_argument_documents_help() {
+        use clap::CommandFactory;
+
+        fn check(command: &clap::Command, path: &str) {
+            for arg in command.get_arguments() {
+                assert!(
+                    arg.get_help().is_some(),
+                    "{path} argument {} lacks help",
+                    arg.get_id()
+                );
+            }
+            for sub in command.get_subcommands() {
+                if sub.get_name() != "help" {
+                    check(sub, format!("{path} {}", sub.get_name()).as_str());
+                }
+            }
+        }
+
+        check(&Cli::command(), "kc");
+    }
 }

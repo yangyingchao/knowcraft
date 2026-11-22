@@ -2808,6 +2808,33 @@ menubutton.preview-header-action:disabled > button {
   animation: slide-out-up 240ms ease-out;
 }
 
+/* The preview pane's bottom block: the related documents a reader gets without
+   asking for them. Height comes from the widget, capped at about eight rows. */
+.preview-similar {
+  border-top: 1px solid alpha(@knowcraft_border, 0.6);
+  padding: 5px 0 6px;
+}
+
+.preview-similar-title {
+  color: @knowcraft_dim_text;
+  font-size: 0.75em;
+  font-weight: 700;
+  margin: 0 8px 3px;
+}
+
+/* 行用侧边栏的行控件，但比左侧边栏更小更密：字号收一档，行高与内边距压紧。 */
+.preview-similar-list .sidebar-row {
+  border-radius: 5px;
+  font-size: 0.76em;
+  margin: 0 4px;
+  min-height: 22px;
+  padding: 0 6px;
+}
+
+.preview-similar-list .sidebar-row:hover {
+  background: alpha(@knowcraft_accent, 0.15);
+}
+
 .preview-text,
 .preview-text text {
   background: @knowcraft_surface;

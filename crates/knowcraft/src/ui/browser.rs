@@ -111,7 +111,7 @@ pub(super) use crate::ui::browser::context_menu::{
     install_item_context_menu, install_resolved_item_context_menu,
 };
 pub(super) use crate::ui::browser::desktop::{
-    launch_file_manager, launch_terminal, open_location_at,
+    launch_file_manager, launch_terminal, open_location, open_location_at, show_open_with_fallback,
 };
 pub(super) use crate::ui::browser::entry::{
     FOLDER_TYPE_GROUP, OTHER_TYPE_GROUP, entry_filter, entry_icon, entry_model_value,

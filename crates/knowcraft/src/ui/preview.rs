@@ -74,6 +74,7 @@ mod pdf_ranges_tests;
 mod player_layout;
 mod route;
 mod session;
+mod similar;
 pub(super) mod video;
 mod waveform;
 
@@ -180,6 +181,11 @@ struct PreviewState {
     raw_details_scroll: gtk::ScrolledWindow,
     raw_metadata_load: RefCell<Option<super::raw_details::MetadataLoad>>,
     open: gtk::Button,
+    similar: similar::SimilarSection,
+    /// 请求序号；快速切换文件时只接受最新一次的相关文献查询结果。
+    similar_generation: Cell<u64>,
+    /// 防抖计时器；连续切换时只留最后一次查询。
+    similar_pending: RefCell<Option<glib::SourceId>>,
     ai: gtk::MenuButton,
     ai_busy: Cell<bool>,
     ai_generation: Cell<u64>,

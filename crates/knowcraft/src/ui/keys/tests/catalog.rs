@@ -17,7 +17,7 @@ fn catalog_bindings_use_the_canonical_key() {
             Entry::Binding(binding) => (format!("{binding:?}"), vec![binding]),
             Entry::Command(command) => (
                 command.id().to_owned(),
-                command.defaults(Map::Default).iter().copied().collect(),
+                command.defaults(Map::Default).to_vec(),
             ),
             Entry::Digits(_) => continue,
         };

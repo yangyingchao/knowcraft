@@ -158,7 +158,10 @@ impl Knowledge {
     pub(crate) fn summarizer(&self) -> Result<knowcraft_core::ai::Summarizer, String> {
         let config = Config::load().map_err(|error| error.to_string())?.ai;
         Ok(knowcraft_core::ai::Summarizer::new(
-            self.store.clone(), self.data_dir.clone(), self.write_lock.clone(), config,
+            self.store.clone(),
+            self.data_dir.clone(),
+            self.write_lock.clone(),
+            config,
         ))
     }
 
@@ -530,25 +533,40 @@ impl Knowledge {
             .map_err(|error| error.to_string())
     }
 
+    /// 与 `path` 内容相关的已索引文档，供预览面板的相关文献列表使用。
+    pub(crate) fn similar_documents(
+        &self,
+        path: &Path,
+        limit: usize,
+    ) -> Vec<knowcraft_core::index::SimilarHit> {
+        match knowcraft_core::recommend::similar_documents(
+            &self.index,
+            &self.data_dir,
+            path,
+            knowcraft_core::recommend::Scope::All,
+            limit.max(1),
+        ) {
+            Ok(hits) => hits,
+            Err(error) => {
+                tracing::warn!(%error, "similar documents query failed");
+                Vec::new()
+            }
+        }
+    }
+
     /// Suggests library categories for `path` by content similarity.
     ///
     /// Returns an empty list when the document has no usable text or the index
     /// is empty, so callers fall back to manual entry.
     pub(crate) fn suggest_categories(&self, path: &Path, limit: usize) -> Vec<CategorySuggestion> {
-        let title = knowcraft_core::extract::extract_title(path)
-            .or_else(|| {
-                path.file_name()
-                    .map(|name| name.to_string_lossy().into_owned())
-            })
-            .unwrap_or_default();
-        let content = knowcraft_core::extract::extract_text(path).unwrap_or_default();
-        if title.trim().is_empty() && content.trim().is_empty() {
-            return Vec::new();
-        }
-        let hits = match self
-            .index
-            .similar_to_text(&title, &content, limit.max(1) * 8)
-        {
+        // 候选放大后按分类聚合，同一分类取分数最高的一条。
+        let hits = match knowcraft_core::recommend::similar_documents(
+            &self.index,
+            &self.data_dir,
+            path,
+            knowcraft_core::recommend::Scope::Library,
+            limit.max(1) * 8,
+        ) {
             Ok(hits) => hits,
             Err(error) => {
                 tracing::warn!(%error, "category suggestion query failed");
@@ -556,12 +574,8 @@ impl Knowledge {
             }
         };
         let library = self.data_dir.join("library");
-        let self_path = path.to_string_lossy();
         let mut by_category: HashMap<String, (f32, Option<String>)> = HashMap::new();
         for hit in hits {
-            if hit.path == self_path {
-                continue;
-            }
             let Ok(relative) = Path::new(&hit.path).strip_prefix(&library) else {
                 continue;
             };
