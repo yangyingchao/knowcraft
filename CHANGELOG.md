@@ -7,6 +7,19 @@
 ### Fixed
 
 
+## [v0.4.0] - 2026-11-22
+
+### Added
+- 新增相关文献推荐：core 检索接口、预览面板与 CLI 子命令 (188121a)
+
+### Changed
+- 桌面集成的可执行路径不再解析符号链接 (97f6a15)
+
+### Fixed
+- 修复无 gvfs 环境下可移动设备不出现在 Send to 菜单 (041cda7)
+- 文件选择窗口固定 app_id，并回落空标题 (e733c0f)
+
+
 ## [v0.3.1] - 2026-11-21
 
 ### Changed
@@ -46,7 +59,8 @@
 - 统一 settings.toml：core 字段留顶层，GUI 偏好移入 [gui] (0c71eaa)
 - 库外文件删除改走系统回收站 (d9718de)
 
-[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.4.0...HEAD
+[v0.4.0]: https://github.com/yangyingchao/knowcraft/compare/v0.3.1...v0.4.0
 [v0.3.1]: https://github.com/yangyingchao/knowcraft/compare/v0.3.0...v0.3.1
 [v0.3.0]: https://github.com/yangyingchao/knowcraft/compare/v0.2.2...v0.3.0
 [v0.2.2]: https://github.com/yangyingchao/knowcraft/compare/v0.2.1...v0.2.2
