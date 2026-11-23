@@ -2,6 +2,8 @@
 
 use super::*;
 
+use crate::ui::keys::{Keys, bindings::RELATED_DOCUMENTS};
+
 /// The preview header: file identity on the drag handle, then the actions.
 pub(super) struct Header {
     pub(super) row: gtk::Box,
@@ -13,6 +15,7 @@ pub(super) struct Header {
     pub(super) ai: gtk::MenuButton,
     pub(super) ai_summary: gtk::Button,
     pub(super) model_spinner: gtk::Spinner,
+    pub(super) related: gtk::ToggleButton,
     pub(super) document_view_icon: gtk::Image,
     pub(super) document_view_button: gtk::Button,
     pub(super) wrap: gtk::ToggleButton,
@@ -38,6 +41,7 @@ impl Header {
         let model_spinner = model_spinner();
         let document_view_icon = crate::assets::primary_icon(crate::assets::icons::FILE_CODE, 16);
         let document_view_button = document_view_button(&document_view_icon);
+        let related = related_button();
         let wrap = wrap_button();
         let close = close_button();
         close.set_visible(!resident);
@@ -57,6 +61,7 @@ impl Header {
         row.append(&handle);
         let find_button = find::icon_button("Find in preview", crate::assets::icons::SEARCH);
         find_button.set_visible(false);
+        row.append(&related);
         row.append(&document_view_button);
         row.append(&find_button);
         row.append(&model_spinner);
@@ -74,6 +79,7 @@ impl Header {
             ai,
             ai_summary,
             model_spinner,
+            related,
             document_view_icon,
             document_view_button,
             wrap,
@@ -169,6 +175,26 @@ fn model_spinner() -> gtk::Spinner {
     model_spinner
 }
 
+/// 相关文献开关的提示文案；与 F1 参考里的一行同源。
+const RELATED_MESSAGE: &str = "Toggle related documents (%{keys})";
+
+fn related_button() -> gtk::ToggleButton {
+    let keys = Keys::One(RELATED_DOCUMENTS.shown());
+    let button = gtk::ToggleButton::builder()
+        .valign(gtk::Align::Center)
+        .active(crate::ui::preferences::preview_related_documents())
+        .visible(false)
+        .build();
+    button.set_child(Some(&crate::assets::primary_icon(
+        crate::assets::icons::FILES,
+        16,
+    )));
+    button.add_css_class("preview-header-action");
+    crate::ui::shortcut_reference::follow_tooltip(&button, RELATED_MESSAGE, keys);
+    crate::ui::shortcut_reference::follow_label(&button, RELATED_MESSAGE, keys);
+    button
+}
+
 fn document_view_button(icon: &gtk::Image) -> gtk::Button {
     let button = gtk::Button::builder()
         .tooltip_text(crate::i18n::tr("View source"))
@@ -250,6 +276,45 @@ mod tests {
                 assert_eq!(
                     header.ai.next_sibling().as_ref(),
                     Some(header.open.upcast_ref())
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn related_toggle_sits_left_of_the_source_button_and_ships_its_icon() {
+        gtk_test(
+            "ui::preview::drawer::header::tests::related_toggle_sits_left_of_the_source_button_and_ships_its_icon",
+            || {
+                let header = Header::new(true, true);
+                assert!(!header.related.is_visible(), "库外文件与首次刷新前不出现");
+                assert_eq!(
+                    header.related.next_sibling().as_ref(),
+                    Some(header.document_view_button.upcast_ref()),
+                    "开关在「查看源代码」左面"
+                );
+                assert!(
+                    header
+                        .related
+                        .child()
+                        .is_some_and(|child| child.is::<gtk::Image>()),
+                    "开关是图标按钮"
+                );
+                let resource = gtk::gio::resources_lookup_data(
+                    "/io/github/knowcraft/Knowcraft/icons/scalable/actions/knowcraft-files.svg",
+                    gtk::gio::ResourceLookupFlags::NONE,
+                );
+                assert!(resource.is_ok(), "related icon must be bundled");
+                assert_eq!(
+                    header.related.tooltip_text().as_deref(),
+                    Some(
+                        crate::ui::shortcut_reference::with_keys(
+                            RELATED_MESSAGE,
+                            Keys::One(RELATED_DOCUMENTS.shown()),
+                        )
+                        .as_str()
+                    ),
+                    "提示文案带上快捷键"
                 );
             },
         );

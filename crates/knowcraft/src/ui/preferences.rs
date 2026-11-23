@@ -75,7 +75,9 @@ use persistence::{
     SettingKey, parse_preferences, read_loaded_preferences, read_state_file, record_changes,
     settings_path,
 };
-pub(in crate::ui) use ui_state::{preview_width, set_preview_width};
+pub(in crate::ui) use ui_state::{
+    preview_related_documents, preview_width, set_preview_related_documents, set_preview_width,
+};
 pub(in crate::ui) use stored::{SEARCH_ENTRY_LIMIT_CHOICES, SEARCH_TIME_LIMIT_CHOICES};
 use stored::{
     configured_hardware_acceleration, configured_video_preview_backend, normalized_search_limit,

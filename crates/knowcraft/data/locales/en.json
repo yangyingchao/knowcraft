@@ -1254,6 +1254,7 @@
   "Toggle owner read permission": "Toggle owner read permission",
   "Toggle owner write permission": "Toggle owner write permission",
   "Toggle preview panel while browsing": "Toggle preview panel while browsing",
+  "Toggle related documents (%{keys})": "Toggle related documents (%{keys})",
   "Toggle sidebar (%{keys})": "Toggle sidebar (%{keys})",
   "Toggle word wrap": "Toggle word wrap",
   "Too many remote previews are active; try again shortly": "Too many remote previews are active; try again shortly",

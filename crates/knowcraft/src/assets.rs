@@ -48,6 +48,7 @@ pub mod icons {
     pub const FILE_TERMINAL: &str = "knowcraft-file-terminal";
     pub const FILE_PLUS: &str = "knowcraft-file-plus";
     pub const FILE_TYPE: &str = "knowcraft-file-type";
+    pub const FILES: &str = "knowcraft-files";
     pub const FOLDER: &str = "knowcraft-folder";
     pub const FOLDER_ARCHIVE: &str = "knowcraft-folder-archive";
     pub const FOLDER_INPUT: &str = "knowcraft-folder-input";

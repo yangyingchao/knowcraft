@@ -209,6 +209,7 @@ const KEYLESS: &[(&str, &str)] = &[
         "Show all file-view shortcuts",
     ),
     ("Show sidebar (%{keys})", "Show sidebar"),
+    ("Toggle related documents (%{keys})", "Toggle related documents"),
     ("Toggle sidebar (%{keys})", "Toggle sidebar"),
     ("%{keys} Shortcuts", "Shortcuts"),
     ("%{keys}  navigate", ""),
@@ -602,6 +603,10 @@ const DEFAULT_TOOLS: &[Shortcut] = &[
     row(One(HIDDEN_FILES.shown()), "Show or hide hidden files"),
     row(TEXT_SIZE, "Increase / decrease / reset text size"),
     row(One(SIDEBAR.shown()), "Show or hide the sidebar"),
+    row(
+        One(RELATED_DOCUMENTS.shown()),
+        "Show or hide related documents",
+    ),
     row(
         One(SIDEBAR_FOCUS.shown()),
         "Switch focus between sidebar and browser",

@@ -123,3 +123,27 @@ fn invalid_values_are_not_saved() {
         },
     );
 }
+
+/// 预览面板自己的显示开关属于窗口状态，不进 settings.toml。
+#[test]
+fn the_related_documents_toggle_is_window_state_not_a_setting() {
+    gtk_test(
+        "ui::preferences::tests::preferences::window_state::the_related_documents_toggle_is_window_state_not_a_setting",
+        || {
+            set_preview_related_documents(true);
+            set_preview_related_documents(false);
+            crate::storage::writer::settle();
+
+            assert!(!preview_related_documents());
+            assert_eq!(
+                saved_state()["preview_related_documents"].as_bool(),
+                Some(false)
+            );
+            let settings = fs::read_to_string(settings_path()).unwrap_or_default();
+            assert!(
+                !settings.contains("preview_related_documents"),
+                "预览面板开关不进 settings.toml"
+            );
+        },
+    );
+}

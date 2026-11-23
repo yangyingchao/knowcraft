@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 //! Transient window state in `state.toml`: how the window looked last time, not
-//! what the user chose. It holds the preview width and the list columns, which
-//! used to live in `preview.toml` and `settings.toml`.
+//! what the user chose on a settings page. It holds the preview width, the list
+//! columns, which used to live in `preview.toml` and `settings.toml`, and the
+//! preview panel's own view toggles, which have no settings page.
 
 use std::{
     cell::RefCell,
@@ -30,6 +31,9 @@ struct StoredState {
     preview_width: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     browser_list_columns: Option<ListColumns>,
+    /// 预览面板底部的相关文献区块是否显示；默认显示，所以只存用户关掉过的状态。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    preview_related_documents: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -79,6 +83,18 @@ pub(in crate::ui) fn set_browser_list_columns(columns: Option<ListColumns>) {
 /// Loads the state now, so a save that drops migrated values cannot precede it.
 pub(in crate::ui) fn prime() {
     let _ = load_once();
+}
+
+/// 预览面板底部的相关文献区块是否显示；文件里没有这一项时默认显示。
+pub(in crate::ui) fn preview_related_documents() -> bool {
+    load_once().preview_related_documents.unwrap_or(true)
+}
+
+pub(in crate::ui) fn set_preview_related_documents(shown: bool) {
+    let changed = update(|state| state.preview_related_documents.replace(shown) != Some(shown));
+    if changed {
+        save_key("preview_related_documents");
+    }
 }
 
 fn load_once() -> StoredState {

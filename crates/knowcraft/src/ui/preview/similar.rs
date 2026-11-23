@@ -187,12 +187,15 @@ impl PreviewState {
             pending.remove();
         }
         self.similar.model.remove_all();
+        // 头部开关只在能出现区块的文件上显示；关掉开关时同样不查。
+        self.related.set_visible(related_documents_available(entry));
         // 只有数据根目录内的文件才有相关文献，库外文件整体不显示该区块。
         let path = entry
             .location
             .native_path()
             .map(PathBuf::from)
-            .filter(|path| inside_knowledge(path));
+            .filter(|path| inside_knowledge(path))
+            .filter(|_| related_documents_shown());
         let Some(path) = path else {
             self.similar.section.set_visible(false);
             return;
@@ -208,6 +211,17 @@ impl PreviewState {
             state.start_similar(&path, generation);
         });
         self.similar_pending.replace(Some(pending));
+    }
+
+    /// 开关写进窗口状态并立即作用于当前文档；关掉时列表清空、在途查询作废
+    /// （`refresh_similar` 会推进序号并取消防抖计时器）。
+    pub(super) fn set_related_documents(self: &Rc<Self>, shown: bool) {
+        crate::ui::preferences::set_preview_related_documents(shown);
+        let entry = self.current.borrow().clone();
+        match entry {
+            Some(entry) => self.refresh_similar(&entry),
+            None => self.similar.section.set_visible(false),
+        }
     }
 
     /// 后台查询一次；结果回来时序号已变则丢弃。
@@ -411,6 +425,20 @@ fn similar_row_at(model: &gio::ListStore, position: u32) -> Option<SimilarRow> {
 /// 路径是否落在知识库数据根目录内。
 fn inside_knowledge(path: &Path) -> bool {
     crate::knowledge::data_dir_path().is_some_and(|data_dir| path.starts_with(data_dir))
+}
+
+/// 窗口状态里相关文献区块是否显示。
+fn related_documents_shown() -> bool {
+    crate::ui::preferences::preview_related_documents()
+}
+
+/// 只有库内文件能查出相关文献，头部开关也只在这些文件上出现。
+fn related_documents_available(entry: &FileEntry) -> bool {
+    entry
+        .location
+        .native_path()
+        .map(PathBuf::from)
+        .is_some_and(|path| inside_knowledge(&path))
 }
 
 /// 索引侧标题为空时回落到文件名，避免出现空行。

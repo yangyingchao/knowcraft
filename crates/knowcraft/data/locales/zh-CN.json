@@ -1254,6 +1254,7 @@
   "Toggle owner read permission": "切换所有者读取权限",
   "Toggle owner write permission": "切换所有者写入权限",
   "Toggle preview panel while browsing": "浏览时显示/隐藏预览面板",
+  "Toggle related documents (%{keys})": "显示/隐藏相关文献（%{keys}）",
   "Toggle sidebar (%{keys})": "显示/隐藏侧边栏（%{keys}）",
   "Toggle word wrap": "切换自动换行",
   "Too many remote previews are active; try again shortly": "正在进行的远程预览过多，请稍后重试",

@@ -32,6 +32,7 @@ mod open_in_new;
 mod overlay_focus;
 mod pane_focus;
 mod preview_ownership;
+mod related_documents;
 mod reload_cursor;
 mod sidebar_sections;
 mod structural_aliases;

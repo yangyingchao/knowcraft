@@ -350,6 +350,7 @@ impl Dispatcher {
             .or_else(|| self.filter_and_location_commands(&event))
             .or_else(|| self.video_controls(&event))
             .or_else(|| self.sidebar_commands(browser, &event))
+            .or_else(|| self.related_documents_command(&event))
             .or_else(|| self.context_menu_command(&event))
             .or_else(|| self.properties_command(&event))
             .or_else(|| self.search_result_keys(&event))

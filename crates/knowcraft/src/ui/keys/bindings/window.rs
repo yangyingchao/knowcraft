@@ -47,6 +47,7 @@ catalog! {
         THUMBNAILS_RESET: Command "thumbnails_reset" = Binding::ctrl_alt(Key::_0);
         SIDEBAR: Command "toggle_sidebar" = Binding::ctrl(Key::b);
         SIDEBAR_FOCUS: Command "focus_sidebar" = Binding::ctrl_shift(Key::b);
+        RELATED_DOCUMENTS: Command "toggle_related_documents" = Binding::ctrl_alt(Key::r);
 
         SETTINGS: Command "settings" = Binding::ctrl(Key::comma);
         REFERENCE: Command "shortcut_reference" = Binding::plain(Key::F1);

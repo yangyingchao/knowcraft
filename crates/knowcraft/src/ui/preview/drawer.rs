@@ -82,6 +82,12 @@ impl PreviewDrawer {
         });
         bind_text_wrap(&header.wrap, &state);
         let weak = Rc::downgrade(&state);
+        header.related.connect_toggled(move |button| {
+            if let Some(state) = weak.upgrade() {
+                state.set_related_documents(button.is_active());
+            }
+        });
+        let weak = Rc::downgrade(&state);
         super::super::theme::ThemeManager::shared().bind_theme_preference(
             &state.pane,
             |manager| manager.active_model_palette(),
@@ -329,6 +335,7 @@ impl PreviewState {
             raw_metadata_load: RefCell::new(None),
             open: header.open.clone(),
             similar: parts.similar,
+            related: header.related.clone(),
             similar_generation: Cell::new(0),
             similar_pending: RefCell::new(None),
             ai: header.ai.clone(),

@@ -152,6 +152,15 @@ impl Dispatcher {
         None
     }
 
+    /// 相关文献区块的快捷键：与预览头部的开关同一路径，可选手动改绑。
+    pub(super) fn related_documents_command(&self, event: &KeyEvent) -> KeyResult {
+        if event.press.is(RELATED_DOCUMENTS) {
+            self.preview.toggle_related_documents();
+            return Some(Propagation::Stop);
+        }
+        None
+    }
+
     pub(super) fn text_input(&self, event: &KeyEvent) -> KeyResult {
         if self.view.location_has_focus() {
             if event.press.is(ESCAPE_ANY) {

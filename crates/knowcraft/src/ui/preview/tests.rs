@@ -439,3 +439,39 @@ fn only_a_docked_preview_offers_its_divider_for_resizing() {
         },
     );
 }
+
+/// 关掉设置里的相关文献开关：区块隐藏、列表清空、不再排队查询；头部开关只在
+/// 库内文件上出现，与开关本身无关。
+#[test]
+fn related_documents_switch_hides_the_section_and_skips_the_query() {
+    crate::test_support::gtk_test(
+        "ui::preview::tests::related_documents_switch_hides_the_section_and_skips_the_query",
+        || {
+            let before = crate::ui::preferences::preview_related_documents();
+            crate::ui::preferences::set_preview_related_documents(false);
+            let provider = Rc::new(Provider::default());
+            let drawer = PreviewDrawer::new(provider, false, false);
+            let state = &drawer.state;
+            state.show(entry("/nonexistent-knowcraft-fixture/outside.md"), None);
+
+            assert!(!state.similar.section.is_visible(), "开关关掉时没有区块");
+            assert_eq!(state.similar.model.n_items(), 0);
+            assert!(
+                state.similar_pending.borrow().is_none(),
+                "开关关掉时不排查询"
+            );
+            assert!(!state.related.is_visible(), "库外文件不出现头部开关");
+            assert!(!state.related.is_active(), "开关初值来自窗口状态");
+
+            state.set_related_documents(true);
+            assert!(
+                crate::ui::preferences::preview_related_documents(),
+                "开关写进窗口状态"
+            );
+            assert!(!state.similar.section.is_visible(), "库外文件仍然没有区块");
+
+            state.set_related_documents(before);
+            assert_eq!(crate::ui::preferences::preview_related_documents(), before);
+        },
+    );
+}

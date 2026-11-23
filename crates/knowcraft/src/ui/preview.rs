@@ -182,6 +182,8 @@ struct PreviewState {
     raw_metadata_load: RefCell<Option<super::raw_details::MetadataLoad>>,
     open: gtk::Button,
     similar: similar::SimilarSection,
+    /// 相关文献区块的头部开关；只在库内文件的预览里显示。
+    related: gtk::ToggleButton,
     /// 请求序号；快速切换文件时只接受最新一次的相关文献查询结果。
     similar_generation: Cell<u64>,
     /// 防抖计时器；连续切换时只留最后一次查询。
@@ -326,6 +328,13 @@ impl PreviewDrawer {
     #[cfg(test)]
     pub(in crate::ui) fn set_enabled_for_test(&self, enabled: bool) {
         self.state.set_enabled(enabled);
+    }
+
+    /// 相关文献区块的开关：头部按钮与 Ctrl+Alt+R 走同一条路径，按钮的状态变化
+    /// 再驱动窗口状态与列表刷新。
+    pub(in crate::ui) fn toggle_related_documents(&self) {
+        let shown = !crate::ui::preferences::preview_related_documents();
+        self.state.related.set_active(shown);
     }
 }
 
