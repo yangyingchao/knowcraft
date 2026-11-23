@@ -11,6 +11,11 @@ use paged::ranges::layer_position;
 use paged::{PagedHooks, PagedViewer};
 use toolbar::PdfToolbarAction;
 
+use crate::ui::annotation::ToolbarCapabilities;
+use knowcraft_core::text_action::{classify, TextTarget};
+
+use super::text_actions::{self, TextAction};
+
 mod toolbar;
 
 /// A first PDF page handed to the paged widget.
@@ -26,6 +31,8 @@ struct PdfSession {
     annotations: RefCell<Vec<Annotation>>,
     toolbar: RefCell<Option<Rc<toolbar::PdfToolbar>>>,
     viewer: RefCell<Option<std::rc::Weak<PagedViewer>>>,
+    /// 预览面的共享状态；智能动作的浏览器句柄与抓取回调都从这里取。
+    preview: Option<std::rc::Weak<PreviewState>>,
 }
 
 /// One annotation under the pointer, with the popover anchor in page coordinates.
@@ -47,6 +54,7 @@ pub(super) fn render_pdf_paged(
         document_id,
         annotations_allowed,
         annotations,
+        Rc::downgrade(state),
     ));
 
     let hooks = PagedHooks {
@@ -97,6 +105,7 @@ impl PdfSession {
         document_id: Option<i64>,
         annotations_allowed: bool,
         annotations: Vec<Annotation>,
+        preview: std::rc::Weak<PreviewState>,
     ) -> Self {
         Self {
             document_id,
@@ -104,6 +113,7 @@ impl PdfSession {
             annotations: RefCell::new(annotations),
             toolbar: RefCell::new(None),
             viewer: RefCell::new(None),
+            preview: Some(preview),
         }
     }
 
@@ -113,6 +123,7 @@ impl PdfSession {
             return;
         };
         let session = self.clone();
+        let session_for_text = Rc::downgrade(self);
         let viewer_for_action = Rc::downgrade(viewer);
         let scroll_for_action = scroll.downgrade();
         let on_action: Rc<dyn Fn(PdfToolbarAction)> = Rc::new(move |action| {
@@ -134,8 +145,35 @@ impl PdfSession {
                 viewer.copy_selection(&scroll);
             }
         });
-        self.toolbar
-            .replace(Some(Rc::new(toolbar::PdfToolbar::new(on_action, on_copy))));
+        let on_text_action: Rc<dyn Fn(TextAction)> = Rc::new(move |action| {
+            if let Some(session) = session_for_text.upgrade() {
+                session.perform_text_action(action);
+            }
+        });
+        let capabilities = ToolbarCapabilities {
+            annotate: self.annotations_allowed,
+        };
+        self.toolbar.replace(Some(Rc::new(toolbar::PdfToolbar::new(
+            capabilities,
+            on_action,
+            on_copy,
+            on_text_action,
+        ))));
+
+        // 右键在 Capture 相位取走选区文本，再决定是否弹菜单。
+        let weak_session = Rc::downgrade(self);
+        let secondary = gtk::GestureClick::new();
+        secondary.set_button(super::text_menu::SECONDARY_BUTTON);
+        secondary.set_propagation_phase(gtk::PropagationPhase::Capture);
+        secondary.connect_pressed(move |gesture, _, x, y| {
+            let Some(session) = weak_session.upgrade() else {
+                return;
+            };
+            if session.open_text_menu(x, y) {
+                gesture.set_state(gtk::EventSequenceState::Claimed);
+            }
+        });
+        scroll.add_controller(secondary);
     }
 
     fn viewer(&self) -> Option<Rc<PagedViewer>> {
@@ -152,8 +190,11 @@ impl PdfSession {
     }
 
     /// Sits the toolbar above the first selected page's runs.
+    ///
+    /// 未登记、只读、加密或签名的文件不显示标注按钮，但识别出目标时仍弹智能动作与复制。
     fn show_toolbar(&self, viewer: &PagedViewer) {
-        if !self.annotations_allowed {
+        let target = classify(&viewer.selected_text());
+        if !text_actions::shows_for(self.annotations_allowed, &target) {
             self.hide_toolbar();
             return;
         }
@@ -174,8 +215,87 @@ impl PdfSession {
             return;
         };
         if let Some(toolbar) = self.toolbar.borrow().as_ref() {
+            toolbar.set_text_actions(&self.visible_text_actions(&target));
             toolbar.show(&area, rect);
         }
+    }
+
+    /// 识别结果对应的智能动作，顺序与动作表一致。
+    fn visible_text_actions(&self, target: &TextTarget) -> Vec<TextAction> {
+        let state = self.preview.as_ref().and_then(std::rc::Weak::upgrade);
+        text_actions::visible_actions(state.as_deref(), target)
+    }
+
+    /// 工具条与右键菜单共用的执行入口；锚点取选中页的文本层。
+    fn perform_text_action(self: &Rc<Self>, action: TextAction) {
+        let Some(viewer) = self.viewer() else {
+            return;
+        };
+        let selection = viewer.selected_text();
+        if selection.is_empty() {
+            return;
+        }
+        let Some(area) = self.selection_area(&viewer) else {
+            return;
+        };
+        let state = self.preview.as_ref().and_then(std::rc::Weak::upgrade);
+        let ctx = text_actions::context_for(state.as_deref(), area.upcast(), selection);
+        let target = classify(&ctx.selection);
+        text_actions::run(action, &target, &ctx);
+    }
+
+    /// 选区上的右键菜单；不能标注又识别不出目标时不弹。
+    fn open_text_menu(self: &Rc<Self>, x: f64, y: f64) -> bool {
+        let Some(viewer) = self.viewer() else {
+            return false;
+        };
+        let target = classify(&viewer.selected_text());
+        if !text_actions::shows_for(self.annotations_allowed, &target) {
+            return false;
+        }
+        let Some((area, rect)) = self.selection_anchor(&viewer, (x, y)) else {
+            return false;
+        };
+        let state = self.preview.as_ref().and_then(std::rc::Weak::upgrade);
+        let weak = Rc::downgrade(self);
+        let on_action = Rc::new(move |action| {
+            if let Some(session) = weak.upgrade() {
+                session.perform_text_action(action);
+            }
+        });
+        super::text_menu::popup_text_menu(
+            &area,
+            rect,
+            &target,
+            text_actions::env_for(state.as_deref(), &target),
+            on_action,
+        );
+        true
+    }
+
+    /// 选中页的文本层，智能动作以它为锚点。
+    fn selection_area(&self, viewer: &PagedViewer) -> Option<gtk::DrawingArea> {
+        let (page, _) = viewer.selected_ranges().first().copied()?;
+        viewer.page_area(page)
+    }
+
+    /// 选中页的文本层与选区矩形；取不到矩形时退回按下位置。
+    fn selection_anchor(
+        &self,
+        viewer: &PagedViewer,
+        fallback: (f64, f64),
+    ) -> Option<(gtk::DrawingArea, (f64, f64, f64, f64))> {
+        let (page, (start, end)) = viewer.selected_ranges().first().copied()?;
+        let area = viewer.page_area(page)?;
+        let layer = viewer.layer(page)?;
+        let rect =
+            selection_rect(&layer, &area, start, end).unwrap_or((
+                fallback.0,
+                fallback.1,
+                1.0,
+                1.0,
+            ));
+        Some((area, rect))
     }
 
     fn toolbar_action(

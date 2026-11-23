@@ -384,6 +384,7 @@ impl PreviewState {
             claim_on_resume: Cell::new(false),
             released_from: Cell::new(None),
             operations: RefCell::new(None),
+            capture: RefCell::new(None),
         });
         if resident {
             state.sizing.load_saved_width();

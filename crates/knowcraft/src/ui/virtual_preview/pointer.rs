@@ -33,6 +33,24 @@ pub(super) fn install_pointer_selection(
     list.add_controller(click_controller(&pointer));
     list.add_controller(drag_controller(&pointer));
     list.add_controller(motion_controller(&pointer));
+    list.add_controller(context_menu_controller(&pointer.state));
+}
+
+/// 选区右键菜单；按下时先取文本与矩形，再拦下这次按键。
+fn context_menu_controller(state: &Rc<VirtualPreviewState>) -> gtk::GestureClick {
+    let click = gtk::GestureClick::new();
+    click.set_button(crate::ui::preview::text_menu::SECONDARY_BUTTON);
+    click.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let weak = Rc::downgrade(state);
+    click.connect_pressed(move |gesture, _, x, y| {
+        let Some(state) = weak.upgrade() else {
+            return;
+        };
+        if state.open_text_menu(x, y) {
+            gesture.set_state(gtk::EventSequenceState::Claimed);
+        }
+    });
+    click
 }
 
 fn click_controller(pointer: &Rc<PointerSelection>) -> gtk::GestureClick {

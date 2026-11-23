@@ -10,6 +10,18 @@ use super::WindowContent;
 
 pub(super) fn install(window: &gtk::ApplicationWindow, content: &WindowContent) {
     let shortcuts = content.footer.shortcuts.clone();
+    let text_action_browser = content.browser.clone();
+    let text_action_feedback = shortcuts.clone();
+    let capture: Rc<dyn Fn(String)> = Rc::new(move |url| {
+        let browser = text_action_browser.clone();
+        let feedback = text_action_feedback.clone();
+        crate::ui::window::knowledge_dispatch::run_capture(
+            url,
+            Rc::new(move || browser.refresh()),
+            Rc::new(move |text| feedback.show_feedback(text)),
+        );
+    });
+    content.preview.set_capture(capture);
     let capture_browser = content.browser.clone();
     let capture_shortcuts = shortcuts.clone();
     let capture_window = window.clone();

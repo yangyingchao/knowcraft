@@ -84,6 +84,7 @@ impl PreviewState {
                         &source.content_type,
                         &source.content,
                         source.truncated,
+                        Some(self),
                     );
                     view
                 }),
@@ -104,7 +105,7 @@ impl PreviewState {
                         "rendered",
                         state.space(),
                     );
-                    state.set_annotations(controller);
+                    state.set_annotations(controller, Some(self));
                     preview.rendered_state.replace(Some(state));
                     view.upcast()
                 }),

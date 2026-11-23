@@ -16,11 +16,27 @@ use knowcraft_core::{
 };
 
 use super::document_view::AnnotationRange;
+use super::preview::text_actions::TextAction;
 use super::virtual_preview::SelectionSpace;
 
 pub(super) const PALETTE: [&str; 6] = [
     "#ffd400", "#7bd88f", "#5ab0f2", "#ff7ab2", "#ffa94d", "#b48ead",
 ];
+
+/// 智能动作按钮的固定顺序，与 `actions_for` 的返回顺序一致。
+const TEXT_ACTIONS: [TextAction; 5] = [
+    TextAction::OpenInBrowser,
+    TextAction::Capture,
+    TextAction::SendEmail,
+    TextAction::OpenPath,
+    TextAction::RevealInBrowser,
+];
+
+/// 工具条的能力集：`annotate` 为假时只保留复制与智能动作。
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(super) struct ToolbarCapabilities {
+    pub annotate: bool,
+}
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) struct AnnotationCapabilities {
@@ -61,12 +77,15 @@ impl AnnotationToolbarAction {
 /// 选区上方浮出的创建工具条。
 pub(super) struct AnnotationToolbar {
     popover: gtk::Popover,
+    text_buttons: Vec<(TextAction, gtk::Button)>,
 }
 
 impl AnnotationToolbar {
     pub(super) fn new(
+        capabilities: ToolbarCapabilities,
         on_action: Rc<dyn Fn(AnnotationToolbarAction)>,
         on_copy: Rc<dyn Fn()>,
+        on_text_action: Rc<dyn Fn(TextAction)>,
     ) -> Self {
         let popover = gtk::Popover::new();
         popover.add_css_class("preview-pdf-toolbar");
@@ -78,11 +97,35 @@ impl AnnotationToolbar {
             ("Note", AnnotationToolbarAction::Note),
         ] {
             let callback = on_action.clone();
-            row.append(&toolbar_button(label, Rc::new(move || callback(action))));
+            let button = toolbar_button(label, Rc::new(move || callback(action)));
+            button.set_visible(capabilities.annotate);
+            row.append(&button);
+        }
+        let mut text_buttons = Vec::new();
+        for action in TEXT_ACTIONS {
+            let callback = on_text_action.clone();
+            let button = toolbar_icon_button(
+                action.icon(),
+                action.label_key(),
+                Rc::new(move || callback(action)),
+            );
+            button.set_visible(false);
+            text_buttons.push((action, button.clone()));
+            row.append(&button);
         }
         row.append(&toolbar_button("Copy", on_copy));
         popover.set_child(Some(&row));
-        Self { popover }
+        Self {
+            popover,
+            text_buttons,
+        }
+    }
+
+    /// 显示识别出的智能动作；按钮本身按固定顺序预建，这里只切显隐。
+    pub(super) fn set_text_actions(&self, visible: &[TextAction]) {
+        for (action, button) in &self.text_buttons {
+            button.set_visible(visible.contains(action));
+        }
     }
 
     pub(super) fn show(&self, anchor: &gtk::Widget, rect: (f64, f64, f64, f64)) {
@@ -109,6 +152,18 @@ impl AnnotationToolbar {
 fn toolbar_button(label: &str, on_click: Rc<dyn Fn()>) -> gtk::Button {
     let button = gtk::Button::with_label(&crate::i18n::tr(label));
     button.add_css_class("flat");
+    button.connect_clicked(move |_| on_click());
+    button
+}
+
+/// 只有图标的工具条按钮：文案进 tooltip 与无障碍名。
+fn toolbar_icon_button(icon: &str, label: &str, on_click: Rc<dyn Fn()>) -> gtk::Button {
+    let label = crate::i18n::tr(label);
+    let button = gtk::Button::new();
+    button.add_css_class("flat");
+    button.set_child(Some(&crate::assets::primary_icon(icon, 16)));
+    button.set_tooltip_text(Some(&label));
+    crate::ui::accessibility::set_label(&button, &label);
     button.connect_clicked(move |_| on_click());
     button
 }
@@ -678,6 +733,82 @@ pub(super) fn show_write_error(parent: &gtk::Widget, message: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn toolbar(annotate: bool) -> AnnotationToolbar {
+        AnnotationToolbar::new(
+            ToolbarCapabilities { annotate },
+            Rc::new(|_| {}),
+            Rc::new(|| {}),
+            Rc::new(|_| {}),
+        )
+    }
+
+    fn toolbar_row(toolbar: &AnnotationToolbar) -> gtk::Box {
+        toolbar
+            .popover
+            .child()
+            .and_downcast::<gtk::Box>()
+            .expect("toolbar row")
+    }
+
+    /// 未挂进组件树的控件 `is_visible` 恒为假，所以先把行放进一个真实窗口。
+    fn present_row(row: &gtk::Box) -> gtk::Window {
+        row.unparent();
+        let window = gtk::Window::new();
+        window.set_child(Some(row));
+        window.present();
+        window
+    }
+
+    /// 行内的按钮顺序：4 个标注、5 个智能动作、复制。
+    fn button_visibility(row: &gtk::Box) -> Vec<bool> {
+        let mut states = Vec::new();
+        let mut child = row.first_child();
+        while let Some(widget) = child {
+            states.push(widget.is_visible());
+            child = widget.next_sibling();
+        }
+        states
+    }
+
+    #[test]
+    fn toolbar_hides_annotation_buttons_without_annotation_support() {
+        crate::test_support::gtk_test(
+            "ui::annotation::tests::toolbar_hides_annotation_buttons_without_annotation_support",
+            || {
+                let toolbar = toolbar(false);
+                let row = toolbar_row(&toolbar);
+                let _window = present_row(&row);
+                let states = button_visibility(&row);
+                assert_eq!(states.len(), 10);
+                assert!(states[..4].iter().all(|visible| !visible));
+                assert!(states[9], "copy stays visible");
+                toolbar.set_text_actions(&[TextAction::OpenInBrowser]);
+                let states = button_visibility(&row);
+                assert!(states[4], "the recognized action becomes visible");
+                assert!(states[5..9].iter().all(|visible| !visible));
+                assert!(states[9], "copy stays visible");
+            },
+        );
+    }
+
+    #[test]
+    fn toolbar_keeps_annotation_buttons_for_a_registered_file() {
+        crate::test_support::gtk_test(
+            "ui::annotation::tests::toolbar_keeps_annotation_buttons_for_a_registered_file",
+            || {
+                let toolbar = toolbar(true);
+                let row = toolbar_row(&toolbar);
+                let _window = present_row(&row);
+                assert!(button_visibility(&row)[..4].iter().all(|visible| *visible));
+                toolbar.set_text_actions(&[TextAction::OpenInBrowser, TextAction::Capture]);
+                let states = button_visibility(&row);
+                assert!(states[..4].iter().all(|visible| *visible));
+                assert_eq!(states[4..6], [true, true]);
+                assert!(states[6..9].iter().all(|visible| !visible));
+            },
+        );
+    }
 
     fn annotation(nm: &str, kind: &str, start: i64, end: i64, selection: &str) -> Annotation {
         Annotation {

@@ -4,10 +4,15 @@ use super::*;
 
 use crate::ui::annotation::{
     self, AnnotationController, AnnotationMenuCallbacks, AnnotationToolbar, AnnotationToolbarAction,
+    ToolbarCapabilities,
 };
 use crate::ui::document_view::DocumentTextView;
 use crate::ui::keys::{self as key_events, bindings::ESCAPE};
 use crate::ui::virtual_preview::{SelectionSpace, VirtualPreviewState, notice_container};
+use std::rc::Weak;
+use knowcraft_core::text_action::{classify, TextTarget};
+
+use super::text_actions::{self, TextAction};
 
 impl SourcePreviewView {
     pub(super) fn new() -> Self {
@@ -27,6 +32,7 @@ impl SourcePreviewView {
         _content_type: &str,
         content: &str,
         truncated: bool,
+        preview: Option<&Rc<PreviewState>>,
     ) -> (gtk::Widget, bool) {
         self.cancel();
         self.scroll.borrow_mut().take();
@@ -45,7 +51,7 @@ impl SourcePreviewView {
                 super::super::virtual_preview::source_document(content, truncated, wrapped);
             let controller =
                 AnnotationController::new(source_document_id(entry), "source", state.space());
-            state.set_annotations(controller);
+            state.set_annotations(controller, preview);
             self.virtual_state.replace(Some(SourceState::List(state)));
             return (container.upcast(), true);
         }
@@ -76,6 +82,7 @@ impl SourcePreviewView {
             notice.clone(),
             &display,
             source_document_id(entry),
+            preview,
         );
         notice.append(&scroll);
         self.virtual_state.replace(Some(SourceState::Plain(state)));
@@ -171,6 +178,8 @@ pub(super) struct PlainPreviewState {
     notice: gtk::Box,
     toolbar: RefCell<Option<Rc<AnnotationToolbar>>>,
     stale_notice: RefCell<Option<gtk::Box>>,
+    /// 预览面的共享状态；智能动作的浏览器句柄与抓取回调都从这里取。
+    preview: RefCell<Option<Weak<PreviewState>>>,
     settle_pending: Cell<bool>,
 }
 
@@ -180,6 +189,7 @@ impl PlainPreviewState {
         notice: gtk::Box,
         content: &str,
         document_id: Option<i64>,
+        preview: Option<&Rc<PreviewState>>,
     ) -> Rc<Self> {
         let text = normalize_preview_text(content).into_owned();
         let space = Rc::new(SelectionSpace::from_text(text));
@@ -191,6 +201,7 @@ impl PlainPreviewState {
             notice,
             toolbar: RefCell::new(None),
             stale_notice: RefCell::new(None),
+            preview: RefCell::new(preview.map(Rc::downgrade)),
             settle_pending: Cell::new(false),
         });
         state.install();
@@ -224,8 +235,22 @@ impl PlainPreviewState {
                 state.copy_selection();
             }
         });
+        let weak = Rc::downgrade(self);
+        let on_text_action = Rc::new(move |action| {
+            if let Some(state) = weak.upgrade() {
+                state.perform_text_action(action);
+            }
+        });
+        let capabilities = ToolbarCapabilities {
+            annotate: self.controller.document_id().is_some(),
+        };
         self.toolbar
-            .replace(Some(Rc::new(AnnotationToolbar::new(on_action, on_copy))));
+            .replace(Some(Rc::new(AnnotationToolbar::new(
+                capabilities,
+                on_action,
+                on_copy,
+                on_text_action,
+            ))));
 
         let weak = Rc::downgrade(self);
         let buffer = self.view.buffer();
@@ -243,6 +268,7 @@ impl PlainPreviewState {
 
         let weak = Rc::downgrade(self);
         let gesture = gtk::GestureClick::new();
+        gesture.set_button(1);
         gesture.set_propagation_phase(gtk::PropagationPhase::Capture);
         gesture.connect_released(move |_, _, x, y| {
             let Some(state) = weak.upgrade() else {
@@ -260,6 +286,21 @@ impl PlainPreviewState {
             state.hide_toolbar();
         });
         self.view.add_controller(gesture);
+
+        // 右键在 Capture 相位取走选区，顺带屏蔽 gtk::TextView 自带的文本菜单。
+        let weak = Rc::downgrade(self);
+        let secondary = gtk::GestureClick::new();
+        secondary.set_button(super::text_menu::SECONDARY_BUTTON);
+        secondary.set_propagation_phase(gtk::PropagationPhase::Capture);
+        secondary.connect_pressed(move |gesture, _, x, y| {
+            let Some(state) = weak.upgrade() else {
+                return;
+            };
+            if state.open_text_menu(x, y) {
+                gesture.set_state(gtk::EventSequenceState::Claimed);
+            }
+        });
+        self.view.add_controller(secondary);
 
         let weak = Rc::downgrade(self);
         let keys = gtk::EventControllerKey::new();
@@ -314,16 +355,18 @@ impl PlainPreviewState {
         });
     }
 
+    /// 已登记文件照旧；库外与未登记文件只在识别出目标时弹出。
     fn settle(&self) {
-        let Some(range) = self.selection_range() else {
-            self.controller.cancel_adjust();
-            self.hide_toolbar();
-            return;
-        };
-        if self.controller.document_id().is_none() {
-            self.hide_toolbar();
+        let target = self.text_target();
+        let annotate = self.controller.document_id().is_some();
+        if !text_actions::shows_for(annotate, &target) {
+            self.cancel();
             return;
         }
+        let Some(range) = self.selection_range() else {
+            self.cancel();
+            return;
+        };
         if self.controller.pending().is_some() {
             self.controller.commit_adjust(range);
             self.clear_selection();
@@ -334,8 +377,62 @@ impl PlainPreviewState {
             return;
         };
         if let Some(toolbar) = self.toolbar.borrow().as_ref() {
+            toolbar.set_text_actions(&self.visible_text_actions(&target));
             toolbar.show(self.view.upcast_ref(), rect);
         }
+    }
+
+    /// 识别当前选区；没有选区或识别不出时是 `TextTarget::None`。
+    fn text_target(&self) -> TextTarget {
+        self.selected_text()
+            .map_or(TextTarget::None, |text| classify(&text))
+    }
+
+    fn visible_text_actions(&self, target: &TextTarget) -> Vec<TextAction> {
+        let state = self.preview.borrow().as_ref().and_then(Weak::upgrade);
+        text_actions::visible_actions(state.as_deref(), target)
+    }
+
+    /// 工具条与右键菜单共用的执行入口。
+    fn perform_text_action(self: &Rc<Self>, action: TextAction) {
+        let Some(selection) = self.selected_text() else {
+            return;
+        };
+        let state = self.preview.borrow().as_ref().and_then(Weak::upgrade);
+        let ctx = text_actions::context_for(state.as_deref(), self.view.clone().upcast(), selection);
+        let target = classify(&ctx.selection);
+        text_actions::run(action, &target, &ctx);
+    }
+
+    /// 选区上的右键菜单；不能标注又识别不出目标时不弹。
+    fn open_text_menu(self: &Rc<Self>, x: f64, y: f64) -> bool {
+        let annotate = self.controller.document_id().is_some();
+        let target = self.text_target();
+        if !text_actions::shows_for(annotate, &target) {
+            return false;
+        }
+        let rect = self.anchor_rect().unwrap_or((x, y, 1.0, 1.0));
+        let state = self.preview.borrow().as_ref().and_then(Weak::upgrade);
+        let weak = Rc::downgrade(self);
+        let on_action = Rc::new(move |action| {
+            if let Some(state) = weak.upgrade() {
+                state.perform_text_action(action);
+            }
+        });
+        super::text_menu::popup_text_menu(
+            &self.view,
+            rect,
+            &target,
+            text_actions::env_for(state.as_deref(), &target),
+            on_action,
+        );
+        true
+    }
+
+    fn selected_text(&self) -> Option<String> {
+        let buffer = self.view.buffer();
+        let (start, end) = buffer.selection_bounds()?;
+        Some(buffer.text(&start, &end, false).to_string())
     }
 
     fn create(self: &Rc<Self>, action: AnnotationToolbarAction) {
@@ -454,12 +551,9 @@ impl PlainPreviewState {
     }
 
     fn copy_selection(&self) {
-        let buffer = self.view.buffer();
-        let Some((start, end)) = buffer.selection_bounds() else {
-            return;
-        };
-        let text = buffer.text(&start, &end, false).to_string();
-        self.view.primary_clipboard().set_text(&text);
+        if let Some(text) = self.selected_text() {
+            self.view.primary_clipboard().set_text(&text);
+        }
     }
 }
 
@@ -573,6 +667,7 @@ mod tests {
                     "text/plain",
                     &content,
                     false,
+                    None,
                 );
                 assert!(virtualized);
                 let state = match source.virtual_state.borrow().as_ref() {
@@ -595,7 +690,7 @@ mod tests {
                 buffer.set_text(content);
                 let view = plain_source_view(&buffer);
                 let notice = crate::ui::virtual_preview::notice_container(&[]);
-                let state = PlainPreviewState::new(view, notice, content, None);
+                let state = PlainPreviewState::new(view, notice, content, None, None);
                 let buffer = state.view.buffer();
                 buffer.select_range(&buffer.iter_at_offset(6), &buffer.iter_at_offset(10));
                 assert_eq!(state.selection_range(), Some((6, 10)));

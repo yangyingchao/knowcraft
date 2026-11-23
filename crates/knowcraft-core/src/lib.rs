@@ -24,6 +24,7 @@ pub mod search;
 pub mod sendto;
 pub mod store;
 pub mod tags;
+pub mod text_action;
 pub mod text_annotations;
 pub mod trash;
 pub mod trusted_command;

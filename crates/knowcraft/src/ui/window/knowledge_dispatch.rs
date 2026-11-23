@@ -569,7 +569,7 @@ pub(crate) fn present_capture_dialog(
     entry.grab_focus();
 }
 
-fn run_capture(url: String, refresh: Rc<dyn Fn()>, feedback: Rc<dyn Fn(&str)>) {
+pub(crate) fn run_capture(url: String, refresh: Rc<dyn Fn()>, feedback: Rc<dyn Fn(&str)>) {
     let (sender, receiver) = std::sync::mpsc::channel::<Result<String, String>>();
     std::thread::spawn(move || {
         let result = crate::knowledge::init()

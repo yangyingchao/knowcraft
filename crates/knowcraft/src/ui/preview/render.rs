@@ -129,13 +129,14 @@ impl PreviewState {
             .set_active(super::super::preferences::PreferenceManager::shared().preview_text_wrap());
     }
 
-    fn render_text(&self, source: PendingSourcePreview) {
+    fn render_text(self: &Rc<Self>, source: PendingSourcePreview) {
         self.wrap.set_visible(true);
         let (view, virtualized) = self.source_preview.show(
             &source.entry,
             &source.content_type,
             &source.content,
             source.truncated,
+            Some(self),
         );
         self.content.append(&view);
         self.text_view
@@ -153,7 +154,7 @@ impl PreviewState {
     }
 
     fn render_rendered(
-        &self,
+        self: &Rc<Self>,
         document: DocumentLayout,
         warnings: Vec<String>,
         word_processor: bool,
@@ -164,6 +165,7 @@ impl PreviewState {
             word_processor,
             None,
         );
+        state.set_text_action_host(Some(self));
         self.rendered_text.replace(Some(state));
         self.content.append(&view);
     }

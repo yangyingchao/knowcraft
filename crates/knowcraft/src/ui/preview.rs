@@ -55,6 +55,8 @@ mod pdf;
 mod render;
 mod source_view;
 mod tags_bar;
+pub(in crate::ui) mod text_actions;
+pub(in crate::ui) mod text_menu;
 pub(super) use document::document_notice;
 use document::{DocumentPreview, DocumentView};
 pub(in crate::ui) use layout::{separator, separator_width};
@@ -144,7 +146,10 @@ pub(crate) fn entry_supports_quick_preview(entry: &FileEntry) -> bool {
         || crate::services::is_extensionless_dotfile(&entry.native_name)
 }
 
-struct PreviewState {
+/// 选中文字动作的抓取回调；由窗口组装层注入。
+pub(in crate::ui) type CaptureSink = Rc<dyn Fn(String)>;
+
+pub(in crate::ui) struct PreviewState {
     provider: Rc<dyn PreviewProvider>,
     revealer: gtk::Revealer,
     slot: gtk::Box,
@@ -232,6 +237,26 @@ struct PreviewState {
     claim_on_resume: Cell<bool>,
     released_from: Cell<Option<Option<usize>>>,
     operations: RefCell<Option<file_activity::Subscription>>,
+    /// 选中文字动作的抓取回调；由窗口组装层注入，缺失时不显示抓取。
+    capture: RefCell<Option<CaptureSink>>,
+}
+
+impl PreviewState {
+    /// 预览面所在的浏览器视图；路径类动作由它执行。
+    pub(in crate::ui) fn browser_view(&self) -> Option<super::browser::BrowserView> {
+        self.keyboard_view
+            .borrow()
+            .as_ref()
+            .and_then(super::browser::WeakBrowserView::upgrade)
+    }
+
+    pub(in crate::ui) fn set_capture(&self, capture: CaptureSink) {
+        self.capture.replace(Some(capture));
+    }
+
+    pub(in crate::ui) fn capture(&self) -> Option<CaptureSink> {
+        self.capture.borrow().clone()
+    }
 }
 
 use keyboard::MediaSeek;
@@ -328,6 +353,11 @@ impl PreviewDrawer {
     #[cfg(test)]
     pub(in crate::ui) fn set_enabled_for_test(&self, enabled: bool) {
         self.state.set_enabled(enabled);
+    }
+
+    /// 注入选中文字动作的抓取回调。
+    pub(in crate::ui) fn set_capture(&self, capture: CaptureSink) {
+        self.state.set_capture(capture);
     }
 
     /// 相关文献区块的开关：头部按钮与 Ctrl+Alt+R 走同一条路径，按钮的状态变化

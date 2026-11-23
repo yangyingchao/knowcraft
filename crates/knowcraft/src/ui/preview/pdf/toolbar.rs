@@ -4,6 +4,9 @@
 
 use super::*;
 
+use crate::ui::annotation::ToolbarCapabilities;
+use crate::ui::preview::text_actions::TextAction;
+
 pub(super) use crate::ui::annotation::AnnotationToolbarAction as PdfToolbarAction;
 pub(super) use crate::ui::annotation::prompt_note;
 
@@ -13,10 +16,24 @@ pub(super) struct PdfToolbar {
 }
 
 impl PdfToolbar {
-    pub(super) fn new(on_action: Rc<dyn Fn(PdfToolbarAction)>, on_copy: Rc<dyn Fn()>) -> Self {
+    pub(super) fn new(
+        capabilities: ToolbarCapabilities,
+        on_action: Rc<dyn Fn(PdfToolbarAction)>,
+        on_copy: Rc<dyn Fn()>,
+        on_text_action: Rc<dyn Fn(TextAction)>,
+    ) -> Self {
         Self {
-            inner: crate::ui::annotation::AnnotationToolbar::new(on_action, on_copy),
+            inner: crate::ui::annotation::AnnotationToolbar::new(
+                capabilities,
+                on_action,
+                on_copy,
+                on_text_action,
+            ),
         }
+    }
+
+    pub(super) fn set_text_actions(&self, visible: &[TextAction]) {
+        self.inner.set_text_actions(visible);
     }
 
     /// 在页面的选区上方显示；`rect` 是文本层坐标。

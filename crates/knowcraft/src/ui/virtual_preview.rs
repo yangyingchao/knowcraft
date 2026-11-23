@@ -3,10 +3,13 @@
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
-    rc::Rc,
+    rc::{Rc, Weak},
 };
 
 use gtk::{glib, prelude::*};
+use knowcraft_core::text_action::{self as core_text_action, TextTarget};
+
+use super::preview::text_actions::{self as text_actions, TextAction};
 
 use crate::services::{DocumentLayout, DocumentUnit, DocumentUnitKind, normalize_preview_text};
 
@@ -29,7 +32,8 @@ mod text_view;
 use code_copy::code_block_copy_text;
 use highlight::update_all_bound_selection;
 #[cfg(test)]
-use highlight::{local_selection, selection_text};
+use highlight::local_selection;
+use highlight::selection_text;
 use hit_test::point_at;
 #[cfg(test)]
 use hit_test::{link_point_at, matching_link};
@@ -186,6 +190,8 @@ pub(super) struct VirtualPreviewState {
     media_cache: Rc<super::document_media::MediaCache>,
     annotations: RefCell<Option<Rc<super::annotation::AnnotationController>>>,
     toolbar: RefCell<Option<super::annotation::AnnotationToolbar>>,
+    /// 预览面的共享状态；智能动作的浏览器句柄与抓取回调都从这里取。
+    preview: RefCell<Option<Weak<super::preview::PreviewState>>>,
     notice: glib::WeakRef<gtk::Box>,
     stale_notice: RefCell<Option<gtk::Box>>,
 }
@@ -361,6 +367,7 @@ impl VirtualPreviewState {
             media_cache: super::document_media::MediaCache::new(document_path),
             annotations: RefCell::new(None),
             toolbar: RefCell::new(None),
+            preview: RefCell::new(None),
             notice: glib::WeakRef::new(),
             stale_notice: RefCell::new(None),
         })
@@ -385,7 +392,9 @@ impl VirtualPreviewState {
     pub(super) fn set_annotations(
         self: &Rc<Self>,
         controller: Rc<super::annotation::AnnotationController>,
+        preview: Option<&Rc<super::preview::PreviewState>>,
     ) {
+        self.preview.replace(preview.map(Rc::downgrade));
         let weak_state = Rc::downgrade(self);
         controller.set_on_update(Rc::new(move || {
             if let Some(state) = weak_state.upgrade() {
@@ -401,6 +410,22 @@ impl VirtualPreviewState {
             }
         }));
 
+        self.install_toolbar(controller.document_id().is_some());
+        self.annotations.replace(Some(controller));
+        self.refresh_annotations();
+    }
+
+    /// 没有标注控制器时也装上工具条：此时只提供复制与智能动作。
+    pub(super) fn set_text_action_host(
+        self: &Rc<Self>,
+        preview: Option<&Rc<super::preview::PreviewState>>,
+    ) {
+        self.preview.replace(preview.map(Rc::downgrade));
+        self.install_toolbar(false);
+    }
+
+    /// 按能力集安装选区工具条；智能动作按钮由识别结果控制显隐。
+    fn install_toolbar(self: &Rc<Self>, annotate: bool) {
         let weak_state = Rc::downgrade(self);
         let on_action = Rc::new(move |action| {
             if let Some(state) = weak_state.upgrade() {
@@ -413,12 +438,19 @@ impl VirtualPreviewState {
                 state.copy_selection();
             }
         });
+        let weak_state = Rc::downgrade(self);
+        let on_text_action = Rc::new(move |action| {
+            if let Some(state) = weak_state.upgrade() {
+                state.perform_text_action(action);
+            }
+        });
         self.toolbar
             .replace(Some(super::annotation::AnnotationToolbar::new(
-                on_action, on_copy,
+                super::annotation::ToolbarCapabilities { annotate },
+                on_action,
+                on_copy,
+                on_text_action,
             )));
-        self.annotations.replace(Some(controller));
-        self.refresh_annotations();
     }
 
     fn refresh_annotations(self: &Rc<Self>) {
@@ -476,6 +508,69 @@ impl VirtualPreviewState {
         }
     }
 
+    /// 识别当前选区；没有选区或识别不出时是 `TextTarget::None`。
+    fn text_target(&self) -> TextTarget {
+        selection_text(self).map_or(TextTarget::None, |text| {
+            core_text_action::classify(&text)
+        })
+    }
+
+    /// 识别结果对应的智能动作，顺序与动作表一致。
+    fn visible_text_actions(&self, target: &TextTarget) -> Vec<TextAction> {
+        let state = self.preview.borrow().as_ref().and_then(Weak::upgrade);
+        text_actions::visible_actions(state.as_deref(), target)
+    }
+
+    /// 工具条与右键菜单共用的执行入口。
+    fn perform_text_action(self: &Rc<Self>, action: TextAction) {
+        let Some(selection) = selection_text(self) else {
+            return;
+        };
+        let Some(list) = self.list.upgrade() else {
+            return;
+        };
+        let state = self.preview.borrow().as_ref().and_then(Weak::upgrade);
+        let ctx = text_actions::context_for(state.as_deref(), list.upcast(), selection);
+        let target = core_text_action::classify(&ctx.selection);
+        text_actions::run(action, &target, &ctx);
+    }
+
+    /// 选区上的右键菜单；不能标注又识别不出目标时不弹。
+    pub(super) fn open_text_menu(self: &Rc<Self>, x: f64, y: f64) -> bool {
+        let annotate = self
+            .annotations
+            .borrow()
+            .as_ref()
+            .is_some_and(|controller| controller.document_id().is_some());
+        let target = self.text_target();
+        if !text_actions::shows_for(annotate, &target) {
+            return false;
+        }
+        let Some(list) = self.list.upgrade() else {
+            return false;
+        };
+        let rect = self
+            .selection
+            .get()
+            .and_then(|selection| self.selection_anchor_rect(selection))
+            .unwrap_or((x, y, 1.0, 1.0));
+        let state = self.preview.borrow().as_ref().and_then(Weak::upgrade);
+        let weak = Rc::downgrade(self);
+        let on_action = Rc::new(move |action| {
+            if let Some(state) = weak.upgrade() {
+                state.perform_text_action(action);
+            }
+        });
+        super::preview::text_menu::popup_text_menu(
+            &list,
+            rect,
+            &target,
+            text_actions::env_for(state.as_deref(), &target),
+            on_action,
+        );
+        true
+    }
+
     pub(super) fn hide_toolbar(&self) {
         if let Some(toolbar) = self.toolbar.borrow().as_ref() {
             toolbar.hide();
@@ -496,13 +591,17 @@ impl VirtualPreviewState {
     }
 
     /// 选区稳定后：重选模式直接覆盖原范围，否则弹出创建工具条。
+    ///
+    /// 已登记文件照旧；库外与未登记文件只在识别出目标时弹出，浮层只含该动作与复制。
     pub(super) fn settle_selection(self: &Rc<Self>) {
-        let Some(controller) = self.annotations.borrow().clone() else {
-            return;
-        };
-        if controller.document_id().is_none() {
-            controller.cancel_adjust();
-            self.hide_toolbar();
+        let annotate = self
+            .annotations
+            .borrow()
+            .as_ref()
+            .is_some_and(|controller| controller.document_id().is_some());
+        let target = self.text_target();
+        if !text_actions::shows_for(annotate, &target) {
+            self.cancel_annotation_interaction();
             return;
         }
         let Some(selection) = self
@@ -510,15 +609,19 @@ impl VirtualPreviewState {
             .get()
             .filter(|selection| !selection.is_empty())
         else {
-            controller.cancel_adjust();
-            self.hide_toolbar();
+            self.cancel_annotation_interaction();
             return;
         };
         let Some(range) = self.space.selection_range(selection) else {
-            controller.cancel_adjust();
+            self.cancel_adjust();
             return;
         };
-        if controller.pending().is_some() {
+        let pending = self
+            .annotations
+            .borrow()
+            .clone()
+            .filter(|controller| controller.pending().is_some());
+        if let Some(controller) = pending {
             controller.commit_adjust(range);
             self.selection.set(None);
             highlight::update_all_bound_selection(self);
@@ -532,6 +635,7 @@ impl VirtualPreviewState {
             return;
         };
         if let Some(toolbar) = self.toolbar.borrow().as_ref() {
+            toolbar.set_text_actions(&self.visible_text_actions(&target));
             toolbar.show(list.upcast_ref(), rect);
         }
     }
