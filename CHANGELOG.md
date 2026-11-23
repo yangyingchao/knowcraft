@@ -4,9 +4,20 @@
 
 ### Added
 ### Changed
-- 布局、侧栏与预览控件的状态改存 state.toml，settings.toml 只保留配置页选项
-- 移除 columns_show_sizes、columns_mirror_selection、single_click_previews 三个没有写入点的设置键
 ### Fixed
+
+
+## [v0.4.1] - 2026-11-23
+
+### Added
+- 预览选中文字按类型提供打开、抓取与定位动作 (79fc16d)
+- 动作菜单按库内外裁剪，导入导出改为内建 (2f12b1a)
+- 相关文献面板可开关：头部图标与 Ctrl+Alt+R (c5e2f33)
+
+### Changed
+- 清理已移除的更新通道残留配置键 (7ac3232)
+- 布局、侧栏与预览控件的状态改存 state.toml，settings.toml 只保留配置页选项 (deb5391)
+- 移除 columns_show_sizes、columns_mirror_selection、single_click_previews 三个没有写入点的设置键 (deb5391)
 
 
 ## [v0.4.0] - 2026-11-22
@@ -61,7 +72,8 @@
 - 统一 settings.toml：core 字段留顶层，GUI 偏好移入 [gui] (0c71eaa)
 - 库外文件删除改走系统回收站 (d9718de)
 
-[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.4.1...HEAD
+[v0.4.1]: https://github.com/yangyingchao/knowcraft/compare/v0.4.0...v0.4.1
 [v0.4.0]: https://github.com/yangyingchao/knowcraft/compare/v0.3.1...v0.4.0
 [v0.3.1]: https://github.com/yangyingchao/knowcraft/compare/v0.3.0...v0.3.1
 [v0.3.0]: https://github.com/yangyingchao/knowcraft/compare/v0.2.2...v0.3.0
