@@ -513,6 +513,54 @@ fn accepts_a_matching_shebang_and_rejects_a_conflicting_one() {
 }
 
 #[test]
+fn matching_filters_each_side_of_the_library() {
+    let inside_only = ActionConditions {
+        scope: Some(ActionScope::Library),
+        ..ActionConditions::default()
+    };
+    let outside_only = ActionConditions {
+        scope: Some(ActionScope::Outside),
+        ..ActionConditions::default()
+    };
+    let inside = ActionInput::file("a.png", None).with_scope(ActionScope::Library);
+    let outside = ActionInput::file("b.png", None).with_scope(ActionScope::Outside);
+
+    assert!(inside_only.matches(std::slice::from_ref(&inside)));
+    assert!(!inside_only.matches(std::slice::from_ref(&outside)));
+    assert!(
+        !inside_only.matches(&[inside.clone(), outside.clone()]),
+        "a selection straddling the library must not match either side"
+    );
+    assert!(outside_only.matches(&[outside]));
+    assert!(
+        ActionConditions::default().matches(&[inside]),
+        "an undeclared scope accepts both sides"
+    );
+}
+
+#[test]
+fn a_scope_condition_round_trips() {
+    let definition = ActionDefinition::parse(
+        "schema_version = 2\nid = \"a1\"\nname = \"Action\"\n\n[when]\nscope = \"library\"\n\n[run]\nruntime = \"bash\"\nentrypoint = \"run.sh\"\n",
+    )
+    .expect("a version 2 manifest parses");
+    assert_eq!(definition.when.scope, Some(ActionScope::Library));
+    let written = definition.to_manifest().expect("manifest renders");
+    assert!(written.contains("scope = \"library\""));
+    assert_eq!(
+        ActionDefinition::parse(&written).expect("generated manifest parses"),
+        definition
+    );
+    assert_eq!(
+        ActionDefinition::parse(BASH_ACTION)
+            .expect("version 1 manifests keep loading")
+            .when
+            .scope,
+        None
+    );
+}
+
+#[test]
 fn matching_requires_every_input_to_satisfy_the_conditions() {
     let images = ActionDefinition::parse(&run_manifest(
         "runtime = \"command\"\nprogram = \"convert\"\nargs = [\"{paths}\"]\n",
@@ -539,6 +587,7 @@ fn matching_covers_kinds_extensions_mime_types_and_counts() {
         mime_types: vec!["image/*".to_owned()],
         min_items: 1,
         max_items: Some(2),
+        ..ActionConditions::default()
     };
     assert!(conditions.matches(&[ActionInput::file("Photo.PNG", Some("image/png"))]));
     assert!(
@@ -593,6 +642,7 @@ fn matching_accepts_native_names_that_are_not_utf8() {
         kind: InputKind::File,
         name: OsString::from_vec(b"pho\xffto.png".to_vec()),
         content_type: Some("image/png".to_owned()),
+        scope: ActionScope::Library,
     };
     assert_eq!(input.extension().as_deref(), Some("png"));
     let conditions = ActionConditions {

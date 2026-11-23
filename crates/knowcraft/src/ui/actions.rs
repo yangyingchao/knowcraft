@@ -11,7 +11,7 @@ use gtk::{glib, prelude::*};
 use crate::{
     adapters::LocalActionStore,
     assets::icons,
-    model::{ActionInput, FOLDER_CONTENT_TYPE, FileEntry, InputKind, Location},
+    model::{ActionInput, ActionScope, FOLDER_CONTENT_TYPE, FileEntry, InputKind, Location},
     services::{ActionCatalog, ActionHandle, ActionRegistry, InvocationSource, JobRequest},
     ui::{
         controls::{ModalTone, focus_button, message_dialog_description, message_dialog_layout},
@@ -102,7 +102,7 @@ pub(crate) fn inputs_for_entries(entries: &[FileEntry]) -> Option<Vec<ActionInpu
 }
 
 fn entry_input(entry: &FileEntry) -> Option<ActionInput> {
-    entry.location.native_path()?;
+    let path = entry.location.native_path()?;
     let kind = if entry.is_directory() {
         InputKind::Folder
     } else {
@@ -112,12 +112,22 @@ fn entry_input(entry: &FileEntry) -> Option<ActionInput> {
         kind,
         name: entry.native_name.clone(),
         content_type: content_type_for(kind, &entry.native_name),
+        scope: scope_of(path),
     })
 }
 
 pub(crate) fn folder_input(location: &Location) -> Option<ActionInput> {
-    location.native_path()?;
-    Some(ActionInput::folder(location.file_name()?))
+    let path = location.native_path()?;
+    Some(ActionInput::folder(location.file_name()?).with_scope(scope_of(path)))
+}
+
+/// Which side of the data directory a path sits on: the same prefix test the
+/// preview panels use to hide themselves outside the knowledge base.
+pub(crate) fn scope_of(path: &Path) -> ActionScope {
+    match crate::knowledge::data_dir_path() {
+        Some(root) if path.starts_with(root) => ActionScope::Library,
+        _ => ActionScope::Outside,
+    }
 }
 
 fn content_type_for(kind: InputKind, name: &std::ffi::OsStr) -> Option<String> {

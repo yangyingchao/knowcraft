@@ -22,9 +22,11 @@ use send_to::{SendToActions, SendToChoices};
 
 use crate::{
     assets::icons,
-    model::{FileEntry, Location, MenuPlacement},
+    model::{ActionScope, FileEntry, Location, MenuPlacement},
     services::{InvocationSource, MatchedAction},
-    ui::actions::{action_icon, folder_input, inputs_for_entries, native_paths, run_action},
+    ui::actions::{
+        action_icon, folder_input, inputs_for_entries, native_paths, run_action, scope_of,
+    },
 };
 
 use super::super::{ImportKind, ViewState};
@@ -541,6 +543,18 @@ impl ActionMenuSection {
                 .native_path()
                 .is_some_and(|path| knowledge.is_some_and(|knowledge| knowledge.contains(path)))
         });
+        let all_inside_data_dir = entries.iter().all(|entry| {
+            entry
+                .location
+                .native_path()
+                .is_some_and(|path| scope_of(path) == ActionScope::Library)
+        });
+        let all_outside_data_dir = entries.iter().all(|entry| {
+            entry
+                .location
+                .native_path()
+                .is_some_and(|path| scope_of(path) == ActionScope::Outside)
+        });
         let any_directory = entries.iter().any(FileEntry::is_directory);
         let archivable = all_in_knowledge && !any_directory && !in_trash;
         let paths: Vec<PathBuf> = entries
@@ -575,6 +589,36 @@ impl ActionMenuSection {
                 },
             ));
         }
+        if all_outside_data_dir {
+            let sources: Vec<PathBuf> = entries
+                .iter()
+                .filter_map(|entry| entry.location.native_path().map(PathBuf::from))
+                .collect();
+            items.push(self.kc_action_item(
+                state,
+                "kc-import",
+                &crate::i18n::tr("Import to Inbox"),
+                icons::DOWNLOADS,
+                move |state| {
+                    if let Some(handler) = state.import_paths_handler.borrow().as_ref() {
+                        handler(sources.clone());
+                    }
+                },
+            ));
+        }
+        if all_inside_data_dir && !in_trash {
+            let sources: Vec<crate::model::Location> = entries
+                .iter()
+                .map(|entry| entry.location.clone())
+                .collect();
+            items.push(self.kc_action_item(
+                state,
+                "kc-export",
+                &crate::i18n::tr("Export to Folder…"),
+                icons::FOLDER_OUTPUT,
+                move |state| state.show_transfer_dialog_for(sources.clone(), false),
+            ));
+        }
         if entries.len() == 1
             && !any_directory
             && all_in_knowledge
@@ -602,6 +646,18 @@ impl ActionMenuSection {
         };
         if crate::knowledge::init().is_none() || location.is_recent_location() {
             return Vec::new();
+        }
+        // Inside the library the pair flips: importing has nothing left to pull
+        // in, and exporting is what the folder is good for.
+        if scope_of(&path) == ActionScope::Library {
+            let folder = location.clone();
+            return vec![self.kc_action_item(
+                state,
+                "kc-export",
+                &crate::i18n::tr("Export to Folder…"),
+                icons::FOLDER_OUTPUT,
+                move |state| state.show_transfer_dialog_for(vec![folder.clone()], false),
+            )];
         }
         let files_path = path.clone();
         let folder_path = path;
@@ -637,7 +693,7 @@ impl ActionMenuSection {
         name: &str,
         label: &str,
         icon: &str,
-        run: impl Fn(&ViewState) + 'static,
+        run: impl Fn(&Rc<ViewState>) + 'static,
     ) -> gio::MenuItem {
         let action = gio::SimpleAction::new(name, None);
         let weak = Rc::downgrade(state);

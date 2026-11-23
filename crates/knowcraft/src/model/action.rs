@@ -10,7 +10,10 @@ use serde::{Deserialize, Serialize};
 
 pub(crate) mod examples;
 
-pub const ACTION_SCHEMA_VERSION: u32 = 1;
+/// The version written to new manifests.
+pub const ACTION_SCHEMA_VERSION: u32 = 2;
+/// The oldest manifest version this build still reads; `scope` is what v2 added.
+pub const MIN_ACTION_SCHEMA_VERSION: u32 = 1;
 
 pub const MAX_ACTION_ID_CHARS: usize = 64;
 pub const MAX_ACTION_NAME_CHARS: usize = 64;
@@ -125,6 +128,16 @@ pub enum InputKind {
     Folder,
 }
 
+/// Which side of the data directory an action applies to, or an input comes from.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ActionScope {
+    /// Inside the data directory: inbox, library, notes, captures, archive.
+    Library,
+    /// Anywhere outside the data directory.
+    Outside,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ActionConditions {
@@ -137,6 +150,9 @@ pub struct ActionConditions {
     /// `image/*` or `image/png` patterns. Empty means every content type.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub mime_types: Vec<String>,
+    /// `None` matches inputs on either side of the data directory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<ActionScope>,
     #[serde(default = "one_item")]
     pub min_items: usize,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -149,6 +165,7 @@ impl Default for ActionConditions {
             kinds: Vec::new(),
             extensions: Vec::new(),
             mime_types: Vec::new(),
+            scope: None,
             min_items: 1,
             max_items: None,
         }
@@ -254,7 +271,7 @@ impl fmt::Display for ActionError {
             }
             Self::UnsupportedSchema { found } => write!(
                 formatter,
-                "This action uses schema version {found}, but this Knowcraft build supports {ACTION_SCHEMA_VERSION}"
+                "This action uses schema version {found}, but this Knowcraft build supports {MIN_ACTION_SCHEMA_VERSION}–{ACTION_SCHEMA_VERSION}"
             ),
             Self::InvalidId(id) => write!(
                 formatter,
@@ -362,7 +379,7 @@ impl ActionError {
             Self::UnsupportedSchema { found } => t!(
                 "This action uses schema version %{found}, but this Knowcraft build supports %{supported}",
                 found = found,
-                supported = ACTION_SCHEMA_VERSION
+                supported = format!("{MIN_ACTION_SCHEMA_VERSION}–{ACTION_SCHEMA_VERSION}")
             ),
             Self::InvalidId(id) => t!(
                 "The action id “%{id}” must start with a lowercase letter or digit and use only lowercase letters, digits, dots, dashes, or underscores",
@@ -454,6 +471,8 @@ pub struct ActionInput {
     pub name: std::ffi::OsString,
     /// Content type guessed by the caller; `None` when unknown.
     pub content_type: Option<String>,
+    /// Which side of the data directory the input sits on.
+    pub scope: ActionScope,
 }
 
 pub const FOLDER_CONTENT_TYPE: &str = "inode/directory";
@@ -465,6 +484,7 @@ impl ActionInput {
             kind: InputKind::File,
             name: name.into(),
             content_type: content_type.map(str::to_owned),
+            scope: ActionScope::Library,
         }
     }
 
@@ -473,7 +493,15 @@ impl ActionInput {
             kind: InputKind::Folder,
             name: name.into(),
             content_type: Some(FOLDER_CONTENT_TYPE.to_owned()),
+            scope: ActionScope::Library,
         }
+    }
+
+    /// The side of the data directory the input sits on; library is the default
+    /// for the builders, which the callers that hold a path always override.
+    pub fn with_scope(mut self, scope: ActionScope) -> Self {
+        self.scope = scope;
+        self
     }
 
     #[cfg(test)]
@@ -526,7 +554,7 @@ impl ActionDefinition {
     }
 
     pub fn validate(&self) -> Result<(), ActionError> {
-        if self.schema_version != ACTION_SCHEMA_VERSION {
+        if !(MIN_ACTION_SCHEMA_VERSION..=ACTION_SCHEMA_VERSION).contains(&self.schema_version) {
             return Err(ActionError::UnsupportedSchema {
                 found: self.schema_version,
             });
@@ -608,6 +636,9 @@ impl ActionConditions {
 
     pub fn matches_input(&self, input: &ActionInput) -> bool {
         if !self.kinds.is_empty() && !self.kinds.contains(&input.kind) {
+            return false;
+        }
+        if self.scope.is_some_and(|scope| scope != input.scope) {
             return false;
         }
         if !self.extensions.is_empty() {

@@ -103,13 +103,26 @@ impl ViewState {
         entries: Vec<FileEntry>,
         move_sources: bool,
     ) {
-        if entries.is_empty() {
+        self.show_transfer_dialog_for(
+            entries.into_iter().map(|entry| entry.location).collect(),
+            move_sources,
+        );
+    }
+
+    /// Copies the given locations into a folder the user picks. Exporting uses
+    /// this directly, since a folder row behind the menu is not a `FileEntry`.
+    pub(in crate::ui::browser) fn show_transfer_dialog_for(
+        self: &Rc<Self>,
+        sources: Vec<Location>,
+        move_sources: bool,
+    ) {
+        if sources.is_empty() {
             return;
         }
         if move_sources
-            && entries
+            && sources
                 .iter()
-                .any(|entry| !can_remove_location(&entry.location))
+                .any(|source| !can_remove_location(source))
         {
             return;
         }
@@ -119,7 +132,7 @@ impl ViewState {
             .and_then(|location| location.native_path().map(Path::to_path_buf))
             .unwrap_or_else(glib::home_dir);
         self.show_destination_dialog(
-            entries.into_iter().map(|entry| entry.location).collect(),
+            sources,
             TransferDialogOptions {
                 base,
                 root_limit: None,

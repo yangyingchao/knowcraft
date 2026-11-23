@@ -17,7 +17,8 @@ use super::{
 use crate::model::action::examples::{ACTION_EXAMPLES, ActionExample};
 use crate::model::{
     ACTION_SCHEMA_VERSION, ActionConditions, ActionDefinition, ActionError, ActionRuntime,
-    ErrorPolicy, ExecutionMode, InputKind, MenuPlacement, RunSpec, WorkingDirectory, suggest_id,
+    ActionScope, ErrorPolicy, ExecutionMode, InputKind, MenuPlacement, RunSpec, WorkingDirectory,
+    suggest_id,
 };
 use crate::services::{ActionHandle, ActionScript};
 use crate::ui::{
@@ -64,6 +65,7 @@ pub(super) struct EditorForm {
     pub(super) selected_policy: Rc<std::cell::Cell<ErrorPolicy>>,
     pub(super) selected_directory: Rc<std::cell::Cell<WorkingDirectory>>,
     pub(super) selected_placement: Rc<std::cell::Cell<MenuPlacement>>,
+    pub(super) selected_scope: Rc<std::cell::Cell<Option<ActionScope>>>,
 }
 
 /// The dialog's frame: the error line and a notebook with one page per tab.
@@ -324,6 +326,8 @@ struct Conditions {
     enabled: gtk::Switch,
     files: gtk::CheckButton,
     folders: gtk::CheckButton,
+    selected_scope: Rc<Cell<Option<ActionScope>>>,
+    scope: gtk::Box,
     extensions: gtk::Entry,
     max_items: gtk::Entry,
 }
@@ -345,6 +349,20 @@ impl Conditions {
         enabled_row.add_css_class("settings-action-enabled");
         let (files, folders) = kind_choices(&definition.when.kinds);
         let (extensions, max_items) = condition_entries(&definition.when);
+        let selected_scope = Rc::new(Cell::new(definition.when.scope));
+        let (anywhere, library, outside) = (
+            crate::i18n::tr("Anywhere"),
+            crate::i18n::tr("Inside the library"),
+            crate::i18n::tr("Outside the library"),
+        );
+        let (scope, _) = segmented(
+            &selected_scope,
+            &[
+                (anywhere.as_str(), None),
+                (library.as_str(), Some(ActionScope::Library)),
+                (outside.as_str(), Some(ActionScope::Outside)),
+            ],
+        );
         Self {
             confirm_row,
             confirm,
@@ -352,6 +370,8 @@ impl Conditions {
             enabled,
             files,
             folders,
+            selected_scope,
+            scope,
             extensions,
             max_items,
         }
@@ -527,6 +547,11 @@ fn lay_out_behavior(
         kind_row,
     ));
     page.append(&option_row(
+        "Scope",
+        "Whether the selection sits inside or outside the library",
+        &conditions.scope,
+    ));
+    page.append(&option_row(
         "Extensions",
         "Comma separated, without dots",
         &conditions.extensions,
@@ -685,6 +710,7 @@ impl EditorForm {
             selected_policy: run.selected_policy,
             selected_directory: run.selected_directory,
             selected_placement: run.selected_placement,
+            selected_scope: conditions.selected_scope,
         }
     }
 
@@ -787,6 +813,7 @@ impl EditorForm {
                 kinds,
                 extensions: self.read_extensions(),
                 mime_types: self.original_conditions.mime_types.clone(),
+                scope: self.selected_scope.get(),
                 min_items: self.original_conditions.min_items,
                 max_items,
             },
@@ -1125,6 +1152,7 @@ pub(super) fn draft_definition(runtime: ActionRuntime, mode: ExecutionMode) -> A
             mime_types: Vec::new(),
             min_items: 1,
             max_items: None,
+            scope: None,
         },
         run: RunSpec {
             runtime,

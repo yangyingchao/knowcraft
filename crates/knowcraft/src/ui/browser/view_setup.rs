@@ -416,6 +416,7 @@ fn new_view_state(parts: StateParts) -> Rc<ViewState> {
         dispatch_handler: RefCell::new(None),
         record_handler: RefCell::new(None),
         import_handler: RefCell::new(None),
+        import_paths_handler: RefCell::new(None),
         reindex_handler: RefCell::new(None),
         search_selection_handlers: RefCell::new(Vec::new()),
         pending_select: RefCell::new(Vec::new()),

@@ -266,6 +266,8 @@ fn bind_knowledge_handlers(
     let import_window = window.clone();
     let import_browser = browser.clone();
     let import_shortcuts = shortcuts.clone();
+    let paths_browser = browser.clone();
+    let paths_shortcuts = shortcuts.clone();
     let reindex_browser = browser.clone();
     let reindex_shortcuts = shortcuts.clone();
     browser.set_knowledge_handlers(
@@ -312,6 +314,17 @@ fn bind_knowledge_handlers(
                     );
                 }
             }
+        }),
+        Rc::new(move |paths| {
+            let view = paths_browser.clone();
+            let feedback = paths_shortcuts.clone();
+            let overlay = paths_browser.overlay();
+            super::super::knowledge_dispatch::run_import(
+                paths,
+                Rc::new(move || view.refresh()),
+                Rc::new(move |text| feedback.show_feedback(text)),
+                overlay,
+            );
         }),
         Rc::new(move |path| {
             let view = reindex_browser.clone();

@@ -224,7 +224,8 @@ pub(crate) fn present_import_files_dialog(
     });
 }
 
-fn run_import(
+/// 把给定的库外路径导入 inbox，供菜单的“导入至 Inbox”入口与目录/文件选择器共用。
+pub(crate) fn run_import(
     sources: Vec<PathBuf>,
     refresh: Rc<dyn Fn()>,
     feedback: Rc<dyn Fn(&str)>,

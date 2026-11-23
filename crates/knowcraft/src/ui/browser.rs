@@ -147,6 +147,8 @@ type DispatchHandler = Rc<dyn Fn(Vec<std::path::PathBuf>)>;
 type RecordHandler = Rc<dyn Fn(Vec<std::path::PathBuf>)>;
 /// Opens the picker for importing files or a folder into the inbox.
 type ImportHandler = Rc<dyn Fn(ImportKind, Option<std::path::PathBuf>)>;
+/// Imports the given library-external paths into the inbox.
+type ImportPathsHandler = Rc<dyn Fn(Vec<std::path::PathBuf>)>;
 
 /// What an import picker selects.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -297,6 +299,7 @@ pub(super) struct ViewState {
     dispatch_handler: RefCell<Option<DispatchHandler>>,
     record_handler: RefCell<Option<RecordHandler>>,
     import_handler: RefCell<Option<ImportHandler>>,
+    import_paths_handler: RefCell<Option<ImportPathsHandler>>,
     reindex_handler: RefCell<Option<ReindexHandler>>,
     search_selection_handlers: RefCell<Vec<Rc<dyn Fn()>>>,
     pending_select: RefCell<Vec<String>>,
@@ -504,11 +507,15 @@ impl BrowserView {
         dispatch_handler: DispatchHandler,
         record_handler: RecordHandler,
         import_handler: ImportHandler,
+        import_paths_handler: ImportPathsHandler,
         reindex_handler: ReindexHandler,
     ) {
         self.state.dispatch_handler.replace(Some(dispatch_handler));
         self.state.record_handler.replace(Some(record_handler));
         self.state.import_handler.replace(Some(import_handler));
+        self.state
+            .import_paths_handler
+            .replace(Some(import_paths_handler));
         self.state.reindex_handler.replace(Some(reindex_handler));
     }
 
