@@ -76,7 +76,7 @@ pub(super) fn sort_preferences(preferences: &Preferences) -> ViewPreferences {
         .zip(SortDirection::from_stored(&preferences.sort_direction))
         .unwrap_or((SortKey::Name, SortDirection::Ascending));
     ViewPreferences {
-        show_hidden: preferences.show_hidden,
+        show_hidden: ui_state::show_hidden(),
         folders_first: preferences.folders_first,
         sort_key: sorting.0,
         sort_direction: sorting.1,
@@ -115,7 +115,6 @@ pub(super) fn configured_hardware_acceleration(
 impl Preferences {
     /// Brings loaded values back within the ranges and column sets the interface accepts.
     pub(super) fn normalize_loaded(&mut self) {
-        self.preview_volume = normalized_volume(self.preview_volume);
         self.search_time_limit =
             normalized_search_limit(self.search_time_limit, &SEARCH_TIME_LIMIT_CHOICES);
         self.search_entry_limit =
@@ -126,11 +125,6 @@ impl Preferences {
         self.icons_thumbnail_size = self
             .icons_thumbnail_size
             .clamp(MIN_ICONS_THUMBNAIL_SIZE, MAX_ICONS_THUMBNAIL_SIZE);
-        self.chooser_column_width = self.chooser_column_width.filter(|width| *width > 0);
-        self.browser_column_width = self.browser_column_width.filter(|width| *width > 0);
-        self.chooser_list_columns = self.chooser_list_columns.filter(ListColumns::is_valid);
-        self.list_column_order = sanitize_list_column_order(&self.list_column_order);
-        self.list_hidden_columns = sanitize_list_hidden_columns(&self.list_hidden_columns);
         self.interface_font = normalized_font_family(self.interface_font.take());
     }
 }

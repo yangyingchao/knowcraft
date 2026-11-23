@@ -6,14 +6,10 @@ fn assert_saved_behaviour(manager: &PreferenceManager) {
     assert_eq!(
         [
             manager.folder_peeking(),
-            manager.single_click_previews(),
-            manager.columns_mirror_selection(),
-            manager.columns_show_sizes(),
             manager.hardware_accelerated_video_previews(),
         ],
-        [true, false, false, false, false],
-        "(folder peeking, single-click previews, Columns mirror selection, Columns sizes, \
-         hardware video previews)"
+        [true, false],
+        "(folder peeking, hardware video previews)"
     );
     assert_eq!(
         (

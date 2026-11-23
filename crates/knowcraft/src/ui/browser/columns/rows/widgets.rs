@@ -60,24 +60,6 @@ fn search_path_label() -> gtk::Label {
     path
 }
 
-/// Sizes stay hidden while the row is renamed.
-fn bind_size_visibility(size: &gtk::Label, rename: &gtk::Entry) {
-    let weak_rename = rename.downgrade();
-    crate::ui::preferences::PreferenceManager::shared().bind_preference(
-        size,
-        crate::ui::preferences::PreferenceManager::columns_show_sizes,
-        move |widget, enabled| {
-            let Some(label) = widget.downcast_ref::<gtk::Label>() else {
-                return;
-            };
-            let editing = weak_rename
-                .upgrade()
-                .is_some_and(|entry| entry.upcast_ref::<gtk::Widget>().is_visible());
-            label.set_visible(enabled && !editing && !label.label().is_empty());
-        },
-    );
-}
-
 impl RowWidgets {
     pub(super) fn build() -> Self {
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
@@ -105,7 +87,6 @@ impl RowWidgets {
         content.append(&path);
         middle.set_child(Some(&content));
         middle.add_overlay(&size);
-        bind_size_visibility(&size, &rename);
         let chevron = crate::assets::primary_icon(crate::assets::icons::CHEVRON_RIGHT, 15);
         chevron.add_css_class("file-chevron");
         chevron.set_valign(gtk::Align::Center);

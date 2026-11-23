@@ -59,9 +59,6 @@ pub fn default_list_column_order() -> Vec<ListColumnId> {
     ListColumnId::ALL.to_vec()
 }
 
-pub(super) fn is_default_list_column_order(order: &[ListColumnId]) -> bool {
-    order == ListColumnId::ALL
-}
 
 pub(crate) fn sanitize_list_column_order(order: &[ListColumnId]) -> Vec<ListColumnId> {
     let mut seen = std::collections::HashSet::new();

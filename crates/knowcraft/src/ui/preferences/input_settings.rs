@@ -5,10 +5,6 @@
 use super::*;
 
 impl PreferenceManager {
-    pub fn single_click_previews(&self) -> bool {
-        self.preferences.borrow().single_click_previews
-    }
-
     pub fn search_exclusions(&self) -> Vec<String> {
         self.preferences.borrow().search_exclusions.clone()
     }

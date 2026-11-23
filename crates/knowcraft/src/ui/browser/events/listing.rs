@@ -94,11 +94,7 @@ fn refill_bound_row(bound: &BoundRow, item: &gtk::ListItem, row: &gtk::Box, entr
     let text = column_size_text(Some(entry));
     let actively_renaming = bound.edit.is_editing();
     size.set_label(&text);
-    size.set_visible(
-        crate::ui::preferences::PreferenceManager::shared().columns_show_sizes()
-            && !text.is_empty()
-            && !actively_renaming,
-    );
+    size.set_visible(!text.is_empty() && !actively_renaming);
 }
 
 impl ViewState {

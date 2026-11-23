@@ -4,6 +4,8 @@
 
 ### Added
 ### Changed
+- 布局、侧栏与预览控件的状态改存 state.toml，settings.toml 只保留配置页选项
+- 移除 columns_show_sizes、columns_mirror_selection、single_click_previews 三个没有写入点的设置键
 ### Fixed
 
 

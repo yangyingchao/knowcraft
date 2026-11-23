@@ -43,7 +43,11 @@ fn list_column_visibility_preserves_default_sort_and_publishes_once() {
                     );
                     crate::storage::writer::settle();
                     let saved = read_preferences().expect("saved preferences");
-                    assert_eq!(saved.list_hidden_columns, hidden);
+                    assert_eq!(
+                        crate::ui::preferences::ui_state::list_hidden_columns(),
+                        hidden,
+                        "visibility lives in the window state now"
+                    );
                     assert_eq!(SortKey::from_stored(&saved.sort_key), Some(sort_key));
                     assert_eq!(
                         SortDirection::from_stored(&saved.sort_direction),
@@ -126,9 +130,14 @@ fn list_columns_order_and_visibility_persist_and_update() {
             }
             crate::storage::writer::settle();
 
-            let saved = read_preferences().expect("saved preferences");
-            assert_eq!(saved.list_column_order, manager.list_column_order());
-            assert_eq!(saved.list_hidden_columns, manager.list_hidden_columns());
+            assert_eq!(
+                crate::ui::preferences::ui_state::list_column_order(),
+                manager.list_column_order()
+            );
+            assert_eq!(
+                crate::ui::preferences::ui_state::list_hidden_columns(),
+                manager.list_hidden_columns()
+            );
 
             manager.reset_list_columns();
             assert_eq!(
@@ -143,9 +152,7 @@ fn list_columns_order_and_visibility_persist_and_update() {
             );
             assert!(manager.list_hidden_columns().is_empty());
             crate::storage::writer::settle();
-            let saved_reset = read_preferences().expect("saved preferences");
-            assert_eq!(saved_reset.list_column_order, manager.list_column_order());
-            assert!(saved_reset.list_hidden_columns.is_empty());
+            assert!(crate::ui::preferences::ui_state::list_hidden_columns().is_empty());
         },
     );
 }

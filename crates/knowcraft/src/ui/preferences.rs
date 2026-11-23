@@ -63,7 +63,6 @@ use desktop_scale::text_scale_factor_from_xft_dpi;
 pub(in crate::ui) use desktop_scale::{desktop_text_scale_factor, snapped_root_font_px};
 pub(crate) use folder_view_settings::flush_pending_folder_views;
 use keymap::KeymapOverrides;
-use list_columns::is_default_list_column_order;
 pub use list_columns::{ListColumnId, ListColumns, default_list_column_order};
 pub(crate) use list_columns::{sanitize_list_column_order, sanitize_list_hidden_columns};
 #[cfg(test)]
@@ -136,12 +135,6 @@ pub(in crate::ui) struct Preferences {
     #[serde(default)]
     folder_peeking: bool,
     #[serde(default = "default_enabled")]
-    single_click_previews: bool,
-    #[serde(default = "default_enabled")]
-    columns_mirror_selection: bool,
-    #[serde(default = "default_enabled")]
-    columns_show_sizes: bool,
-    #[serde(default = "default_enabled")]
     render_documents_by_default: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     hardware_accelerated_video_previews: Option<bool>,
@@ -183,20 +176,6 @@ pub(in crate::ui) struct Preferences {
     frame_density_custom_px: u8,
     #[serde(default)]
     group_by_type: bool,
-    #[serde(default = "default_enabled")]
-    sidebar_expanded: bool,
-    #[serde(default)]
-    sidebar_pinned_collapsed: bool,
-    #[serde(default)]
-    sidebar_devices_collapsed: bool,
-    #[serde(default)]
-    sidebar_places_collapsed: bool,
-    #[serde(default)]
-    sidebar_knowcraft_collapsed: bool,
-    #[serde(default)]
-    sidebar_compact: bool,
-    #[serde(default)]
-    show_hidden: bool,
     #[serde(default)]
     text_size: TextSize,
     #[serde(default)]
@@ -214,12 +193,6 @@ pub(in crate::ui) struct Preferences {
     #[serde(default = "default_sort_direction")]
     sort_direction: String,
     #[serde(default)]
-    preview_muted: bool,
-    #[serde(default = "default_full_volume")]
-    preview_volume: f64,
-    #[serde(default)]
-    preview_text_wrap: bool,
-    #[serde(default)]
     unit_system: UnitSystem,
     #[serde(default)]
     preview_autoplay: bool,
@@ -233,10 +206,6 @@ pub(in crate::ui) struct Preferences {
     stl_thumbnails: bool,
     #[serde(default = "default_icons_thumbnail_size")]
     icons_thumbnail_size: i32,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    chooser_column_width: Option<i32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    browser_column_width: Option<i32>,
     #[serde(default = "default_cross_volume_drop_strategy")]
     cross_volume_drop_strategy: String,
     #[serde(default)]
@@ -255,15 +224,6 @@ pub(in crate::ui) struct Preferences {
     send_to_recent_destinations: HashMap<String, Vec<PathBuf>>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     device_labels: HashMap<String, String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    chooser_list_columns: Option<ListColumns>,
-    #[serde(
-        default = "default_list_column_order",
-        skip_serializing_if = "is_default_list_column_order"
-    )]
-    list_column_order: Vec<ListColumnId>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    list_hidden_columns: Vec<ListColumnId>,
     #[serde(default, skip_serializing_if = "KeymapOverrides::is_empty")]
     keymap: KeymapOverrides,
 }

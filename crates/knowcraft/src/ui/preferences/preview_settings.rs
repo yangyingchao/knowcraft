@@ -52,21 +52,19 @@ impl PreferenceManager {
     }
 
     pub fn preview_muted(&self) -> bool {
-        self.preferences.borrow().preview_muted
+        ui_state::preview_muted()
     }
 
     pub fn set_preview_muted(&self, muted: bool) {
-        self.preferences.borrow_mut().preview_muted = muted;
-        self.save_preferences();
+        ui_state::set_preview_muted(muted);
     }
 
     pub fn preview_volume(&self) -> f64 {
-        self.preferences.borrow().preview_volume
+        ui_state::preview_volume()
     }
 
     pub fn set_preview_volume(&self, volume: f64) {
-        self.preferences.borrow_mut().preview_volume = normalized_volume(volume);
-        self.save_preferences();
+        ui_state::set_preview_volume(volume);
     }
 
     pub(crate) fn unit_system(&self) -> UnitSystem {
@@ -79,12 +77,11 @@ impl PreferenceManager {
     }
 
     pub fn preview_text_wrap(&self) -> bool {
-        self.preferences.borrow().preview_text_wrap
+        ui_state::preview_text_wrap()
     }
 
     pub fn set_preview_text_wrap(&self, wrapped: bool) {
-        self.preferences.borrow_mut().preview_text_wrap = wrapped;
-        self.save_preferences();
+        ui_state::set_preview_text_wrap(wrapped);
     }
 
     pub fn preview_autoplay(&self) -> bool {
@@ -97,11 +94,9 @@ impl PreferenceManager {
     }
 
     pub fn set_preview_audio(&self, volume: f64, muted: bool) {
-        self.preferences.borrow_mut().preview_muted = muted;
+        self.set_preview_muted(muted);
         if volume > 0.0 {
             self.set_preview_volume(volume);
-        } else {
-            self.save_preferences();
         }
     }
 

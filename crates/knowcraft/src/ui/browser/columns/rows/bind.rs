@@ -119,9 +119,8 @@ impl RowBinding<'_> {
             &self.widgets.icon,
             self.entry.as_ref().and_then(|e| e.location.native_path()),
         );
-        let show_sizes = crate::ui::preferences::PreferenceManager::shared().columns_show_sizes();
         if let Some(entry) = self.entry.as_ref() {
-            self.show_entry_icon(entry, show_sizes);
+            self.show_entry_icon(entry, true);
             crate::ui::index_badge::apply(self.widgets.row.upcast_ref(), &entry.location);
         } else {
             self.show_placeholder_icon();
@@ -130,7 +129,7 @@ impl RowBinding<'_> {
         let size = &self.widgets.size;
         let size_text = column_size_text(self.entry.as_ref());
         size.set_label(&size_text);
-        size.set_visible(show_sizes && !editing && !size_text.is_empty());
+        size.set_visible(!editing && !size_text.is_empty());
         crate::ui::accessibility::describe_entry(
             self.item,
             &self.widgets.label.label(),

@@ -75,7 +75,6 @@ fn older_preferences_keep_backward_compatible_behavior_defaults() {
     saved.remove("omarchy_variants");
     saved.remove("file_icon_colors");
     saved.remove("folder_peeking");
-    saved.remove("columns_show_sizes");
     saved.remove("language");
     let restored: Preferences = saved.try_into().expect("backward-compatible preferences");
     assert_eq!(
@@ -91,7 +90,6 @@ fn older_preferences_keep_backward_compatible_behavior_defaults() {
             omarchy_variants: HashMap::new(),
             file_icon_colors: FileIconColors::Brand,
             folder_peeking: false,
-            columns_show_sizes: true,
             ..non_default_preferences()
         }
     );

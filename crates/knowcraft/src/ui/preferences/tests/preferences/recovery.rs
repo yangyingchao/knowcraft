@@ -76,7 +76,7 @@ fn send_to_history_is_device_scoped_deduplicated_capped_and_persistent() {
 #[test]
 fn a_malformed_preference_does_not_discard_the_others() {
     let mut saved = toml::Table::try_from(non_default_preferences()).expect("saved preferences");
-    saved.insert("show_hidden".into(), "yes".into());
+    saved.insert("folder_peeking".into(), "yes".into());
     saved.insert(
         "omarchy_variants".into(),
         toml::Table::from_iter([("fixture".into(), "unknown".into())]).into(),
@@ -86,7 +86,7 @@ fn a_malformed_preference_does_not_discard_the_others() {
     assert_eq!(
         salvage_preferences(saved).0,
         Preferences {
-            show_hidden: false,
+            folder_peeking: false,
             omarchy_variants: HashMap::new(),
             ..non_default_preferences()
         }
@@ -98,8 +98,6 @@ fn one_malformed_entry_keeps_the_rest_of_its_collection() {
     let corrupt: toml::Table = toml::from_str(
         r#"
         search_exclusions = [".venv", 12, "/fixture/custom_excluded"]
-        list_hidden_columns = ["size", "not_a_column", "mode"]
-        list_column_order = ["name", "size", "bogus", "modified"]
 
         [omarchy_variants]
         fixture = "lighter"
@@ -124,12 +122,6 @@ fn one_malformed_entry_keeps_the_rest_of_its_collection() {
         salvage_preferences(saved).0,
         Preferences {
             search_exclusions: vec![".venv".into(), "/fixture/custom_excluded".into()],
-            list_hidden_columns: vec![ListColumnId::Size, ListColumnId::Mode],
-            list_column_order: vec![
-                ListColumnId::Name,
-                ListColumnId::Size,
-                ListColumnId::Modified,
-            ],
             omarchy_variants: HashMap::from([("fixture".into(), OmarchyVariant::Lighter)]),
             device_labels: HashMap::from([(
                 "volume:fixture-kingston".into(),
@@ -172,10 +164,10 @@ fn malformed_preferences_survive_startup_and_an_unrelated_save() {
         || {
             assert_recovered_preferences_survive_save(
                 |saved| {
-                    saved.insert("show_hidden".into(), "yes".into());
+                    saved.insert("theme".into(), 5.into());
                 },
                 Preferences {
-                    show_hidden: false,
+                    theme: Preferences::default().theme,
                     ..non_default_preferences()
                 },
             );
@@ -210,7 +202,6 @@ fn multiple_invalid_preferences_do_not_block_later_valid_entries() {
                 |saved| {
                     saved.insert("watch_network_folders".into(), "no".into());
                     saved.insert("hardware_accelerated_video_previews".into(), "no".into());
-                    saved.insert("show_hidden".into(), "yes".into());
                     saved.insert("future_preference".into(), true.into());
                     saved.insert("auto_refresh_interval".into(), 600.into());
                     saved.extend(
@@ -233,7 +224,6 @@ fn multiple_invalid_preferences_do_not_block_later_valid_entries() {
                 Preferences {
                     watch_network_folders: true,
                     hardware_accelerated_video_previews: None,
-                    show_hidden: false,
                     ..non_default_preferences()
                 },
             );

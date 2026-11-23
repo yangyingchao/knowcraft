@@ -31,10 +31,6 @@ fn a_save_keeps_the_settings_another_process_wrote() {
 
             let mut other = read();
             other.insert("show_keybinding_hints".into(), toml::Value::Boolean(true));
-            other.insert(
-                "list_hidden_columns".into(),
-                toml::Value::Array(vec!["size".into()]),
-            );
             other.insert("future_setting".into(), toml::Value::String("kept".into()));
             other.insert("auto_refresh_interval".into(), toml::Value::Integer(600));
             other["device_labels"]
@@ -57,7 +53,6 @@ fn a_save_keeps_the_settings_another_process_wrote() {
                 "a repair made at startup is saved"
             );
             assert_eq!(table["show_keybinding_hints"].as_bool(), Some(true));
-            assert_eq!(table["list_hidden_columns"], other["list_hidden_columns"]);
             assert_eq!(table["future_setting"].as_str(), Some("kept"));
             assert!(!table.contains_key("auto_refresh_interval"));
             let labels = table["device_labels"].as_table().expect("device labels");

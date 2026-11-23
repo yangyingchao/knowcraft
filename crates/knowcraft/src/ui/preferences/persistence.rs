@@ -59,12 +59,28 @@ fn parse_preferences_checked(contents: &str) -> io::Result<(Preferences, BTreeSe
 
 const SETTINGS_LOCK_WAIT: Duration = Duration::from_millis(500);
 
-/// Dropped by every save.
-pub(super) const RETIRED_SETTINGS: [&str; 4] = [
+/// Dropped by every save: keys nothing reads any more, including the layout and
+/// sidebar state that moved to `state.toml`.
+pub(super) const RETIRED_SETTINGS: [&str; 19] = [
     "auto_refresh_interval",
+    "browser_column_width",
     "browser_list_columns",
     "check_for_updates",
+    "chooser_column_width",
+    "chooser_list_columns",
+    "list_column_order",
+    "list_hidden_columns",
+    "preview_muted",
+    "preview_text_wrap",
+    "preview_volume",
     "release_channel",
+    "sidebar_compact",
+    "sidebar_devices_collapsed",
+    "sidebar_expanded",
+    "sidebar_knowcraft_collapsed",
+    "sidebar_pinned_collapsed",
+    "sidebar_places_collapsed",
+    "show_hidden",
 ];
 
 /// A changed key, or one entry of a key in [`ENTRY_MERGED_SETTINGS`].

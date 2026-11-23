@@ -331,6 +331,7 @@ impl ModeViews {
         }
     }
 
+    #[cfg(test)]
     pub fn set_single_click_previews(&self, enabled: bool) {
         self.single_click_previews.set(enabled);
     }

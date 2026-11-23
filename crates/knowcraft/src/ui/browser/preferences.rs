@@ -51,15 +51,9 @@ impl BrowserView {
             PreferenceManager::browser_density,
             Self::set_density,
         );
-        self.bind_view_preference(
-            manager,
-            PreferenceManager::columns_show_sizes,
-            |view, enabled| {
-                if enabled {
-                    view.state.request_columns_folder_counts();
-                }
-            },
-        );
+        // Column sizes are always shown, so their folder counts are requested
+        // once instead of waiting for a preference that no longer changes.
+        self.state.request_columns_folder_counts();
         self.bind_view_preference(
             manager,
             PreferenceManager::group_by_type,
@@ -75,15 +69,10 @@ impl BrowserView {
             PreferenceManager::watch_network_folders,
             Self::set_watch_network_folders,
         );
-        self.bind_view_preference(
-            manager,
-            PreferenceManager::single_click_previews,
-            Self::set_single_click_previews,
-        );
         let interactive = self.state.interactive;
         self.bind_view_preference(
             manager,
-            move |manager| interactive && manager.columns_mirror_selection(),
+            move |_manager| interactive,
             Self::set_columns_mirror_selection,
         );
         self.bind_view_preference(

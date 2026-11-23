@@ -202,6 +202,7 @@ impl BrowserView {
         }
     }
 
+    #[cfg(test)]
     pub fn set_single_click_previews(&self, enabled: bool) {
         self.state.single_click_previews.set(enabled);
         self.state

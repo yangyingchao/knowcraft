@@ -1,34 +1,26 @@
 // SPDX-License-Identifier: MIT
 
 //! Column views and list columns: widths, order, visibility, and sorting.
+//!
+//! 这些值存在 `state.toml`（窗口自己产生的布局状态），此处只保留调用入口。
 
 use super::*;
 
 impl PreferenceManager {
-    pub fn columns_show_sizes(&self) -> bool {
-        self.preferences.borrow().columns_show_sizes
-    }
-
-    pub fn columns_mirror_selection(&self) -> bool {
-        self.preferences.borrow().columns_mirror_selection
-    }
-
     pub fn chooser_column_width(&self) -> Option<i32> {
-        self.preferences.borrow().chooser_column_width
+        ui_state::chooser_column_width()
     }
 
     pub fn set_chooser_column_width(&self, width: Option<i32>) {
-        self.preferences.borrow_mut().chooser_column_width = width.filter(|width| *width > 0);
-        self.save_preferences();
+        ui_state::set_chooser_column_width(width);
     }
 
     pub fn browser_column_width(&self) -> Option<i32> {
-        self.preferences.borrow().browser_column_width
+        ui_state::browser_column_width()
     }
 
     pub fn set_browser_column_width(&self, width: Option<i32>) {
-        self.preferences.borrow_mut().browser_column_width = width.filter(|width| *width > 0);
-        self.save_preferences();
+        ui_state::set_browser_column_width(width);
     }
 
     pub fn browser_list_columns(&self) -> Option<ListColumns> {
@@ -40,30 +32,27 @@ impl PreferenceManager {
     }
 
     pub fn chooser_list_columns(&self) -> Option<ListColumns> {
-        self.preferences.borrow().chooser_list_columns
+        ui_state::chooser_list_columns()
     }
 
     pub fn set_chooser_list_columns(&self, columns: Option<ListColumns>) {
-        self.preferences.borrow_mut().chooser_list_columns = columns.filter(ListColumns::is_valid);
-        self.save_preferences();
+        ui_state::set_chooser_list_columns(columns);
     }
 
     pub fn list_column_order(&self) -> Vec<ListColumnId> {
-        sanitize_list_column_order(&self.preferences.borrow().list_column_order)
+        ui_state::list_column_order()
     }
 
     pub fn set_list_column_order(&self, order: Vec<ListColumnId>) {
-        self.preferences.borrow_mut().list_column_order = sanitize_list_column_order(&order);
-        self.save_preferences();
+        ui_state::set_list_column_order(order);
     }
 
     pub fn list_hidden_columns(&self) -> Vec<ListColumnId> {
-        sanitize_list_hidden_columns(&self.preferences.borrow().list_hidden_columns)
+        ui_state::list_hidden_columns()
     }
 
     pub fn set_list_hidden_columns(&self, hidden: Vec<ListColumnId>) {
-        self.preferences.borrow_mut().list_hidden_columns = sanitize_list_hidden_columns(&hidden);
-        self.save_preferences();
+        ui_state::set_list_hidden_columns(hidden);
     }
 
     pub fn is_list_column_visible(&self, column: ListColumnId) -> bool {
@@ -106,12 +95,8 @@ impl PreferenceManager {
     }
 
     pub fn reset_list_columns(&self) {
-        {
-            let mut prefs = self.preferences.borrow_mut();
-            prefs.list_column_order = default_list_column_order();
-            prefs.list_hidden_columns.clear();
-        }
-        self.save_preferences();
+        ui_state::set_list_column_order(default_list_column_order());
+        ui_state::set_list_hidden_columns(Vec::new());
     }
 
     pub fn list_visible_columns(&self) -> Vec<ListColumnId> {
@@ -132,8 +117,8 @@ impl PreferenceManager {
         if preferences.sort_key == SortKey::Recency {
             return;
         }
+        ui_state::set_show_hidden(preferences.show_hidden);
         let mut stored = self.preferences.borrow_mut();
-        stored.show_hidden = preferences.show_hidden;
         stored.folders_first = preferences.folders_first;
         store_sort(&mut stored, preferences.sort());
         drop(stored);
