@@ -1,3 +1,0 @@
-- [] 动作菜单按库内外裁剪：ActionConditions 增 scope（library/outside），库内目录隐藏内建 Import，export/import 两个自定义动作分别加 scope
-- [] 评估把导入导出做成内建功能，不再依赖自定义 action 与 python3 脚本
-- [] 清理配置文件：只有通过配置页面设置的选项才应该进入 stettings.toml, 其余应该进入 state.toml
