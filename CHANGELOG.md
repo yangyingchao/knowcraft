@@ -3,10 +3,15 @@
 ## [Unreleased]
 
 ### Added
-- 预览与索引支持演示文稿：`.pptx`/`.pptm`/`.ppsx`/`.potx` 与 `.ppt`/`.pot`/`.pps` 逐页渲染、翻页与缩放，
-  正文与备注页文字进索引；标题取首张幻灯片的标题占位符
 ### Changed
 ### Fixed
+
+
+## [v0.5.0] - 2026-11-26
+
+### Added
+- 预览与索引支持演示文稿：`.pptx`/`.pptm`/`.ppsx`/`.potx` 与 `.ppt`/`.pot`/`.pps` 逐页渲染、翻页与缩放，
+  正文与备注页文字进索引；标题取首张幻灯片的标题占位符 (430109bb5)
 
 
 ## [v0.4.1] - 2026-11-23
@@ -74,7 +79,8 @@
 - 统一 settings.toml：core 字段留顶层，GUI 偏好移入 [gui] (0c71eaa)
 - 库外文件删除改走系统回收站 (d9718de)
 
-[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.5.0...HEAD
+[v0.5.0]: https://github.com/yangyingchao/knowcraft/compare/v0.4.1...v0.5.0
 [v0.4.1]: https://github.com/yangyingchao/knowcraft/compare/v0.4.0...v0.4.1
 [v0.4.0]: https://github.com/yangyingchao/knowcraft/compare/v0.3.1...v0.4.0
 [v0.3.1]: https://github.com/yangyingchao/knowcraft/compare/v0.3.0...v0.3.1
