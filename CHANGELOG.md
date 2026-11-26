@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- doc-server 增加 list 子命令：列出支持的文档类型与对应后端
 ### Changed
 ### Fixed
 

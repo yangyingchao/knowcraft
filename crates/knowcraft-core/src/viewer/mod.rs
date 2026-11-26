@@ -4,6 +4,7 @@
 
 pub mod commands;
 pub mod document;
+pub mod formats;
 pub mod image;
 pub mod options;
 pub mod pdf;

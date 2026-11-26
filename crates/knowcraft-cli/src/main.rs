@@ -137,6 +137,33 @@ enum RunCmd {
 }
 
 #[derive(Subcommand)]
+enum DocServerCmd {
+    /// 启动文档查看服务
+    #[command(
+        long_about = "启动文档查看服务\n\n从 stdin 逐行读协议命令（open/renderpage/search 等），响应写 stdout，\
+        quit 或 EOF 后退出；可选 ERROR-LOGFILE 参数把 stderr 追写到该文件（默认 /dev/null）。"
+    )]
+    Run {
+        /// stderr 追写目标；省略时丢弃
+        #[arg(value_name = "ERROR-LOGFILE")]
+        error_log: Option<String>,
+    },
+    /// 列出服务支持的文档类型
+    #[command(
+        long_about = "列出服务支持的文档类型\n\n文本模式每行 `扩展名<TAB>后端`；`--json` 输出对象数组，\
+        `--jsonl` 每行一个对象，字段为 extension 与 backend。后端取值 pdf、word、slides。"
+    )]
+    List {
+        /// 输出 JSON 数组，供脚本与 Emacs 消费
+        #[arg(long, conflicts_with = "jsonl")]
+        json: bool,
+        /// 每行输出一个 JSON 对象，适合流式消费
+        #[arg(long, conflicts_with = "json")]
+        jsonl: bool,
+    },
+}
+
+#[derive(Subcommand)]
 enum SendtoCmd {
     /// 列出可用插件：每行 id 与显示名
     #[command(
@@ -532,15 +559,21 @@ enum Cmd {
         #[command(subcommand)]
         cmd: ActivateCmd,
     },
-    /// 文档查看服务：edoc-tools 协议常驻 server
+    /// 文档查看服务：运行 edoc-tools 协议 server，或列出支持的文档类型
     #[command(
         long_about = "文档查看服务：edoc-tools 的 epdfinfo 协议后端，协议兼容。\n\n\
-        从 stdin 逐行读协议命令（open/renderpage/search 等），响应写 stdout，quit 或 EOF 后退出；\
-        可选 ERROR-LOGFILE 参数把 stderr 追写到该文件（默认 /dev/null）。\n\n \
-        纯文档服务，不初始化知识库、不获取写锁，可与其他 kc 命令并行。"
+        `run` 从 stdin 逐行读协议命令（open/renderpage/search 等），响应写 stdout，quit 或 EOF \
+        后退出；可选 ERROR-LOGFILE 参数把 stderr 追写到该文件（默认 /dev/null）。为兼容 edoc-tools \
+        的既有调用，省略子命令时等同 `run`，位置参数照旧当作 ERROR-LOGFILE。\n\n \
+        `list` 列出服务能打开的文档类型：每行 `扩展名<TAB>后端`。后端为 pdf（pdfcraft）、\
+        word（WordCraft）、slides（DeckCraft）。实际按文件内容而非扩展名选择后端，xml 仅在 \
+        Flat OPC / WordML 2003 时归 word。\n\n \
+        本组命令是纯文档服务，不初始化知识库、不获取写锁，可与其他 kc 命令并行。"
     )]
     DocServer {
-        /// stderr 追写目标；省略时丢弃
+        #[command(subcommand)]
+        cmd: Option<DocServerCmd>,
+        /// 运行时的 stderr 追写目标；省略时丢弃（仅对 run 有效）
         #[arg(value_name = "ERROR-LOGFILE")]
         error_log: Option<String>,
     },
@@ -562,9 +595,14 @@ fn main() -> anyhow::Result<()> {
         generate(Shell::from(*shell), &mut cmd, "kc", &mut std::io::stdout());
         return Ok(());
     }
-    if let Cmd::DocServer { error_log } = &cli.cmd {
+    if let Cmd::DocServer { cmd, error_log } = &cli.cmd {
         // 纯文档服务：不加载配置、不开 store、不碰写锁，须在 Config::load 之前返回。
-        return run_doc_server(error_log.as_deref());
+        return match cmd {
+            Some(DocServerCmd::Run { error_log }) => run_doc_server(error_log.as_deref()),
+            Some(DocServerCmd::List { json, jsonl }) => run_doc_server_list(*json, *jsonl),
+            // 省略子命令时等同 run，兼容 edoc-tools 的 `kc doc-server [LOGFILE]`。
+            None => run_doc_server(error_log.as_deref()),
+        };
     }
     if let Cmd::Search { limit, .. } = &cli.cmd {
         if *limit < -1 {
@@ -1250,6 +1288,47 @@ fn main() -> anyhow::Result<()> {
 ///
 /// 行为与 pdf-tools 的 epdfinfo 一致：`quit` 或 stdin EOF 后退出码 0，
 /// 读错误退出码 2；命令出错返回 ERR 记录并继续。
+/// `kc doc-server list`：打印 core 里声明的可预览文档类型。
+fn run_doc_server_list(json: bool, jsonl: bool) -> anyhow::Result<()> {
+    let output = render_format_list(json, jsonl)?;
+    std::io::Write::write_all(&mut std::io::stdout().lock(), &output)?;
+    Ok(())
+}
+
+fn render_format_list(json: bool, jsonl: bool) -> anyhow::Result<Vec<u8>> {
+    let rows: Vec<(&str, &str)> = knowcraft_core::viewer::formats::supported_extensions().collect();
+    if json {
+        let payload: Vec<_> = rows
+            .iter()
+            .map(|(extension, backend)| {
+                serde_json::json!({"extension": extension, "backend": backend})
+            })
+            .collect();
+        let mut output = serde_json::to_vec(&payload)?;
+        output.push(b'\n');
+        return Ok(output);
+    }
+    if jsonl {
+        let mut output = Vec::new();
+        for (extension, backend) in rows {
+            serde_json::to_writer(
+                &mut output,
+                &serde_json::json!({"extension": extension, "backend": backend}),
+            )?;
+            output.push(b'\n');
+        }
+        return Ok(output);
+    }
+    let mut output = String::new();
+    for (extension, backend) in rows {
+        output.push_str(extension);
+        output.push('\t');
+        output.push_str(backend);
+        output.push('\n');
+    }
+    Ok(output.into_bytes())
+}
+
 fn run_doc_server(error_log: Option<&str>) -> anyhow::Result<()> {
     use std::io::{BufRead, Write};
 
@@ -2178,5 +2257,77 @@ mod tests {
         }
 
         check(&Cli::command(), "kc");
+    }
+
+    /// `kc doc-server list` 的文本模式：每行 `扩展名<TAB>后端`，条数与 core 的清单一致。
+    #[test]
+    fn renders_format_list_as_lines() {
+        let output = render_format_list(false, false).expect("render");
+        let text = String::from_utf8(output).expect("utf8");
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(
+            lines.len(),
+            knowcraft_core::viewer::formats::supported_extensions().count()
+        );
+        assert_eq!(lines[0], "pdf\tpdf");
+        assert!(lines.iter().all(|line| line.split('\t').count() == 2));
+    }
+
+    #[test]
+    fn renders_format_list_as_json_and_jsonl() {
+        let expected = knowcraft_core::viewer::formats::supported_extensions().count();
+
+        let output = render_format_list(true, false).expect("render");
+        let value: serde_json::Value = serde_json::from_slice(&output).expect("json");
+        let items = value.as_array().expect("array");
+        assert_eq!(items.len(), expected);
+        assert_eq!(
+            items[0],
+            serde_json::json!({"extension": "pdf", "backend": "pdf"})
+        );
+
+        let output = render_format_list(false, true).expect("render");
+        let text = String::from_utf8(output).expect("utf8");
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), expected);
+        assert!(lines
+            .iter()
+            .all(|line| serde_json::from_str::<serde_json::Value>(line).is_ok()));
+    }
+
+    /// 旧式 `kc doc-server [LOGFILE]` 必须仍然解析成 run，edoc-tools 依赖它。
+    #[test]
+    fn doc_server_keeps_legacy_positional_invocation() {
+        use clap::Parser;
+
+        let cli = Cli::try_parse_from(["kc", "doc-server", "/tmp/kc.log"]).expect("legacy");
+        match cli.cmd {
+            Cmd::DocServer { cmd, error_log } => {
+                assert!(cmd.is_none());
+                assert_eq!(error_log.as_deref(), Some("/tmp/kc.log"));
+            }
+            _ => panic!("unexpected command"),
+        }
+
+        let cli = Cli::try_parse_from(["kc", "doc-server", "list", "--json"]).expect("list");
+        match cli.cmd {
+            Cmd::DocServer {
+                cmd: Some(DocServerCmd::List { json, jsonl }),
+                error_log,
+            } => {
+                assert!(json && !jsonl);
+                assert!(error_log.is_none());
+            }
+            _ => panic!("unexpected command"),
+        }
+
+        let cli = Cli::try_parse_from(["kc", "doc-server", "run", "/tmp/kc.log"]).expect("run");
+        match cli.cmd {
+            Cmd::DocServer {
+                cmd: Some(DocServerCmd::Run { error_log }),
+                ..
+            } => assert_eq!(error_log.as_deref(), Some("/tmp/kc.log")),
+            _ => panic!("unexpected command"),
+        }
     }
 }
