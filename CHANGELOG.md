@@ -3,9 +3,14 @@
 ## [Unreleased]
 
 ### Added
-- doc-server 增加 list 子命令：列出支持的文档类型与对应后端
 ### Changed
 ### Fixed
+
+
+## [v0.5.1] - 2026-11-26
+
+### Added
+- doc-server 增加 list 子命令，列出支持的文档类型 (f4ef14c)
 
 
 ## [v0.5.0] - 2026-11-26
@@ -80,7 +85,8 @@
 - 统一 settings.toml：core 字段留顶层，GUI 偏好移入 [gui] (0c71eaa)
 - 库外文件删除改走系统回收站 (d9718de)
 
-[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/yangyingchao/knowcraft/compare/v0.5.1...HEAD
+[v0.5.1]: https://github.com/yangyingchao/knowcraft/compare/v0.5.0...v0.5.1
 [v0.5.0]: https://github.com/yangyingchao/knowcraft/compare/v0.4.1...v0.5.0
 [v0.4.1]: https://github.com/yangyingchao/knowcraft/compare/v0.4.0...v0.4.1
 [v0.4.0]: https://github.com/yangyingchao/knowcraft/compare/v0.3.1...v0.4.0
