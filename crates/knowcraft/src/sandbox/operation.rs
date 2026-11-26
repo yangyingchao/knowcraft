@@ -116,6 +116,8 @@ pub(crate) enum DocumentFormat {
     Docx,
     Odt,
     Doc,
+    Pptx,
+    Ppt,
 }
 
 impl DocumentFormat {
@@ -126,9 +128,20 @@ impl DocumentFormat {
             Some(Self::Doc)
         } else if crate::services::odt::is_document(content_type, name) {
             Some(Self::Odt)
+        } else if crate::services::pptx::is_presentation(content_type, name) {
+            Some(Self::from_presentation_name(name))
         } else {
             None
         }
+    }
+
+    /// `.ppt`, `.pot` and `.pps` are 97-2003 compound-file decks; the rest are OOXML.
+    fn from_presentation_name(name: &std::ffi::OsStr) -> Self {
+        let legacy = Path::new(name)
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| matches!(extension.to_ascii_lowercase().as_str(), "ppt" | "pot" | "pps"));
+        if legacy { Self::Ppt } else { Self::Pptx }
     }
 
     pub(crate) fn argument(self) -> &'static str {
@@ -136,6 +149,8 @@ impl DocumentFormat {
             Self::Docx => "docx",
             Self::Odt => "odt",
             Self::Doc => "doc",
+            Self::Pptx => "pptx",
+            Self::Ppt => "ppt",
         }
     }
 
@@ -144,8 +159,15 @@ impl DocumentFormat {
             "docx" => Some(Self::Docx),
             "odt" => Some(Self::Odt),
             "doc" => Some(Self::Doc),
+            "pptx" => Some(Self::Pptx),
+            "ppt" => Some(Self::Ppt),
             _ => None,
         }
+    }
+
+    /// Whether the format is a presentation: those share one backend and one op pair.
+    pub(crate) fn is_presentation(self) -> bool {
+        matches!(self, Self::Pptx | Self::Ppt)
     }
 }
 
@@ -180,6 +202,17 @@ pub(crate) enum ParseOperation {
     },
     /// Consecutive laid-out pages of a Word document, rendered in one helper run.
     PreviewWordPages {
+        format: DocumentFormat,
+        size: PdfRenderSize,
+        count: u32,
+    },
+    /// A single slide of a presentation, rendered to PNG.
+    PreviewPptxSlide {
+        format: DocumentFormat,
+        size: PdfRenderSize,
+    },
+    /// Consecutive slides of a presentation, rendered in one helper run.
+    PreviewPptxSlides {
         format: DocumentFormat,
         size: PdfRenderSize,
         count: u32,
@@ -226,6 +259,8 @@ impl ParseOperation {
             Self::PreviewPdf(_) => "preview-pdf",
             Self::PreviewWordPage { .. } => "preview-word-page",
             Self::PreviewWordPages { .. } => "preview-word-pages",
+            Self::PreviewPptxSlide { .. } => "preview-pptx-slide",
+            Self::PreviewPptxSlides { .. } => "preview-pptx-pages",
             Self::PreviewModel(_) => "preview-model",
             Self::PreviewRoute(_) => "preview-route",
             Self::PreviewMedia(_) => "preview-media",
@@ -307,6 +342,9 @@ impl ParseOperation {
             Self::PreviewWordPage { size, .. } | Self::PreviewWordPages { size, .. } => {
                 Some(size.image_limits())
             }
+            Self::PreviewPptxSlide { size, .. } | Self::PreviewPptxSlides { size, .. } => {
+                Some(size.image_limits())
+            }
             Self::PreviewModel(render) => {
                 let size = MediaPreviewSize::new(render.size.width, render.size.height);
                 Some((size.width as u32, size.height as u32, 1280 * 1280))
@@ -359,6 +397,10 @@ impl ParseOperation {
             Self::PreviewDocument(DocumentFormat::Doc) => {
                 Some(crate::services::doc::DOC_BYTE_LIMIT)
             }
+            // No caller routes a presentation here yet; the limit matches the page operations.
+            Self::PreviewDocument(DocumentFormat::Pptx | DocumentFormat::Ppt) => {
+                Some(MAX_RASTER_INPUT_BYTES)
+            }
             Self::PreviewWordPage {
                 format: DocumentFormat::Docx,
                 ..
@@ -377,6 +419,10 @@ impl ParseOperation {
             } => Some(crate::services::doc::DOC_BYTE_LIMIT),
             Self::PreviewWordPage { .. } | Self::PreviewWordPages { .. } => {
                 Some(crate::services::odt::ODT_BYTE_LIMIT)
+            }
+            // Presentations embed media, so they get the raster limit rather than a text one.
+            Self::PreviewPptxSlide { .. } | Self::PreviewPptxSlides { .. } => {
+                Some(MAX_RASTER_INPUT_BYTES)
             }
             Self::DocumentImage => Some(crate::services::document_media::IMAGE_INPUT_LIMIT),
             Self::DocumentMermaid => {

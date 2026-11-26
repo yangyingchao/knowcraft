@@ -8,6 +8,7 @@ pub mod image;
 pub mod options;
 pub mod pdf;
 pub mod png;
+pub mod pptx;
 pub mod protocol;
 pub mod recolor;
 pub mod region;

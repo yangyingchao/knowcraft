@@ -11,6 +11,7 @@
 
 use std::path::Path;
 
+use deckcraft_model::{Presentation, Shape, ShapeKind};
 use wordcraft_doc::StoryRef;
 
 use crate::error::{Error, Result};
@@ -30,6 +31,7 @@ pub fn extract_text(path: &Path) -> Result<String> {
         "md" | "markdown" | "org" | "txt" => std::fs::read_to_string(path).map_err(Into::into),
         "docx" => extract_docx(path),
         "doc" => extract_doc(path),
+        "pptx" | "pptm" | "ppsx" | "potx" | "ppt" | "pot" | "pps" => extract_presentation(path),
         "pdf" => extract_pdf(path),
         "html" | "htm" => Ok(strip_html(&std::fs::read_to_string(path)?)),
         "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "raw" => Ok(String::new()),
@@ -50,6 +52,7 @@ pub fn extract_title(path: &Path) -> Option<String> {
         "pdf" => pdf_title(path),
         "docx" => docx_title(path),
         "doc" => doc_title(path),
+        "pptx" | "pptm" | "ppsx" | "potx" | "ppt" | "pot" | "pps" => presentation_title(path),
         "html" | "htm" => html_title(&std::fs::read_to_string(path).ok()?),
         "md" | "markdown" => markdown_title(&std::fs::read_to_string(path).ok()?),
         "org" => org_title(&std::fs::read_to_string(path).ok()?),
@@ -88,7 +91,21 @@ pub fn is_placeholder_title(path: &Path, doc_type: &str, title: &str) -> bool {
 }
 
 fn is_metadata_source(kind: &str) -> bool {
-    matches!(kind, "pdf" | "docx" | "doc" | "html" | "htm")
+    matches!(
+        kind,
+        "pdf"
+            | "docx"
+            | "doc"
+            | "html"
+            | "htm"
+            | "pptx"
+            | "pptm"
+            | "ppsx"
+            | "potx"
+            | "ppt"
+            | "pot"
+            | "pps"
+    )
 }
 
 fn is_placeholder_value(path: &Path, title: &str) -> bool {
@@ -377,4 +394,136 @@ fn extract_pdf(path: &Path) -> Result<String> {
         out.push('\n');
     }
     Ok(out)
+}
+
+/// Read a presentation the way the viewer does, so indexing and preview agree on what a file is:
+/// a 97-2003 compound file first, then an OOXML PresentationML package.
+fn read_presentation(path: &Path) -> Result<Presentation> {
+    let bytes = std::fs::read(path)?;
+    if deckcraft_ppt::sniff(&bytes) {
+        return deckcraft_ppt::import(&bytes).map_err(|e| Error::Extract(e.to_string()));
+    }
+    deckcraft_pptx::import(&bytes).map_err(|e| Error::Extract(e.to_string()))
+}
+
+/// Extract the text of a presentation: every shape's text (table cells and grouped shapes
+/// included), then the slide's notes, one slide per block.
+fn extract_presentation(path: &Path) -> Result<String> {
+    let presentation = read_presentation(path)?;
+    let mut out = String::new();
+    for slide in &presentation.slides {
+        for shape in &slide.shapes {
+            push_shape_text(shape, &mut out);
+        }
+        push_text(&slide.notes_text(), &mut out);
+        out.push('\n');
+    }
+    Ok(out)
+}
+
+/// Append a shape's own text and, for groups and tables, the text of what it holds.
+fn push_shape_text(shape: &Shape, out: &mut String) {
+    if shape.hidden {
+        return;
+    }
+    if let Some(text) = &shape.text {
+        push_text(&text.text(), out);
+    }
+    match &shape.kind {
+        ShapeKind::Group { children, .. } => {
+            for child in children {
+                push_shape_text(child, out);
+            }
+        }
+        ShapeKind::Table(table) => {
+            for row in &table.rows {
+                for cell in &row.cells {
+                    push_text(&cell.text.text(), out);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// One line per text body; soft line breaks (`\u{b}`) become spaces, as the viewer's titles do.
+fn push_text(text: &str, out: &mut String) {
+    let text = text.replace('\u{b}', " ");
+    let text = text.trim();
+    if text.is_empty() {
+        return;
+    }
+    out.push_str(text);
+    out.push('\n');
+}
+
+/// The first slide's title placeholder, the closest thing a presentation has to `dc:title`:
+/// DeckCraft's model keeps no core properties.
+fn presentation_title(path: &Path) -> Option<String> {
+    let presentation = read_presentation(path).ok()?;
+    let title = presentation.slides.first()?.title();
+    let title = title.trim();
+    (!title.is_empty()).then(|| title.to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use deckcraft_model::{Paragraph, TextBody, Xfrm};
+
+    fn body(text: &str) -> TextBody {
+        TextBody {
+            paragraphs: vec![Paragraph::new(text)],
+            ..TextBody::default()
+        }
+    }
+
+    fn shape(kind: ShapeKind, text: Option<TextBody>) -> Shape {
+        Shape {
+            kind,
+            text,
+            ..Shape::default()
+        }
+    }
+
+    #[test]
+    fn a_group_contributes_its_own_text_then_its_children() {
+        let child = shape(ShapeKind::Shape, Some(body("child")));
+        let group = shape(
+            ShapeKind::Group {
+                children: vec![child],
+                child: Xfrm::default(),
+            },
+            Some(body("group")),
+        );
+        let mut out = String::new();
+        push_shape_text(&group, &mut out);
+        assert_eq!(out, "group\nchild\n");
+    }
+
+    #[test]
+    fn hidden_shapes_are_left_out() {
+        let mut hidden = shape(ShapeKind::Shape, Some(body("hidden")));
+        hidden.hidden = true;
+        let mut out = String::new();
+        push_shape_text(&hidden, &mut out);
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn text_bodies_are_trimmed_and_soft_breaks_become_spaces() {
+        let mut out = String::new();
+        push_text("  a\u{b}b  ", &mut out);
+        push_text("   ", &mut out);
+        assert_eq!(out, "a b\n");
+    }
+
+    #[test]
+    fn bytes_that_are_not_a_presentation_are_an_extract_error() {
+        let path = std::env::temp_dir().join("knowcraft-not-a-deck.pptx");
+        std::fs::write(&path, b"not a deck").expect("write the sample");
+        assert!(matches!(extract_text(&path), Err(Error::Extract(_))));
+        assert_eq!(presentation_title(&path), None);
+        let _ = std::fs::remove_file(&path);
+    }
 }

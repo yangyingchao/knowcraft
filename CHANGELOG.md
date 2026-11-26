@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Added
+- 预览与索引支持演示文稿：`.pptx`/`.pptm`/`.ppsx`/`.potx` 与 `.ppt`/`.pot`/`.pps` 逐页渲染、翻页与缩放，
+  正文与备注页文字进索引；标题取首张幻灯片的标题占位符
 ### Changed
 ### Fixed
 

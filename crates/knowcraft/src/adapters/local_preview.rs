@@ -292,7 +292,13 @@ impl PreviewProvider for LocalPreviewProvider {
         let Some(format) = DocumentFormat::for_file("", &entry.native_name) else {
             return;
         };
-        if !matches!(format, DocumentFormat::Docx | DocumentFormat::Doc) {
+        if !matches!(
+            format,
+            DocumentFormat::Docx
+                | DocumentFormat::Doc
+                | DocumentFormat::Pptx
+                | DocumentFormat::Ppt
+        ) {
             return;
         }
         let Some((start, end)) = prefetch_range(page, pages) else {
@@ -344,13 +350,22 @@ impl PreviewProvider for LocalPreviewProvider {
             PREFETCH_CANCELLATIONS.with(|list| list.borrow_mut().push(cancellation.clone()));
             let render_cancellation = cancellation.clone();
             let result = gio::spawn_blocking(move || {
-                crate::sandbox::parse(
-                    &render_path,
+                let operation = if format.is_presentation() {
+                    ParseOperation::PreviewPptxSlides {
+                        format,
+                        size,
+                        count,
+                    }
+                } else {
                     ParseOperation::PreviewWordPages {
                         format,
                         size,
                         count,
-                    },
+                    }
+                };
+                crate::sandbox::parse(
+                    &render_path,
+                    operation,
                     start,
                     backend,
                     &render_cancellation,

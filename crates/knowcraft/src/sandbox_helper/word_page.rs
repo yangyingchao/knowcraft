@@ -116,7 +116,7 @@ fn render_page_image(
     })
 }
 
-fn page_index(requested: i32, pages: usize) -> usize {
+pub(super) fn page_index(requested: i32, pages: usize) -> usize {
     i32::try_from(pages)
         .map(|pages| requested.clamp(0, pages - 1))
         .unwrap_or(0) as usize
@@ -209,6 +209,10 @@ fn read_document(input: &Path, format: DocumentFormat) -> Result<Document, Strin
         DocumentFormat::Docx => wordcraft_docx::read(&bytes).map_err(|error| error.to_string()),
         DocumentFormat::Doc => wordcraft_docbin::read(&bytes).map_err(|error| error.to_string()),
         DocumentFormat::Odt => Err("Document page rendering does not support ODT".to_owned()),
+        // Presentations render through the pptx operation, not the Word page one.
+        DocumentFormat::Pptx | DocumentFormat::Ppt => {
+            Err("Document page rendering does not support presentations".to_owned())
+        }
     }
 }
 
@@ -222,7 +226,7 @@ fn batch_request(value: &str) -> Result<(DocumentFormat, i32, u32, PdfRenderSize
     Ok((format, page, count, size))
 }
 
-fn split_request(value: &str) -> Result<(DocumentFormat, i32, u32, PdfRenderSize), String> {
+pub(super) fn split_request(value: &str) -> Result<(DocumentFormat, i32, u32, PdfRenderSize), String> {
     let mut parts = value.split(':');
     let format = parts
         .next()

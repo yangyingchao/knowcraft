@@ -27,6 +27,7 @@ mod operations;
 pub(crate) mod package_manager;
 mod path_match;
 mod preview;
+pub(crate) mod pptx;
 mod remote_download;
 pub(crate) mod route_preview;
 pub(crate) mod rtf;

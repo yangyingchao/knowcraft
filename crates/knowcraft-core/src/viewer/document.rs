@@ -59,11 +59,13 @@ pub struct PdfDocument {
     raster_cache: Option<RasterCache>,
 }
 
-/// One open document: a PDF, or a Word document rendered by WordCraft.
+/// One open document: a PDF, a Word document rendered by WordCraft, or a presentation rendered
+/// by DeckCraft.
 pub enum Document {
     // 两侧都装箱：任何一种按值存放都会把枚举撑到 1.2KB 以上，移动时整体拷贝。
     Pdf(Box<PdfDocument>),
     Word(Box<crate::viewer::word::WordDocument>),
+    Pptx(Box<crate::viewer::pptx::PptxDocument>),
 }
 
 fn render_config(password: Option<&str>) -> RenderConfig {
@@ -676,25 +678,29 @@ fn text_or_empty(value: &Option<String>) -> String {
 }
 
 impl Document {
-    /// Open `filename`, choosing the backend by content: `%PDF-` goes to pdfcraft, everything
+    /// Open `filename`, choosing the backend by content: `%PDF-` goes to pdfcraft, a presentation
+    /// package (OOXML PresentationML or a 97-2003 compound file) goes to DeckCraft, everything
     /// else is tried as a Word document (DOCX package, Flat OPC/WordML 2003 XML, or `.doc`).
     pub fn open(filename: &str, password: Option<&str>) -> Result<Self, String> {
         let bytes = std::fs::read(filename).map_err(|e| e.to_string())?;
         if bytes.starts_with(b"%PDF-") {
-            Ok(Document::Pdf(Box::new(PdfDocument::from_bytes(
+            return Ok(Document::Pdf(Box::new(PdfDocument::from_bytes(
                 filename, bytes, password,
-            )?)))
-        } else {
-            Ok(Document::Word(Box::new(
-                crate::viewer::word::WordDocument::from_bytes(filename, &bytes, password)?,
-            )))
+            )?)));
         }
+        if let Some(document) = crate::viewer::pptx::PptxDocument::detect(filename, &bytes)? {
+            return Ok(Document::Pptx(Box::new(document)));
+        }
+        Ok(Document::Word(Box::new(
+            crate::viewer::word::WordDocument::from_bytes(filename, &bytes, password)?,
+        )))
     }
 
     pub fn filename(&self) -> &str {
         match self {
             Document::Pdf(doc) => &doc.filename,
             Document::Word(doc) => &doc.filename,
+            Document::Pptx(doc) => &doc.filename,
         }
     }
 
@@ -705,7 +711,7 @@ impl Document {
     pub fn as_pdf_mut(&mut self) -> Result<&mut PdfDocument, String> {
         match self {
             Document::Pdf(doc) => Ok(doc),
-            Document::Word(_) => Err("Document is read-only".to_string()),
+            Document::Word(_) | Document::Pptx(_) => Err("Document is read-only".to_string()),
         }
     }
 
@@ -713,6 +719,7 @@ impl Document {
         match self {
             Document::Pdf(doc) => doc.page_count(),
             Document::Word(doc) => doc.page_count(),
+            Document::Pptx(doc) => doc.page_count(),
         }
     }
 
@@ -720,6 +727,7 @@ impl Document {
         match self {
             Document::Pdf(doc) => doc.page_size(page1),
             Document::Word(doc) => doc.page_size(page1),
+            Document::Pptx(doc) => doc.page_size(page1),
         }
     }
 
@@ -727,6 +735,7 @@ impl Document {
         match self {
             Document::Pdf(doc) => &doc.options,
             Document::Word(doc) => &doc.options,
+            Document::Pptx(doc) => &doc.options,
         }
     }
 
@@ -734,6 +743,7 @@ impl Document {
         match self {
             Document::Pdf(doc) => &mut doc.options,
             Document::Word(doc) => &mut doc.options,
+            Document::Pptx(doc) => &mut doc.options,
         }
     }
 
@@ -752,6 +762,9 @@ impl Document {
             Document::Word(doc) => {
                 doc.render_image(page, width, usecolors, foreground, background)
             }
+            Document::Pptx(doc) => {
+                doc.render_image(page, width, usecolors, foreground, background)
+            }
         }
     }
 
@@ -760,6 +773,9 @@ impl Document {
             Document::Pdf(doc) => doc.page_text(page),
             Document::Word(_) => {
                 Err("text extraction is not available for Word documents".to_string())
+            }
+            Document::Pptx(_) => {
+                Err("text extraction is not available for presentations".to_string())
             }
         }
     }
@@ -797,6 +813,7 @@ impl Document {
                 ]
             }
             Document::Word(doc) => doc.metadata_fields(),
+            Document::Pptx(doc) => doc.metadata_fields(),
         }
     }
 
@@ -804,6 +821,7 @@ impl Document {
         match self {
             Document::Pdf(doc) => doc.info.pages.iter().map(|p| p.label.clone()).collect(),
             Document::Word(doc) => doc.page_labels(),
+            Document::Pptx(doc) => doc.page_labels(),
         }
     }
 }

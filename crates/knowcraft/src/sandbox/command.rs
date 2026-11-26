@@ -207,6 +207,28 @@ fn helper_value(operation: &ParseOperation, value: i32) -> String {
                 size.height
             )
         }
+        ParseOperation::PreviewPptxSlide { format, size } => {
+            let size = PdfRenderSize::new(size.width, size.height);
+            format!(
+                "{}:{value}:{}x{}",
+                format.argument(),
+                size.width,
+                size.height
+            )
+        }
+        ParseOperation::PreviewPptxSlides {
+            format,
+            size,
+            count,
+        } => {
+            let size = PdfRenderSize::new(size.width, size.height);
+            format!(
+                "{}:{value}:{count}:{}x{}",
+                format.argument(),
+                size.width,
+                size.height
+            )
+        }
         ParseOperation::PreviewModel(render) => model_argument(render),
         ParseOperation::PreviewRoute(render) => format!(
             "{}:{:06x}:{:06x}",

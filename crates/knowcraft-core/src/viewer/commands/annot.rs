@@ -95,7 +95,7 @@ pub fn getannots(session: &mut Session, args: &[ArgValue], out: &mut Response) -
     let key = args[0].doc().to_string();
     let doc = match session.require_mut(&key)? {
         Document::Pdf(doc) => doc,
-        Document::Word(_) => {
+        Document::Word(_) | Document::Pptx(_) => {
             out.ok_begin();
             out.ok_end();
             return Ok(Flow::Continue);

@@ -28,6 +28,10 @@ wordcraft-docbin = { path = "../vendor/wordcraft/crates/docbin" }
 wordcraft-docx = { path = "../vendor/wordcraft/crates/docx" }
 wordcraft-layout = { path = "../vendor/wordcraft/crates/layout" }
 wordcraft-render = { path = "../vendor/wordcraft/crates/render" }
+deckcraft-model = { path = "../vendor/deckcraft/crates/model" }
+deckcraft-pptx = { path = "../vendor/deckcraft/crates/pptx" }
+deckcraft-ppt = { path = "../vendor/deckcraft/crates/ppt" }
+deckcraft-render = { path = "../vendor/deckcraft/crates/render" }
 png = "0.18"
 pcre2-sys = "0.2"
 libc = "0.2"

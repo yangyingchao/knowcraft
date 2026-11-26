@@ -145,6 +145,8 @@ pub fn renderpage(session: &mut Session, args: &[ArgValue], out: &mut Response) 
                             .collect();
                         image.highlight_rects(&rects, scale, fg, bg, 1.0);
                     }
+                    // A presentation has no text layer: nothing to highlight.
+                    crate::viewer::document::Document::Pptx(_) => {}
                 }
             }
             RenderOption::HighlightLine(r) => {
@@ -170,6 +172,8 @@ pub fn renderpage(session: &mut Session, args: &[ArgValue], out: &mut Response) 
                             .collect();
                         image.highlight_rects(&rects, scale, fg, bg, 1.0);
                     }
+                    // A presentation has no text layer: nothing to highlight.
+                    crate::viewer::document::Document::Pptx(_) => {}
                 }
             }
         }

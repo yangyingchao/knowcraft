@@ -22,6 +22,7 @@ mod media;
 mod model;
 mod operations;
 mod pdf;
+mod pptx_slide;
 mod process;
 mod raster;
 mod raw_metadata;

@@ -68,7 +68,7 @@ pub fn getattachments(session: &mut Session, args: &[ArgValue], out: &mut Respon
     let do_save = args[1].flag();
     let doc = match session.require_mut(&key)? {
         Document::Pdf(doc) => doc,
-        Document::Word(_) => {
+        Document::Word(_) | Document::Pptx(_) => {
             out.ok_begin();
             out.ok_end();
             return Ok(Flow::Continue);
@@ -106,7 +106,7 @@ pub fn getattachment_from_annot(
     let do_save = args[2].flag();
     let doc = match session.require_mut(&key)? {
         Document::Pdf(doc) => doc,
-        Document::Word(_) => {
+        Document::Word(_) | Document::Pptx(_) => {
             out.ok_begin();
             out.ok_end();
             return Ok(Flow::Continue);

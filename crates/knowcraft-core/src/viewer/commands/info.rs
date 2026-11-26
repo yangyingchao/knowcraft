@@ -177,6 +177,8 @@ pub fn gettext(session: &mut Session, args: &[ArgValue], out: &mut Response) -> 
             let chars = doc.selected_chars(pn as usize - 1, r, style);
             out.line(Some(&word_text(&chars)));
         }
+        // A presentation has no text layer, so a selection reports nothing.
+        Document::Pptx(_) => out.line(Some("")),
     }
     out.ok_end();
     Ok(Flow::Continue)
@@ -273,6 +275,7 @@ pub fn getselection(session: &mut Session, args: &[ArgValue], out: &mut Response
                 ));
             }
         }
+        Document::Pptx(_) => {}
     }
     out.ok_end();
     Ok(Flow::Continue)
@@ -398,6 +401,7 @@ pub fn charlayout(session: &mut Session, args: &[ArgValue], out: &mut Response) 
                 ));
             }
         }
+        Document::Pptx(_) => {}
     }
     out.ok_end();
     Ok(Flow::Continue)

@@ -419,6 +419,10 @@ impl PreviewLoad {
                     format,
                     size: pdf_render_size(self.request.media_size),
                 },
+                DocumentFormat::Pptx | DocumentFormat::Ppt => ParseOperation::PreviewPptxSlide {
+                    format,
+                    size: pdf_render_size(self.request.media_size),
+                },
                 DocumentFormat::Odt => ParseOperation::PreviewDocument(format),
             })
         } else {
@@ -436,8 +440,12 @@ impl PreviewLoad {
                 "Copy this file locally before previewing it".into(),
             ));
         };
-        let is_word_page = matches!(operation, ParseOperation::PreviewWordPage { .. });
-        let cache_key = is_word_page
+        // A presentation page is as heavy as a Word page: one parse, one raster per request.
+        let is_paged = matches!(
+            operation,
+            ParseOperation::PreviewWordPage { .. } | ParseOperation::PreviewPptxSlide { .. }
+        );
+        let cache_key = is_paged
             .then(|| {
                 page_key(
                     &self.entry,
@@ -468,9 +476,9 @@ impl PreviewLoad {
         let requested_page = self.request.page;
         let result = gio::spawn_blocking(move || {
             let is_workbook = matches!(operation, ParseOperation::PreviewWorkbook);
-            let value = if is_word_page { requested_page } else { 0 };
+            let value = if is_paged { requested_page } else { 0 };
             let output = render(&path, operation, value, backend, &cancellation)?;
-            if is_word_page {
+            if is_paged {
                 return Ok(PreviewContent::Paged {
                     png: output.data,
                     page: output.page,

@@ -267,6 +267,8 @@ fn renderer_timeout(operation: &ParseOperation) -> Duration {
         | ParseOperation::DocumentMath { .. } => Duration::from_secs(3),
         // A batch lays out the whole document and rasterises several pages.
         ParseOperation::PreviewWordPages { .. } => Duration::from_secs(30),
+        // Same for presentations: one parse, several slides.
+        ParseOperation::PreviewPptxSlides { .. } => Duration::from_secs(30),
         _ => WALL_TIME_LIMIT,
     }
 }
@@ -385,7 +387,10 @@ fn read_text_layer(
 }
 
 fn read_parse_output(operation: ParseOperation, output: &Path) -> Result<ParseOutput, String> {
-    if matches!(operation, ParseOperation::PreviewWordPages { .. }) {
+    if matches!(
+        operation,
+        ParseOperation::PreviewWordPages { .. } | ParseOperation::PreviewPptxSlides { .. }
+    ) {
         let batch = read_paged_batch(&operation, output)?;
         return Ok(ParseOutput {
             data: batch.first.png,

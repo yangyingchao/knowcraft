@@ -4,7 +4,7 @@
 use std::{fs, os::fd::RawFd, path::Path};
 
 use super::{
-    appimage, archive_cover, document_media, image_conversion, media, model, pdf,
+    appimage, archive_cover, document_media, image_conversion, media, model, pdf, pptx_slide,
     raster::{render_camera_raw, render_camera_raw_preview, render_raw},
     raw_metadata, render_media, route, run_archive_list, word_page, write_media_metadata,
 };
@@ -138,7 +138,9 @@ fn preview_document(request: &Request<'_>) -> Result<(), String> {
         match DocumentFormat::from_argument(request.value).ok_or("Invalid document format")? {
             DocumentFormat::Docx => crate::services::docx::read_document(request.input)?,
             DocumentFormat::Odt => crate::services::odt::read_document(request.input)?,
-            DocumentFormat::Doc => return Err("Document format preview is unavailable".to_owned()),
+            DocumentFormat::Doc | DocumentFormat::Pptx | DocumentFormat::Ppt => {
+                return Err("Document format preview is unavailable".to_owned());
+            }
         };
     write_bounded_json(request.output, &document, "Document output budget exceeded")
 }
@@ -270,6 +272,8 @@ const RENDERS: &[(&[&str], Render)] = &[
     (&["preview-pdf"], preview_pdf),
     (&["preview-word-page"], preview_word_page),
     (&["preview-word-pages"], preview_word_pages),
+    (&["preview-pptx-slide"], preview_pptx_slide),
+    (&["preview-pptx-pages"], preview_pptx_pages),
     (&["preview-route"], |request| {
         Ok(request
             .report(route::render(request.input, request.value))?
@@ -316,6 +320,24 @@ fn preview_word_page(request: &Request<'_>) -> Result<Rendered, String> {
 
 fn preview_word_pages(request: &Request<'_>) -> Result<Rendered, String> {
     let (batch, metadata) = word_page::preview_pages(request.input, request.value)?;
+    Ok(Rendered {
+        batch,
+        metadata: Some(metadata),
+        ..Rendered::default()
+    })
+}
+
+fn preview_pptx_slide(request: &Request<'_>) -> Result<Rendered, String> {
+    let (png, metadata) = pptx_slide::preview(request.input, request.value)?;
+    Ok(Rendered {
+        png,
+        metadata: Some(metadata),
+        ..Rendered::default()
+    })
+}
+
+fn preview_pptx_pages(request: &Request<'_>) -> Result<Rendered, String> {
+    let (batch, metadata) = pptx_slide::preview_pages(request.input, request.value)?;
     Ok(Rendered {
         batch,
         metadata: Some(metadata),

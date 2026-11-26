@@ -1,0 +1,1 @@
+- [] pptx 预览接入（方案 1）之后，评估把 PDF/Word/PPTX 三后端的 page 层抽成通用 trait，消掉 `viewer/document.rs` 里 `Document` 的多处 match；更 OCP，但要牵动 ADR 0004 的注释写回与 synctex

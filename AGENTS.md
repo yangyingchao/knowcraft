@@ -7,7 +7,8 @@
 - `crates/knowcraft-core/` —— 核心库，无 UI 依赖。store（SQLite WAL）/ index（tantivy）/ extract / workflow（inbox 工作流）/ tags / annotations / capture / ai / watcher。业务逻辑只在此层。
 - `crates/knowcraft/` —— GUI 壳（strata fork），GTK4。入口 `src/main.rs`。i18n 键在 `data/locales/`。
 - `crates/knowcraft-cli/` —— CLI 壳，二进制 `kc`。入口 `src/main.rs`。
-- `crates/vendor/` —— vendored 第三方（pdfcraft 文本提取栈），经 `[patch.crates.io]` 挂进 workspace，勿直接改。
+- `crates/vendor/` —— vendored 第三方（pdfcraft 渲染与文本栈、wordcraft、deckcraft），以路径依赖消费；
+  pdfcraft 的 hayro/lopdf/vello 分支另经 `[patch.crates.io]` 挂进 workspace，勿直接改。
 
 ## 架构约定
 
